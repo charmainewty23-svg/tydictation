@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LearniTY - Vocabulary Cat Pet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-cream: #fff9f2;
+            --warm-orange: #ff922b;
+            --soft-pink: #ffdeeb;
+            --deep-pink: #ff87b2;
+            --sky-blue: #74c0fc;
+            --dark-orange: #e67700;
+            --ragdoll-white: #ffffff;
+            --ragdoll-point: #6b5a51;
+            --ragdoll-eye: #4dabf7;
+        }
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: var(--bg-cream);
+            background-image: radial-gradient(var(--warm-orange) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-attachment: fixed;
+            color: #444;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow-x: hidden;
+            font-size: 18px;
+        }
+
+        .brand-header {
+            padding: 1rem;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .cat-card {
+            background: white;
+            border: 4px solid var(--soft-pink);
+            border-radius: 2.5rem;
+            position: relative;
+            box-shadow: 0 10px 0 var(--soft-pink);
+            transition: transform 0.2s;
+        }
+
+        .btn-paw {
+            background: var(--warm-orange);
+            color: white;
+            border-radius: 1.5rem;
+            padding: 1.25rem 2.5rem;
+            font-weight: 700;
+            font-size: 1.2rem;
+            box-shadow: 0 6px 0 var(--dark-orange);
+            transition: all 0.1s;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-paw:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--dark-orange);
+        }
+
+        .speech-bubble {
+            background: white;
+            border: 3px solid var(--warm-orange);
+            border-radius: 2.5rem;
+            padding: 1.5rem 2rem;
+            position: relative;
+            filter: drop-shadow(0 4px 0 rgba(255, 146, 43, 0.1));
+            min-width: 250px;
+            font-size: 1.1rem;
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 12px 12px 0 12px;
+            border-style: solid;
+            border-color: var(--warm-orange) transparent transparent transparent;
+        }
+
+        .floating-kitty {
+            animation: kitty-float 4s ease-in-out infinite;
+        }
+
+        @keyframes kitty-float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(-1deg); }
+        }
+
+        .hub-card {
+            background: white;
+            border: 4px solid var(--soft-pink);
+            border-radius: 2.5rem;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .hub-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 0 var(--soft-pink);
+        }
+
+        .category-box {
+            background: white;
+            border: 3px solid var(--soft-pink);
+            border-radius: 1.5rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: 1 / 1;
+            padding: 1rem;
+        }
+
+        .category-box:hover {
+            transform: scale(1.05);
+            border-color: var(--warm-orange);
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--warm-orange);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        #app {
+            width: 100% !important;
+            max-width: 1000px;
+            margin: 0 auto;
+            height: 100%;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .grammar-card {
+            background: white;
+            border: 3px solid #dee2e6;
+            border-radius: 2rem;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .grammar-tag {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            border-radius: 1.25rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .word-list-item {
+            background: white;
+            border-bottom: 2px border-dashed #eee;
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Quiz Specific Styles */
+        .quiz-input {
+            border: 3px solid #eee;
+            border-radius: 1rem;
+            padding: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .quiz-input:focus {
+            border-color: var(--warm-orange);
+        }
+        .hint-text {
+            letter-spacing: 0.2em;
+            font-family: monospace;
+            color: var(--warm-orange);
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="h-full">
+
+    <div id="app" class="w-full mx-auto">
+        <div class="brand-header cursor-pointer mb-6 flex flex-row items-center justify-between" onclick="changeView('hub-view')">
+            <div>
+                <h1 class="text-4xl font-bold text-orange-500 flex items-center gap-2">🐾 LearniTY</h1>
+                <p class="text-[12px] text-orange-300 font-bold tracking-[0.25em] uppercase">The Vocab Pet</p>
+            </div>
+            <div id="auth-area" class="flex items-center gap-3" onclick="event.stopPropagation()">
+                <button id="auth-btn" onclick="signInWithGoogle()" class="px-4 py-2 bg-orange-100 text-orange-600 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">Login</button>
+                <span id="auth-nickname" class="text-sm font-bold text-orange-600 hidden"></span>
+            </div>
+        </div>
+
+        <header class="flex flex-col items-center mb-8 flex-shrink-0">
+            <div class="max-w-md w-full flex flex-col items-center">
+                <div class="speech-bubble text-center font-bold text-orange-600 mb-8" id="mascot-text">
+                    Hello! I'm your Ragdoll tutor. Ready to learn today?
+                </div>
+                
+                <div class="floating-kitty">
+                    <svg width="180" height="180" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M140 160 Q190 160 190 120 Q190 90 165 90" fill="none" stroke="#f8f9fa" stroke-width="22" stroke-linecap="round"/>
+                        <path d="M160 100 Q180 100 180 120" fill="none" stroke="#6b5a51" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+                        <path d="M50 160 Q100 175 150 160" fill="none" stroke="white" stroke-width="30" stroke-linecap="round"/>
+                        <path d="M50 55 L35 10 L85 45 Z" fill="#6b5a51"/> 
+                        <path d="M150 55 L165 10 L115 45 Z" fill="#6b5a51"/> 
+                        <path d="M55 52 L45 25 L75 45 Z" fill="#fca5a5" opacity="0.4"/>
+                        <path d="M145 52 L155 25 L125 45 Z" fill="#fca5a5" opacity="0.4"/>
+                        <path d="M45 100 Q45 40 100 40 Q155 40 155 100 Q155 155 100 155 Q45 155 45 100" fill="white"/>
+                        <path d="M70 45 Q100 70 130 45 L155 100 Q155 130 100 145 Q45 130 45 100 Z" fill="#6b5a51" opacity="0.15"/>
+                        <path d="M75 50 Q100 100 125 50 L140 100 Q140 130 100 130 Q60 130 60 100 Z" fill="#6b5a51"/>
+                        <circle cx="75" cy="95" r="9" fill="white"/>
+                        <circle cx="75" cy="95" r="6" fill="#4dabf7"/>
+                        <circle cx="75" cy="95" r="3" fill="#1864ab"/>
+                        <circle cx="73" cy="93" r="1.5" fill="white"/>
+                        <circle cx="125" cy="95" r="9" fill="white"/>
+                        <circle cx="125" cy="95" r="6" fill="#4dabf7"/>
+                        <circle cx="125" cy="95" r="3" fill="#1864ab"/>
+                        <circle cx="123" cy="93" r="1.5" fill="white"/>
+                        <path d="M96 110 L104 110 L100 116 Z" fill="#ffc9c9"/>
+                        <path d="M92 122 Q100 128 108 122" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M55 115 L20 110" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
+                        <path d="M55 122 L20 125" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
+                        <path d="M145 115 L180 110" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
+                        <path d="M145 122 L180 125" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
+                        <path d="M70 145 Q100 160 130 145" fill="none" stroke="white" stroke-width="8" stroke-linecap="round"/>
+                    </svg>
+                </div>
+            </div>
+        </header>
+
+        <main id="main-container" class="w-full flex-grow">
+            <!-- Hub View -->
+            <div id="hub-view" class="view grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+                <div class="hub-card" onclick="changeView('grammar-view')">
+                    <div class="text-8xl mb-2">📜</div>
+                    <h2 class="text-3xl font-bold text-green-600">Grammar Quest</h2>
+                    <p class="text-gray-500 text-lg">Master sentence structures and rules!</p>
+                    <button class="btn-paw bg-green-400 shadow-[0_6px_0_#2b8a3e] w-full mt-4">Start Quest</button>
+                </div>
+
+                <div class="hub-card" onclick="changeView('home-view')">
+                    <div class="text-8xl mb-2">✍️</div>
+                    <h2 class="text-3xl font-bold text-orange-600">Dictation Master</h2>
+                    <p class="text-gray-500 text-lg">Challenge your spelling and listening skills.</p>
+                    <button class="btn-paw w-full mt-4">Open Dictation</button>
+                </div>
+
+                <div class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                    <div class="text-4xl">📋</div>
+                    <h2 class="text-xl font-bold text-gray-600">My Records</h2>
+                </div>
+            </div>
+
+            <!-- Grammar Views -->
+            <div id="grammar-view" class="view hidden w-full">
+                <button onclick="changeView('hub-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="category-box shadow-sm border-green-200" onclick="changeView('sentence-structures-view')">
+                        <div class="text-5xl mb-4">📖</div>
+                        <div class="font-bold text-center leading-tight">Sentence Structures</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-revision-view')">
+                        <div class="text-5xl mb-4">🔄</div>
+                        <div class="font-bold text-center leading-tight">Revision (Tenses)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sentence-structures-view" class="view hidden w-full">
+                <button onclick="changeView('grammar-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Grammar
+                </button>
+                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Sentence Structures</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('conditionals')">
+                        <div class="text-5xl mb-4">⚖️</div>
+                        <div class="font-bold text-center leading-tight">Conditionals</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('participle_clauses')">
+                        <div class="text-5xl mb-4">🔗</div>
+                        <div class="font-bold text-center leading-tight">Participle Clauses</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('not_only_but_also')">
+                        <div class="text-5xl mb-4">➕</div>
+                        <div class="font-bold text-center leading-tight">Not only... but also</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('inversion')">
+                        <div class="text-5xl mb-4">🔄</div>
+                        <div class="font-bold text-center leading-tight">Inversion</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('be_it_they')">
+                        <div class="text-5xl mb-4">🤔</div>
+                        <div class="font-bold text-center leading-tight">Be it / they</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('with_noun_phrase')">
+                        <div class="text-5xl mb-4">🧺</div>
+                        <div class="font-bold text-center leading-tight">With + N/Gerund</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="grammar-detail-view" class="view hidden w-full">
+                <button id="detail-back-btn" onclick="changeView('sentence-structures-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back
+                </button>
+                <div id="grammar-detail-content" class="cat-card p-8 md:p-12"></div>
+            </div>
+
+            <div id="grammar-revision-view" class="view hidden w-full">
+                <button onclick="changeView('grammar-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Grammar
+                </button>
+                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Tense Revision</h2>
+                <div id="tense-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6"></div>
+            </div>
+
+            <!-- Dictation Master Views -->
+            <div id="home-view" class="view hidden w-full">
+                <button onclick="changeView('hub-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div id="categories-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                    <div class="col-span-full flex flex-col items-center py-20">
+                        <div class="loader mb-4"></div>
+                        <p class="text-orange-400 font-bold text-xl">Connecting to library...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sub-category-view" class="view hidden w-full">
+                <button onclick="changeView('home-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Topics
+                </button>
+                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-8 px-2 capitalize">Topic Name</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
+                        <div class="text-5xl mb-4">🎧</div>
+                        <div class="font-bold text-center leading-tight">Listening</div>
+                    </div>
+                    <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('recitation')">
+                        <div class="text-5xl mb-4">🗣️</div>
+                        <div class="font-bold text-center leading-tight">Recitation</div>
+                    </div>
+                    <div class="category-box shadow-sm border-orange-100" onclick="openActivity('revision')">
+                        <div class="text-5xl mb-4">📚</div>
+                        <div class="font-bold text-center leading-tight">Revision!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz View (Used for Listening and Recitation) -->
+            <div id="quiz-view" class="view hidden w-full">
+                <button onclick="changeView('sub-category-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Activities
+                </button>
+                <div class="cat-card p-8 md:p-12 text-center">
+                    <div class="flex justify-between items-center mb-10">
+                        <div class="text-left">
+                            <h2 id="quiz-title-display" class="text-2xl font-bold text-orange-600">Challenge</h2>
+                            <p id="quiz-progress" class="text-gray-400 font-bold uppercase tracking-wider">Word 1 of 15</p>
+                        </div>
+                        <div id="quiz-score" class="bg-orange-50 text-orange-600 px-6 py-2 rounded-full font-bold text-xl border-2 border-orange-100">
+                            Score: 0
+                        </div>
+                    </div>
+
+                    <div class="py-12 flex flex-col items-center gap-8">
+                        <!-- Listening Mode Specific: Speaker Button -->
+                        <div id="listening-mode-elements" class="hidden">
+                            <button onclick="speakCurrentWord()" class="w-32 h-32 rounded-full bg-orange-100 text-orange-500 hover:bg-orange-200 flex items-center justify-center text-5xl transition-all hover:scale-105 active:scale-95 shadow-lg">
+                                🔊
+                            </button>
+                        </div>
+
+                        <!-- Recitation Mode Specific: Giant Chinese Text -->
+                        <div id="recitation-mode-elements" class="hidden">
+                             <div class="text-6xl font-bold text-gray-800 bg-orange-50 p-10 rounded-3xl border-4 border-dashed border-orange-200 mb-4" id="giant-chinese-prompt"></div>
+                        </div>
+                        
+                        <div class="w-full max-w-md">
+                            <p id="word-translation-hint" class="text-2xl text-gray-400 mb-4 font-medium italic"></p>
+                            <input type="text" id="quiz-answer-input" class="quiz-input" placeholder="Type answer here..." autocomplete="off">
+                            <div id="hint-display" class="hint-text mt-4 text-2xl h-8"></div>
+                        </div>
+
+                        <div class="flex gap-4 w-full max-w-md">
+                            <button onclick="provideHint()" class="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">
+                                💡 Get Hint
+                            </button>
+                            <button onclick="checkAnswer()" class="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-bold shadow-lg shadow-orange-200 hover:bg-orange-600 transition-colors">
+                                Check Next →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="word-list-view" class="view hidden w-full">
+                <button onclick="changeView('sub-category-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Activities
+                </button>
+                <div id="word-list-container" class="cat-card p-8 min-h-[500px]"></div>
+            </div>
+
+            <div id="my-records-view" class="view hidden w-full">
+                <button onclick="changeView('hub-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div class="cat-card p-8">
+                    <h2 class="text-3xl font-bold text-orange-600 mb-6">📋 My Records</h2>
+                    <div id="cloud-records-container">
+                        <div class="col-span-full flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-orange-400 font-bold">Loading records...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const SPREADSHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
+        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations"];
+        const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
+
+        // Supabase init
+        const sb = window.supabase.createClient(
+            "https://mggnwzirjmibreimrwiq.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZ253emlyam1pYnJlaW1yd2lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0NTg5MDUsImV4cCI6MjEwNTAzNDkwNX0.sxCPETSvMivX0L5ILBlIH07kJ6Ebz0OloHTSgD9I8l4"
+        );
+
+        let currentUser = null;
+
+        function signInWithGoogle() {
+            sb.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: window.location.origin,
+                    queryParams: { hd: "lstyoungkhl.edu.hk" }
+                }
+            });
+        }
+
+        async function signOut() {
+            await sb.auth.signOut();
+            currentUser = null;
+            updateAuthUI();
+            updateMascot("已登出。下次見！");
+        }
+
+        function updateAuthUI() {
+            const btn = document.getElementById('auth-btn');
+            const nickname = document.getElementById('auth-nickname');
+            if (currentUser) {
+                const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
+                btn.innerText = 'Logout';
+                btn.onclick = signOut;
+                nickname.innerText = name;
+                nickname.classList.remove('hidden');
+            } else {
+                btn.innerText = 'Login';
+                btn.onclick = signInWithGoogle;
+                nickname.classList.add('hidden');
+            }
+        }
+
+        sb.auth.onAuthStateChange(async (_event, session) => {
+            const email = session?.user?.email ?? "";
+            if (session && !email.endsWith(SCHOOL_DOMAIN)) {
+                await sb.auth.signOut();
+                updateMascot("請用學校帳戶登入 (" + SCHOOL_DOMAIN + ")");
+                currentUser = null;
+            } else {
+                currentUser = session?.user ?? null;
+            }
+            updateAuthUI();
+        });
+        
+        // Grammar data
+        const tenseData = {
+            "simple present": { emoji: "📅", usage: "Habits, general truths, and fixed schedules.", structure: { positive: { rule: "S + V(s/es)", example: "I eat an apple. / She eats bread." }, negative: { rule: "S + do/does not + V (base)", example: "I do not eat junk food." }, question: { rule: "Do/Does + S + V (base)?", example: "Do you eat fruit?" }, passive: { rule: "S + am/is/are + V3", example: "The apple is eaten by me." } } },
+            "simple past": { emoji: "📜", usage: "Actions completed at a specific time in the past.", structure: { positive: { rule: "S + V (past)", example: "They visited Paris last year." }, negative: { rule: "S + did not + V (base)", example: "They did not visit London." }, question: { rule: "Did + S + V (base)?", example: "Did they visit the museum?" }, passive: { rule: "S + was/were + V3", example: "Paris was visited by them." } } },
+            "simple future": { emoji: "🚀", usage: "Future actions, promises, or predictions.", structure: { positive: { rule: "S + will + V (base)", example: "We will travel to Japan." }, negative: { rule: "S + will not + V (base)", example: "We will not travel by bus." }, question: { rule: "Will + S + V (base)?", example: "Will we see the stars?" }, passive: { rule: "S + will be + V3", example: "Japan will be visited by us." } } },
+            "present continuous": { emoji: "🏃", usage: "Actions happening exactly now.", structure: { positive: { rule: "S + am/is/are + Ving", example: "I am writing a letter." }, negative: { rule: "S + am/is/are + not + Ving", example: "I am not watching TV." }, question: { rule: "Am/Is/Are + S + Ving?", example: "Are you writing a book?" }, passive: { rule: "S + am/is/are + being + V3", example: "A letter is being written." } } },
+            "past continuous": { emoji: "🕰️", usage: "Action in progress at a specific point in the past.", structure: { positive: { rule: "S + was/were + Ving", example: "He was studying when you called." }, negative: { rule: "S + was/were + not + Ving", example: "He was not playing games." }, question: { rule: "Was/Were + S + Ving?", example: "Was he studying?" }, passive: { rule: "S + was/were + being + V3", example: "The test was being studied for." } } },
+            "future continuous": { emoji: "🔮", usage: "Actions that will be in progress in the future.", structure: { positive: { rule: "S + will be + Ving", example: "Tomorrow at 5, I will be flying." }, negative: { rule: "S + will not be + Ving", example: "I will not be sleeping." }, question: { rule: "Will + S + be + Ving?", example: "Will you be flying?" }, passive: { rule: "Rarely used", example: "N/A" } } },
+            "present perfect tense": { emoji: "✅", usage: "Past actions with current relevance or continuing state.", structure: { positive: { rule: "S + have/has + V3", example: "I have seen that movie." }, negative: { rule: "S + have/has + not + V3", example: "I have not seen it yet." }, question: { rule: "Have/Has + S + V3?", example: "Have you seen it?" }, passive: { rule: "S + have/has + been + V3", example: "That movie has been seen." } } },
+            "past perfect": { emoji: "🏰", usage: "Action completed before another past action.", structure: { positive: { rule: "S + had + V3", example: "She had left before I arrived." }, negative: { rule: "S + had + not + V3", example: "She had not finished yet." }, question: { rule: "Had + S + V3?", example: "Had she left her keys?" }, passive: { rule: "S + had + been + V3", example: "The keys had been left." } } }
+        };
+
+        const structureData = {
+            "conditionals": { title: "Conditionals (Type 0 - 3)", emoji: "⚖️", intro: "Conditional sentences describe the result of a certain condition.", sections: [{ tag: "Zero Conditional", rule: "If + Simple Present, ... Simple Present", example: "If you heat ice, it melts." }, { tag: "First Conditional", rule: "If + Simple Present, ... will + Verb", example: "If it rains, I will stay home." }, { tag: "Second Conditional", rule: "If + Simple Past, ... would + Verb", example: "If I won the lottery, I would travel." }, { tag: "Third Conditional", rule: "If + Past Perfect, ... would have + V3", example: "If I had studied, I would have passed." }] },
+            "participle_clauses": { title: "Participle Clauses", emoji: "🔗", intro: "Participle clauses provide extra info when the subject is shared.", sections: [{ tag: "Present Participle (Active)", rule: "V-ing ..., (Main Clause)", example: "Walking down the street, I saw a friend." }, { tag: "Past Participle (Passive)", rule: "V3 ..., (Main Clause)", example: "Shocked by the news, she couldn't speak." }] },
+            "not_only_but_also": { title: "Not only... but also", emoji: "➕", intro: "Used for emphasis with parallel structure.", sections: [{ tag: "Adjectives", rule: "not only [Adj] but also [Adj]", example: "He is not only smart but also kind." }, { tag: "Inverted", rule: "Not only did they lose...", example: "Not only did they lose the game, but also their pride." }] },
+            "inversion": { title: "Inversion", emoji: "🔄", intro: "Reversing normal order for emphasis.", sections: [{ tag: "Only when...", rule: "Only when + [Clause], + [Inverted Clause]", example: "Only when the rain stopped did we go out." }] },
+            "be_it_they": { title: "Be it / Be they", emoji: "🤔", intro: "Formal 'whether it is/they are'.", sections: [{ tag: "Singular", rule: "Be it A or B...", example: "Be it rain or shine, we will play." }, { tag: "Plural", rule: "Be they young or old...", example: "Everyone loves music, be they young or old." }] },
+            "with_noun_phrase": { title: "With + N/Gerund", emoji: "🧺", intro: "Describes accompanying circumstances or reasons.", sections: [{ tag: "Noun Phrase", rule: "With + Noun Phrase, ...", example: "With a heavy heart, she left." }, { tag: "Object + Ving", rule: "With + Obj + Ving, ...", example: "With the exams approaching, I'm busy." }] }
+        };
+
+        let categories = {};
+        let currentTopic = '';
+        
+        // Quiz State
+        let quizMode = 'listening'; // 'listening' or 'recitation'
+        let quizWords = [];
+        let quizIdx = 0;
+        let quizScore = 0;
+        let hintCount = 0;
+        let quizResults = [];
+
+        async function loadAllCategoriesFromSheet() {
+            try {
+                const promises = SHEET_NAMES.map(async (name) => {
+                    const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+                    const response = await fetch(url);
+                    if (!response.ok) return { name, words: [] };
+                    const csvText = await response.text();
+                    const words = parseCSV(csvText);
+                    return { name, words };
+                });
+                const results = await Promise.all(promises);
+                results.forEach(res => { if (res.words.length > 0) categories[res.name] = res.words; });
+                renderCategories();
+                renderTenseGrid();
+            } catch (e) { updateMascot("Oh no, connection lost!"); }
+        }
+
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/);
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
+                if (parts.length >= 3) data.push({ en: parts[1], zh: parts[2] });
+                else if (parts.length === 2) data.push({ en: parts[0], zh: parts[1] });
+            }
+            return data;
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categories-grid');
+            if (!container) return;
+            container.innerHTML = "";
+            SHEET_NAMES.forEach(cat => {
+                if (!categories[cat]) return;
+                const div = document.createElement('div');
+                div.className = "category-box shadow-sm";
+                div.onclick = () => selectTopic(cat);
+                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇" };
+                div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${cat}</div>`;
+                container.appendChild(div);
+            });
+        }
+
+        function selectTopic(topic) {
+            currentTopic = topic;
+            document.getElementById('current-topic-title').innerText = topic;
+            changeView('sub-category-view');
+        }
+
+        function openActivity(type) {
+            if (type === 'revision') {
+                showWordList(currentTopic);
+            }
+        }
+
+        // Shared Quiz Logic
+        function startQuiz(mode) {
+            const allWords = categories[currentTopic];
+            if (!allWords || allWords.length === 0) {
+                updateMascot("This topic is currently empty!");
+                return;
+            }
+            
+            quizMode = mode;
+            quizWords = [...allWords].sort(() => 0.5 - Math.random()).slice(0, 15);
+            quizIdx = 0;
+            quizScore = 0;
+            quizResults = [];
+            
+            // UI Setup for Mode
+            document.getElementById('quiz-title-display').innerText = mode === 'listening' ? 'Listening Challenge' : 'Recitation Master';
+            
+            if (mode === 'listening') {
+                document.getElementById('listening-mode-elements').classList.remove('hidden');
+                document.getElementById('recitation-mode-elements').classList.add('hidden');
+                document.getElementById('word-translation-hint').classList.remove('hidden');
+            } else {
+                document.getElementById('listening-mode-elements').classList.add('hidden');
+                document.getElementById('recitation-mode-elements').classList.remove('hidden');
+                document.getElementById('word-translation-hint').classList.add('hidden'); // We use giant text instead
+            }
+            
+            updateQuizUI();
+            changeView('quiz-view');
+            
+            if (mode === 'listening') {
+                setTimeout(speakCurrentWord, 500);
+            }
+        }
+
+        function updateQuizUI() {
+            const word = quizWords[quizIdx];
+            document.getElementById('quiz-progress').innerText = `Word ${quizIdx + 1} of ${quizWords.length}`;
+            document.getElementById('quiz-score').innerText = `Score: ${quizScore}`;
+            
+            if (quizMode === 'listening') {
+                document.getElementById('word-translation-hint').innerText = word.zh;
+            } else {
+                document.getElementById('giant-chinese-prompt').innerText = word.zh;
+            }
+            
+            document.getElementById('quiz-answer-input').value = "";
+            document.getElementById('quiz-answer-input').focus();
+            hintCount = 0;
+            updateHintDisplay();
+        }
+
+        function speakCurrentWord() {
+            if (quizIdx >= quizWords.length) return;
+            const word = quizWords[quizIdx].en;
+            const utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            speechSynthesis.speak(utterance);
+        }
+
+        function provideHint() {
+            const word = quizWords[quizIdx].en;
+            if (hintCount < word.length) {
+                hintCount++;
+                updateHintDisplay();
+            }
+        }
+
+        function updateHintDisplay() {
+            const word = quizWords[quizIdx].en;
+            let display = "";
+            for (let i = 0; i < word.length; i++) {
+                if (i < hintCount) display += word[i];
+                else if (word[i] === " ") display += "  ";
+                else display += "_";
+            }
+            document.getElementById('hint-display').innerText = display;
+        }
+
+        function checkAnswer() {
+            const userVal = document.getElementById('quiz-answer-input').value.trim().toLowerCase();
+            const correctVal = quizWords[quizIdx].en.toLowerCase();
+            
+            const isCorrect = userVal === correctVal;
+            quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: isCorrect });
+
+            if (isCorrect) {
+                quizScore += Math.max(1, 10 - hintCount);
+                updateMascot("Correct! Great job!");
+            } else {
+                updateMascot(`Not quite! It was "${quizWords[quizIdx].en}".`);
+            }
+            
+            quizIdx++;
+            if (quizIdx < quizWords.length) {
+                updateQuizUI();
+                if (quizMode === 'listening') {
+                    setTimeout(speakCurrentWord, 300);
+                }
+            } else {
+                finishQuiz();
+            }
+        }
+
+        function finishQuiz() {
+            const total = quizWords.length;
+            const correctCount = quizResults.filter(r => r.correct).length;
+            const accuracy = Math.round((correctCount / total) * 100);
+
+            // Save to localStorage
+            const history = JSON.parse(localStorage.getItem('dict_history') || '[]');
+            const record = { t: Date.now(), topic: currentTopic, mode: quizMode, score: quizScore, total: total, correct: correctCount, accuracy: accuracy };
+            history.push(record);
+            localStorage.setItem('dict_history', JSON.stringify(history));
+
+            // Sync to Supabase if logged in
+            let cloudSynced = false;
+            if (currentUser) {
+                sb.from("dictation_results").insert({
+                    user_id: currentUser.id,
+                    email: currentUser.email,
+                    nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                    topic: currentTopic,
+                    mode: quizMode,
+                    score: quizScore,
+                    total: total
+                }).then(({ error }) => {
+                    if (!error) cloudSynced = true;
+                });
+            }
+
+            // Best score for this topic+mode
+            const topicHistory = history.filter(h => h.topic === currentTopic && h.mode === quizMode);
+            const best = topicHistory.reduce((a, b) => a.score > b.score ? a : b);
+
+            // Recent 5 records
+            const recent = history.slice(-5).reverse();
+
+            const content = document.getElementById('main-container');
+            const finalView = document.createElement('div');
+            finalView.className = "cat-card p-12 text-center w-full";
+            finalView.innerHTML = `
+                <div class="text-9xl mb-6">🏆</div>
+                <h2 class="text-4xl font-bold text-orange-600 mb-2">Quiz Finished!</h2>
+                <p class="text-2xl text-gray-500 mb-4">You earned ${quizScore} points in ${currentTopic}.</p>
+                <p class="text-xl text-gray-400 mb-8">Accuracy: ${correctCount}/${total} (${accuracy}%)</p>
+                ${currentUser ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>'}
+
+                <div class="bg-orange-50 rounded-2xl p-6 mb-8 border-2 border-orange-100">
+                    <h3 class="text-lg font-bold text-orange-600 mb-2">🏅 Best Score (${quizMode})</h3>
+                    <p class="text-3xl font-bold text-orange-700">${best.score} pts · ${best.accuracy}%</p>
+                </div>
+
+                <div class="text-left mb-8">
+                    <h3 class="text-lg font-bold text-gray-600 mb-4">📋 Recent Records</h3>
+                    <div class="space-y-2">
+                        ${recent.map(r => `
+                            <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3 text-sm">
+                                <span class="font-bold text-gray-700">${r.topic}</span>
+                                <span class="text-gray-400 capitalize">${r.mode}</span>
+                                <span class="font-bold text-orange-600">${r.score} pts</span>
+                                <span class="text-gray-400">${r.accuracy}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <button onclick="changeView('sub-category-view')" class="btn-paw">Return to Topic</button>
+            `;
+            
+            document.getElementById('quiz-view').classList.add('hidden');
+            document.getElementById('main-container').appendChild(finalView);
+            window.lastFinalView = finalView;
+        }
+
+        function showWordList(catName) {
+            const words = categories[catName];
+            const container = document.getElementById('word-list-container');
+            container.innerHTML = `
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold text-orange-600 capitalize">Revision: ${catName}</h2>
+                        <p class="text-gray-400 mt-1">Study the terms before your dictation.</p>
+                    </div>
+                    <span class="bg-orange-100 text-orange-600 px-4 py-1.5 rounded-full text-lg font-bold">${words.length} Words</span>
+                </div>
+                <div class="space-y-3">
+                    ${words.map(w => `
+                        <div class="word-list-item">
+                            <span class="font-bold text-2xl text-gray-800">${w.en}</span>
+                            <span class="text-gray-400 font-medium text-xl">${w.zh}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            changeView('word-list-view');
+        }
+
+        // Grammar rendering
+        function renderTenseGrid() {
+            const grid = document.getElementById('tense-grid');
+            if(!grid) return;
+            grid.innerHTML = "";
+            Object.keys(tenseData).forEach(key => {
+                const data = tenseData[key];
+                const div = document.createElement('div');
+                div.className = "category-box border-green-100 hover:border-green-400";
+                div.onclick = () => showTenseDetail(key);
+                div.innerHTML = `<div class="text-5xl mb-3">${data.emoji}</div><div class="font-bold text-center uppercase text-sm">${key}</div>`;
+                grid.appendChild(div);
+            });
+        }
+
+        function showTenseDetail(key) {
+            const data = tenseData[key];
+            const content = document.getElementById('grammar-detail-content');
+            document.getElementById('detail-back-btn').onclick = () => changeView('grammar-revision-view');
+            content.innerHTML = `
+                <div class="text-center mb-10"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600 capitalize">${key}</h2></div>
+                <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Usage</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.usage}</p></div>
+                <div class="space-y-6">
+                    <h3 class="text-2xl font-bold text-green-700">🏗️ Structure</h3>
+                    ${['positive', 'negative', 'question', 'passive'].map(type => `
+                        <div class="grammar-card" style="border-color: ${type === 'positive' ? '#b2f2bb' : type === 'negative' ? '#ffc9c9' : type === 'question' ? '#d0ebff' : '#e5dbff'}">
+                            <span class="grammar-tag" style="background: ${type === 'positive' ? '#e6fffa' : type === 'negative' ? '#fff5f5' : type === 'question' ? '#e7f5ff' : '#f3f0ff'}">${type.toUpperCase()}</span>
+                            <p class="font-bold text-2xl text-gray-800">${data.structure[type].rule}</p>
+                            <p class="mt-3 italic text-gray-500 text-lg">Example: ${data.structure[type].example}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            changeView('grammar-detail-view');
+        }
+
+        function showStructureDetail(key) {
+            const data = structureData[key];
+            const content = document.getElementById('grammar-detail-content');
+            document.getElementById('detail-back-btn').onclick = () => changeView('sentence-structures-view');
+            content.innerHTML = `
+                <div class="text-center mb-10"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600">${data.title}</h2></div>
+                <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Explanation</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.intro}</p></div>
+                <div class="space-y-6">
+                    <h3 class="text-2xl font-bold text-green-700">✍️ Examples</h3>
+                    ${data.sections.map(sec => `
+                        <div class="grammar-card">
+                            <span class="grammar-tag bg-green-100 text-green-600">${sec.tag}</span>
+                            <p class="font-bold text-2xl text-gray-800 mb-2">${sec.rule}</p>
+                            <p class="text-gray-600 text-lg italic bg-gray-50 p-4 rounded-xl border-dashed border-2 border-gray-200">${sec.example}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            changeView('grammar-detail-view');
+        }
+
+        function updateMascot(text) { 
+            const el = document.getElementById('mascot-text');
+            if(el) el.innerText = text; 
+        }
+
+        async function loadCloudRecords() {
+            const container = document.getElementById('cloud-records-container');
+            if (!currentUser) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Please login to view cloud records.</p>';
+                return;
+            }
+            const { data, error } = await sb.from("dictation_results")
+                .select("*")
+                .eq("user_id", currentUser.id)
+                .order("created_at", { ascending: false })
+                .limit(50);
+            if (error || !data || data.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">No records found.</p>';
+                return;
+            }
+            container.innerHTML = `
+                <div class="space-y-3">
+                    ${data.map(r => `
+                        <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3">
+                            <span class="font-bold text-gray-700">${r.topic}</span>
+                            <span class="text-gray-400 capitalize">${r.mode}</span>
+                            <span class="font-bold text-orange-600">${r.score} pts</span>
+                            <span class="text-gray-400">${Math.round((r.score / (r.total * 10)) * 100)}%</span>
+                            <span class="text-gray-400 text-sm">${new Date(r.created_at).toLocaleDateString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function changeView(viewId) {
+            if (window.lastFinalView) {
+                window.lastFinalView.remove();
+                window.lastFinalView = null;
+            }
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            const target = document.getElementById(viewId);
+            if(target) target.classList.remove('hidden');
+            window.scrollTo(0,0);
+            
+            if (viewId === 'hub-view') updateMascot("Awesome! What would you like to learn next?");
+            if (viewId === 'home-view') updateMascot("Choose a topic to begin your dictation journey.");
+            if (viewId === 'sub-category-view') updateMascot(`Ready to practice ${currentTopic}? Pick an activity!`);
+            if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
+            if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
+            if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
+        }
+
+        // Handle Enter key in quiz
+        document.getElementById('quiz-answer-input')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkAnswer();
+        });
+
+        window.onload = loadAllCategoriesFromSheet;
+    </script>
+</body>
+</html>

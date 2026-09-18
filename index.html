@@ -381,9 +381,8 @@
                 <button onclick="changeView('home-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Topics
                 </button>
-                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-4 px-2 capitalize">Topic Name</h2>
-                <div id="exam-focus-filter" class="hidden px-2"></div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
+                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-8 px-2 capitalize">Topic Name</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
                         <div class="text-5xl mb-4">🎧</div>
                         <div class="font-bold text-center leading-tight">Listening</div>
@@ -654,37 +653,7 @@
             currentTopic = topic;
             currentSubCategory = '';
             document.getElementById('current-topic-title').innerText = topic;
-
-            // Show/hide sub-category filter for exam focus
-            const filterBar = document.getElementById('exam-focus-filter');
-            if (topic === 'exam focus' && categories[topic]) {
-                const cats = [...new Set(categories[topic].map(w => w.cat).filter(c => c))].sort();
-                if (cats.length > 0) {
-                    filterBar.innerHTML = `
-                        <div class="flex flex-wrap gap-2 mb-6">
-                            <button onclick="filterExamFocus('')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white filter-btn active">All</button>
-                            ${cats.map(c => `<button onclick="filterExamFocus('${c}')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 filter-btn">${c}</button>`).join('')}
-                        </div>
-                    `;
-                    filterBar.classList.remove('hidden');
-                } else {
-                    filterBar.classList.add('hidden');
-                }
-            } else {
-                filterBar.classList.add('hidden');
-            }
-
             changeView('sub-category-view');
-        }
-
-        function filterExamFocus(cat) {
-            currentSubCategory = cat;
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('bg-orange-500', 'text-white', 'active');
-                btn.classList.add('bg-orange-100', 'text-orange-600');
-            });
-            event.target.classList.remove('bg-orange-100', 'text-orange-600');
-            event.target.classList.add('bg-orange-500', 'text-white', 'active');
         }
 
         function openActivity(type) {
@@ -878,22 +847,41 @@
             window.lastFinalView = finalView;
         }
 
+        const EXAM_FOCUS_CATS = [
+            { key: '1', label: '(1) Youngsters' },
+            { key: '2', label: '(2) Family' },
+            { key: '3', label: '(3) Arts & Cultural Lifestyle' },
+            { key: '4', label: '(4) Customs' },
+            { key: '5', label: '(5) Study Trips' }
+        ];
+
         function showWordList(catName) {
             let words = categories[catName];
-            // Filter by sub-category for exam focus
-            if (catName === 'exam focus' && currentSubCategory) {
+            if (!words || words.length === 0) return;
+
+            const isExamFocus = catName === 'exam focus';
+            if (isExamFocus && currentSubCategory) {
                 words = words.filter(w => w.cat === currentSubCategory);
             }
+
             const container = document.getElementById('word-list-container');
             container.innerHTML = `
-                <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center justify-between mb-6">
                     <div>
                         <h2 class="text-3xl font-bold text-orange-600 capitalize">Revision: ${catName}</h2>
                         <p class="text-gray-400 mt-1">Study the terms before your dictation.</p>
                     </div>
                     <span class="bg-orange-100 text-orange-600 px-4 py-1.5 rounded-full text-lg font-bold">${words.length} Words</span>
                 </div>
-                <div class="space-y-3">
+                ${isExamFocus ? `
+                    <div class="flex flex-wrap gap-2 mb-6">
+                        <button onclick="filterRevision('')" class="px-4 py-2 rounded-full font-bold text-sm ${!currentSubCategory ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600'} filter-rev-btn">All</button>
+                        ${EXAM_FOCUS_CATS.map(c => `
+                            <button onclick="filterRevision('${c.key}')" class="px-4 py-2 rounded-full font-bold text-sm ${currentSubCategory === c.key ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600'} filter-rev-btn">${c.label}</button>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                <div id="word-list-items" class="space-y-3">
                     ${words.map(w => `
                         <div class="word-list-item">
                             <span class="font-bold text-2xl text-gray-800">${w.en}</span>
@@ -903,6 +891,11 @@
                 </div>
             `;
             changeView('word-list-view');
+        }
+
+        function filterRevision(cat) {
+            currentSubCategory = cat;
+            showWordList(currentTopic);
         }
 
         // Grammar rendering

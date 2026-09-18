@@ -510,7 +510,7 @@
 
     <script>
         const SPREADSHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
-        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations"];
+        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports"];
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
         const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
 
@@ -642,7 +642,7 @@
                 const div = document.createElement('div');
                 div.className = "category-box shadow-sm";
                 div.onclick = () => selectTopic(cat);
-                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇" };
+                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽" };
                 div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${cat}</div>`;
                 container.appendChild(div);
             });

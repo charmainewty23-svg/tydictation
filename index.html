@@ -161,8 +161,11 @@
             margin: 0 auto;
             height: 100%;
             padding: 1.5rem;
-            display: flex;
+            display: none;
             flex-direction: column;
+        }
+        #app.logged-in {
+            display: flex;
         }
 
         .grammar-card {
@@ -259,7 +262,7 @@
     </div>
 
     <!-- Main App (hidden until logged in) -->
-    <div id="app" class="w-full mx-auto hidden">
+    <div id="app" class="w-full mx-auto">
         <div class="brand-header cursor-pointer mb-6 flex flex-row items-center justify-between" onclick="changeView('hub-view')">
             <div>
                 <h1 class="text-4xl font-bold text-orange-500 flex items-center gap-2">🐾 LearniTY</h1>
@@ -598,14 +601,14 @@
         }
 
         function showApp() {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('app').classList.remove('hidden');
+            document.getElementById('login-view').style.display = 'none';
+            document.getElementById('app').classList.add('logged-in');
             changeView('hub-view');
         }
 
         function showLogin() {
-            document.getElementById('app').classList.add('hidden');
-            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('app').classList.remove('logged-in');
+            document.getElementById('login-view').style.display = '';
         }
 
         sb.auth.onAuthStateChange(async (_event, session) => {

@@ -287,6 +287,16 @@
                     <div class="text-4xl">📋</div>
                     <h2 class="text-xl font-bold text-gray-600">My Records</h2>
                 </div>
+
+                <div class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                    <div class="text-4xl">🏆</div>
+                    <h2 class="text-xl font-bold text-gray-600">Leaderboard</h2>
+                </div>
+
+                <div id="admin-hub-entry" class="hub-card md:col-span-2 hidden" onclick="changeView('admin-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#f59e0b;">
+                    <div class="text-4xl">📊</div>
+                    <h2 class="text-xl font-bold text-orange-600">Admin Dashboard</h2>
+                </div>
             </div>
 
             <!-- Grammar Views -->
@@ -456,6 +466,45 @@
                     </div>
                 </div>
             </div>
+
+            <div id="leaderboard-view" class="view hidden w-full">
+                <button onclick="changeView('hub-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div class="cat-card p-8">
+                    <h2 class="text-3xl font-bold text-orange-600 mb-2">🏆 Leaderboard</h2>
+                    <p class="text-gray-400 mb-6">Top scores across all students</p>
+                    <div class="flex gap-3 mb-6">
+                        <button onclick="loadLeaderboard('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white">All</button>
+                        <button onclick="loadLeaderboard('listening')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">Listening</button>
+                        <button onclick="loadLeaderboard('recitation')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">Recitation</button>
+                    </div>
+                    <div id="leaderboard-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-orange-400 font-bold">Loading leaderboard...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-view" class="view hidden w-full">
+                <button onclick="changeView('hub-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div class="cat-card p-8">
+                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📊 Admin Dashboard</h2>
+                    <p class="text-gray-400 mb-6">Student usage overview</p>
+                    <div id="admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <h3 class="text-xl font-bold text-gray-600 mb-4">Recent Activity</h3>
+                    <div id="admin-activity-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-orange-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -463,6 +512,7 @@
         const SPREADSHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
         const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations"];
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
+        const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
 
         // Supabase init
         const sb = window.supabase.createClient(
@@ -471,6 +521,7 @@
         );
 
         let currentUser = null;
+        function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
 
         function signInWithGoogle() {
             sb.auth.signInWithOAuth({
@@ -492,16 +543,19 @@
         function updateAuthUI() {
             const btn = document.getElementById('auth-btn');
             const nickname = document.getElementById('auth-nickname');
+            const adminBtn = document.getElementById('admin-hub-entry');
             if (currentUser) {
                 const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
                 btn.innerText = 'Logout';
                 btn.onclick = signOut;
                 nickname.innerText = name;
                 nickname.classList.remove('hidden');
+                if (adminBtn) adminBtn.classList.remove('hidden');
             } else {
                 btn.innerText = 'Login';
                 btn.onclick = signInWithGoogle;
                 nickname.classList.add('hidden');
+                if (adminBtn) adminBtn.classList.add('hidden');
             }
         }
 
@@ -862,6 +916,115 @@
             changeView('grammar-detail-view');
         }
 
+        async function loadLeaderboard(mode) {
+            const container = document.getElementById('leaderboard-container');
+            container.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-orange-400 font-bold">Loading...</p></div>';
+
+            let query = sb.from("dictation_results").select("email, nickname, score, total, topic, mode, created_at");
+            if (mode && mode !== 'all') query = query.eq("mode", mode);
+            const { data, error } = await query.order("score", { ascending: false }).limit(50);
+
+            if (error || !data || data.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No records yet.</p>';
+                return;
+            }
+
+            // Group by user, keep best score per user per topic+mode
+            const bestMap = {};
+            data.forEach(r => {
+                const key = `${r.email}_${r.topic}_${r.mode}`;
+                if (!bestMap[key] || r.score > bestMap[key].score) bestMap[key] = r;
+            });
+
+            // Rank by total best scores
+            const ranked = Object.values(bestMap).sort((a, b) => b.score - a.score).slice(0, 20);
+
+            const medals = ['🥇', '🥈', '🥉'];
+            container.innerHTML = `
+                <div class="space-y-3">
+                    ${ranked.map((r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${r.nickname || r.email.split('@')[0]}</span>
+                            <span class="text-gray-400 text-sm capitalize mx-2">${r.mode}</span>
+                            <span class="text-gray-400 text-sm mx-2">${r.topic}</span>
+                            <span class="font-bold text-orange-600 text-lg">${r.score} pts</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function loadAdminDashboard() {
+            if (!isAdmin()) return;
+
+            const { data, error } = await sb.from("dictation_results")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error || !data || data.length === 0) {
+                document.getElementById('admin-stats').innerHTML = '';
+                document.getElementById('admin-activity-container').innerHTML = '<p class="text-gray-400 text-center py-10">No data.</p>';
+                return;
+            }
+
+            // Stats
+            const uniqueStudents = new Set(data.map(r => r.email)).size;
+            const totalQuizzes = data.length;
+            const avgScore = Math.round(data.reduce((a, r) => a + r.score, 0) / data.length);
+            const topicsUsed = new Set(data.map(r => r.topic)).size;
+
+            document.getElementById('admin-stats').innerHTML = `
+                <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
+                    <div class="text-3xl font-bold text-orange-600">${uniqueStudents}</div>
+                    <div class="text-sm text-gray-500 font-bold">Students</div>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
+                    <div class="text-3xl font-bold text-blue-600">${totalQuizzes}</div>
+                    <div class="text-sm text-gray-500 font-bold">Quizzes Done</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${avgScore}</div>
+                    <div class="text-sm text-gray-500 font-bold">Avg Score</div>
+                </div>
+                <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
+                    <div class="text-3xl font-bold text-purple-600">${topicsUsed}</div>
+                    <div class="text-sm text-gray-500 font-bold">Topics Used</div>
+                </div>
+            `;
+
+            // Per-student summary
+            const studentMap = {};
+            data.forEach(r => {
+                if (!studentMap[r.email]) studentMap[r.email] = { nickname: r.nickname, email: r.email, quizzes: 0, totalScore: 0, topics: new Set(), lastActive: r.created_at };
+                studentMap[r.email].quizzes++;
+                studentMap[r.email].totalScore += r.score;
+                studentMap[r.email].topics.add(r.topic);
+                if (r.created_at > studentMap[r.email].lastActive) studentMap[r.email].lastActive = r.created_at;
+            });
+
+            const students = Object.values(studentMap).sort((a, b) => new Date(b.lastActive) - new Date(a.lastActive));
+
+            document.getElementById('admin-activity-container').innerHTML = `
+                <div class="space-y-3">
+                    ${students.map(s => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                            <div class="flex-1">
+                                <span class="font-bold text-gray-700">${s.nickname || s.email.split('@')[0]}</span>
+                                <span class="text-gray-400 text-sm ml-2">${s.email}</span>
+                            </div>
+                            <div class="flex items-center gap-4 text-sm">
+                                <span class="text-gray-500">${s.quizzes} quizzes</span>
+                                <span class="text-gray-500">${s.topics.size} topics</span>
+                                <span class="font-bold text-orange-600">avg ${Math.round(s.totalScore / s.quizzes)} pts</span>
+                                <span class="text-gray-400 text-xs">${new Date(s.lastActive).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         function updateMascot(text) { 
             const el = document.getElementById('mascot-text');
             if(el) el.innerText = text; 
@@ -913,6 +1076,8 @@
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
+            if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard('all'); }
+            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); }
         }
 
         // Handle Enter key in quiz

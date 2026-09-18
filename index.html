@@ -381,8 +381,9 @@
                 <button onclick="changeView('home-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Topics
                 </button>
-                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-8 px-2 capitalize">Topic Name</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-4 px-2 capitalize">Topic Name</h2>
+                <div id="exam-focus-filter" class="hidden px-2"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
                     <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
                         <div class="text-5xl mb-4">🎧</div>
                         <div class="font-bold text-center leading-tight">Listening</div>
@@ -510,7 +511,7 @@
 
     <script>
         const SPREADSHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
-        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports"];
+        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports", "exam focus"];
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
         const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
 
@@ -521,6 +522,7 @@
         );
 
         let currentUser = null;
+        let currentSubCategory = '';
         function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
 
         function signInWithGoogle() {
@@ -627,8 +629,8 @@
                 const line = lines[i].trim();
                 if (!line) continue;
                 const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
-                if (parts.length >= 3) data.push({ en: parts[1], zh: parts[2] });
-                else if (parts.length === 2) data.push({ en: parts[0], zh: parts[1] });
+                if (parts.length >= 3) data.push({ cat: parts[0], en: parts[1], zh: parts[2] });
+                else if (parts.length === 2) data.push({ cat: '', en: parts[0], zh: parts[1] });
             }
             return data;
         }
@@ -642,7 +644,7 @@
                 const div = document.createElement('div');
                 div.className = "category-box shadow-sm";
                 div.onclick = () => selectTopic(cat);
-                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽" };
+                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝" };
                 div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${cat}</div>`;
                 container.appendChild(div);
             });
@@ -650,8 +652,39 @@
 
         function selectTopic(topic) {
             currentTopic = topic;
+            currentSubCategory = '';
             document.getElementById('current-topic-title').innerText = topic;
+
+            // Show/hide sub-category filter for exam focus
+            const filterBar = document.getElementById('exam-focus-filter');
+            if (topic === 'exam focus' && categories[topic]) {
+                const cats = [...new Set(categories[topic].map(w => w.cat).filter(c => c))].sort();
+                if (cats.length > 0) {
+                    filterBar.innerHTML = `
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <button onclick="filterExamFocus('')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white filter-btn active">All</button>
+                            ${cats.map(c => `<button onclick="filterExamFocus('${c}')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 filter-btn">${c}</button>`).join('')}
+                        </div>
+                    `;
+                    filterBar.classList.remove('hidden');
+                } else {
+                    filterBar.classList.add('hidden');
+                }
+            } else {
+                filterBar.classList.add('hidden');
+            }
+
             changeView('sub-category-view');
+        }
+
+        function filterExamFocus(cat) {
+            currentSubCategory = cat;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-500', 'text-white', 'active');
+                btn.classList.add('bg-orange-100', 'text-orange-600');
+            });
+            event.target.classList.remove('bg-orange-100', 'text-orange-600');
+            event.target.classList.add('bg-orange-500', 'text-white', 'active');
         }
 
         function openActivity(type) {
@@ -662,9 +695,18 @@
 
         // Shared Quiz Logic
         function startQuiz(mode) {
-            const allWords = categories[currentTopic];
+            let allWords = categories[currentTopic];
             if (!allWords || allWords.length === 0) {
                 updateMascot("This topic is currently empty!");
+                return;
+            }
+
+            // Filter by sub-category for exam focus
+            if (currentTopic === 'exam focus' && currentSubCategory) {
+                allWords = allWords.filter(w => w.cat === currentSubCategory);
+            }
+            if (allWords.length === 0) {
+                updateMascot("No words in this category!");
                 return;
             }
             
@@ -837,7 +879,11 @@
         }
 
         function showWordList(catName) {
-            const words = categories[catName];
+            let words = categories[catName];
+            // Filter by sub-category for exam focus
+            if (catName === 'exam focus' && currentSubCategory) {
+                words = words.filter(w => w.cat === currentSubCategory);
+            }
             const container = document.getElementById('word-list-container');
             container.innerHTML = `
                 <div class="flex items-center justify-between mb-8">

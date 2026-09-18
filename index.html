@@ -672,7 +672,7 @@
 
             // Filter by sub-category for exam focus
             if (currentTopic === 'exam focus' && currentSubCategory) {
-                allWords = allWords.filter(w => w.cat === currentSubCategory);
+                allWords = allWords.filter(w => matchExamFocusCat(w, currentSubCategory));
             }
             if (allWords.length === 0) {
                 updateMascot("No words in this category!");
@@ -848,12 +848,19 @@
         }
 
         const EXAM_FOCUS_CATS = [
-            { key: '1', label: '(1) Youngsters' },
-            { key: '2', label: '(2) Family' },
-            { key: '3', label: '(3) Arts & Cultural Lifestyle' },
-            { key: '4', label: '(4) Customs' },
-            { key: '5', label: '(5) Study Trips' }
+            { key: '1', label: '(1) Youngsters', min: 1, max: 17 },
+            { key: '2', label: '(2) Family', min: 18, max: 30 },
+            { key: '3', label: '(3) Arts & Cultural Lifestyle', min: 31, max: 48 },
+            { key: '4', label: '(4) Customs', min: 49, max: 64 },
+            { key: '5', label: '(5) Study Trips', min: 65, max: 76 }
         ];
+
+        function matchExamFocusCat(word, catKey) {
+            const cat = EXAM_FOCUS_CATS.find(c => c.key === catKey);
+            if (!cat) return false;
+            const num = parseInt(word.cat);
+            return num >= cat.min && num <= cat.max;
+        }
 
         function showWordList(catName) {
             let words = categories[catName];
@@ -861,7 +868,7 @@
 
             const isExamFocus = catName === 'exam focus';
             if (isExamFocus && currentSubCategory) {
-                words = words.filter(w => w.cat === currentSubCategory);
+                words = words.filter(w => matchExamFocusCat(w, currentSubCategory));
             }
 
             const container = document.getElementById('word-list-container');

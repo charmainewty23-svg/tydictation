@@ -475,7 +475,7 @@
                         
                         <div class="w-full max-w-md">
                             <p id="word-translation-hint" class="text-2xl text-gray-400 mb-4 font-medium italic"></p>
-                            <input type="text" id="quiz-answer-input" class="quiz-input" placeholder="Type answer here..." autocomplete="off">
+                            <input type="text" id="quiz-answer-input" class="quiz-input" placeholder="Type answer here..." autocomplete="off" oninput="updateHintDisplay()">
                             <div id="hint-display" class="hint-text mt-4 text-2xl h-8"></div>
                         </div>
 
@@ -798,10 +798,12 @@
 
         function updateHintDisplay() {
             const word = quizWords[quizIdx].en;
+            const userInput = document.getElementById('quiz-answer-input').value.toLowerCase();
             let display = "";
             for (let i = 0; i < word.length; i++) {
                 if (i < hintCount) display += word[i];
                 else if (word[i] === " ") display += "  ";
+                else if (i < userInput.length) display += userInput[i];
                 else display += "_";
             }
             document.getElementById('hint-display').innerText = display;
@@ -817,10 +819,22 @@
             if (isCorrect) {
                 quizScore += Math.max(1, 10 - hintCount);
                 updateMascot("Correct! Great job!");
+                advanceQuiz();
             } else {
+                // Show correct answer on the line
+                document.getElementById('hint-display').innerText = quizWords[quizIdx].en;
+                document.getElementById('hint-display').classList.add('text-red-500');
+                document.getElementById('hint-display').classList.remove('text-orange-500');
                 updateMascot(`Not quite! It was "${quizWords[quizIdx].en}".`);
+                setTimeout(() => {
+                    document.getElementById('hint-display').classList.remove('text-red-500');
+                    document.getElementById('hint-display').classList.add('text-orange-500');
+                    advanceQuiz();
+                }, 1500);
             }
-            
+        }
+
+        function advanceQuiz() {
             quizIdx++;
             if (quizIdx < quizWords.length) {
                 updateQuizUI();

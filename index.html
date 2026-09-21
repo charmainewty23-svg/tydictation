@@ -215,6 +215,35 @@
             color: var(--warm-orange);
             font-weight: 700;
         }
+
+        .encourage-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 3rem;
+            font-weight: 700;
+            color: #2b8a3e;
+            background: white;
+            border: 4px solid #b2f2bb;
+            border-radius: 2rem;
+            padding: 1.5rem 3rem;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0;
+            transition: none;
+            box-shadow: 0 10px 0 #b2f2bb;
+        }
+        .encourage-popup.show {
+            animation: popIn 1.2s ease forwards;
+        }
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            15% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            30% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+        }
     </style>
 </head>
 <body class="h-full">
@@ -809,6 +838,17 @@
             document.getElementById('hint-display').innerText = display;
         }
 
+        const ENCOURAGE_WORDS = ["Great!", "Awesome!", "Perfect!", "Well done!", "Brilliant!", "Excellent!", "Nice one!", "Superb!", "Amazing!", "Keep it up!"];
+
+        function showEncouragement() {
+            const popup = document.createElement('div');
+            popup.className = 'encourage-popup';
+            popup.innerText = ENCOURAGE_WORDS[Math.floor(Math.random() * ENCOURAGE_WORDS.length)];
+            document.body.appendChild(popup);
+            requestAnimationFrame(() => popup.classList.add('show'));
+            setTimeout(() => popup.remove(), 1300);
+        }
+
         function checkAnswer() {
             const userVal = document.getElementById('quiz-answer-input').value.trim().toLowerCase();
             const correctVal = quizWords[quizIdx].en.toLowerCase();
@@ -818,6 +858,7 @@
 
             if (isCorrect) {
                 quizScore += Math.max(1, 10 - hintCount);
+                showEncouragement();
                 updateMascot("Correct! Great job!");
                 advanceQuiz();
             } else {

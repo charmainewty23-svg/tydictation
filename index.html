@@ -718,6 +718,7 @@
         let quizScore = 0;
         let hintCount = 0;
         let quizResults = [];
+        let tryAgainCount = 0;
 
         async function loadAllCategoriesFromSheet() {
             try {
@@ -835,6 +836,7 @@
             document.getElementById('quiz-answer-input').value = "";
             document.getElementById('quiz-answer-input').focus();
             hintCount = 0;
+            tryAgainCount = 0;
             updateHintDisplay();
         }
 
@@ -869,6 +871,7 @@
         }
 
         const ENCOURAGE_WORDS = ["Great!", "Awesome!", "Perfect!", "Well done!", "Brilliant!", "Excellent!", "Nice one!", "Superb!", "Amazing!", "Keep it up!"];
+        const TRY_AGAIN_WORDS = ["Almost there!", "Try again!", "So close!", "Have another go!", "Not quite, keep trying!", "You can do it!", "One more try!", "Nearly! Try once more!"];
 
         function showEncouragement() {
             const popup = document.createElement('div');
@@ -879,29 +882,53 @@
             setTimeout(() => popup.remove(), 1300);
         }
 
+        function showTryAgain() {
+            const popup = document.createElement('div');
+            popup.className = 'encourage-popup';
+            popup.style.color = '#e67700';
+            popup.style.borderColor = '#ffec99';
+            popup.style.boxShadow = '0 10px 0 #ffec99';
+            popup.innerText = TRY_AGAIN_WORDS[Math.floor(Math.random() * TRY_AGAIN_WORDS.length)];
+            document.body.appendChild(popup);
+            requestAnimationFrame(() => popup.classList.add('show'));
+            setTimeout(() => popup.remove(), 1300);
+        }
+
         function checkAnswer() {
             const userVal = document.getElementById('quiz-answer-input').value.trim().toLowerCase();
             const correctVal = quizWords[quizIdx].en.toLowerCase();
             
             const isCorrect = userVal === correctVal;
-            quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: isCorrect });
 
             if (isCorrect) {
+                quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: true });
                 quizScore += Math.max(1, 10 - hintCount);
                 showEncouragement();
                 updateMascot("Correct! Great job!");
                 advanceQuiz();
             } else {
-                // Show correct answer on the line
-                document.getElementById('hint-display').innerText = quizWords[quizIdx].en;
-                document.getElementById('hint-display').classList.add('text-red-500');
-                document.getElementById('hint-display').classList.remove('text-orange-500');
-                updateMascot(`Not quite! It was "${quizWords[quizIdx].en}".`);
-                setTimeout(() => {
-                    document.getElementById('hint-display').classList.remove('text-red-500');
-                    document.getElementById('hint-display').classList.add('text-orange-500');
-                    advanceQuiz();
-                }, 1500);
+                tryAgainCount++;
+                if (tryAgainCount < 3) {
+                    // 1st or 2nd wrong — encourage to try again
+                    showTryAgain();
+                    const hints = ["Give it another go!", "Try once more!", "You're close, try again!"];
+                    updateMascot(hints[Math.floor(Math.random() * hints.length)]);
+                    document.getElementById('quiz-answer-input').value = "";
+                    document.getElementById('quiz-answer-input').focus();
+                    updateHintDisplay();
+                } else {
+                    // 3rd wrong — show answer and move on
+                    quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: false });
+                    document.getElementById('hint-display').innerText = quizWords[quizIdx].en;
+                    document.getElementById('hint-display').classList.add('text-red-500');
+                    document.getElementById('hint-display').classList.remove('text-orange-500');
+                    updateMascot(`The answer is "${quizWords[quizIdx].en}".`);
+                    setTimeout(() => {
+                        document.getElementById('hint-display').classList.remove('text-red-500');
+                        document.getElementById('hint-display').classList.add('text-orange-500');
+                        advanceQuiz();
+                    }, 2000);
+                }
             }
         }
 

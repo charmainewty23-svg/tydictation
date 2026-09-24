@@ -1202,7 +1202,7 @@
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No quiz data available. Please try again later.</p>';
                 return;
             }
-            ifClauseQuizWords = [...ifClauseData].sort(() => 0.5 - Math.random()).slice(0, Math.min(10, ifClauseData.length));
+            ifClauseQuizWords = [...ifClauseData].sort(() => 0.5 - Math.random()).slice(0, Math.min(20, ifClauseData.length));
             ifClauseQuizIdx = 0;
             ifClauseQuizScore = 0;
             ifClauseQuizResults = [];

@@ -728,6 +728,15 @@
         let ifClauseQuizWords = [];
         let ifClauseTryCount = 0;
 
+        // Participle clauses quiz state
+        let pcData = [];
+        let pcQuizIdx = 0;
+        let pcQuizScore = 0;
+        let pcQuizResults = [];
+        let pcQuizWords = [];
+        let pcTryCount = 0;
+        let pcTab = 'revision';
+
         async function loadAllCategoriesFromSheet() {
             try {
                 const promises = SHEET_NAMES.map(async (name) => {
@@ -1128,6 +1137,9 @@
             if (key === 'conditionals') {
                 ifClauseTab = 'revision';
                 renderConditionalsTabs(content, data);
+            } else if (key === 'participle_clauses') {
+                pcTab = 'revision';
+                renderPCTabs(content, data);
             } else {
                 content.innerHTML = `
                     <div class="text-center mb-10"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600">${data.title}</h2></div>
@@ -1322,6 +1334,194 @@
 
         function showIfClauseRecord(container) {
             const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
+            if (history.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No records yet. Complete a quiz first!</p>';
+                return;
+            }
+            const recent = history.slice(-10).reverse();
+            const best = history.reduce((a, b) => a.score > b.score ? a : b);
+            container.innerHTML = `
+                <div class="bg-green-50 rounded-2xl p-6 mb-6 border-2 border-green-100 text-center">
+                    <h3 class="text-lg font-bold text-green-600 mb-2">🏅 Best Score</h3>
+                    <p class="text-3xl font-bold text-green-700">${best.score} pts · ${best.total} questions</p>
+                </div>
+                <div class="space-y-3">
+                    ${recent.map(r => `
+                        <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3">
+                            <span class="font-bold text-green-600">${r.score} pts</span>
+                            <span class="text-gray-400 text-sm">${r.total} questions</span>
+                            <span class="text-gray-400 text-xs">${new Date(r.t).toLocaleDateString()}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ===== Participle Clauses Quiz =====
+        function renderPCTabs(content, data) {
+            const tabs = [
+                { key: 'revision', label: '📖 Revision' },
+                { key: 'quiz', label: '✏️ Quiz' },
+                { key: 'record', label: '📋 My Record' }
+            ];
+            content.innerHTML = `
+                <div class="text-center mb-6"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600">${data.title}</h2></div>
+                <div class="flex gap-3 mb-8 justify-center">
+                    ${tabs.map(t => `<button onclick="switchPCTab('${t.key}')" class="pc-tab px-5 py-2 rounded-full font-bold text-sm ${pcTab === t.key ? 'bg-green-500 text-white' : 'bg-green-100 text-green-600'}">${t.label}</button>`).join('')}
+                </div>
+                <div id="pc-tab-content"></div>
+            `;
+            renderPCTabContent(data);
+        }
+
+        function switchPCTab(tab) {
+            pcTab = tab;
+            document.querySelectorAll('.pc-tab').forEach(b => {
+                b.classList.remove('bg-green-500','text-white');
+                b.classList.add('bg-green-100','text-green-600');
+            });
+            event.target.classList.remove('bg-green-100','text-green-600');
+            event.target.classList.add('bg-green-500','text-white');
+            renderPCTabContent(structureData['participle_clauses']);
+        }
+
+        function renderPCTabContent(data) {
+            const container = document.getElementById('pc-tab-content');
+            if (pcTab === 'revision') {
+                container.innerHTML = `
+                    <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Explanation</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.intro}</p></div>
+                    <div class="space-y-6">
+                        <h3 class="text-2xl font-bold text-green-700">✍️ Examples</h3>
+                        ${data.sections.map(sec => `
+                            <div class="grammar-card">
+                                <span class="grammar-tag bg-green-100 text-green-600">${sec.tag}</span>
+                                <p class="font-bold text-2xl text-gray-800 mb-2">${sec.rule}</p>
+                                <p class="text-gray-600 text-lg italic bg-gray-50 p-4 rounded-xl border-dashed border-2 border-gray-200">${sec.example}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else if (pcTab === 'quiz') {
+                startPCQuiz(container);
+            } else if (pcTab === 'record') {
+                renderPCRecord(container);
+            }
+        }
+
+        function startPCQuiz(container) {
+            if (!pcData || pcData.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No quiz data available. Please try again later.</p>';
+                return;
+            }
+            pcQuizWords = [...pcData].sort(() => 0.5 - Math.random()).slice(0, Math.min(20, pcData.length));
+            pcQuizIdx = 0;
+            pcQuizScore = 0;
+            pcQuizResults = [];
+            pcTryCount = 0;
+            renderPCQuizQuestion(container);
+        }
+
+        function renderPCQuizQuestion(container) {
+            pcTryCount = 0;
+            const q = pcQuizWords[pcQuizIdx];
+            container.innerHTML = `
+                <div class="text-center mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <p class="text-gray-400 font-bold uppercase tracking-wider">Question ${pcQuizIdx + 1} of ${pcQuizWords.length}</p>
+                        <span class="bg-green-100 text-green-600 px-4 py-1 rounded-full font-bold text-sm">Score: ${pcQuizScore}</span>
+                    </div>
+                    <p class="bg-green-50 text-green-700 font-bold text-2xl rounded-2xl p-6 border-2 border-green-200">${q.q}</p>
+                </div>
+                <div class="max-w-lg mx-auto space-y-4">
+                    <div>
+                        <label class="text-sm font-bold text-gray-500 mb-1 block">Your Answer</label>
+                        <input type="text" id="pc-answer" class="quiz-input" placeholder="Type your answer..." autocomplete="off">
+                    </div>
+                    <button onclick="checkPCAnswer()" class="w-full py-4 bg-green-500 text-white rounded-2xl font-bold shadow-lg shadow-green-200 hover:bg-green-600 transition-colors text-xl mt-4">Check →</button>
+                </div>
+            `;
+            document.getElementById('pc-answer').focus();
+            document.getElementById('pc-answer').addEventListener('keypress', e => { if (e.key === 'Enter') checkPCAnswer(); });
+        }
+
+        function checkPCAnswer() {
+            const userVal = document.getElementById('pc-answer').value.trim().toLowerCase();
+            const q = pcQuizWords[pcQuizIdx];
+            const correct = q.a.toLowerCase();
+
+            if (userVal === correct) {
+                pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, correct: true });
+                pcQuizScore += 10;
+                showEncouragement();
+                pcQuizIdx++;
+                const container = document.getElementById('pc-tab-content');
+                if (pcQuizIdx < pcQuizWords.length) {
+                    setTimeout(() => renderPCQuizQuestion(container), 1200);
+                } else {
+                    setTimeout(() => {
+                        const history = JSON.parse(localStorage.getItem('pc_history') || '[]');
+                        history.push({ t: Date.now(), score: pcQuizScore, total: pcQuizWords.length, results: pcQuizResults });
+                        localStorage.setItem('pc_history', JSON.stringify(history));
+                        showPCResult(container);
+                    }, 1200);
+                }
+            } else {
+                pcTryCount++;
+                if (pcTryCount < 3) {
+                    showTryAgain();
+                    document.getElementById('pc-answer').value = "";
+                    document.getElementById('pc-answer').focus();
+                } else {
+                    pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, correct: false });
+                    const container = document.getElementById('pc-tab-content');
+                    const existingBtn = container.querySelector('button');
+                    if (existingBtn) existingBtn.style.display = 'none';
+                    const ansBox = document.createElement('div');
+                    ansBox.className = 'mt-4 p-4 bg-red-50 rounded-2xl border-2 border-red-200 text-center';
+                    ansBox.innerHTML = `<p class="text-red-500 font-bold mb-1">Correct answer:</p><p class="text-green-700 font-bold text-xl">${q.a}</p>`;
+                    container.appendChild(ansBox);
+                    setTimeout(() => {
+                        pcQuizIdx++;
+                        if (pcQuizIdx < pcQuizWords.length) {
+                            renderPCQuizQuestion(container);
+                        } else {
+                            const history = JSON.parse(localStorage.getItem('pc_history') || '[]');
+                            history.push({ t: Date.now(), score: pcQuizScore, total: pcQuizWords.length, results: pcQuizResults });
+                            localStorage.setItem('pc_history', JSON.stringify(history));
+                            showPCResult(container);
+                        }
+                    }, 6000);
+                }
+            }
+        }
+
+        function showPCResult(container) {
+            const total = pcQuizWords.length;
+            const correctCount = pcQuizResults.filter(r => r.correct).length;
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-8xl mb-4">🏆</div>
+                    <h3 class="text-3xl font-bold text-green-600 mb-2">Quiz Finished!</h3>
+                    <p class="text-xl text-gray-500 mb-2">Score: ${pcQuizScore} pts</p>
+                    <p class="text-lg text-gray-400 mb-6">Correct: ${correctCount}/${total}</p>
+                    <div class="space-y-3 text-left max-w-lg mx-auto mb-8">
+                        ${pcQuizResults.map((r, i) => `
+                            <div class="bg-gray-50 rounded-xl p-4 ${r.correct ? 'border-2 border-green-200' : 'border-2 border-red-200'}">
+                                <p class="font-bold text-gray-700 mb-2">${i + 1}. ${r.q}</p>
+                                ${r.correct
+                                    ? `<p class="text-green-600 text-sm">✓ ${r.a}</p>`
+                                    : `<p class="text-red-500 text-sm">Your answer: ${r.userA || '-'}</p><p class="text-green-600 text-sm">Correct: ${r.a}</p>`
+                                }
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="switchPCTab('quiz')" class="btn-paw bg-green-400 shadow-[0_6px_0_#2b8a3e]">Try Again</button>
+                </div>
+            `;
+        }
+
+        function renderPCRecord(container) {
+            const history = JSON.parse(localStorage.getItem('pc_history') || '[]');
             if (history.length === 0) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No records yet. Complete a quiz first!</p>';
                 return;
@@ -1543,9 +1743,26 @@
             } catch (e) { console.log('Failed to load if-clause data'); }
         }
 
+        async function loadPCData() {
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('participle clauses')}`;
+                const response = await fetch(url);
+                if (!response.ok) return;
+                const csvText = await response.text();
+                const lines = csvText.split(/\r?\n/);
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
+                    if (parts.length >= 2) pcData.push({ q: parts[0], a: parts[1] });
+                }
+            } catch (e) { console.log('Failed to load participle clauses data'); }
+        }
+
         window.onload = () => {
             loadAllCategoriesFromSheet();
             loadIfClauseData();
+            loadPCData();
         };
     </script>
 </body>

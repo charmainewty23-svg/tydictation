@@ -726,6 +726,7 @@
         let ifClauseQuizScore = 0;
         let ifClauseQuizResults = [];
         let ifClauseQuizWords = [];
+        let ifClauseTryCount = 0;
 
         async function loadAllCategoriesFromSheet() {
             try {
@@ -1205,10 +1206,12 @@
             ifClauseQuizIdx = 0;
             ifClauseQuizScore = 0;
             ifClauseQuizResults = [];
+            ifClauseTryCount = 0;
             renderIfClauseQuizQuestion(container);
         }
 
         function renderIfClauseQuizQuestion(container) {
+            ifClauseTryCount = 0;
             const q = ifClauseQuizWords[ifClauseQuizIdx];
             container.innerHTML = `
                 <div class="text-center mb-6">
@@ -1240,27 +1243,52 @@
             const correct2 = q.a2.toLowerCase();
 
             const isCorrect = (a1 === correct1 || a1 === correct2) && (a2 === correct1 || a2 === correct2) && a1 !== a2;
-            ifClauseQuizResults.push({ q: q.q, userA1: a1, userA2: a2, a1: q.a1, a2: q.a2, correct: isCorrect });
 
             if (isCorrect) {
+                ifClauseQuizResults.push({ q: q.q, userA1: a1, userA2: a2, a1: q.a1, a2: q.a2, correct: true });
                 ifClauseQuizScore += 10;
                 showEncouragement();
+                ifClauseQuizIdx++;
+                const container = document.getElementById('if-clause-tab-content');
+                if (ifClauseQuizIdx < ifClauseQuizWords.length) {
+                    setTimeout(() => renderIfClauseQuizQuestion(container), 1200);
+                } else {
+                    setTimeout(() => {
+                        const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
+                        history.push({ t: Date.now(), score: ifClauseQuizScore, total: ifClauseQuizWords.length, results: ifClauseQuizResults });
+                        localStorage.setItem('if_clause_history', JSON.stringify(history));
+                        showIfClauseResult(container);
+                    }, 1200);
+                }
             } else {
-                showTryAgain();
-            }
-
-            ifClauseQuizIdx++;
-            const container = document.getElementById('if-clause-tab-content');
-            if (ifClauseQuizIdx < ifClauseQuizWords.length) {
-                setTimeout(() => renderIfClauseQuizQuestion(container), 1200);
-            } else {
-                setTimeout(() => {
-                    // Save to localStorage
-                    const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
-                    history.push({ t: Date.now(), score: ifClauseQuizScore, total: ifClauseQuizWords.length, results: ifClauseQuizResults });
-                    localStorage.setItem('if_clause_history', JSON.stringify(history));
-                    showIfClauseResult(container);
-                }, 1200);
+                ifClauseTryCount++;
+                if (ifClauseTryCount < 3) {
+                    showTryAgain();
+                    document.getElementById('if-clause-a1').value = "";
+                    document.getElementById('if-clause-a2').value = "";
+                    document.getElementById('if-clause-a1').focus();
+                } else {
+                    // 3rd wrong — show correct answer for 3 seconds
+                    ifClauseQuizResults.push({ q: q.q, userA1: a1, userA2: a2, a1: q.a1, a2: q.a2, correct: false });
+                    const container = document.getElementById('if-clause-tab-content');
+                    const existingBtn = container.querySelector('button');
+                    if (existingBtn) existingBtn.style.display = 'none';
+                    const ansBox = document.createElement('div');
+                    ansBox.className = 'mt-4 p-4 bg-red-50 rounded-2xl border-2 border-red-200 text-center';
+                    ansBox.innerHTML = `<p class="text-red-500 font-bold mb-1">Correct answers:</p><p class="text-green-700 font-bold text-xl">${q.a1} / ${q.a2}</p>`;
+                    container.appendChild(ansBox);
+                    setTimeout(() => {
+                        ifClauseQuizIdx++;
+                        if (ifClauseQuizIdx < ifClauseQuizWords.length) {
+                            renderIfClauseQuizQuestion(container);
+                        } else {
+                            const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
+                            history.push({ t: Date.now(), score: ifClauseQuizScore, total: ifClauseQuizWords.length, results: ifClauseQuizResults });
+                            localStorage.setItem('if_clause_history', JSON.stringify(history));
+                            showIfClauseResult(container);
+                        }
+                    }, 3000);
+                }
             }
         }
 

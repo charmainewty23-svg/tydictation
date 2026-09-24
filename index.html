@@ -592,6 +592,23 @@
                         </div>
                     </div>
                 </div>
+                <div class="cat-card p-8 mt-6">
+                    <h2 class="text-3xl font-bold text-green-600 mb-2">📜 Grammar Quest</h2>
+                    <p class="text-gray-400 mb-6">Sentence Structures quiz scores</p>
+                    <div id="grammar-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div class="flex gap-3 mb-6">
+                        <button onclick="loadGrammarAdmin('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-500 text-white grammar-admin-btn">All</button>
+                        <button onclick="loadGrammarAdmin('conditionals')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-600 grammar-admin-btn">Conditionals</button>
+                        <button onclick="loadGrammarAdmin('participle_clauses')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-600 grammar-admin-btn">Participle Clauses</button>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-600 mb-4">Student Activity</h3>
+                    <div id="grammar-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-green-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -1033,6 +1050,20 @@
             window.lastFinalView = finalView;
         }
 
+        function saveGrammarToCloud(grammarType, score, total) {
+            if (!currentUser) return;
+            sb.from("dictation_results").insert({
+                user_id: currentUser.id,
+                email: currentUser.email,
+                nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                topic: grammarType,
+                mode: grammarType,
+                score: score,
+                total: total,
+                form_level: currentFormLevel
+            });
+        }
+
         const EXAM_FOCUS_CATS = [
             { key: '1', label: '(1) Youngsters', min: 1, max: 17 },
             { key: '2', label: '(2) Family', min: 18, max: 30 },
@@ -1272,6 +1303,7 @@
                         const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
                         history.push({ t: Date.now(), score: ifClauseQuizScore, total: ifClauseQuizWords.length, results: ifClauseQuizResults });
                         localStorage.setItem('if_clause_history', JSON.stringify(history));
+                        saveGrammarToCloud('conditionals', ifClauseQuizScore, ifClauseQuizWords.length);
                         showIfClauseResult(container);
                     }, 1200);
                 }
@@ -1300,6 +1332,7 @@
                             const history = JSON.parse(localStorage.getItem('if_clause_history') || '[]');
                             history.push({ t: Date.now(), score: ifClauseQuizScore, total: ifClauseQuizWords.length, results: ifClauseQuizResults });
                             localStorage.setItem('if_clause_history', JSON.stringify(history));
+                            saveGrammarToCloud('conditionals', ifClauseQuizScore, ifClauseQuizWords.length);
                             showIfClauseResult(container);
                         }
                     }, 6000);
@@ -1463,6 +1496,7 @@
                         const history = JSON.parse(localStorage.getItem('pc_history') || '[]');
                         history.push({ t: Date.now(), score: pcQuizScore, total: pcQuizWords.length, results: pcQuizResults });
                         localStorage.setItem('pc_history', JSON.stringify(history));
+                        saveGrammarToCloud('participle_clauses', pcQuizScore, pcQuizWords.length);
                         showPCResult(container);
                     }, 1200);
                 }
@@ -1489,6 +1523,7 @@
                             const history = JSON.parse(localStorage.getItem('pc_history') || '[]');
                             history.push({ t: Date.now(), score: pcQuizScore, total: pcQuizWords.length, results: pcQuizResults });
                             localStorage.setItem('pc_history', JSON.stringify(history));
+                            saveGrammarToCloud('participle_clauses', pcQuizScore, pcQuizWords.length);
                             showPCResult(container);
                         }
                     }, 6000);
@@ -1669,6 +1704,90 @@
             `;
         }
 
+        let grammarAdminFilter = 'all';
+
+        async function loadGrammarAdmin(filter) {
+            if (!isAdmin()) return;
+            grammarAdminFilter = filter || 'all';
+
+            document.querySelectorAll('.grammar-admin-btn').forEach(b => {
+                b.classList.remove('bg-green-500','text-white');
+                b.classList.add('bg-green-100','text-green-600');
+            });
+            if (event && event.target) {
+                event.target.classList.remove('bg-green-100','text-green-600');
+                event.target.classList.add('bg-green-500','text-white');
+            }
+
+            let query = sb.from("dictation_results").select("email, nickname, score, total, mode, created_at, form_level").in("mode", ["conditionals", "participle_clauses"]);
+            if (grammarAdminFilter !== 'all') query = query.eq("mode", grammarAdminFilter);
+            const { data, error } = await query.order("created_at", { ascending: false });
+
+            if (error || !data || data.length === 0) {
+                document.getElementById('grammar-admin-stats').innerHTML = '';
+                document.getElementById('grammar-admin-container').innerHTML = '<p class="text-gray-400 text-center py-10">No grammar quiz records yet.</p>';
+                return;
+            }
+
+            const uniqueStudents = new Set(data.map(r => r.email)).size;
+            const totalQuizzes = data.length;
+            const avgScore = Math.round(data.reduce((a, r) => a + r.score, 0) / data.length);
+            const avgAccuracy = Math.round(data.reduce((a, r) => a + Math.round((r.score / (r.total * 10)) * 100), 0) / data.length);
+
+            document.getElementById('grammar-admin-stats').innerHTML = `
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${uniqueStudents}</div>
+                    <div class="text-sm text-gray-500 font-bold">Students</div>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
+                    <div class="text-3xl font-bold text-blue-600">${totalQuizzes}</div>
+                    <div class="text-sm text-gray-500 font-bold">Quizzes Done</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${avgScore}</div>
+                    <div class="text-sm text-gray-500 font-bold">Avg Score</div>
+                </div>
+                <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
+                    <div class="text-3xl font-bold text-purple-600">${avgAccuracy}%</div>
+                    <div class="text-sm text-gray-500 font-bold">Avg Accuracy</div>
+                </div>
+            `;
+
+            const studentMap = {};
+            data.forEach(r => {
+                if (!studentMap[r.email]) studentMap[r.email] = { nickname: r.nickname, email: r.email, quizzes: 0, totalScore: 0, modes: new Set(), lastActive: r.created_at, form_level: r.form_level };
+                studentMap[r.email].quizzes++;
+                studentMap[r.email].totalScore += r.score;
+                studentMap[r.email].modes.add(r.mode);
+                if (r.created_at > studentMap[r.email].lastActive) studentMap[r.email].lastActive = r.created_at;
+            });
+
+            const students = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore);
+
+            document.getElementById('grammar-admin-container').innerHTML = `
+                <div class="space-y-3">
+                    ${students.map((s, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                            <div class="flex items-center gap-3 flex-1">
+                                <span class="text-lg font-bold text-gray-400 w-8 text-center">${i + 1}</span>
+                                <div>
+                                    <span class="font-bold text-gray-700">${s.nickname || s.email.split('@')[0]}</span>
+                                    <span class="text-gray-400 text-xs ml-2">${s.email}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-sm">
+                                <span class="text-gray-500">${s.form_level || '-'}</span>
+                                <span class="text-gray-500">${s.quizzes} quizzes</span>
+                                <span class="text-gray-500">${[...s.modes].map(m => m === 'conditionals' ? '⚖️' : '🔗').join('')}</span>
+                                <span class="font-bold text-green-600">${s.totalScore} pts</span>
+                                <span class="text-gray-400 text-xs">${new Date(s.lastActive).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         function updateMascot(text) { 
             const el = document.getElementById('mascot-text');
             if(el) el.innerText = text; 
@@ -1721,7 +1840,7 @@
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }
-            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); }
+            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); }
         }
 
         // Handle Enter key in quiz

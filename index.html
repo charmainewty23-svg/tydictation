@@ -1215,8 +1215,11 @@
             const q = ifClauseQuizWords[ifClauseQuizIdx];
             container.innerHTML = `
                 <div class="text-center mb-6">
-                    <p class="text-gray-400 font-bold uppercase tracking-wider">Question ${ifClauseQuizIdx + 1} of ${ifClauseQuizWords.length}</p>
-                    <p class="bg-green-50 text-green-700 font-bold text-2xl rounded-2xl p-6 mt-4 border-2 border-green-200">${q.q}</p>
+                    <div class="flex justify-between items-center mb-4">
+                        <p class="text-gray-400 font-bold uppercase tracking-wider">Question ${ifClauseQuizIdx + 1} of ${ifClauseQuizWords.length}</p>
+                        <span class="bg-green-100 text-green-600 px-4 py-1 rounded-full font-bold text-sm">Score: ${ifClauseQuizScore}</span>
+                    </div>
+                    <p class="bg-green-50 text-green-700 font-bold text-2xl rounded-2xl p-6 border-2 border-green-200">${q.q}</p>
                 </div>
                 <div class="max-w-lg mx-auto space-y-4">
                     <div>

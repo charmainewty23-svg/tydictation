@@ -1349,6 +1349,7 @@
                     ${recent.map(r => `
                         <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3">
                             <span class="font-bold text-green-600">${r.score} pts</span>
+                            <span class="text-gray-500 text-sm">${Math.round((r.score / (r.total * 10)) * 100)}%</span>
                             <span class="text-gray-400 text-sm">${r.total} questions</span>
                             <span class="text-gray-400 text-xs">${new Date(r.t).toLocaleDateString()}</span>
                         </div>
@@ -1537,6 +1538,7 @@
                     ${recent.map(r => `
                         <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3">
                             <span class="font-bold text-green-600">${r.score} pts</span>
+                            <span class="text-gray-500 text-sm">${Math.round((r.score / (r.total * 10)) * 100)}%</span>
                             <span class="text-gray-400 text-sm">${r.total} questions</span>
                             <span class="text-gray-400 text-xs">${new Date(r.t).toLocaleDateString()}</span>
                         </div>

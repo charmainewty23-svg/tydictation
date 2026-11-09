@@ -609,6 +609,22 @@
                         </div>
                     </div>
                 </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-blue-600 mb-2">🕒 Student Logins</h2>
+                            <p class="text-gray-400 mb-6">Latest sign-in per student (school Google account)</p>
+                        </div>
+                        <button onclick="loadLoginAdmin()" class="px-4 py-2 rounded-full font-bold text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors">↻ Refresh</button>
+                    </div>
+                    <div id="login-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div id="login-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-blue-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -687,6 +703,22 @@
             document.getElementById('login-view').style.display = '';
         }
 
+        // --- Login tracking (admin dashboard) ---
+        // Writes one row per student via the record_login() SQL function.
+        // A new login only counts if the previous one was >12h ago, so page
+        // refreshes / token refreshes do not inflate login_count.
+        let loginRecorded = false;
+        async function recordLogin(user) {
+            if (!user || loginRecorded) return;
+            loginRecorded = true;
+            const nickname = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
+            const { error } = await sb.rpc('record_login', {
+                p_nickname: nickname,
+                p_user_agent: navigator.userAgent
+            });
+            if (error) console.warn('Login record failed:', error.message);
+        }
+
         sb.auth.onAuthStateChange(async (_event, session) => {
             const email = session?.user?.email ?? "";
             if (session && !email.endsWith(SCHOOL_DOMAIN)) {
@@ -696,6 +728,7 @@
                 showLogin();
             } else if (session) {
                 currentUser = session.user;
+                recordLogin(session.user);
                 updateAuthUI();
                 showApp();
             } else {
@@ -1786,7 +1819,145 @@
             `;
         }
 
-        function updateMascot(text) { 
+        // --- Admin: student login activity ---
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function timeAgo(iso) {
+            if (!iso) return '—';
+            const diff = Date.now() - new Date(iso).getTime();
+            const m = Math.floor(diff / 60000);
+            if (m < 1) return 'just now';
+            if (m < 60) return m + ' min ago';
+            const h = Math.floor(m / 60);
+            if (h < 24) return h + ' hr ago';
+            const d = Math.floor(h / 24);
+            if (d < 30) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+            return new Date(iso).toLocaleDateString();
+        }
+
+        function hkDate(iso) {
+            if (!iso) return '—';
+            return new Date(iso).toLocaleString('en-HK', {
+                timeZone: 'Asia/Hong_Kong',
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        function hkDayKey(iso) {
+            return new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit'
+            }).format(new Date(iso));
+        }
+
+        function deviceLabel(ua) {
+            if (!ua) return '—';
+            const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+                : /Android/.test(ua) ? 'Android'
+                : /Mac OS X/.test(ua) ? 'macOS'
+                : /Windows/.test(ua) ? 'Windows'
+                : /CrOS/.test(ua) ? 'ChromeOS' : 'Other';
+            const br = /Edg\//.test(ua) ? 'Edge'
+                : /OPR\//.test(ua) ? 'Opera'
+                : /Chrome\//.test(ua) ? 'Chrome'
+                : /Firefox\//.test(ua) ? 'Firefox'
+                : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+            return os + ' · ' + br;
+        }
+
+        async function loadLoginAdmin() {
+            if (!isAdmin()) return;
+            const statsEl = document.getElementById('login-admin-stats');
+            const listEl = document.getElementById('login-admin-container');
+
+            const [logsRes, resultsRes] = await Promise.all([
+                sb.from('student_logins')
+                    .select('email, nickname, first_login_at, last_login_at, login_count, user_agent')
+                    .order('last_login_at', { ascending: false }),
+                sb.from('dictation_results').select('email')
+            ]);
+
+            if (logsRes.error) {
+                statsEl.innerHTML = '';
+                const missing = /does not exist|Could not find|42P01|PGRST202/i.test(logsRes.error.message);
+                listEl.innerHTML = missing
+                    ? '<p class="text-amber-500 text-center py-10 font-bold">Login tracking is not set up yet.<br><span class="text-sm font-normal">Run <code>supabase/login_tracking.sql</code> in the Supabase SQL Editor.</span></p>'
+                    : '<p class="text-red-400 text-center py-10">Cannot load login records: ' + escapeHtml(logsRes.error.message) + '</p>';
+                return;
+            }
+
+            const logs = logsRes.data || [];
+            const scoringEmails = new Set((resultsRes.data || []).map(r => (r.email || '').toLowerCase()));
+            const loggedEmails = new Set(logs.map(l => (l.email || '').toLowerCase()));
+            const neverLoggedIn = [...scoringEmails].filter(e => e && !loggedEmails.has(e));
+
+            const todayKey = hkDayKey(new Date().toISOString());
+            const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+            const loggedToday = logs.filter(l => l.last_login_at && hkDayKey(l.last_login_at) === todayKey).length;
+            const loggedThisWeek = logs.filter(l => l.last_login_at && new Date(l.last_login_at).getTime() >= sevenDaysAgo).length;
+
+            statsEl.innerHTML = `
+                <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
+                    <div class="text-3xl font-bold text-blue-600">${logs.length}</div>
+                    <div class="text-sm text-gray-500 font-bold">Students Tracked</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${loggedToday}</div>
+                    <div class="text-sm text-gray-500 font-bold">Logged in Today</div>
+                </div>
+                <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
+                    <div class="text-3xl font-bold text-purple-600">${loggedThisWeek}</div>
+                    <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
+                </div>
+                <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
+                    <div class="text-3xl font-bold text-orange-600">${neverLoggedIn.length}</div>
+                    <div class="text-sm text-gray-500 font-bold">Never Logged In</div>
+                </div>
+            `;
+
+            if (logs.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No login records yet.</p>';
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div class="space-y-3">
+                    ${logs.map(l => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 flex-wrap gap-3">
+                            <div class="flex items-center gap-3 flex-1 min-w-[220px]">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 font-bold flex items-center justify-center">
+                                    ${escapeHtml((l.nickname || l.email || '?').charAt(0).toUpperCase())}
+                                </div>
+                                <div>
+                                    <span class="font-bold text-gray-700">${escapeHtml(l.nickname || (l.email || '').split('@')[0])}</span>
+                                    <span class="text-gray-400 text-xs ml-2">${escapeHtml(l.email)}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-sm flex-wrap">
+                                <span class="text-gray-500">${l.login_count} login${l.login_count === 1 ? '' : 's'}</span>
+                                <span class="text-gray-400 text-xs">${escapeHtml(deviceLabel(l.user_agent))}</span>
+                                <span class="text-gray-400 text-xs">First: ${escapeHtml(hkDate(l.first_login_at))}</span>
+                                <span class="font-bold text-blue-600 text-xs" title="${escapeHtml(hkDate(l.last_login_at))}">${escapeHtml(timeAgo(l.last_login_at))}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${neverLoggedIn.length ? `
+                    <div class="mt-6 pt-6 border-t border-gray-100">
+                        <h4 class="font-bold text-gray-600 mb-2">⚠️ Has scores but no login record (${neverLoggedIn.length})</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${neverLoggedIn.map(e => `<span class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1 rounded-full">${escapeHtml(e)}</span>`).join('')}
+                        </div>
+                        <p class="text-gray-400 text-xs mt-2">These students played before login tracking was switched on, or their record failed to save.</p>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function updateMascot(text) {
+
             const el = document.getElementById('mascot-text');
             if(el) el.innerText = text; 
         }
@@ -1838,7 +2009,7 @@
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }
-            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); }
+            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); loadLoginAdmin(); }
         }
 
         // Handle Enter key in quiz

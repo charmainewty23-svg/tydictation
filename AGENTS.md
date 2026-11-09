@@ -177,3 +177,12 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - **歷史修正**：舊版 `leave_battle()` 一離開就 delete 房 → Admin 永遠見唔到紀錄。
   新版：未開始先 delete；已開始／已完結嘅房**保留**，所以 dashboard 有數睇。
 
+### 9.4 老師睇住同學玩 — `supabase/battle_live.sql`（要喺 9.3 之後跑）
+- 加欄：`battle_players.progress`（0-based 第幾題）、`last_answer`、`last_correct`、
+  `updated_at`（trigger 用 **server 時間**，唔靠學生部機嘅鐘）。
+- 學生每答一題（同每次轉題）都會上報，所以老師張計分板係逐題更新：
+  `Q3` 進度條、`✅/❌ + 打咗乜`、`idle 30s`（>25 秒冇動靜會變紅框）。
+- 老師畫面頂部有分佈：`Q1: 5 · Q2: 7 · …` 同幾多人已完成。
+- 老師 hover 個 `Q3` 徽章會見到該題中文（由 seed 即時算，唔使存題目）。
+- 如果未跑 9.4，前端會自動 fallback（唔會壞），只係冇進度／閒置資訊。
+

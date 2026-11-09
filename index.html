@@ -2142,6 +2142,9 @@
         let battleDeadline = 0;
         let battleRoundSeed = null;
         let battleDoneLocal = false;
+        let battleLastAnswer = '';
+        let battleLastCorrect = null;
+        let battleLiveColumns = true;   // false if battle_live.sql has not been run yet
 
         function mulberry32(a) {
             return function () {
@@ -2370,6 +2373,8 @@
             battleCorrect = 0;
             battleTotalMs = 0;
             battleDoneLocal = false;
+            battleLastAnswer = '';
+            battleLastCorrect = null;
             document.getElementById('battle-topic-label').innerText = 'Topic: ' + built.topic;
             battleShowQuestion();
             battleSubmitProgress(false);
@@ -2393,6 +2398,7 @@
             battleDeadline = battleQStart + BATTLE_TIME_MS;
             battleUpdateScoreboard();
             battleStartTicker();
+            battleSubmitProgress(false);
             battleSpeak();
         }
 
@@ -2425,6 +2431,8 @@
             if (!w) return;
             const elapsed = Math.min(BATTLE_TIME_MS, Date.now() - battleQStart);
             const ok = battleNormalize(inp.value) === battleNormalize(w.en);
+            battleLastAnswer = inp.value.trim().slice(0, 60);
+            battleLastCorrect = ok;
             inp.disabled = true;
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             const fb = document.getElementById('battle-feedback');
@@ -2452,6 +2460,8 @@
             const w = battleWords[battleIdx];
             inp.disabled = true;
             battleTotalMs += BATTLE_TIME_MS;
+            battleLastAnswer = '';
+            battleLastCorrect = false;
             const fb = document.getElementById('battle-feedback');
             fb.innerText = `⏰ ${w.en}`;
             fb.className = 'text-2xl font-bold h-10 mt-4 text-gray-400';
@@ -2470,13 +2480,37 @@
             if (!currentUser || !battleRoom) return;
             // a late "still playing" save must not overwrite the final done flag
             if (!done && battleDoneLocal) return;
-            const { error } = await sb.from('battle_players').update({
+
+            const base = {
                 score: battleScore,
                 correct: battleCorrect,
                 total_ms: battleTotalMs,
                 done: !!done,
                 last_seen: new Date().toISOString()
-            }).eq('room_id', battleRoom.id).eq('user_id', currentUser.id);
+            };
+            if (!battleLiveColumns) return battleSaveProgress(base);
+
+            const full = Object.assign({}, base, {
+                progress: battleDoneLocal ? battleWords.length : battleIdx,
+                last_answer: (battleLastAnswer || '').slice(0, 60),
+                last_correct: battleLastCorrect
+            });
+
+            const { error } = await sb.from('battle_players').update(full)
+                .eq('room_id', battleRoom.id).eq('user_id', currentUser.id);
+
+            // graceful fallback: battle_live.sql not run yet
+            if (error && /column|PGRST204|42703/i.test(error.message || '')) {
+                battleLiveColumns = false;
+                console.warn('battle live columns missing — run supabase/battle_live.sql');
+                return battleSaveProgress(base);
+            }
+            if (error) console.warn('battle progress save failed:', error.message);
+        }
+
+        async function battleSaveProgress(payload) {
+            const { error } = await sb.from('battle_players').update(payload)
+                .eq('room_id', battleRoom.id).eq('user_id', currentUser.id);
             if (error) console.warn('battle progress save failed:', error.message);
         }
 
@@ -2601,35 +2635,81 @@
         function battleRenderClassHost() {
             battleShowPanel('class');
             document.getElementById('battle-class-code').innerText = battleRoom.code;
+
+            const total = battleRoom.question_count || 10;
             const players = battlePlayers.slice()
                 .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
             const max = battleRoom.max_players || 60;
+            const questions = battleBuildQuestions(battleRoom).words;
+            const hasLive = battlePlayers.some(p => typeof p.progress === 'number');
 
             document.getElementById('battle-class-count').innerText =
                 `${players.length} / ${max} joined`;
-            document.getElementById('battle-class-status').innerText =
-                battleRoom.status === 'waiting' ? 'Waiting to start' :
-                battleRoom.status === 'playing' ? 'In progress — scores update live' : 'Finished';
+
+            let statusText;
+            if (battleRoom.status === 'waiting') {
+                statusText = 'Waiting to start';
+            } else if (battleRoom.status === 'playing') {
+                const dist = {};
+                let done = 0;
+                players.forEach(p => {
+                    if (p.done) { done++; return; }
+                    const q = Math.min(total, (p.progress || 0) + 1);
+                    dist[q] = (dist[q] || 0) + 1;
+                });
+                const distText = Object.keys(dist)
+                    .sort((a, b) => a - b)
+                    .map(q => `Q${q}: ${dist[q]}`)
+                    .join('  ·  ');
+                statusText = `In progress  ·  ${done}/${players.length} finished` + (distText ? `  ·  ${distText}` : '');
+            } else {
+                statusText = 'Finished';
+            }
+            if (!hasLive && battleRoom.status === 'playing') {
+                statusText += '   ·   ⚠️ run supabase/battle_live.sql for live progress';
+            }
+            document.getElementById('battle-class-status').innerText = statusText;
 
             document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && players.length > 0));
             document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
 
             document.getElementById('battle-class-list').innerHTML = players.length
-                ? players.map((p, i) => `
-                    <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2 gap-3 flex-wrap">
-                        <div class="flex items-center gap-3 min-w-[200px]">
+                ? players.map((p, i) => {
+                    const qNow = p.done ? total : (typeof p.progress === 'number' ? Math.min(total, p.progress + 1) : null);
+                    const pct = Math.round(((qNow || 0) / total) * 100);
+                    const idleSec = p.updated_at
+                        ? Math.max(0, Math.round((Date.now() - new Date(p.updated_at).getTime()) / 1000))
+                        : null;
+                    const stalled = battleRoom.status === 'playing' && !p.done && idleSec !== null && idleSec > 25;
+                    const curWord = questions[(p.progress || 0)] ? questions[(p.progress || 0)].en : '';
+                    const curZh = questions[(p.progress || 0)] ? questions[(p.progress || 0)].zh : '';
+
+                    return `<div class="bg-gray-50 rounded-xl px-4 py-3 gap-3 flex flex-col md:flex-row md:items-center md:justify-between ${stalled ? 'ring-2 ring-red-200' : ''}">
+                        <div class="flex items-center gap-3 min-w-[220px]">
                             <span class="text-gray-400 font-bold w-6 text-right">${i + 1}</span>
-                            <span class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
-                            <span class="text-gray-400 text-xs">${escapeHtml(p.email || '')}</span>
+                            <div>
+                                <div class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</div>
+                                <div class="text-gray-400 text-xs">${escapeHtml(p.email || '')}</div>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-4 text-sm">
-                            <span class="text-gray-500">${p.correct}/${battleRoom.question_count || 10}</span>
-                            <span class="font-bold text-indigo-600">${p.score} pts</span>
-                            ${p.done
-                                ? '<span class="text-green-500 text-xs font-bold">DONE</span>'
-                                : '<span class="text-blue-400 text-xs font-bold">playing…</span>'}
+                        <div class="flex items-center gap-3 flex-1 min-w-[180px]">
+                            <span class="text-xs font-bold px-2 py-1 rounded-full ${p.done ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'}"
+                                  title="${escapeHtml(curZh)}">${p.done ? 'DONE' : (qNow ? 'Q' + qNow : '—')}</span>
+                            <div class="h-2 bg-gray-200 rounded-full flex-1 max-w-[140px] overflow-hidden">
+                                <div class="h-2 bg-indigo-500 rounded-full" style="width:${pct}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-400">${p.correct}/${total}</span>
                         </div>
-                    </div>`).join('')
+                        <div class="flex items-center gap-3 text-sm">
+                            ${p.last_answer
+                                ? `<span class="text-xs ${p.last_correct ? 'text-green-600' : 'text-red-400'} truncate max-w-[140px]" title="${escapeHtml(p.last_answer)}">${p.last_correct ? '✅' : '❌'} ${escapeHtml(p.last_answer)}</span>`
+                                : '<span class="text-xs text-gray-300">—</span>'}
+                            ${stalled ? `<span class="text-xs font-bold text-red-500">idle ${idleSec}s</span>`
+                                : p.done ? '' : `<span class="text-xs text-gray-400">${idleSec !== null ? idleSec + 's ago' : ''}</span>`}
+                            <span class="font-bold text-indigo-600 w-16 text-right">${p.score} pts</span>
+                        </div>
+                    </div>`;
+                }).join('')
                 : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>';
         }
 

@@ -566,6 +566,15 @@
                                 <button onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
                             </div>
                         </div>
+                        <div id="battle-class-entry" class="hidden mt-6 bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-100">
+                            <div class="flex items-center justify-between gap-4 flex-wrap">
+                                <div>
+                                    <h3 class="font-bold text-indigo-700 text-lg">👩‍🏫 Teacher: class room</h3>
+                                    <p class="text-gray-500 text-sm">One click opens a room the whole class can join. Everyone gets the same 10 questions.</p>
+                                </div>
+                                <button onclick="battleCreateClassRoom()" class="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">Open Class Room</button>
+                            </div>
+                        </div>
                         <p id="battle-error" class="text-red-400 font-bold text-center mt-6"></p>
                     </div>
 
@@ -574,7 +583,7 @@
                         <p class="text-gray-400 font-bold uppercase tracking-wider">Room code</p>
                         <div id="battle-code-display" class="text-6xl font-bold text-blue-600 tracking-[0.3em] my-4">----</div>
                         <button onclick="battleCopyCode()" class="px-5 py-2 bg-gray-100 rounded-full font-bold text-gray-600 hover:bg-gray-200 transition-colors">📋 Copy code</button>
-                        <div class="mt-10 flex items-center justify-center gap-6 flex-wrap">
+                        <div id="battle-chips" class="mt-10 flex items-center justify-center gap-6 flex-wrap">
                             <div id="battle-host-chip" class="bg-blue-50 rounded-xl px-6 py-4 font-bold text-blue-700 min-w-[140px]"></div>
                             <div class="text-gray-300 text-2xl font-bold">vs</div>
                             <div id="battle-guest-chip" class="bg-gray-50 rounded-xl px-6 py-4 font-bold text-gray-400 min-w-[140px]">Waiting…</div>
@@ -603,6 +612,22 @@
                             <p id="battle-feedback" class="text-2xl font-bold h-10 mt-4"></p>
                             <button onclick="battleSubmitAnswer()" class="mt-2 px-10 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-600 transition-colors">Submit</button>
                         </div>
+                    </div>
+
+                    <!-- Teacher: class room live board -->
+                    <div id="battle-class" class="hidden">
+                        <div class="text-center">
+                            <p class="text-gray-400 font-bold uppercase tracking-wider">Class room code</p>
+                            <div id="battle-class-code" class="text-6xl font-bold text-indigo-600 tracking-[0.3em] my-4">----</div>
+                            <button onclick="battleCopyClassCode()" class="px-5 py-2 bg-gray-100 rounded-full font-bold text-gray-600 hover:bg-gray-200 transition-colors">📋 Copy code</button>
+                            <p id="battle-class-count" class="text-gray-500 font-bold mt-6"></p>
+                            <p id="battle-class-status" class="text-gray-400"></p>
+                            <div class="mt-6 flex justify-center gap-3 flex-wrap">
+                                <button id="battle-class-start" onclick="battleStartClass()" class="hidden px-8 py-3 bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">Start Battle</button>
+                                <button id="battle-class-end" onclick="battleEndClass()" class="hidden px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">End Battle</button>
+                            </div>
+                        </div>
+                        <div id="battle-class-list" class="mt-8 space-y-2"></div>
                     </div>
 
                     <!-- Result -->
@@ -712,8 +737,8 @@
                 <div class="cat-card p-8 mt-6">
                     <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
-                            <h2 class="text-3xl font-bold text-indigo-600 mb-2">⚔️ Live Battles</h2>
-                            <p class="text-gray-400 mb-6">Word Battle rooms from the last 6 hours</p>
+                            <h2 class="text-3xl font-bold text-indigo-600 mb-2">⚔️ Battles</h2>
+                            <p class="text-gray-400 mb-6">Rooms from the last 24 hours (duel + class)</p>
                         </div>
                         <button onclick="loadBattleAdmin()" class="px-4 py-2 rounded-full font-bold text-sm bg-indigo-500 text-white hover:bg-indigo-600 transition-colors">↻ Refresh</button>
                     </div>
@@ -2159,7 +2184,9 @@
             if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
             if (m.includes('CANNOT_START')) return 'Cannot start yet — wait for your opponent.';
             if (m.includes('NOT_A_MEMBER')) return 'You are not in that room.';
-            if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle tables are not set up yet. Run supabase/battle.sql in Supabase.';
+            if (m.includes('NOT_TEACHER')) return 'Only the teacher account can open a class room.';
+            if (m.includes('CANNOT_END')) return 'Cannot end that battle.';
+            if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle SQL is not set up yet. Run supabase/battle.sql then supabase/battle_class.sql in Supabase.';
             return m;
         }
 
@@ -2169,7 +2196,7 @@
         }
 
         function battleShowPanel(name) {
-            ['lobby', 'waiting', 'play', 'result'].forEach(p => {
+            ['lobby', 'waiting', 'play', 'result', 'class'].forEach(p => {
                 const el = document.getElementById('battle-' + p);
                 if (el) el.classList.toggle('hidden', p !== name);
             });
@@ -2197,6 +2224,8 @@
             if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
             battlePopulateTopics();
             battleSetError('');
+            const classEntry = document.getElementById('battle-class-entry');
+            if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
             if (battleRoom) {
                 battlePoll();
                 battleStartPolling();
@@ -2215,6 +2244,23 @@
             const topic = sel ? sel.value : '__random__';
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const { data, error } = await sb.rpc('create_battle', { p_topic: topic, p_seed: seed });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battleAdoptRoom(data);
+        }
+
+        async function battleCreateClassRoom() {
+            battleSetError('');
+            if (!currentUser) return battleSetError('Please login first.');
+            if (!isAdmin()) return battleSetError('Only the teacher account can open a class room.');
+            if (!SHEET_NAMES.some(n => (categories[n] || []).length)) {
+                return battleSetError('Word bank is still loading — please wait a moment.');
+            }
+            const sel = document.getElementById('battle-topic-select');
+            const topic = sel ? sel.value : '__random__';
+            const seed = Math.floor(Math.random() * 2000000000) + 1;
+            const { data, error } = await sb.rpc('create_class_battle', {
+                p_topic: topic, p_seed: seed, p_max_players: 60
+            });
             if (error) return battleSetError(battleErrorMessage(error));
             battleAdoptRoom(data);
         }
@@ -2265,16 +2311,31 @@
             const me = battlePlayers.find(p => p.user_id === currentUser.id);
             const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
 
+            // teacher watching their own class room
+            if (battleRoom.mode === 'class' && isHost) {
+                battleRenderClassHost();
+                return;
+            }
+
             if (battleRoom.status === 'waiting') {
                 battleShowPanel('waiting');
                 document.getElementById('battle-code-display').innerText = battleRoom.code;
-                const hostP = battlePlayers.find(p => p.user_id === battleRoom.host_id);
-                document.getElementById('battle-host-chip').innerText = hostP ? (hostP.nickname || hostP.email) : 'Host';
-                document.getElementById('battle-guest-chip').innerText = opp ? (opp.nickname || opp.email) : 'Waiting…';
-                document.getElementById('battle-start-btn').classList.toggle('hidden', !(isHost && !!battleRoom.guest_id));
-                document.getElementById('battle-wait-msg').innerText = isHost
-                    ? (battleRoom.guest_id ? 'Your opponent is in. Start when ready!' : 'Waiting for a classmate to join…')
-                    : 'Waiting for the host to start…';
+                const chips = document.getElementById('battle-chips');
+                if (battleRoom.mode === 'class') {
+                    if (chips) chips.classList.add('hidden');
+                    document.getElementById('battle-start-btn').classList.add('hidden');
+                    document.getElementById('battle-wait-msg').innerText =
+                        `${battlePlayers.length} student(s) joined — waiting for the teacher to start…`;
+                } else {
+                    if (chips) chips.classList.remove('hidden');
+                    const hostP = battlePlayers.find(p => p.user_id === battleRoom.host_id);
+                    document.getElementById('battle-host-chip').innerText = hostP ? (hostP.nickname || hostP.email) : 'Host';
+                    document.getElementById('battle-guest-chip').innerText = opp ? (opp.nickname || opp.email) : 'Waiting…';
+                    document.getElementById('battle-start-btn').classList.toggle('hidden', !(isHost && !!battleRoom.guest_id));
+                    document.getElementById('battle-wait-msg').innerText = isHost
+                        ? (battleRoom.guest_id ? 'Your opponent is in. Start when ready!' : 'Waiting for a classmate to join…')
+                        : 'Waiting for the host to start…';
+                }
                 return;
             }
 
@@ -2381,6 +2442,7 @@
                 fb.className = 'text-2xl font-bold h-10 mt-4 text-red-400';
             }
             battleUpdateScoreboard();
+            battleSubmitProgress(false);
             setTimeout(battleAdvance, 1100);
         }
 
@@ -2394,6 +2456,7 @@
             fb.innerText = `⏰ ${w.en}`;
             fb.className = 'text-2xl font-bold h-10 mt-4 text-gray-400';
             battleUpdateScoreboard();
+            battleSubmitProgress(false);
             setTimeout(battleAdvance, 900);
         }
 
@@ -2405,6 +2468,8 @@
 
         async function battleSubmitProgress(done) {
             if (!currentUser || !battleRoom) return;
+            // a late "still playing" save must not overwrite the final done flag
+            if (!done && battleDoneLocal) return;
             const { error } = await sb.from('battle_players').update({
                 score: battleScore,
                 correct: battleCorrect,
@@ -2427,10 +2492,36 @@
 
         function battleRenderResult() {
             if (!battleRoom) return;
-            const me = battlePlayers.find(p => p.user_id === currentUser.id) || { score: battleScore, correct: battleCorrect, total_ms: battleTotalMs };
-            const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
             const head = document.getElementById('battle-result-headline');
             const body = document.getElementById('battle-result-body');
+            const me = battlePlayers.find(p => p.user_id === currentUser.id) ||
+                       { score: battleScore, correct: battleCorrect, total_ms: battleTotalMs };
+            const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
+
+            if (battleRoom.mode === 'class') {
+                const sorted = battlePlayers.slice()
+                    .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
+                const rank = sorted.findIndex(p => p.user_id === currentUser.id) + 1;
+                if (!battleRoom.finished_at || battleRoom.status !== 'finished') {
+                    head.innerText = '⏳ Waiting for the teacher…';
+                } else if (rank === 1) {
+                    head.innerText = '🥇 Class champion!';
+                } else {
+                    head.innerText = `#${rank} in class`;
+                }
+                const top = sorted.slice(0, 5).map((p, i) =>
+                    `<div class="flex justify-between ${p.user_id === currentUser.id ? 'text-indigo-600 font-bold' : 'text-gray-600'}">
+                        <span>${i + 1}. ${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
+                        <span>${p.score} pts</span>
+                    </div>`).join('');
+                body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>
+                                  <div class="max-w-sm mx-auto text-left space-y-1">${top}</div>`;
+                document.getElementById('battle-rematch-btn').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('battle-rematch-btn')
+                .classList.toggle('hidden', battleRoom.host_id !== currentUser.id);
 
             if (!opp) {
                 head.innerText = '🏁 Game over';
@@ -2449,8 +2540,6 @@
                 body.innerHTML = `You: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)<br>` +
                                  `Rival: <b>${opp.score || 0}</b> pts (${opp.correct || 0}/${battleWords.length} correct)`;
             }
-            document.getElementById('battle-rematch-btn')
-                .classList.toggle('hidden', battleRoom.host_id !== currentUser.id);
         }
 
         async function battleRematch() {
@@ -2487,6 +2576,63 @@
             speechSynthesis.speak(utterance);
         }
 
+        async function battleStartClass() {
+            const { error } = await sb.rpc('start_battle', { p_room_id: battleRoom.id });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battlePoll();
+        }
+
+        async function battleEndClass() {
+            const { error } = await sb.rpc('end_class_battle', { p_room_id: battleRoom.id });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battlePoll();
+        }
+
+        async function battleCopyClassCode() {
+            const code = document.getElementById('battle-class-code').innerText.trim();
+            try {
+                await navigator.clipboard.writeText(code);
+                updateMascot('Class code copied: ' + code);
+            } catch (e) {
+                updateMascot('Class code: ' + code);
+            }
+        }
+
+        function battleRenderClassHost() {
+            battleShowPanel('class');
+            document.getElementById('battle-class-code').innerText = battleRoom.code;
+            const players = battlePlayers.slice()
+                .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
+            const max = battleRoom.max_players || 60;
+
+            document.getElementById('battle-class-count').innerText =
+                `${players.length} / ${max} joined`;
+            document.getElementById('battle-class-status').innerText =
+                battleRoom.status === 'waiting' ? 'Waiting to start' :
+                battleRoom.status === 'playing' ? 'In progress — scores update live' : 'Finished';
+
+            document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && players.length > 0));
+            document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
+
+            document.getElementById('battle-class-list').innerHTML = players.length
+                ? players.map((p, i) => `
+                    <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2 gap-3 flex-wrap">
+                        <div class="flex items-center gap-3 min-w-[200px]">
+                            <span class="text-gray-400 font-bold w-6 text-right">${i + 1}</span>
+                            <span class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
+                            <span class="text-gray-400 text-xs">${escapeHtml(p.email || '')}</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm">
+                            <span class="text-gray-500">${p.correct}/${battleRoom.question_count || 10}</span>
+                            <span class="font-bold text-indigo-600">${p.score} pts</span>
+                            ${p.done
+                                ? '<span class="text-green-500 text-xs font-bold">DONE</span>'
+                                : '<span class="text-blue-400 text-xs font-bold">playing…</span>'}
+                        </div>
+                    </div>`).join('')
+                : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>';
+        }
+
         async function battleLeave() {
             battleStopPolling();
             if (battleRoom && currentUser) {
@@ -2504,13 +2650,13 @@
             if (!isAdmin()) return;
             const statsEl = document.getElementById('battle-admin-stats');
             const listEl = document.getElementById('battle-admin-container');
-            const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+            const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
             const { data, error } = await sb.from('battle_rooms')
-                .select('code, topic, status, created_at, started_at, battle_players(nickname, email, score, correct, done)')
+                .select('code, topic, mode, status, created_at, started_at, finished_at, battle_players(nickname, email, score, correct, done)')
                 .gte('created_at', since)
                 .order('created_at', { ascending: false })
-                .limit(40);
+                .limit(60);
 
             if (error) {
                 statsEl.innerHTML = '';
@@ -2543,7 +2689,7 @@
                 </div>
                 <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
                     <div class="text-3xl font-bold text-orange-600">${students.size}</div>
-                    <div class="text-sm text-gray-500 font-bold">Students (6h)</div>
+                    <div class="text-sm text-gray-500 font-bold">Students (24h)</div>
                 </div>
             `;
 
@@ -2572,6 +2718,7 @@
                             <div class="flex items-center gap-4">
                                 <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
                                 ${statusPill(r.status)}
+                                <span class="text-xs font-bold px-2 py-1 rounded-full ${r.mode === 'class' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}">${r.mode === 'class' ? 'CLASS' : '1v1'}</span>
                                 <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
                             </div>
                             <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>

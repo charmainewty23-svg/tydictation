@@ -160,9 +160,20 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `categories` 做 seeded shuffle，得出**完全相同**嘅 10 題。改 `BATTLE_QUESTION_COUNT`
   或 seed 演算法要兩邊同步（同一個 file 所以冇問題）。
 - 流程：create → 等 guest → host 按 Start → 20 秒一題 → 兩邊 done 後 `finish_battle`
-  才轉 `finished`。中離：guest 走 → 房回 waiting；host 走 → 房刪除。
+  才轉 `finished`。中離：guest 走 → 房回 waiting；host 走 → 房刪除（**只限未開始**）。
 - 同步方式：**1.5 秒輪詢**（`battlePoll`），冇用 Realtime，唔使開 dashboard 設定。
-- Admin 卡片「⚔️ Live Battles」→ `loadBattleAdmin()`，睇最近 6 小時房間同即時比數。
+- Admin 卡片「⚔️ Battles」→ `loadBattleAdmin()`，睇最近 24 小時房間同即時比數。
 - 誠實聲明：分數由 client 寫入，可以造假；房間、代碼、加入資格係 server 端 RLS／RPC 管。
-- 6 小時以上舊房會喺下次 `create_battle` 時自動 delete。
+- 舊房保留 **7 日**（`create_battle` 時順手清走更舊嘅）。
+
+### 9.3 班際模式 — `supabase/battle_class.sql`（要喺 9.2 之後跑）
+- 加欄：`battle_rooms.mode`（`duel`／`class`）、`max_players`、`finished_at`。
+- 新 RPC：`create_class_battle(topic, seed, max_players)`（**只限 ADMIN_EMAIL**）、
+  `end_class_battle(room_id)`（老師提早收卷）。
+- 老師唔係玩家：開房時**唔會**插 `battle_players`，所以老師只做主持／睇直播分數。
+- 學生用同一個代碼 join，全部人同一 seed → 同一批 10 題；老師按 Start 才開始。
+- `is_battle_member()` 已更新：class 學生靠 `battle_players` 嗰行做 membership，
+  否則佢哋讀唔到自己間房、亦寫唔到分（**呢個係 RLS 陷阱**）。
+- **歷史修正**：舊版 `leave_battle()` 一離開就 delete 房 → Admin 永遠見唔到紀錄。
+  新版：未開始先 delete；已開始／已完結嘅房**保留**，所以 dashboard 有數睇。
 

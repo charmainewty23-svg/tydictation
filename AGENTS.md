@@ -135,3 +135,34 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - [ ] 非學校帳戶：被登出＋有提示
 - [ ] 「我的記錄」撈到自己跨裝置成績
 - [ ] Sheet 斷線：文法區照用到，登入照用到
+
+---
+
+## 9. Supabase 附加功能（2026-11 加）
+
+兩個功能都要**先在 Supabase SQL Editor 跑一次 SQL**，唔會自動建表。SQL 檔已入 repo，
+重跑安全（`create table if not exists`）。
+
+### 9.1 學生登入紀錄 — `supabase/login_tracking.sql`
+- 表：`student_logins`（每 user 一行：email、nickname、first/last_login_at、login_count、user_agent）
+- RPC：`record_login(nickname, ua)`，前端喺 `onAuthStateChange` 每次 session 首次進入時 call。
+  `login_count` 只在距上次登入 **>12 小時**才 +1，避免 F5／token refresh 造假數。
+- RLS：**只有 ADMIN_EMAIL 讀得到**（`auth.jwt() ->> 'email'`）。
+- Admin 卡片「🕒 Student Logins」→ `loadLoginAdmin()`：今日／7 日／從未登入統計，
+  相對時間＋hover 顯示香港時間＋裝置（由 UA 推斷，**冇 IP**）。
+
+### 9.2 Word Battle 1v1 — `supabase/battle.sql`
+- 表：`battle_rooms`（code 4 位、topic、seed、status、host/guest）、
+  `battle_players`（score/correct/total_ms/done）。
+- RPC：`create_battle` / `join_battle` / `start_battle` / `rematch_battle` /
+  `finish_battle` / `leave_battle`。
+- **公平性機制**：雙方唔會收到題目，各自用 `room.seed` + `mulberry32` 對
+  `categories` 做 seeded shuffle，得出**完全相同**嘅 10 題。改 `BATTLE_QUESTION_COUNT`
+  或 seed 演算法要兩邊同步（同一個 file 所以冇問題）。
+- 流程：create → 等 guest → host 按 Start → 20 秒一題 → 兩邊 done 後 `finish_battle`
+  才轉 `finished`。中離：guest 走 → 房回 waiting；host 走 → 房刪除。
+- 同步方式：**1.5 秒輪詢**（`battlePoll`），冇用 Realtime，唔使開 dashboard 設定。
+- Admin 卡片「⚔️ Live Battles」→ `loadBattleAdmin()`，睇最近 6 小時房間同即時比數。
+- 誠實聲明：分數由 client 寫入，可以造假；房間、代碼、加入資格係 server 端 RLS／RPC 管。
+- 6 小時以上舊房會喺下次 `create_battle` 時自動 delete。
+

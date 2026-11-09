@@ -371,6 +371,14 @@
                     <button class="btn-paw w-full mt-4">Open Dictation</button>
                 </div>
 
+                <div class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
+                    <div class="text-4xl">⚔️</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-blue-600">Word Battle</h2>
+                        <p class="text-gray-400 text-sm">1 v 1 — create a room or join with a code.</p>
+                    </div>
+                </div>
+
                 <div class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">📋</div>
                     <h2 class="text-xl font-bold text-gray-600">My Records</h2>
@@ -533,6 +541,82 @@
                 </div>
             </div>
 
+            <!-- Word Battle View -->
+            <div id="battle-view" class="view hidden w-full">
+                <button onclick="battleLeave()" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Hub
+                </button>
+                <div class="cat-card p-8 md:p-10">
+                    <h2 class="text-3xl font-bold text-blue-600 mb-2">⚔️ Word Battle</h2>
+                    <p class="text-gray-400 mb-8">Both players get the same 10 words. Highest score wins — ties go to the faster player.</p>
+
+                    <!-- Lobby -->
+                    <div id="battle-lobby">
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100">
+                                <h3 class="font-bold text-blue-700 text-lg mb-4">Create a room</h3>
+                                <label class="text-sm text-gray-500 font-bold">Topic</label>
+                                <select id="battle-topic-select" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                <button onclick="battleCreateRoom()" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">Create Room</button>
+                            </div>
+                            <div class="bg-orange-50 rounded-2xl p-6 border-2 border-orange-100">
+                                <h3 class="font-bold text-orange-700 text-lg mb-4">Join a room</h3>
+                                <label class="text-sm text-gray-500 font-bold">Room code</label>
+                                <input id="battle-code-input" maxlength="4" placeholder="A7K2" autocomplete="off" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-center text-2xl tracking-widest uppercase">
+                                <button onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
+                            </div>
+                        </div>
+                        <p id="battle-error" class="text-red-400 font-bold text-center mt-6"></p>
+                    </div>
+
+                    <!-- Waiting room -->
+                    <div id="battle-waiting" class="hidden text-center py-4">
+                        <p class="text-gray-400 font-bold uppercase tracking-wider">Room code</p>
+                        <div id="battle-code-display" class="text-6xl font-bold text-blue-600 tracking-[0.3em] my-4">----</div>
+                        <button onclick="battleCopyCode()" class="px-5 py-2 bg-gray-100 rounded-full font-bold text-gray-600 hover:bg-gray-200 transition-colors">📋 Copy code</button>
+                        <div class="mt-10 flex items-center justify-center gap-6 flex-wrap">
+                            <div id="battle-host-chip" class="bg-blue-50 rounded-xl px-6 py-4 font-bold text-blue-700 min-w-[140px]"></div>
+                            <div class="text-gray-300 text-2xl font-bold">vs</div>
+                            <div id="battle-guest-chip" class="bg-gray-50 rounded-xl px-6 py-4 font-bold text-gray-400 min-w-[140px]">Waiting…</div>
+                        </div>
+                        <button id="battle-start-btn" onclick="battleStart()" class="hidden mt-10 px-10 py-3 bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">Start Battle</button>
+                        <p id="battle-wait-msg" class="text-gray-400 mt-6"></p>
+                    </div>
+
+                    <!-- Play -->
+                    <div id="battle-play" class="hidden">
+                        <div class="flex justify-between items-center mb-8 flex-wrap gap-3">
+                            <div>
+                                <p id="battle-progress" class="text-gray-400 font-bold uppercase tracking-wider">Word 1 of 10</p>
+                                <h3 id="battle-topic-label" class="text-lg font-bold text-blue-600 capitalize"></h3>
+                            </div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <div id="battle-my-score" class="bg-blue-50 text-blue-600 px-5 py-2 rounded-full font-bold border-2 border-blue-100">You: 0</div>
+                                <div id="battle-opp-score" class="bg-orange-50 text-orange-600 px-5 py-2 rounded-full font-bold border-2 border-orange-100">Rival: 0</div>
+                                <div id="battle-clock" class="bg-gray-100 text-gray-600 px-5 py-2 rounded-full font-bold">20s</div>
+                            </div>
+                        </div>
+                        <div class="text-center py-4">
+                            <button id="battle-speaker" onclick="battleSpeak()" class="w-24 h-24 rounded-full bg-blue-100 text-blue-500 hover:bg-blue-200 flex items-center justify-center text-4xl transition-all hover:scale-105 active:scale-95 mx-auto shadow-lg">🔊</button>
+                            <div id="battle-prompt" class="text-5xl font-bold text-gray-800 my-8"></div>
+                            <input id="battle-answer" type="text" class="quiz-input" placeholder="Type the word..." autocomplete="off" autocapitalize="off">
+                            <p id="battle-feedback" class="text-2xl font-bold h-10 mt-4"></p>
+                            <button onclick="battleSubmitAnswer()" class="mt-2 px-10 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-600 transition-colors">Submit</button>
+                        </div>
+                    </div>
+
+                    <!-- Result -->
+                    <div id="battle-result" class="hidden text-center py-6">
+                        <div id="battle-result-headline" class="text-5xl font-bold mb-6"></div>
+                        <div id="battle-result-body" class="text-xl text-gray-600 mb-10 leading-relaxed"></div>
+                        <div class="flex justify-center gap-3 flex-wrap">
+                            <button id="battle-rematch-btn" onclick="battleRematch()" class="hidden px-8 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">Rematch</button>
+                            <button onclick="battleLeave()" class="px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Back to Hub</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="word-list-view" class="view hidden w-full">
                 <button onclick="changeView('sub-category-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Activities
@@ -622,6 +706,22 @@
                         <div class="flex flex-col items-center py-10">
                             <div class="loader mb-4"></div>
                             <p class="text-blue-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-indigo-600 mb-2">⚔️ Live Battles</h2>
+                            <p class="text-gray-400 mb-6">Word Battle rooms from the last 6 hours</p>
+                        </div>
+                        <button onclick="loadBattleAdmin()" class="px-4 py-2 rounded-full font-bold text-sm bg-indigo-500 text-white hover:bg-indigo-600 transition-colors">↻ Refresh</button>
+                    </div>
+                    <div id="battle-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div id="battle-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-indigo-400 font-bold">Loading...</p>
                         </div>
                     </div>
                 </div>
@@ -801,6 +901,7 @@
                 results.forEach(res => { if (res.words.length > 0) categories[res.name] = res.words; });
                 renderCategories();
                 renderTenseGrid();
+                if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
             } catch (e) { updateMascot("Oh no, connection lost!"); }
         }
 
@@ -1992,7 +2093,497 @@
             `;
         }
 
+        // =====================================================================
+        //  WORD BATTLE (1 v 1)
+        //  Both clients rebuild the *same* question list from room.seed, so the
+        //  server never has to store questions. Scores are written by the
+        //  client, which means a determined student could fake them — the same
+        //  honesty trade-off as the rest of the site. Room joining, codes and
+        //  the finished flag are enforced server-side.
+        // =====================================================================
+        const BATTLE_QUESTION_COUNT = 10;
+        const BATTLE_TIME_MS = 20000;
+
+        let battleRoom = null;
+        let battlePlayers = [];
+        let battlePollId = null;
+        let battleTicker = null;
+        let battleWords = [];
+        let battleIdx = 0;
+        let battleScore = 0;
+        let battleCorrect = 0;
+        let battleTotalMs = 0;
+        let battleQStart = 0;
+        let battleDeadline = 0;
+        let battleRoundSeed = null;
+        let battleDoneLocal = false;
+
+        function mulberry32(a) {
+            return function () {
+                a |= 0; a = a + 0x6D2B79F5 | 0;
+                let t = Math.imul(a ^ a >>> 15, 1 | a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        function battleBuildQuestions(room) {
+            const rnd = mulberry32((Number(room.seed) || 1) >>> 0);
+            const usable = SHEET_NAMES.filter(n => (categories[n] || []).filter(w => w.en).length >= 5);
+            let topic = room.topic;
+            let pool = (categories[topic] || []).filter(w => w.en);
+            if (pool.length < 5) {
+                if (!usable.length) return { topic, words: [] };
+                topic = usable[Math.floor(rnd() * usable.length)];
+                pool = (categories[topic] || []).filter(w => w.en);
+            }
+            const arr = pool.slice();
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(rnd() * (i + 1));
+                const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+            }
+            return { topic, words: arr.slice(0, Math.min(BATTLE_QUESTION_COUNT, arr.length)) };
+        }
+
+        function battleNormalize(s) {
+            return String(s || '').toLowerCase().trim()
+                .replace(/[.,!?;:"'“”‘’()]/g, '')
+                .replace(/\s+/g, ' ');
+        }
+
+        function battleErrorMessage(error) {
+            const m = (error && error.message) || 'Something went wrong.';
+            if (m.includes('ROOM_NOT_FOUND')) return 'No room with that code (or it has expired).';
+            if (m.includes('ROOM_FULL')) return 'That room already has two players.';
+            if (m.includes('ROOM_ALREADY_STARTED')) return 'That battle has already started.';
+            if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
+            if (m.includes('CANNOT_START')) return 'Cannot start yet — wait for your opponent.';
+            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room.';
+            if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle tables are not set up yet. Run supabase/battle.sql in Supabase.';
+            return m;
+        }
+
+        function battleSetError(msg) {
+            const el = document.getElementById('battle-error');
+            if (el) el.innerText = msg || '';
+        }
+
+        function battleShowPanel(name) {
+            ['lobby', 'waiting', 'play', 'result'].forEach(p => {
+                const el = document.getElementById('battle-' + p);
+                if (el) el.classList.toggle('hidden', p !== name);
+            });
+        }
+
+        function battlePopulateTopics() {
+            const sel = document.getElementById('battle-topic-select');
+            if (!sel) return;
+            const names = SHEET_NAMES.filter(n => (categories[n] || []).length);
+            sel.innerHTML = '<option value="__random__">🎲 All topics (random)</option>' +
+                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+        }
+
+        function battleStartPolling() {
+            battleStopPolling();
+            battlePollId = setInterval(battlePoll, 1500);
+        }
+
+        function battleStopPolling() {
+            if (battlePollId) { clearInterval(battlePollId); battlePollId = null; }
+            if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
+        }
+
+        function battleEnter() {
+            if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
+            battlePopulateTopics();
+            battleSetError('');
+            if (battleRoom) {
+                battlePoll();
+                battleStartPolling();
+            } else {
+                battleShowPanel('lobby');
+            }
+        }
+
+        async function battleCreateRoom() {
+            battleSetError('');
+            if (!currentUser) return battleSetError('Please login first.');
+            if (!SHEET_NAMES.some(n => (categories[n] || []).length)) {
+                return battleSetError('Word bank is still loading — please wait a moment.');
+            }
+            const sel = document.getElementById('battle-topic-select');
+            const topic = sel ? sel.value : '__random__';
+            const seed = Math.floor(Math.random() * 2000000000) + 1;
+            const { data, error } = await sb.rpc('create_battle', { p_topic: topic, p_seed: seed });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battleAdoptRoom(data);
+        }
+
+        async function battleJoinRoom() {
+            battleSetError('');
+            if (!currentUser) return battleSetError('Please login first.');
+            const input = document.getElementById('battle-code-input');
+            const code = (input ? input.value : '').trim().toUpperCase();
+            if (code.length !== 4) return battleSetError('Enter the 4-character room code.');
+            const { data, error } = await sb.rpc('join_battle', { p_code: code });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battleAdoptRoom(data);
+        }
+
+        function battleAdoptRoom(data) {
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!room || !room.id) return battleSetError('Could not open that room.');
+            battleRoom = room;
+            battleRoundSeed = null;
+            battleDoneLocal = false;
+            battlePlayers = [];
+            battleStartPolling();
+            battlePoll();
+        }
+
+        async function battlePoll() {
+            if (!battleRoom || !currentUser) return;
+            const { data: room, error } = await sb.from('battle_rooms')
+                .select('*').eq('id', battleRoom.id).maybeSingle();
+            if (error || !room) {
+                battleRoom = null;
+                battleStopPolling();
+                battleShowPanel('lobby');
+                battleSetError('The room was closed.');
+                return;
+            }
+            battleRoom = room;
+            const { data: players } = await sb.from('battle_players')
+                .select('*').eq('room_id', room.id);
+            battlePlayers = players || [];
+            battleRender();
+        }
+
+        function battleRender() {
+            if (!battleRoom) return battleShowPanel('lobby');
+            const isHost = battleRoom.host_id === currentUser.id;
+            const me = battlePlayers.find(p => p.user_id === currentUser.id);
+            const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
+
+            if (battleRoom.status === 'waiting') {
+                battleShowPanel('waiting');
+                document.getElementById('battle-code-display').innerText = battleRoom.code;
+                const hostP = battlePlayers.find(p => p.user_id === battleRoom.host_id);
+                document.getElementById('battle-host-chip').innerText = hostP ? (hostP.nickname || hostP.email) : 'Host';
+                document.getElementById('battle-guest-chip').innerText = opp ? (opp.nickname || opp.email) : 'Waiting…';
+                document.getElementById('battle-start-btn').classList.toggle('hidden', !(isHost && !!battleRoom.guest_id));
+                document.getElementById('battle-wait-msg').innerText = isHost
+                    ? (battleRoom.guest_id ? 'Your opponent is in. Start when ready!' : 'Waiting for a classmate to join…')
+                    : 'Waiting for the host to start…';
+                return;
+            }
+
+            if (battleRoom.status === 'playing') {
+                if (battleRoundSeed !== battleRoom.seed) battleBeginRound();
+                if (battleDoneLocal) {
+                    battleShowPanel('result');
+                    battleRenderResult();
+                    return;
+                }
+                battleShowPanel('play');
+                battleUpdateScoreboard();
+                return;
+            }
+
+            battleShowPanel('result');
+            battleRenderResult();
+        }
+
+        function battleBeginRound() {
+            const built = battleBuildQuestions(battleRoom);
+            if (!built.words.length) {
+                battleShowPanel('play');
+                document.getElementById('battle-prompt').innerText = '⚠️';
+                document.getElementById('battle-feedback').innerText = 'Word bank not loaded — refresh the page.';
+                return;
+            }
+            battleRoundSeed = battleRoom.seed;
+            battleWords = built.words;
+            battleIdx = 0;
+            battleScore = 0;
+            battleCorrect = 0;
+            battleTotalMs = 0;
+            battleDoneLocal = false;
+            document.getElementById('battle-topic-label').innerText = 'Topic: ' + built.topic;
+            battleShowQuestion();
+            battleSubmitProgress(false);
+        }
+
+        function battleShowQuestion() {
+            const w = battleWords[battleIdx];
+            if (!w) return battleFinishLocal();
+            document.getElementById('battle-progress').innerText = `Word ${battleIdx + 1} of ${battleWords.length}`;
+            document.getElementById('battle-prompt').innerText = w.zh;
+            const fb = document.getElementById('battle-feedback');
+            fb.innerText = '';
+            fb.className = 'text-2xl font-bold h-10 mt-4';
+            const inp = document.getElementById('battle-answer');
+            inp.value = '';
+            inp.disabled = false;
+            inp.focus();
+            const btn = document.querySelector('#battle-play button[onclick="battleSubmitAnswer()"]');
+            if (btn) btn.disabled = false;
+            battleQStart = Date.now();
+            battleDeadline = battleQStart + BATTLE_TIME_MS;
+            battleUpdateScoreboard();
+            battleStartTicker();
+            battleSpeak();
+        }
+
+        function battleStartTicker() {
+            if (battleTicker) clearInterval(battleTicker);
+            document.getElementById('battle-clock').innerText = '20s';
+            battleTicker = setInterval(() => {
+                const left = Math.max(0, battleDeadline - Date.now());
+                document.getElementById('battle-clock').innerText = Math.ceil(left / 1000) + 's';
+                if (left <= 0) {
+                    clearInterval(battleTicker);
+                    battleTicker = null;
+                    battleAnswerTimeout();
+                }
+            }, 100);
+        }
+
+        function battleUpdateScoreboard() {
+            const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
+            const myEl = document.getElementById('battle-my-score');
+            const oppEl = document.getElementById('battle-opp-score');
+            if (myEl) myEl.innerText = 'You: ' + battleScore;
+            if (oppEl) oppEl.innerText = 'Rival: ' + (opp ? opp.score : 0);
+        }
+
+        function battleSubmitAnswer() {
+            const inp = document.getElementById('battle-answer');
+            if (!inp || inp.disabled) return;
+            const w = battleWords[battleIdx];
+            if (!w) return;
+            const elapsed = Math.min(BATTLE_TIME_MS, Date.now() - battleQStart);
+            const ok = battleNormalize(inp.value) === battleNormalize(w.en);
+            inp.disabled = true;
+            if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
+            const fb = document.getElementById('battle-feedback');
+            if (ok) {
+                const bonus = Math.round(5 * Math.max(0, battleDeadline - Date.now()) / BATTLE_TIME_MS);
+                const pts = 10 + bonus;
+                battleScore += pts;
+                battleCorrect += 1;
+                battleTotalMs += elapsed;
+                fb.innerText = `✅ +${pts}`;
+                fb.className = 'text-2xl font-bold h-10 mt-4 text-green-500';
+            } else {
+                battleTotalMs += elapsed;
+                fb.innerText = `❌ ${w.en}`;
+                fb.className = 'text-2xl font-bold h-10 mt-4 text-red-400';
+            }
+            battleUpdateScoreboard();
+            setTimeout(battleAdvance, 1100);
+        }
+
+        function battleAnswerTimeout() {
+            const inp = document.getElementById('battle-answer');
+            if (!inp || inp.disabled) return;
+            const w = battleWords[battleIdx];
+            inp.disabled = true;
+            battleTotalMs += BATTLE_TIME_MS;
+            const fb = document.getElementById('battle-feedback');
+            fb.innerText = `⏰ ${w.en}`;
+            fb.className = 'text-2xl font-bold h-10 mt-4 text-gray-400';
+            battleUpdateScoreboard();
+            setTimeout(battleAdvance, 900);
+        }
+
+        function battleAdvance() {
+            battleIdx++;
+            if (battleIdx >= battleWords.length) battleFinishLocal();
+            else battleShowQuestion();
+        }
+
+        async function battleSubmitProgress(done) {
+            if (!currentUser || !battleRoom) return;
+            const { error } = await sb.from('battle_players').update({
+                score: battleScore,
+                correct: battleCorrect,
+                total_ms: battleTotalMs,
+                done: !!done,
+                last_seen: new Date().toISOString()
+            }).eq('room_id', battleRoom.id).eq('user_id', currentUser.id);
+            if (error) console.warn('battle progress save failed:', error.message);
+        }
+
+        async function battleFinishLocal() {
+            if (battleDoneLocal) return;
+            battleDoneLocal = true;
+            if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
+            document.getElementById('battle-feedback').innerText = '';
+            await battleSubmitProgress(true);
+            await sb.rpc('finish_battle', { p_room_id: battleRoom.id });
+            await battlePoll();
+        }
+
+        function battleRenderResult() {
+            if (!battleRoom) return;
+            const me = battlePlayers.find(p => p.user_id === currentUser.id) || { score: battleScore, correct: battleCorrect, total_ms: battleTotalMs };
+            const opp = battlePlayers.find(p => p.user_id !== currentUser.id);
+            const head = document.getElementById('battle-result-headline');
+            const body = document.getElementById('battle-result-body');
+
+            if (!opp) {
+                head.innerText = '🏁 Game over';
+                body.innerText = 'Your score: ' + (me.score || 0) + ' pts';
+            } else if (!opp.done) {
+                head.innerText = '⏳ Waiting for opponent…';
+                body.innerText = `You: ${me.score || 0} pts · Rival: ${opp.score || 0} pts`;
+            } else {
+                let verdict;
+                if ((me.score || 0) > (opp.score || 0)) verdict = '🏆 You win!';
+                else if ((me.score || 0) < (opp.score || 0)) verdict = '😿 You lose';
+                else if ((me.total_ms || 0) < (opp.total_ms || 0)) verdict = '🏆 You win on time!';
+                else if ((me.total_ms || 0) > (opp.total_ms || 0)) verdict = '😿 You lose on time';
+                else verdict = '🤝 Draw!';
+                head.innerText = verdict;
+                body.innerHTML = `You: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)<br>` +
+                                 `Rival: <b>${opp.score || 0}</b> pts (${opp.correct || 0}/${battleWords.length} correct)`;
+            }
+            document.getElementById('battle-rematch-btn')
+                .classList.toggle('hidden', battleRoom.host_id !== currentUser.id);
+        }
+
+        async function battleRematch() {
+            const seed = Math.floor(Math.random() * 2000000000) + 1;
+            const { error } = await sb.rpc('rematch_battle', { p_room_id: battleRoom.id, p_seed: seed });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battleRoundSeed = null;
+            battlePoll();
+        }
+
+        async function battleStart() {
+            const { error } = await sb.rpc('start_battle', { p_room_id: battleRoom.id });
+            if (error) return battleSetError(battleErrorMessage(error));
+            battlePoll();
+        }
+
+        async function battleCopyCode() {
+            const code = document.getElementById('battle-code-display').innerText.trim();
+            try {
+                await navigator.clipboard.writeText(code);
+                updateMascot('Room code copied: ' + code);
+            } catch (e) {
+                updateMascot('Room code: ' + code);
+            }
+        }
+
+        function battleSpeak() {
+            const w = battleWords[battleIdx];
+            if (!w) return;
+            const utterance = new SpeechSynthesisUtterance(w.en);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utterance);
+        }
+
+        async function battleLeave() {
+            battleStopPolling();
+            if (battleRoom && currentUser) {
+                try { await sb.rpc('leave_battle', { p_room_id: battleRoom.id }); } catch (e) { }
+            }
+            battleRoom = null;
+            battlePlayers = [];
+            battleRoundSeed = null;
+            battleDoneLocal = false;
+            battleWords = [];
+            changeView('hub-view');
+        }
+
+        async function loadBattleAdmin() {
+            if (!isAdmin()) return;
+            const statsEl = document.getElementById('battle-admin-stats');
+            const listEl = document.getElementById('battle-admin-container');
+            const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+
+            const { data, error } = await sb.from('battle_rooms')
+                .select('code, topic, status, created_at, started_at, battle_players(nickname, email, score, correct, done)')
+                .gte('created_at', since)
+                .order('created_at', { ascending: false })
+                .limit(40);
+
+            if (error) {
+                statsEl.innerHTML = '';
+                const missing = /does not exist|Could not find|PGRST20|42P01/i.test(error.message);
+                listEl.innerHTML = missing
+                    ? '<p class="text-amber-500 text-center py-10 font-bold">Word Battle is not set up yet.<br><span class="text-sm font-normal">Run <code>supabase/battle.sql</code> in the Supabase SQL Editor.</span></p>'
+                    : '<p class="text-red-400 text-center py-10">Cannot load battles: ' + escapeHtml(error.message) + '</p>';
+                return;
+            }
+
+            const rooms = data || [];
+            const playing = rooms.filter(r => r.status === 'playing').length;
+            const waiting = rooms.filter(r => r.status === 'waiting').length;
+            const finished = rooms.filter(r => r.status === 'finished').length;
+            const students = new Set();
+            rooms.forEach(r => (r.battle_players || []).forEach(p => students.add((p.email || '').toLowerCase())));
+
+            statsEl.innerHTML = `
+                <div class="bg-indigo-50 rounded-2xl p-5 text-center border-2 border-indigo-100">
+                    <div class="text-3xl font-bold text-indigo-600">${playing}</div>
+                    <div class="text-sm text-gray-500 font-bold">In Progress</div>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
+                    <div class="text-3xl font-bold text-blue-600">${waiting}</div>
+                    <div class="text-sm text-gray-500 font-bold">Waiting</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${finished}</div>
+                    <div class="text-sm text-gray-500 font-bold">Finished</div>
+                </div>
+                <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
+                    <div class="text-3xl font-bold text-orange-600">${students.size}</div>
+                    <div class="text-sm text-gray-500 font-bold">Students (6h)</div>
+                </div>
+            `;
+
+            if (!rooms.length) {
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No battles in the last 6 hours.</p>';
+                return;
+            }
+
+            const statusPill = s => s === 'playing'
+                ? '<span class="bg-green-100 text-green-600 text-xs font-bold px-3 py-1 rounded-full">PLAYING</span>'
+                : s === 'waiting'
+                    ? '<span class="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">WAITING</span>'
+                    : '<span class="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">FINISHED</span>';
+
+            listEl.innerHTML = `
+                <div class="space-y-3">
+                    ${rooms.map(r => {
+                        const ps = r.battle_players || [];
+                        const lines = ps.length
+                            ? ps.map(p => `<div class="flex items-center justify-between">
+                                    <span class="text-gray-700 font-bold">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
+                                    <span class="text-indigo-600 font-bold">${p.score} pts · ${p.correct} correct${p.done ? ' ✔' : ''}</span>
+                               </div>`).join('')
+                            : '<span class="text-gray-400 text-sm">No players yet</span>';
+                        return `<div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+                            <div class="flex items-center gap-4">
+                                <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
+                                ${statusPill(r.status)}
+                                <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
+                            </div>
+                            <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>
+                            <span class="text-xs text-gray-400">${escapeHtml(hkDate(r.created_at))}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         function changeView(viewId) {
+            if (viewId !== 'battle-view') battleStopPolling();
             if (window.lastFinalView) {
                 window.lastFinalView.remove();
                 window.lastFinalView = null;
@@ -2009,12 +2600,21 @@
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }
-            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); loadLoginAdmin(); }
+            if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); loadLoginAdmin(); loadBattleAdmin(); }
+            if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }
         }
 
         // Handle Enter key in quiz
         document.getElementById('quiz-answer-input')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') checkAnswer();
+        });
+
+        // Word Battle inputs
+        document.getElementById('battle-answer')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); battleSubmitAnswer(); }
+        });
+        document.getElementById('battle-code-input')?.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
         });
 
         async function loadIfClauseData() {

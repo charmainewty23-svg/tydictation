@@ -33,6 +33,7 @@
   `renderCategories()` 嘅 emoji map 加 icon。缺 emoji 會 fallback 📦。
   想個名顯示得靚（例如 `basics` → `Basics`）就加落 `TOPIC_LABELS`。
 - **gviz 只讀**：寫入一定要經其他通道（見 §5，成績唔擺 Sheet）。
+  **New Vocab 唔係 Sheet tab**，老師喺網站度改，見 §11。
 
 ## 3. 檔案地圖
 
@@ -44,8 +45,9 @@
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
 | `grammar-revision-view` | 時態格（`renderTenseGrid`，`showTenseDetail`） |
 | `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填） |
-| `home-view` | 20 topic 格（`#categories-grid`，Sheet 載入後填） |
-| `sub-category-view` | Listening／Recitation／Revision 三個活動 |
+| `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
+| `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
+| `error-book-view` | 學生錯題簿 |
 | `quiz-view` | 測驗主體（speaker 鈕／中文大字／input／hint／計分） |
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
@@ -217,6 +219,25 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   所以同一間房兩個／全班學生仍然係**同一批、同一數量、同一次序**。
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
+
+### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
+
+年級**唔再**喺登入時叫學生揀。舊版只係把 `localStorage["student_form_level"]`
+（`F.4` / `F.6`）留喺學生自己部機，**冇**寫入 Supabase，所以老師畫面之前濾唔到。
+
+- **單一清單**：`FORM_LEVELS`（而家 `F3`、`F4`、`F6`）。加新年級只改呢個陣列，
+  `id` 用 `F` + 年份（例如 `F5`）。篩選掣、老師下拉、同舊 localStorage 遷移都讀呢度。
+- 欄：`student_logins.form`（text，null = Unassigned）。
+- RPC：
+  - `claim_own_form(p_form)` — 學生登入時，如果部機仲有舊選擇，而且資料庫嗰行 `form` 仲係 null，先寫入。
+    **唔會**覆蓋老師已改嘅值。管理員帳戶唔會執走呢份 localStorage。
+    同一部瀏覽器只交俾第一個登入嘅學生（`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級。
+  - `set_student_form(p_email, p_form)` — 只限 `ADMIN_EMAIL`。每個老師畫面嘅學生行有下拉可以改；
+    揀「—」就變回 Unassigned。
+- 老師篩選：All / 每個 form / Unassigned，記住喺 `localStorage["teacher_form_filter"]`。
+  會改 Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown）、
+  Word Jump admin 排名，同埋老師先見到嘅 Hub Leaderboard。學生自己嗰個 Leaderboard 唔顯示呢個篩選。
+- 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`，個個暫時當 Unassigned。
 
 ---
 
@@ -454,7 +475,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     `changeView('admin-view')` 會自動 call。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，admin 卡顯示同一句提示，遊戲照玩。
-- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(100)`。
+- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(1000)`，
+  先至唔會因為全球頭 100 名冇晒某個 form 而濾走佢哋。畫面上嘅名次跟住 form 篩選重排。
 - 誠實聲明：分數由 client 寫入，**可以造假**；同 Word Battle 一樣只適合課堂激勵。
 
 ### 10.12 同學高度線（milestone markers）
@@ -470,3 +492,26 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   已經喺腳下面嘅線（資料遲咗先載入）會直接標做已過，唔會補播。
 - **冇朋友系統**，所以唔會有「過朋友先播特別音效」。通過本身亦冇加新音效。
 - 重開（`WJ.reset`）會清通過狀態，下一局可以再過同一批線。載入失敗就當冇線，遊戲照玩。
+
+## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
+
+每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。
+唔好加落 `SHEET_NAMES`（否則 Word Jump／隨機 battle 會撈埋）。
+
+- 入口：Dictation Master → **New Vocab**。老師帳戶喺呢度揀年級、加字、改字、刪字。
+  英文、中文、或者兩個一齊都可以存；兩格都空先唔畀存。
+- 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
+  練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
+  淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
+- 學生冇 form：唔會見到其他年級嘅字，只見到要老師先設定年級。
+- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。
+- 錯題簿：Dictation Master 嘅 **Error Book** 格，同 New Vocab 入面個掣。
+  `checkAnswer` 第三次先錯就收入去（任何 Dictation 題目，包括 New Vocab）。
+  喺錯題簿答對就刪走。登入寫 `error_book`（只可以讀寫自己）；未登入用
+  `localStorage["error_book:guest"]`。一有人登入就清走 guest，避免共用電腦串到下一個學生。
+- Word Battle：topic 揀 New Vocab，再揀年級，同「Full bank／Added today」。
+  `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
+  全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
+  中文提示有就顯示，冇就當 English-only。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql`。
+  未跑之前，登入同其他 topic 照用；New Vocab 顯示要跑 SQL。

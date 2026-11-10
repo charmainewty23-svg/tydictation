@@ -367,3 +367,26 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - `WJ.stop()`（離開 view）會 `WJ.exitFullscreenSoft()`，所以唔會困住喺全屏幕。
 - 改 CSS 記得三組選擇器都要有：`:fullscreen`、`:-webkit-full-screen`、`body.wj-fs #wj-stage`。
 
+### 10.11 排行榜（Word Jump，`supabase/wj_scores.sql`）
+
+**要喺 Supabase SQL Editor 跑一次**，唔會自動建表；重跑安全。唔使跟 battle 系列順序。
+
+- 表 `wj_scores`：每局一行（`user_id, email, nickname, topic, score, height, words`）。
+- View `wj_leaderboard`：**每人一行**（個人最佳）＋ `plays`（該學生總局數）。
+  用 `row_number() over (partition by user_id order by score desc, created_at asc)` 抽第一行，
+  `security_invoker = true` 令 RLS 生效。
+- RLS：`select using (true)`（**全世界讀得到**，否則排行榜載入唔到）；
+  `insert with check (auth.uid() = user_id)`（只可以寫自己）。
+- 前端：
+  - `WJ.gameOver()` → `WJ.submitScore(score)`：登入咗就 fire-and-forget insert，
+    失敗只 `console.warn`，唔會阻住遊戲結束畫面。
+  - `WJ.loadLeaderboard()`：撈 `wj_leaderboard` 頭 7 名，畫入 game-over 卡嘅 `#wj-lb`；
+    自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。
+  - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、分、幾個字）。
+  - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
+    學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾局、幾時玩、高度、字數）。
+    `changeView('admin-view')` 會自動 call。
+- **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
+  `wj_scores.sql`）」，admin 卡顯示同一句提示，遊戲照玩。
+- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(100)`。
+- 誠實聲明：分數由 client 寫入，**可以造假**；同 Word Battle 一樣只適合課堂激勵。

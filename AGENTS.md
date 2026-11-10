@@ -262,6 +262,14 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`。下拉暫時存唔到，
   但有顯示名稱嘅學生仍然會按班別代號歸類。
 
+### 9.8 訪客登入（密碼 `0203`）
+
+學校 Google 登入保持不變。登入頁另外有 **Guest login**：每次新分頁／新瀏覽器 session 要輸入密碼 `0203` 先入到網站。正確之後用 `sessionStorage` 記住呢次分頁，刷新同一分頁唔使再輸入；關咗分頁或撳 Logout 就要再輸入。**唔會**用 Google 帳戶，亦唔會寫入 `student_logins`、成績表、Word Jump／Word Battle 排行榜。
+
+訪客當 Unassigned 用 New Vocab（可睇全部年級新增生字），同埋可以用 Dictation Master（包括 New Vocab、Error Book）、Grammar Quest、Word Jump 練習。Word Battle 房間（開房／加入）要學校 Google 帳戶；訪客喺 Word Battle 頁只可以撳入 Word Jump。
+
+訪客**唔可以**睇任何排行榜／其他人成績：Hub 嘅 Leaderboard、My Records、老師 dashboard 入口會隱藏，`changeView` 亦會擋住 `leaderboard-view`、`admin-view`、`my-records-view`。Word Jump game-over 唔顯示 Top 7，亦唔畫同學高度線、唔上傳分數。呢個密碼寫喺前端靜態檔，睇到網頁原始碼就睇到；只係課堂用嘅簡易閘，唔係真正帳號系統。
+
 ---
 
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
@@ -491,7 +499,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - `WJ.gameOver()` → `WJ.submitScore(score)`：登入咗就 fire-and-forget insert，
     失敗只 `console.warn`，唔會阻住遊戲結束畫面。
   - `WJ.loadLeaderboard()`：撈 `wj_leaderboard` 頭 7 名，畫入 game-over 卡嘅 `#wj-lb`；
-    自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。
+    自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。訪客模式唔會撈榜，亦唔會 upload 分數。
   - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、分、幾個字）。
   - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
     學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾局、幾時玩、高度、字數）。
@@ -526,16 +534,17 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
-- 學生只可以用**自己年級**嘅 New Vocab：顯示登入名稱入面嘅班別代號（例如 `4C 16 …` → F4），或者老師下拉指定嘅年級。Unassigned（冇顯示名稱、又冇老師指定）會見到清楚提示，**唔會**見到其他年級嘅字庫，亦唔可以開其他年級嘅 Listening／Recitation／Revision 或 Word Battle New Vocab。老師編輯字庫同開 battle 仍然可以揀 F3／F4／F6。
+- 已分到年級嘅學生（顯示名稱例如 `4C 16 …` → F4，或老師下拉指定）只可以用**自己年級**嘅 New Vocab，包括 Listening／Recitation／Revision 同 Word Battle 字庫。**Unassigned** 學生（冇可用顯示名稱，或老師揀咗「—」）同**訪客**可以瀏覽／練習**全部年級**（F3＋F4＋F6）嘅新增生字，並可揀「All forms」或其中一個年級開 Word Battle。老師編輯字庫同開 battle 仍然可以揀 F3／F4／F6。Unassigned 學生喺老師 dashboard 仍然歸入 Unassigned 一組。呢個「讀全部年級」要跑 `supabase/new_vocab_unassigned_read.sql`（喺 `new_vocab.sql` 之後，可重複跑）。
 - 學生進入 New Vocab 時，如果資料庫 `form` 仲係空，會用顯示名稱再 try `claim_own_form`，等 RLS（`my_form()`）可以讀到自己嗰份字庫，唔使再登入一次。老師加完字之後，已經開住 New Vocab 嘅學生會經 4 秒輪詢見到新字。
 - 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師喺編輯器輸入英／中文之後撳 **Confirm**（確認）掣，先會存入而家揀咗嗰個年級（F3／F4／F6）字庫，並即刻顯示喺下面字表；4 秒輪詢只係背景同步。空卡唔會存。刪除或清空仍然用 − 掣。如果 `new_vocab.sql`／`student_forms.sql` 未跑，Confirm **唔可以**默默失敗：編輯器上面會出現明顯提示，並列出要喺 Supabase SQL editor 按次序跑嘅檔案。
 - 錯題簿：Dictation Master 嘅 **Error Book** 格，同 New Vocab 入面個掣。
   `checkAnswer` 第三次先錯就收入去（任何 Dictation 題目，包括 New Vocab）。
-  喺錯題簿答對就刪走。登入寫 `error_book`（只可以讀寫自己）；未登入用
-  `localStorage["error_book:guest"]`。一有人登入就清走 guest，避免共用電腦串到下一個學生。
+  喺錯題簿答對就刪走。學校帳戶登入寫 `error_book`（只可以讀寫自己）；訪客用
+  `sessionStorage["error_book:guest-session"]`（只留喺呢次分頁，唔會寫上雲）。
+  未登入嘅舊 key 仍然係 `localStorage["error_book:guest"]`。一有學校帳戶登入就清走呢個舊 guest key，避免共用電腦串到下一個學生。
 - Word Battle：topic 揀 New Vocab，再揀年級，同「Full bank／Added today」。
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql`。
-  未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，只需再跑 `student_forms.sql` 同 `new_vocab.sql`。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql`。
+  未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。呢份 SQL 可重複跑；未跑亦唔會整壞網站，只係 Unassigned／訪客可能見到空字庫。

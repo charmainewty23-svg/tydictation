@@ -388,6 +388,14 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
             Sign in with Google
         </button>
+        <div class="mt-10 w-full max-w-sm flex flex-col items-center">
+            <p class="text-sm font-bold text-gray-400 mb-3">or continue as a guest</p>
+            <form onsubmit="signInAsGuest(event)" class="w-full flex flex-col items-center gap-3">
+                <input id="guest-password" type="password" inputmode="numeric" maxlength="8" placeholder="Guest password" autocomplete="off" class="w-full p-4 rounded-2xl border-2 border-orange-100 bg-white text-center font-bold text-gray-700 tracking-widest">
+                <button type="submit" class="w-full py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-2xl font-bold hover:bg-orange-50 transition-colors">Guest login</button>
+                <p id="guest-login-error" class="hidden text-red-500 font-bold text-sm"></p>
+            </form>
+        </div>
     </div>
 
     <!-- Main App (hidden until logged in) -->
@@ -466,12 +474,12 @@
                     </div>
                 </div>
 
-                <div class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                <div id="hub-records-entry" class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">📋</div>
                     <h2 class="text-xl font-bold text-gray-600">My Records</h2>
                 </div>
 
-                <div class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                <div id="hub-leaderboard-entry" class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">🏆</div>
                     <h2 class="text-xl font-bold text-gray-600">Leaderboard</h2>
                 </div>
@@ -684,7 +692,7 @@
                             </select>
                             <span class="text-xs text-gray-400">Applies to both 1v1 rooms and class rooms.</span>
                         </div>
-                        <div class="grid md:grid-cols-2 gap-6">
+                        <div id="battle-room-actions" class="grid md:grid-cols-2 gap-6">
                             <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100">
                                 <h3 class="font-bold text-blue-700 text-lg mb-4">Create a room</h3>
                                 <label class="text-sm text-gray-500 font-bold">Topic</label>
@@ -991,7 +999,25 @@
 
         let currentUser = null;
         let currentSubCategory = '';
-        function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
+        const GUEST_PASSWORD = '0203';
+        const GUEST_SESSION_KEY = 'learniTY_guest_session';
+        const GUEST_BLOCKED_VIEWS = ['leaderboard-view', 'admin-view', 'my-records-view'];
+        let guestSession = false;
+
+        function isGuestUser() { return !!guestSession; }
+        function isAdmin() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
+        function isSignedIn() { return isGuestUser() || !!currentUser; }
+        function canUseCloud() { return !isGuestUser() && !!currentUser; }
+
+        function hasGuestSessionFlag() {
+            try { return sessionStorage.getItem(GUEST_SESSION_KEY) === '1'; } catch (e) { return false; }
+        }
+        function writeGuestSessionFlag() {
+            try { sessionStorage.setItem(GUEST_SESSION_KEY, '1'); } catch (e) {}
+        }
+        function clearGuestSessionFlag() {
+            try { sessionStorage.removeItem(GUEST_SESSION_KEY); } catch (e) {}
+        }
 
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
         // every dropdown, display-name parser, grouping, and the old-browser
@@ -1304,9 +1330,52 @@
             });
         }
 
+        function endGuestSession() {
+            guestSession = false;
+            clearGuestSessionFlag();
+        }
+
+        function startGuestSession() {
+            guestSession = true;
+            writeGuestSessionFlag();
+            loginRecorded = true;
+            myFormValue = '';
+            myFormLoaded = true;
+            ownFormPersisted = false;
+            updateAuthUI();
+            adoptErrorBookUser();
+            showApp();
+        }
+
+        function signInAsGuest(event) {
+            if (event) event.preventDefault();
+            const input = document.getElementById('guest-password');
+            const err = document.getElementById('guest-login-error');
+            const typed = String(input && input.value || '').trim();
+            if (typed !== GUEST_PASSWORD) {
+                if (err) {
+                    err.classList.remove('hidden');
+                    err.innerText = 'That guest password is not right.';
+                }
+                return;
+            }
+            if (input) input.value = '';
+            if (err) { err.classList.add('hidden'); err.innerText = ''; }
+            startGuestSession();
+        }
+
         async function signOut() {
-            await sb.auth.signOut();
-            currentUser = null;
+            endGuestSession();
+            if (currentUser) {
+                currentUser = null;
+                try { await sb.auth.signOut(); } catch (e) {}
+            }
+            loginRecorded = false;
+            myFormValue = '';
+            myFormLoaded = false;
+            ownFormPersisted = false;
+            adoptErrorBookUser();
+            updateAuthUI();
             showLogin();
         }
 
@@ -1314,13 +1383,23 @@
             const btn = document.getElementById('auth-btn');
             const nickname = document.getElementById('auth-nickname');
             const adminBtn = document.getElementById('admin-hub-entry');
+            const lbCard = document.getElementById('hub-leaderboard-entry');
+            const recCard = document.getElementById('hub-records-entry');
+            if (isGuestUser()) {
+                if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
+                if (nickname) nickname.innerText = 'Guest';
+                if (adminBtn) adminBtn.classList.add('hidden');
+                if (lbCard) lbCard.classList.add('hidden');
+                if (recCard) recCard.classList.add('hidden');
+                return;
+            }
+            if (lbCard) lbCard.classList.remove('hidden');
+            if (recCard) recCard.classList.remove('hidden');
             if (currentUser) {
                 const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
-                btn.innerText = 'Logout';
-                btn.onclick = signOut;
-                nickname.innerText = name;
-                if (adminBtn && isAdmin()) adminBtn.classList.remove('hidden');
-                else if (adminBtn) adminBtn.classList.add('hidden');
+                if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
+                if (nickname) nickname.innerText = name;
+                if (adminBtn) adminBtn.classList.toggle('hidden', !isAdmin());
             }
         }
 
@@ -1362,9 +1441,11 @@
                 await sb.auth.signOut();
                 document.getElementById('login-mascot-text').innerText = "Please use your school account to login (" + SCHOOL_DOMAIN + ")";
                 currentUser = null;
+                endGuestSession();
                 adoptErrorBookUser();
                 showLogin();
             } else if (session) {
+                endGuestSession();
                 currentUser = session.user;
                 recordLogin(session.user);
                 updateAuthUI();
@@ -1372,8 +1453,13 @@
                 showApp();
             } else {
                 currentUser = null;
-                adoptErrorBookUser();
-                showLogin();
+                if (hasGuestSessionFlag()) {
+                    startGuestSession();
+                } else {
+                    guestSession = false;
+                    adoptErrorBookUser();
+                    showLogin();
+                }
             }
         });
         
@@ -1551,22 +1637,27 @@
         }
 
         function errorBookStorageKey() {
-            return currentUser ? ('error_book:' + currentUser.id) : 'error_book:guest';
+            if (isGuestUser()) return 'error_book:guest-session';
+            return canUseCloud() ? ('error_book:' + currentUser.id) : 'error_book:guest';
+        }
+
+        function errorBookStore() {
+            return isGuestUser() ? sessionStorage : localStorage;
         }
 
         function saveErrorBookLocal() {
-            try { localStorage.setItem(errorBookStorageKey(), JSON.stringify(errorBook)); } catch (e) {}
+            try { errorBookStore().setItem(errorBookStorageKey(), JSON.stringify(errorBook)); } catch (e) {}
         }
 
         function readErrorBookLocal() {
             try {
-                const parsed = JSON.parse(localStorage.getItem(errorBookStorageKey()) || '[]');
+                const parsed = JSON.parse(errorBookStore().getItem(errorBookStorageKey()) || '[]');
                 return Array.isArray(parsed) ? parsed.filter(w => w && w.en) : [];
             } catch (e) { return []; }
         }
 
         function adoptErrorBookUser() {
-            if (currentUser) {
+            if (canUseCloud()) {
                 try { localStorage.removeItem('error_book:guest'); } catch (e) {}
             }
             const next = currentUser ? currentUser.id : null;
@@ -1579,7 +1670,7 @@
         }
 
         async function loadErrorBook() {
-            if (currentUser) {
+            if (canUseCloud()) {
                 const { data, error } = await sb.from('error_book').select('en,zh,topic').eq('user_id', currentUser.id).order('created_at');
                 if (!error && data) {
                     errorBook = data.map(w => ({ en: w.en, zh: w.zh || '', topic: w.topic || '' }));
@@ -1605,7 +1696,7 @@
             if (!en || errorBook.some(w => w.en === en)) return;
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from('error_book').upsert({
                 user_id: currentUser.id, en, zh, topic: currentTopic || ''
             }, { onConflict: 'user_id,en' }).then(({ error }) => {
@@ -1619,7 +1710,7 @@
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
                 if (error) console.warn('Error book remove failed:', error.message);
             });
@@ -1736,8 +1827,9 @@
                 + '<li><code>supabase/student_forms.sql</code> — needed so each student has a form (F3 / F4 / F6).</li>'
                 + '<li>The Word Battle SQL files — skip if Word Battle already works.</li>'
                 + '<li><code>supabase/new_vocab.sql</code> — creates the New Vocab word bank and the Error Book table. If this was run before the battle tables, run it once more.</li>'
+                + '<li><code>supabase/new_vocab_unassigned_read.sql</code> — needed so Unassigned students and guests can read every form\'s bank.</li>'
                 + '</ol>'
-                + 'Then refresh this page. Until that is done, Confirm cannot save a word, and students cannot see a form word bank.';
+                + 'Then refresh this page. Until the earlier files are done, Confirm cannot save a word. Until the last file is done, Unassigned students and guests may see an empty word bank.';
         }
 
         function nvShowFeedback(html, isError) {
@@ -1756,18 +1848,25 @@
         }
 
         function ownDisplayedForm() {
-            if (!currentUser || isAdmin()) return '';
+            if (!currentUser || isAdmin() || isGuestUser()) return '';
             const nick = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
             return parseDisplayNameFormClass(displayedLoginName(currentUser.email, nick)).form || '';
         }
 
         function nvActiveForm() {
             if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
+            if (isGuestUser()) return '';
             return myFormValue || ownDisplayedForm() || '';
         }
 
+        function browsesAllVocab() {
+            if (isAdmin()) return false;
+            if (isGuestUser()) return true;
+            return isSignedIn() && !nvActiveForm();
+        }
+
         async function resolveOwnForm(force) {
-            if (!currentUser) { myFormValue = ''; myFormLoaded = true; ownFormPersisted = false; return ''; }
+            if (isGuestUser() || !currentUser) { myFormValue = ''; myFormLoaded = true; ownFormPersisted = false; return ''; }
             if (isAdmin()) { myFormLoaded = true; return nvEditForm || FORM_LEVELS[0].id; }
             if (myFormLoaded && !force && ownFormPersisted) return myFormValue;
             let stored = '';
@@ -1850,23 +1949,20 @@
                 if (activities) activities.classList.add('hidden');
                 if (scope) scope.classList.add('hidden');
             };
-            if (!isAdmin() && !currentUser) {
+            if (!isAdmin() && !isSignedIn()) {
                 hidePractice();
-                if (status) status.innerText = 'Sign in with your school account to open your form\'s New Vocab bank.';
+                if (status) status.innerText = 'Sign in with your school account, or as a guest, to open New Vocab.';
                 nvShowFeedback('', false);
                 return;
             }
-            if (!isAdmin() && !form) {
-                hidePractice();
-                if (status) status.innerText = 'Your form is not set yet, so this word bank is closed.';
-                nvShowFeedback('Your displayed login name needs a class code such as 4C (the digit is the form: 3 → F3, 4 → F4, 6 → F6). If no name is shown, ask your teacher to assign F3, F4 or F6. You will not see another form\'s words.', true);
-                return;
-            }
+            const allForms = !isAdmin() && !form;
             if (scope) scope.classList.remove('hidden');
-            const { data, error } = await sb.from('new_vocab_words')
-                .select('id,en,zh,created_at,updated_at')
-                .eq('form', form)
+            let query = sb.from('new_vocab_words')
+                .select('id,en,zh,form,created_at,updated_at')
                 .order('id');
+            if (!allForms) query = query.eq('form', form);
+            else query = query.in('form', FORM_LEVELS.map(f => f.id));
+            const { data, error } = await query;
             if (gen !== nvFetchGen) return;
             if (error) {
                 nvSchemaMissing = isMissingSchema(error.message);
@@ -1905,13 +2001,16 @@
             const todayCount = nvRows.filter(w => nvAddedToday(w.created_at || w.updated_at)).length;
             const showing = nvPracticeRows().length;
             if (!nvRows.length) {
-                status.innerText = form ? (form + ' word bank is empty. Words you add stay until you delete them.') : '';
+                status.innerText = browsesAllVocab()
+                    ? 'All forms · no New Vocab words yet. If your teacher already added some, run supabase/new_vocab_unassigned_read.sql in the SQL editor, then refresh.'
+                    : (form ? (form + ' word bank is empty. Words you add stay until you delete them.') : '');
                 return;
             }
             const newest = nvRows.reduce((a, w) => !a || w.updated_at > a ? w.updated_at : a, '');
             const when = typeof hkDate === 'function' ? hkDate(newest) : '';
             const scopeLabel = nvScope === 'today' ? (showing + ' added today') : (showing + ' in the bank');
-            status.innerText = form + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
+            const formLabelText = browsesAllVocab() ? 'All forms' : form;
+            status.innerText = formLabelText + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
         }
 
         function nvRenderEditorList() {
@@ -2270,15 +2369,17 @@
             const correctCount = quizResults.filter(r => r.correct).length;
             const accuracy = Math.round((correctCount / total) * 100);
 
-            // Save to localStorage
-            const history = JSON.parse(localStorage.getItem('dict_history') || '[]');
+            // Save to local (session-only for guests, so a later visitor is not mixed in)
+            const historyStore = isGuestUser() ? sessionStorage : localStorage;
+            const historyKey = isGuestUser() ? 'dict_history_guest' : 'dict_history';
+            const history = JSON.parse(historyStore.getItem(historyKey) || '[]');
             const record = { t: Date.now(), topic: currentTopic, mode: quizMode, score: quizScore, total: total, correct: correctCount, accuracy: accuracy };
             history.push(record);
-            localStorage.setItem('dict_history', JSON.stringify(history));
+            historyStore.setItem(historyKey, JSON.stringify(history));
 
-            // Sync to Supabase if logged in
+            // Sync to Supabase if a school account is signed in (never for guests)
             let cloudSynced = false;
-            if (currentUser) {
+            if (canUseCloud()) {
                 sb.from("dictation_results").insert({
                     user_id: currentUser.id,
                     email: currentUser.email,
@@ -2308,7 +2409,7 @@
                 <h2 class="text-4xl font-bold text-orange-600 mb-2">Quiz Finished!</h2>
                 <p class="text-2xl text-gray-500 mb-4">You earned ${quizScore} points in ${currentTopic}.</p>
                 <p class="text-xl text-gray-400 mb-8">Accuracy: ${correctCount}/${total} (${accuracy}%)</p>
-                ${currentUser ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>'}
+                ${canUseCloud() ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : (isGuestUser() ? '<p class="text-sm text-gray-400 mb-4">Guest results stay in this visit only and are not added to any leaderboard.</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>')}
 
                 <div class="bg-orange-50 rounded-2xl p-6 mb-8 border-2 border-orange-100">
                     <h3 class="text-lg font-bold text-orange-600 mb-2">🏅 Best Score (${quizMode})</h3>
@@ -2338,7 +2439,7 @@
         }
 
         function saveGrammarToCloud(grammarType, score, total) {
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from("dictation_results").insert({
                 user_id: currentUser.id,
                 email: currentUser.email,
@@ -2906,6 +3007,7 @@
         }
 
         async function loadLeaderboard(mode) {
+            if (isGuestUser()) return;
             lbModeFilter = mode || 'all';
             paintChoiceButtons('.lb-mode-btn', lbModeFilter);
             const container = document.getElementById('leaderboard-container');
@@ -2921,6 +3023,7 @@
         }
 
         function renderLeaderboard() {
+            if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
             if (!container || !lbRows) return;
             if (lbRowsError || !lbRows.length) {
@@ -3260,6 +3363,10 @@
 
         async function loadCloudRecords() {
             const container = document.getElementById('cloud-records-container');
+            if (isGuestUser()) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Guest visits are not saved to cloud records or leaderboards.</p>';
+                return;
+            }
             if (!currentUser) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Please login to view cloud records.</p>';
                 return;
@@ -3393,11 +3500,12 @@
         function battleFillVocabForms() {
             const sel = document.getElementById('battle-vocab-form-select');
             if (!sel) return;
-            const own = isAdmin() ? '' : (myFormValue || ownDisplayedForm() || '');
-            if (isAdmin()) {
-                const keep = normalizeForm(sel.value) || FORM_LEVELS[0].id;
-                sel.innerHTML = FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
-                sel.value = keep;
+            const own = isAdmin() || isGuestUser() || browsesAllVocab() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (isAdmin() || browsesAllVocab()) {
+                const keep = (sel.value === 'ALL' || normalizeForm(sel.value)) ? sel.value : (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
+                const allOpt = browsesAllVocab() ? '<option value="ALL">All forms</option>' : '';
+                sel.innerHTML = allOpt + FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+                sel.value = keep && Array.from(sel.options).some(o => o.value === keep) ? keep : (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
                 sel.disabled = false;
                 sel.classList.remove('opacity-70');
             } else if (own) {
@@ -3419,17 +3527,22 @@
             const isVocab = topic === NEW_VOCAB;
             if (wrap) wrap.classList.toggle('hidden', !isVocab);
             battleFillVocabForms();
-            const own = isAdmin() ? '' : (myFormValue || ownDisplayedForm() || '');
-            if (label) label.innerText = isAdmin() ? 'New Vocab form' : 'Your form';
+            const own = isAdmin() || isGuestUser() || browsesAllVocab() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (label) label.innerText = (isAdmin() || browsesAllVocab()) ? 'New Vocab form' : 'Your form';
             if (!hint) return;
-            if (!isVocab) {
-                hint.classList.add('hidden');
+            if (!isVocab || isAdmin()) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2 hidden';
                 hint.innerText = '';
                 return;
             }
-            if (isAdmin()) {
-                hint.classList.add('hidden');
-                hint.innerText = '';
+            if (isGuestUser()) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2';
+                hint.innerText = 'Guests can practise New Vocab in Dictation Master. Creating or joining a Word Battle room needs a school Google login.';
+                return;
+            }
+            if (browsesAllVocab()) {
+                hint.className = 'text-sm text-gray-500 font-bold mt-2';
+                hint.innerText = 'Your form is Unassigned, so you can use New Vocab from every form, or pick one form for this room.';
                 return;
             }
             if (!own) {
@@ -3447,9 +3560,13 @@
         }
 
         function battleVocabForm() {
-            if (!isAdmin()) return normalizeForm(myFormValue || ownDisplayedForm() || '') || '';
             const sel = document.getElementById('battle-vocab-form-select');
-            return normalizeForm(sel ? sel.value : '') || FORM_LEVELS[0].id;
+            if (isAdmin() || browsesAllVocab()) {
+                const raw = sel ? sel.value : '';
+                if (String(raw).toUpperCase() === 'ALL') return 'ALL';
+                return normalizeForm(raw) || (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
+            }
+            return normalizeForm(myFormValue || ownDisplayedForm() || '') || '';
         }
 
         function battleVocabToday() {
@@ -3510,7 +3627,17 @@
         }
 
         async function battleEnter() {
-            if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
+            if (!isSignedIn()) { updateMascot('Please login to play Word Battle.'); return; }
+            if (isGuestUser()) {
+                battlePopulateTopics();
+                battleSetError('Guests can play Word Jump here. Creating or joining a Word Battle room needs a school Google login.');
+                const classEntry = document.getElementById('battle-class-entry');
+                if (classEntry) classEntry.classList.add('hidden');
+                const actions = document.getElementById('battle-room-actions');
+                if (actions) actions.classList.add('hidden');
+                battleShowPanel('lobby');
+                return;
+            }
             if (!isAdmin()) await resolveOwnForm(true);
             battlePopulateTopics();
             const qsel = document.getElementById('battle-count-select');
@@ -3521,6 +3648,8 @@
             battleSetError('');
             const classEntry = document.getElementById('battle-class-entry');
             if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
+            const actions = document.getElementById('battle-room-actions');
+            if (actions) actions.classList.remove('hidden');
             if (battleRoom) {
                 battlePoll();
                 battleStartPolling();
@@ -3537,6 +3666,7 @@
 
         async function battleCreateRoom() {
             battleSetError('');
+            if (isGuestUser()) return battleSetError('Guests cannot create a Word Battle room. Sign in with your school Google account to play.');
             if (!currentUser) return battleSetError('Please login first.');
             if (!isAdmin()) await resolveOwnForm(true);
             const topic = battleTopicValue();
@@ -3579,6 +3709,7 @@
 
         async function battleJoinRoom() {
             battleSetError('');
+            if (isGuestUser()) return battleSetError('Guests cannot join a Word Battle room. Sign in with your school Google account to play.');
             if (!currentUser) return battleSetError('Please login first.');
             if (!isAdmin()) await resolveOwnForm(true);
             const input = document.getElementById('battle-code-input');
@@ -3587,9 +3718,9 @@
             const { data, error } = await sb.rpc('join_battle', { p_code: code });
             if (error) return battleSetError(battleErrorMessage(error));
             const room = Array.isArray(data) ? data[0] : data;
-            if (!isAdmin() && room && room.topic === NEW_VOCAB) {
+            if (!isAdmin() && !browsesAllVocab() && room && room.topic === NEW_VOCAB) {
                 const own = battleVocabForm();
-                const roomForm = normalizeForm(room.vocab_form || '');
+                const roomForm = (String(room.vocab_form || '').toUpperCase() === 'ALL') ? 'ALL' : normalizeForm(room.vocab_form || '');
                 if (!own) {
                     try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
                     return battleSetError('Your form is not set yet, so you cannot join a New Vocab battle.');
@@ -4457,6 +4588,10 @@
         }
 
         function changeView(viewId) {
+            if (isGuestUser() && GUEST_BLOCKED_VIEWS.indexOf(viewId) !== -1) {
+                updateMascot('Leaderboards and rankings are not available in guest mode.');
+                viewId = 'hub-view';
+            }
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
@@ -4891,7 +5026,7 @@
            determined student could fake one — keep this for classroom fun,
            not for assessment. */
         WJ.submitScore = function (score) {
-            if (!currentUser || typeof sb === 'undefined' || !sb) return;
+            if (!canUseCloud() || typeof sb === 'undefined' || !sb) return;
             const topic = (WJ.topic && WJ.topic !== '__all__') ? WJ.topic : 'all';
             sb.from('wj_scores').insert({
                 user_id: currentUser.id,
@@ -4922,6 +5057,10 @@
         WJ.loadLeaderboard = async function () {
             const box = () => document.getElementById('wj-lb');
             if (!box()) return;
+            if (isGuestUser()) {
+                box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p><p class="text-xs text-gray-400">Leaderboards are hidden in guest mode. Sign in with your school account to see class rankings.</p>';
+                return;
+            }
             if (typeof sb === 'undefined' || !sb) { box().innerHTML = '<p class="text-xs text-gray-400">The leaderboard needs a connection.</p>'; return; }
             try {
                 const { data, error } = await sb.from('wj_leaderboard')
@@ -4951,10 +5090,11 @@
             WJ.raf = 0;
             WJ.state = 'over';
             const score = WJ.score();
-            const prev = Number(localStorage.getItem('wj_best') || 0);
+            const store = isGuestUser() ? sessionStorage : localStorage;
+            const prev = Number(store.getItem('wj_best') || 0);
             const isBest = score > prev;
-            if (isBest) localStorage.setItem('wj_best', score);
-            localStorage.setItem('wj_words', Number(localStorage.getItem('wj_words') || 0) + WJ.wordsDone);
+            if (isBest) store.setItem('wj_best', score);
+            store.setItem('wj_words', Number(store.getItem('wj_words') || 0) + WJ.wordsDone);
             WJ.submitScore(score);
             WJ.beep(150, 0.4, 'sawtooth', 0.06);
             WJ.setOverlay(`
@@ -5524,7 +5664,7 @@
         };
 
         WJ.loadMilestones = async function () {
-            if (typeof sb === 'undefined' || !sb) return;
+            if (isGuestUser() || typeof sb === 'undefined' || !sb) { WJ.milestones = []; return; }
             const req = (WJ.milestoneReq = (WJ.milestoneReq || 0) + 1);
             try {
                 const { data, error } = await sb.from('wj_leaderboard')

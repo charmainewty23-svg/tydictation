@@ -576,18 +576,17 @@
                             <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
                             <div id="nv-form-switch" class="flex gap-2 flex-wrap"></div>
                         </div>
-                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English.</p>
-                        <div class="grid sm:grid-cols-2 gap-3 mb-3">
-                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                        </div>
-                        <div class="flex gap-2 mb-4">
-                            <button id="nv-save-btn" onclick="nvSaveWord()" class="px-5 py-2 bg-orange-500 text-white rounded-xl font-bold">Add word</button>
-                            <button id="nv-cancel-btn" onclick="nvCancelEdit()" class="hidden px-5 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Cancel</button>
+                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Use + to add a word and − to delete one.</p>
+                        <div class="flex items-stretch gap-2 mb-4 flex-wrap sm:flex-nowrap">
+                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <button type="button" id="nv-save-btn" onclick="nvSaveWord()" title="Add word" aria-label="Add word" class="w-11 h-11 shrink-0 bg-orange-500 text-white rounded-full font-bold text-2xl leading-none flex items-center justify-center">+</button>
+                            <button type="button" id="nv-cancel-btn" onclick="nvCancelEdit()" title="Clear this row" aria-label="Clear this row" class="w-11 h-11 shrink-0 bg-white border-2 border-orange-100 text-gray-500 rounded-full font-bold text-2xl leading-none flex items-center justify-center">−</button>
                         </div>
                         <div id="nv-editor-list" class="space-y-2"></div>
+                        <button type="button" id="nv-add-another" onclick="nvStartNewWord()" title="Add another word" aria-label="Add another word" class="mt-3 w-11 h-11 bg-orange-500 text-white rounded-full font-bold text-2xl leading-none flex items-center justify-center">+</button>
                     </div>
-                    <button onclick="openErrorBook()" class="mb-2 px-4 py-2 bg-white border-2 border-orange-100 text-orange-600 rounded-full font-bold text-sm">📒 錯題簿 · Error Book</button>
+                    <button onclick="openErrorBook()" class="mb-2 px-4 py-2 bg-white border-2 border-orange-100 text-orange-600 rounded-full font-bold text-sm">📒 Error Book</button>
                 </div>
                 <div id="dictation-activities" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
@@ -769,7 +768,6 @@
                                 <button id="battle-class-end" onclick="battleEndClass()" class="hidden px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">End Battle</button>
                             </div>
                         </div>
-                        <div data-form-filter-slot class="mt-8 flex justify-center"></div>
                         <div id="battle-class-list" class="mt-4 space-y-2"></div>
                         <div id="battle-class-breakdown" class="hidden mt-10 pt-8 border-t border-gray-100"></div>
                     </div>
@@ -828,7 +826,7 @@
                     <span>←</span> Back to Topics
                 </button>
                 <div class="cat-card p-8">
-                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 錯題簿</h2>
+                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 Error Book</h2>
                     <p class="text-gray-400 mb-6">Words you missed. Answer one correctly here and it leaves the book.</p>
                     <div id="eb-note" class="hidden text-amber-600 font-bold text-sm mb-4"></div>
                     <div id="eb-list" class="space-y-2 mb-6"></div>
@@ -871,7 +869,6 @@
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">🏆 Leaderboard</h2>
                     <p class="text-gray-400 mb-4">Cumulative scores — practice more to rank higher!</p>
-                    <div data-form-filter-slot data-admin-only class="mb-4"></div>
                     <div class="flex gap-3 mb-6">
                         <button onclick="loadLeaderboard('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white lb-mode-btn">All</button>
                         <button onclick="loadLeaderboard('listening')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Listening</button>
@@ -894,7 +891,6 @@
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">📊 Admin Dashboard</h2>
                     <p class="text-gray-400 mb-4">Student usage overview — cumulative scores</p>
                     <p id="form-setup-note" class="hidden text-sm font-bold text-amber-600 mb-4"></p>
-                    <div data-form-filter-slot class="mb-6"></div>
                     <div id="admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
                     <h3 class="text-xl font-bold text-gray-600 mb-4">Student Activity</h3>
                     <div id="admin-activity-container">
@@ -907,7 +903,6 @@
                 <div class="cat-card p-8 mt-6">
                     <h2 class="text-3xl font-bold text-green-600 mb-2">📜 Grammar Quest</h2>
                     <p class="text-gray-400 mb-4">Sentence Structures quiz scores</p>
-                    <div data-form-filter-slot class="mb-6"></div>
                     <div id="grammar-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
                     <div class="flex gap-3 mb-6">
                         <button onclick="loadGrammarAdmin('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-500 text-white grammar-admin-btn">All</button>
@@ -930,7 +925,6 @@
                         </div>
                         <button onclick="loadLoginAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors">↻ Refresh</button>
                     </div>
-                    <div data-form-filter-slot class="mb-6"></div>
                     <div id="login-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
                     <div id="login-admin-container">
                         <div class="flex flex-col items-center py-10">
@@ -947,7 +941,6 @@
                         </div>
                         <button onclick="loadBattleAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-indigo-500 text-white hover:bg-indigo-600 transition-colors">↻ Refresh</button>
                     </div>
-                    <div data-form-filter-slot class="mb-6"></div>
                     <div id="battle-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
                     <div id="battle-admin-container">
                         <div class="flex flex-col items-center py-10">
@@ -960,11 +953,10 @@
                     <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
                             <h2 class="text-3xl font-bold text-emerald-600 mb-2">🦘 Word Jump</h2>
-                            <p class="text-gray-400 mb-6">Personal best per student — rankings follow the form filter</p>
+                            <p class="text-gray-400 mb-6">Personal best per student, grouped by form</p>
                         </div>
                         <button onclick="loadWordJumpAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">↻ Refresh</button>
                     </div>
-                    <div data-form-filter-slot class="mb-6"></div>
                     <div id="wj-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
                     <div id="wj-admin-container">
                         <div class="flex flex-col items-center py-10">
@@ -1000,7 +992,8 @@
         function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
 
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
-        // every filter, dropdown, and the old-browser migration follow this list.
+        // every dropdown, email parser, grouping, and the old-browser migration
+        // follow this list.
         const FORM_LEVELS = [
             { id: 'F3', label: 'F3' },
             { id: 'F4', label: 'F4' },
@@ -1008,15 +1001,6 @@
         ];
         const FORM_STORAGE_KEY = 'student_form_level';
         const FORM_CLAIMED_BY_KEY = 'student_form_claimed_by';
-        const TEACHER_FORM_FILTER_KEY = 'teacher_form_filter';
-
-        function formFilterChoices() {
-            return [
-                { id: 'all', label: 'All' },
-                ...FORM_LEVELS.map(f => ({ id: f.id, label: f.label })),
-                { id: 'unassigned', label: 'Unassigned' }
-            ];
-        }
 
         function normalizeForm(raw) {
             const compact = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1029,18 +1013,55 @@
             return hit ? hit.label : (id || 'Unassigned');
         }
 
-        function formScopeLabel() {
-            if (teacherFormFilter === 'unassigned') return 'Unassigned';
-            return formLabel(teacherFormFilter);
+        function formYearDigits() {
+            return FORM_LEVELS.map(f => {
+                const m = /^F([1-9]\d?)$/i.exec(f.id);
+                return m ? m[1] : '';
+            }).filter(Boolean);
         }
 
-        function readTeacherFormFilter() {
-            let saved = 'all';
-            try { saved = localStorage.getItem(TEACHER_FORM_FILTER_KEY) || 'all'; } catch (e) {}
-            return formFilterChoices().some(o => o.id === saved) ? saved : 'all';
+        // Derive form (and class 班別 when unambiguous) from the email local-part.
+        // Only accepts clear patterns that map to FORM_LEVELS. Never guesses when
+        // more than one year, or a mid-number digit, could be read two ways.
+        //
+        // Form + class (e.g. 3A / 4B / 6C):
+        //   - at the start, optional short prefix (f, s, st, std, form): 3a01, s3a01, f4b12
+        //   - or a class number after the letter, not preceded by a digit: wong_3a01, chan3a12
+        //   - or separator-bounded without a number: chan.3a.tai
+        // Form only: f3, form-4, form6 at a token boundary.
+        // Rejects 23a01 (digit before the year) and mixed years in one address.
+        function parseEmailFormClass(email) {
+            const local = String(email || '').split('@')[0].toLowerCase().trim();
+            const empty = { form: '', classId: '' };
+            if (!local) return empty;
+            const years = formYearDigits();
+            if (!years.length) return empty;
+            const y = '(' + years.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')';
+            const hits = [];
+
+            const start = new RegExp('^(?:form|std|st|s|f)?[-_]?' + y + '([a-z])(\\d{0,3})(?:$|[^a-z0-9])');
+            const mStart = start.exec(local);
+            if (mStart) hits.push({ year: mStart[1], letter: mStart[2] });
+
+            const withNum = new RegExp('(^|[^0-9])' + y + '([a-z])(\\d{1,3})(?=$|[^a-z])', 'g');
+            let m;
+            while ((m = withNum.exec(local))) hits.push({ year: m[2], letter: m[3] });
+
+            const bounded = new RegExp('(?:^|[._-])' + y + '([a-z])(?=$|[._-])', 'g');
+            while ((m = bounded.exec(local))) hits.push({ year: m[1], letter: m[2] });
+
+            const formOnly = new RegExp('(^|[^0-9a-z])(?:form|f)[-_]?' + y + '(?=$|[^0-9a-z])', 'g');
+            while ((m = formOnly.exec(local))) hits.push({ year: m[2], letter: '' });
+
+            const foundYears = [...new Set(hits.map(h => h.year))];
+            if (foundYears.length !== 1) return empty;
+            const form = normalizeForm('F' + foundYears[0]);
+            if (!form) return empty;
+            const letters = [...new Set(hits.map(h => h.letter).filter(Boolean))];
+            const classId = letters.length === 1 ? (foundYears[0] + letters[0].toUpperCase()) : '';
+            return { form, classId };
         }
 
-        let teacherFormFilter = readTeacherFormFilter();
         let formOverrides = new Map();
         let formDirRequest = 0;
         let formDirectory = { byEmail: new Map(), loaded: false, missing: false, error: '', pending: null };
@@ -1053,46 +1074,66 @@
         function formOfEmail(email) {
             const key = String(email || '').toLowerCase();
             if (formOverrides.has(key)) return formOverrides.get(key) || '';
-            return formDirectory.byEmail.get(key) || '';
+            const stored = formDirectory.byEmail.get(key) || '';
+            if (stored) return stored;
+            return parseEmailFormClass(email).form || '';
         }
 
-        function matchesFormFilter(email) {
-            if (teacherFormFilter === 'all') return true;
-            const form = formOfEmail(email);
-            if (teacherFormFilter === 'unassigned') return !form;
-            return form === teacherFormFilter;
+        function classOfEmail(email) {
+            const parsed = parseEmailFormClass(email);
+            if (!parsed.classId) return '';
+            if (parsed.form && formOfEmail(email) !== parsed.form) return '';
+            return parsed.classId;
         }
 
-        function filterAnswerRows(rows, players) {
+        function classBadge(email) {
+            const klass = classOfEmail(email);
+            if (!klass) return '';
+            return `<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">${escapeHtml(klass)}</span>`;
+        }
+
+        function formSections() {
+            return FORM_LEVELS.map(f => ({ id: f.id, label: f.label })).concat([{ id: '', label: 'Unassigned' }]);
+        }
+
+        function groupRowsByForm(rows, emailOf) {
+            const getEmail = emailOf || (r => r && r.email);
+            const buckets = new Map(formSections().map(s => [s.id, []]));
+            (rows || []).forEach(r => {
+                const id = formOfEmail(getEmail(r)) || '';
+                if (!buckets.has(id)) buckets.set(id, []);
+                buckets.get(id).push(r);
+            });
+            return formSections().map(s => ({ id: s.id, label: s.label, rows: buckets.get(s.id) || [] }));
+        }
+
+        function renderFormSections(groups, renderRows, options) {
+            const opts = options || {};
+            const hasAny = (groups || []).some(g => g.rows.length);
+            if (!hasAny) return opts.emptyAll || '<p class="text-gray-400 text-center py-10">No records yet.</p>';
+            return (groups || []).map(g => {
+                if (!g.rows.length && !g.id) return '';
+                const body = g.rows.length
+                    ? renderRows(g.rows, g)
+                    : `<p class="text-gray-400 text-center py-4">${opts.emptyForm || 'No students in this form yet.'}</p>`;
+                const tone = g.id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500';
+                return `<section class="mt-8 first:mt-0" data-form-group="${escapeHtml(g.id || 'unassigned')}">
+                    <h4 class="text-lg font-bold text-gray-600 mb-3 flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full ${tone}">${escapeHtml(g.label)}</span>
+                        <span class="text-sm font-bold text-gray-400">${g.rows.length}</span>
+                    </h4>
+                    ${body}
+                </section>`;
+            }).join('');
+        }
+
+        function answersForForm(rows, players, formId) {
             const list = rows || [];
-            if (teacherFormFilter === 'all') return list;
             const ids = new Set();
             (players || []).forEach(p => {
-                if (p.user_id && matchesFormFilter(p.email)) ids.add(p.user_id);
+                if (p.user_id && (formOfEmail(p.email) || '') === (formId || '')) ids.add(p.user_id);
             });
             return list.filter(r => ids.has(r.user_id));
-        }
-
-        function formFilterButtonsHtml() {
-            return `<div class="flex gap-2 flex-wrap items-center" role="group" aria-label="Filter by form">
-                <span class="text-sm font-bold text-gray-500 mr-1">Form</span>
-                ${formFilterChoices().map(o => {
-                    const on = teacherFormFilter === o.id;
-                    return `<button type="button" data-form-filter="${o.id}" aria-pressed="${on ? 'true' : 'false'}" onclick="setTeacherFormFilter('${o.id}')" class="px-4 py-2 rounded-full font-bold text-sm transition-colors ${on ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600'}">${o.label}</button>`;
-                }).join('')}
-            </div>`;
-        }
-
-        function mountFormFilters() {
-            document.querySelectorAll('[data-form-filter-slot]').forEach(slot => {
-                if (slot.hasAttribute('data-admin-only') && !isAdmin()) {
-                    slot.innerHTML = '';
-                    slot.classList.add('hidden');
-                    return;
-                }
-                slot.classList.remove('hidden');
-                slot.innerHTML = formFilterButtonsHtml();
-            });
         }
 
         function syncFormSetupNote() {
@@ -1104,7 +1145,7 @@
                 return;
             }
             note.classList.remove('hidden');
-            note.innerHTML = 'Form filters need a one-time setup. Run <code>supabase/student_forms.sql</code> in the Supabase SQL editor, then refresh. Until then everyone shows as Unassigned.';
+            note.innerHTML = 'Form assignments are not saved yet. Run <code>supabase/student_forms.sql</code> in the Supabase SQL editor, then refresh. Until then, students are still grouped from their email when the year is clear, but the form dropdown cannot be saved.';
         }
 
         function formAssignControl(email) {
@@ -1118,7 +1159,8 @@
 
         function formBadge(email) {
             const id = formOfEmail(email);
-            const label = id ? formLabel(id) : '—';
+            const klass = classOfEmail(email);
+            const label = id ? (klass ? formLabel(id) + ' · ' + klass : formLabel(id)) : '—';
             const cls = id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400';
             return `<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${cls}">${escapeHtml(label)}</span>`;
         }
@@ -1165,7 +1207,6 @@
         }
 
         function refreshTeacherSurfaces() {
-            mountFormFilters();
             syncFormSetupNote();
             const admin = document.getElementById('admin-view');
             if (admin && !admin.classList.contains('hidden')) {
@@ -1182,13 +1223,6 @@
                 battleBreakdownLoadedFor = null;
                 battleRenderClassHost();
             }
-        }
-
-        function setTeacherFormFilter(id) {
-            if (!isAdmin()) return;
-            teacherFormFilter = formFilterChoices().some(o => o.id === id) ? id : 'all';
-            try { localStorage.setItem(TEACHER_FORM_FILTER_KEY, teacherFormFilter); } catch (e) {}
-            refreshTeacherSurfaces();
         }
 
         async function assignStudentForm(email, value) {
@@ -1215,23 +1249,31 @@
             }
         }
 
-        // Old installs stored F.4 / F.6 only in this browser. Upload it once,
-        // and only while the server still has no form, so a teacher edit sticks.
-        // Skip the teacher account, and don't hand the same saved choice to
-        // every later student on a shared computer.
+        // Fill student_logins.form when it is still empty. Prefer a form that
+        // is clearly encoded in the login email; otherwise upload an old
+        // browser choice once. claim_own_form never overwrites a teacher edit.
+        // Skip the teacher account. The shared-computer lock only applies to
+        // the old localStorage value, not to an email-derived form.
         async function claimSavedForm(user) {
             if (!user || !user.email || user.email === ADMIN_EMAIL) return;
+            const fromEmail = parseEmailFormClass(user.email).form;
             const saved = normalizeForm(localStorage.getItem(FORM_STORAGE_KEY) || '');
-            if (!saved) return;
-            let bound = '';
-            try { bound = localStorage.getItem(FORM_CLAIMED_BY_KEY) || ''; } catch (e) { bound = ''; }
-            if (bound) return;
-            const { error } = await sb.rpc('claim_own_form', { p_form: saved });
+            let form = fromEmail;
+            if (!form && saved) {
+                let bound = '';
+                try { bound = localStorage.getItem(FORM_CLAIMED_BY_KEY) || ''; } catch (e) { bound = ''; }
+                if (bound) return;
+                form = saved;
+            }
+            if (!form) return;
+            const { error } = await sb.rpc('claim_own_form', { p_form: form });
             if (error) {
                 console.warn('Form claim failed:', error.message);
                 return;
             }
-            try { localStorage.setItem(FORM_CLAIMED_BY_KEY, user.id); } catch (e) {}
+            if (!fromEmail) {
+                try { localStorage.setItem(FORM_CLAIMED_BY_KEY, user.id); } catch (e) {}
+            }
         }
 
         function signInWithGoogle() {
@@ -1262,7 +1304,6 @@
                 if (adminBtn && isAdmin()) adminBtn.classList.remove('hidden');
                 else if (adminBtn) adminBtn.classList.add('hidden');
             }
-            mountFormFilters();
         }
 
         function showApp() {
@@ -1476,6 +1517,8 @@
         let nvSig = '';
         let nvSchemaMissing = false;
         let nvEditingId = null;
+        let nvFetchGen = 0;
+        let nvSaving = false;
         let myFormValue = '';
         let myFormLoaded = false;
 
@@ -1689,7 +1732,7 @@
         function nvEnsureFormSwitch() {
             const box = document.getElementById('nv-form-switch');
             if (!box) return;
-            if (!nvEditForm) nvEditForm = (teacherFormFilter && normalizeForm(teacherFormFilter)) || FORM_LEVELS[0].id;
+            if (!nvEditForm) nvEditForm = FORM_LEVELS[0].id;
             box.innerHTML = FORM_LEVELS.map(f => {
                 const on = f.id === nvEditForm;
                 return `<button type="button" onclick="nvPickForm('${f.id}')" class="px-4 py-2 rounded-full font-bold text-sm ${on ? 'bg-orange-500 text-white' : 'bg-white text-orange-600 border-2 border-orange-100'}">${f.label}</button>`;
@@ -1718,7 +1761,9 @@
         }
 
         async function nvRefresh(force) {
+            const gen = ++nvFetchGen;
             const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await fetchMyForm(true);
+            if (gen !== nvFetchGen) return;
             const status = document.getElementById('nv-status');
             const activities = document.getElementById('dictation-activities');
             const scope = document.getElementById('nv-scope');
@@ -1749,6 +1794,7 @@
                 .select('id,en,zh,created_at,updated_at')
                 .eq('form', form)
                 .order('id');
+            if (gen !== nvFetchGen) return;
             if (error) {
                 nvSchemaMissing = isMissingSchema(error.message);
                 nvRows = [];
@@ -1810,9 +1856,9 @@
                         <span class="text-gray-400 ml-2">${w.zh ? escapeHtml(w.zh) : '<span class="text-gray-300">Chinese later</span>'}</span>
                         ${nvAddedToday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">today</span>' : ''}
                     </div>
-                    <div class="flex gap-2 shrink-0">
+                    <div class="flex items-center gap-2 shrink-0">
                         <button type="button" onclick="nvBeginEdit(${Number(w.id)})" class="text-xs font-bold text-orange-600">Edit</button>
-                        <button type="button" onclick="nvDeleteWord(${Number(w.id)})" class="text-xs font-bold text-red-400">Delete</button>
+                        <button type="button" onclick="nvDeleteWord(${Number(w.id)})" title="Delete word" aria-label="Delete word" class="w-9 h-9 bg-white border-2 border-red-100 text-red-500 rounded-full font-bold text-xl leading-none flex items-center justify-center">−</button>
                     </div>
                 </div>`).join('');
         }
@@ -1826,10 +1872,50 @@
             if (en) en.value = row.en;
             if (zh) zh.value = row.zh || '';
             const save = document.getElementById('nv-save-btn');
-            const cancel = document.getElementById('nv-cancel-btn');
-            if (save) save.innerText = 'Save word';
-            if (cancel) cancel.classList.remove('hidden');
+            if (save) { save.title = 'Save word'; save.setAttribute('aria-label', 'Save word'); }
             if (en) en.focus();
+        }
+
+        function nvComposerKey(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                nvSaveWord();
+            }
+        }
+
+        function nvStartNewWord() {
+            nvCancelEdit();
+            const en = document.getElementById('nv-en');
+            if (en) {
+                en.focus();
+                if (typeof en.scrollIntoView === 'function') en.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function nvRowSig() {
+            return nvRows.map(w => [w.id, w.en, w.zh, w.created_at].join('\t')).join('\n');
+        }
+
+        function nvPaintLocal() {
+            nvSig = nvRowSig();
+            nvApplyPractice();
+            nvRenderStatus();
+            nvRenderEditorList();
+        }
+
+        function nvUpsertLocal(row) {
+            if (!row || row.id == null) return;
+            if (!row.created_at) row.created_at = new Date().toISOString();
+            const idx = nvRows.findIndex(w => Number(w.id) === Number(row.id));
+            if (idx >= 0) nvRows[idx] = Object.assign({}, nvRows[idx], row);
+            else nvRows.push(row);
+            nvRows.sort((a, b) => Number(a.id) - Number(b.id));
+            nvPaintLocal();
+        }
+
+        function nvRemoveLocal(id) {
+            nvRows = nvRows.filter(w => Number(w.id) !== Number(id));
+            nvPaintLocal();
         }
 
         function nvCancelEdit() {
@@ -1839,13 +1925,11 @@
             if (en) en.value = '';
             if (zh) zh.value = '';
             const save = document.getElementById('nv-save-btn');
-            const cancel = document.getElementById('nv-cancel-btn');
-            if (save) save.innerText = 'Add word';
-            if (cancel) cancel.classList.add('hidden');
+            if (save) { save.title = 'Add word'; save.setAttribute('aria-label', 'Add word'); }
         }
 
         async function nvSaveWord() {
-            if (!isAdmin()) return;
+            if (!isAdmin() || nvSaving) return;
             const en = (document.getElementById('nv-en').value || '').trim();
             const zh = (document.getElementById('nv-zh').value || '').trim();
             if (!en && !zh) {
@@ -1853,11 +1937,20 @@
                 return;
             }
             const form = nvEditForm || FORM_LEVELS[0].id;
-            let error;
-            if (nvEditingId) {
-                ({ error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', nvEditingId).eq('form', form));
-            } else {
-                ({ error } = await sb.from('new_vocab_words').insert({ form, en, zh }));
+            const editingId = nvEditingId;
+            nvSaving = true;
+            const saveBtn = document.getElementById('nv-save-btn');
+            if (saveBtn) saveBtn.disabled = true;
+            let data, error;
+            try {
+                if (editingId) {
+                    ({ data, error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', editingId).eq('form', form).select('id,en,zh,created_at,updated_at').maybeSingle());
+                } else {
+                    ({ data, error } = await sb.from('new_vocab_words').insert({ form, en, zh }).select('id,en,zh,created_at,updated_at').maybeSingle());
+                }
+            } finally {
+                nvSaving = false;
+                if (saveBtn) saveBtn.disabled = false;
             }
             if (error) {
                 const check = /new_vocab_words_has_text|check constraint/i.test(error.message || '');
@@ -1868,19 +1961,23 @@
                 console.warn(error.message);
                 return;
             }
-            nvCancelEdit();
+            if (data) nvUpsertLocal(data);
+            nvStartNewWord();
             nvRefresh(true);
         }
 
         async function nvDeleteWord(id) {
-            if (!isAdmin()) return;
+            if (!isAdmin() || nvSaving) return;
+            nvSaving = true;
             const { error } = await sb.from('new_vocab_words').delete().eq('id', id);
+            nvSaving = false;
             if (error) {
                 updateMascot('Could not delete that word.');
                 console.warn(error.message);
                 return;
             }
             if (Number(nvEditingId) === Number(id)) nvCancelEdit();
+            nvRemoveLocal(id);
             nvRefresh(true);
         }
 
@@ -2738,36 +2835,32 @@
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No records yet.</p>';
                 return;
             }
-            const data = (isAdmin() && teacherFormFilter !== 'all')
-                ? lbRows.filter(r => matchesFormFilter(r.email))
-                : lbRows;
-            if (!data.length) {
-                container.innerHTML = `<p class="text-gray-400 text-center py-10">No records for ${escapeHtml(formScopeLabel())}.</p>`;
-                return;
-            }
             const studentMap = {};
-            data.forEach(r => {
+            lbRows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
                 if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, totalScore: 0, quizzes: 0 };
                 studentMap[key].totalScore += r.score;
                 studentMap[key].quizzes++;
                 if (r.nickname) studentMap[key].nickname = r.nickname;
             });
-            const ranked = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore).slice(0, 20);
             const medals = ['🥇', '🥈', '🥉'];
-            container.innerHTML = `
-                <div class="space-y-3">
-                    ${ranked.map((r, i) => `
+            const rowHtml = (r, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
-                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email) : ''}</span>
                             ${formAssignControl(r.email)}
                             <span class="text-gray-400 text-sm mx-2">${r.quizzes} quizzes</span>
                             <span class="font-bold text-orange-600 text-lg">${r.totalScore} pts</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+                        </div>`;
+            if (!isAdmin()) {
+                const ranked = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore).slice(0, 20);
+                container.innerHTML = `<div class="space-y-3">${ranked.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            const ranked = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore);
+            container.innerHTML = renderFormSections(groupRowsByForm(ranked), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No records yet.</p>' });
         }
 
         async function loadAdminDashboard() {
@@ -2784,13 +2877,12 @@
             const statsEl = document.getElementById('admin-stats');
             const listEl = document.getElementById('admin-activity-container');
             if (!statsEl || !listEl || !adminCache.dictation) return;
-            const raw = adminCache.dictation;
-            if (adminCache.dictationError || !raw.length) {
+            const rows = adminCache.dictation;
+            if (adminCache.dictationError || !rows.length) {
                 statsEl.innerHTML = '';
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No data.</p>';
                 return;
             }
-            const rows = raw.filter(r => matchesFormFilter(r.email));
             const uniqueStudents = new Set(rows.map(r => (r.email || '').toLowerCase())).size;
             const totalQuizzes = rows.length;
             const avgScore = rows.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0;
@@ -2813,10 +2905,6 @@
                     <div class="text-sm text-gray-500 font-bold">Topics Used</div>
                 </div>
             `;
-            if (!rows.length) {
-                listEl.innerHTML = `<p class="text-gray-400 text-center py-10">No records for ${escapeHtml(formScopeLabel())}.</p>`;
-                return;
-            }
             const studentMap = {};
             rows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
@@ -2828,14 +2916,14 @@
                 if (r.created_at > studentMap[key].lastActive) studentMap[key].lastActive = r.created_at;
             });
             const students = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore);
-            listEl.innerHTML = `
+            listEl.innerHTML = renderFormSections(groupRowsByForm(students), (list) => `
                 <div class="space-y-3">
-                    ${students.map((s, i) => `
+                    ${list.map((s, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 flex-wrap">
                             <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                                 <span class="text-lg font-bold text-gray-400 w-8 text-center">${i + 1}</span>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}</span>
+                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}${classBadge(s.email)}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(s.email || '')}</span>
                                 </div>
                                 ${formAssignControl(s.email)}
@@ -2849,7 +2937,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `;
+            `);
         }
 
         let grammarAdminFilter = 'all';
@@ -2870,13 +2958,12 @@
             const statsEl = document.getElementById('grammar-admin-stats');
             const listEl = document.getElementById('grammar-admin-container');
             if (!statsEl || !listEl || !adminCache.grammar) return;
-            const raw = adminCache.grammar;
-            if (adminCache.grammarError || !raw.length) {
+            const rows = adminCache.grammar;
+            if (adminCache.grammarError || !rows.length) {
                 statsEl.innerHTML = '';
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No grammar quiz records yet.</p>';
                 return;
             }
-            const rows = raw.filter(r => matchesFormFilter(r.email));
             const uniqueStudents = new Set(rows.map(r => (r.email || '').toLowerCase())).size;
             const totalQuizzes = rows.length;
             const avgScore = rows.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0;
@@ -2899,10 +2986,6 @@
                     <div class="text-sm text-gray-500 font-bold">Avg Accuracy</div>
                 </div>
             `;
-            if (!rows.length) {
-                listEl.innerHTML = `<p class="text-gray-400 text-center py-10">No grammar quiz records for ${escapeHtml(formScopeLabel())}.</p>`;
-                return;
-            }
             const studentMap = {};
             rows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
@@ -2914,14 +2997,14 @@
                 if (r.created_at > studentMap[key].lastActive) studentMap[key].lastActive = r.created_at;
             });
             const students = Object.values(studentMap).sort((a, b) => b.totalScore - a.totalScore);
-            listEl.innerHTML = `
+            listEl.innerHTML = renderFormSections(groupRowsByForm(students), (list) => `
                 <div class="space-y-3">
-                    ${students.map((s, i) => `
+                    ${list.map((s, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 flex-wrap">
                             <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                                 <span class="text-lg font-bold text-gray-400 w-8 text-center">${i + 1}</span>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}</span>
+                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}${classBadge(s.email)}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(s.email || '')}</span>
                                 </div>
                                 ${formAssignControl(s.email)}
@@ -2935,7 +3018,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `;
+            `);
         }
 
         // --- Admin: student login activity ---
@@ -3014,13 +3097,12 @@
                     : '<p class="text-red-400 text-center py-10">Cannot load login records: ' + escapeHtml(adminCache.loginsError.message) + '</p>';
                 return;
             }
-            const raw = adminCache.logins;
-            const logs = raw.filter(l => matchesFormFilter(l.email));
+            const logs = adminCache.logins;
             const todayKey = hkDayKey(new Date().toISOString());
             const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
             const loggedToday = logs.filter(l => l.last_login_at && hkDayKey(l.last_login_at) === todayKey).length;
             const loggedThisWeek = logs.filter(l => l.last_login_at && new Date(l.last_login_at).getTime() >= sevenDaysAgo).length;
-            if (!raw.length) {
+            if (!logs.length) {
                 statsEl.innerHTML = `
                     <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
                         <div class="text-3xl font-bold text-blue-600">0</div>
@@ -3052,20 +3134,16 @@
                     <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
                 </div>
             `;
-            if (!logs.length) {
-                listEl.innerHTML = `<p class="text-gray-400 text-center py-10">No login records for ${escapeHtml(formScopeLabel())}.</p>`;
-                return;
-            }
-            listEl.innerHTML = `
+            listEl.innerHTML = renderFormSections(groupRowsByForm(logs), (list) => `
                 <div class="space-y-3">
-                    ${logs.map(l => `
+                    ${list.map(l => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 flex-wrap gap-3">
                             <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                                 <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 font-bold flex items-center justify-center">
                                     ${escapeHtml((l.nickname || l.email || '?').charAt(0).toUpperCase())}
                                 </div>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(l.nickname || (l.email || '').split('@')[0])}</span>
+                                    <span class="font-bold text-gray-700">${escapeHtml(l.nickname || (l.email || '').split('@')[0])}${classBadge(l.email)}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(l.email)}</span>
                                 </div>
                                 ${formAssignControl(l.email)}
@@ -3079,7 +3157,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `;
+            `);
         }
 
         function updateMascot(text) {
@@ -3690,6 +3768,30 @@
                 </div>`;
         }
 
+        function renderGroupedAnswerStats(rows, players, container, questions) {
+            const groups = groupRowsByForm(players || []).filter(g => g.rows.length);
+            const allStats = aggregateBattleAnswers(rows);
+            if (groups.length <= 1) {
+                renderAnswerStats(allStats, container, questions);
+                return;
+            }
+            const parts = [];
+            const tmp = document.createElement('div');
+            renderAnswerStats(allStats, tmp, questions);
+            parts.push(`<section class="mb-8"><h4 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">All forms</h4>${tmp.innerHTML}</section>`);
+            groups.forEach(g => {
+                const subset = answersForForm(rows, players, g.id);
+                const stats = aggregateBattleAnswers(subset);
+                if (!stats.length) return;
+                renderAnswerStats(stats, tmp, questions);
+                parts.push(`<section class="mt-8 pt-6 border-t border-gray-100" data-form-group="${escapeHtml(g.id || 'unassigned')}">
+                    <h4 class="text-lg font-bold text-gray-600 mb-3"><span class="px-3 py-1 rounded-full ${g.id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}">${escapeHtml(g.label)}</span></h4>
+                    ${tmp.innerHTML}
+                </section>`);
+            });
+            container.innerHTML = parts.join('');
+        }
+
         async function battleFinishLocal() {
             if (battleDoneLocal) return;
             battleDoneLocal = true;
@@ -3822,16 +3924,12 @@
             const total = battleRoom.question_count || 10;
             const everyone = battlePlayers.slice()
                 .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
-            const players = teacherFormFilter === 'all'
-                ? everyone
-                : everyone.filter(p => matchesFormFilter(p.email));
             const max = battleRoom.max_players || 60;
             const questions = battleBuildQuestions(battleRoom).words;
             const hasLive = battlePlayers.some(p => typeof p.progress === 'number');
 
-            const formNote = teacherFormFilter === 'all' ? '' : ` · ${players.length} ${formScopeLabel()}`;
             document.getElementById('battle-class-count').innerText =
-                `${everyone.length} / ${max} joined${formNote}`;
+                `${everyone.length} / ${max} joined`;
 
             let statusText;
             if (battleRoom.status === 'waiting') {
@@ -3839,7 +3937,7 @@
             } else if (battleRoom.status === 'playing') {
                 const dist = {};
                 let done = 0;
-                players.forEach(p => {
+                everyone.forEach(p => {
                     if (p.done) { done++; return; }
                     const q = Math.min(total, (p.progress || 0) + 1);
                     dist[q] = (dist[q] || 0) + 1;
@@ -3848,8 +3946,7 @@
                     .sort((a, b) => a - b)
                     .map(q => `Q${q}: ${dist[q]}`)
                     .join('  ·  ');
-                const scope = teacherFormFilter === 'all' ? '' : ` ${formScopeLabel()}`;
-                statusText = `In progress  ·  ${done}/${players.length}${scope} finished` + (distText ? `  ·  ${distText}` : '');
+                statusText = `In progress  ·  ${done}/${everyone.length} finished` + (distText ? `  ·  ${distText}` : '');
             } else {
                 statusText = 'Finished';
             }
@@ -3861,24 +3958,23 @@
             document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && everyone.length > 0));
             document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
 
-            document.getElementById('battle-class-list').innerHTML = players.length
-                ? players.map((p, i) => {
+            const playerCard = (p, i) => {
                     const qNow = p.done ? total : (typeof p.progress === 'number' ? Math.min(total, p.progress + 1) : null);
                     const pct = Math.round(((qNow || 0) / total) * 100);
                     const idleSec = p.updated_at
                         ? Math.max(0, Math.round((Date.now() - new Date(p.updated_at).getTime()) / 1000))
                         : null;
                     const stalled = battleRoom.status === 'playing' && !p.done && idleSec !== null && idleSec > 25;
-                    const curWord = questions[(p.progress || 0)] ? questions[(p.progress || 0)].en : '';
                     const curZh = questions[(p.progress || 0)] ? questions[(p.progress || 0)].zh : '';
 
                     return `<div class="bg-gray-50 rounded-xl px-4 py-3 gap-3 flex flex-col md:flex-row md:items-center md:justify-between ${stalled ? 'ring-2 ring-red-200' : ''}">
                         <div class="flex items-center gap-3 min-w-[220px]">
                             <span class="text-gray-400 font-bold w-6 text-right">${i + 1}</span>
                             <div>
-                                <div class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}${formBadge(p.email)}</div>
+                                <div class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}${classBadge(p.email)}</div>
                                 <div class="text-gray-400 text-xs">${escapeHtml(p.email || '')}</div>
                             </div>
+                            ${formAssignControl(p.email)}
                         </div>
                         <div class="flex items-center gap-3 flex-1 min-w-[180px]">
                             <span class="text-xs font-bold px-2 py-1 rounded-full ${p.done ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'}"
@@ -3897,14 +3993,17 @@
                             <span class="font-bold text-indigo-600 w-16 text-right">${p.score} pts</span>
                         </div>
                     </div>`;
-                }).join('')
-                : (everyone.length
-                    ? `<p class="text-gray-400 text-center py-8">No ${escapeHtml(formScopeLabel())} students in this room.</p>`
-                    : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>');
+            };
+
+            document.getElementById('battle-class-list').innerHTML = everyone.length
+                ? renderFormSections(groupRowsByForm(everyone), (list) =>
+                    `<div class="space-y-2">${list.map(playerCard).join('')}</div>`,
+                    { emptyAll: '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>' })
+                : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>';
 
             // per-question accuracy, only once the round is finished
             const bd = document.getElementById('battle-class-breakdown');
-            const bdKey = battleRoom.id + '|' + teacherFormFilter;
+            const bdKey = battleRoom.id;
             if (battleRoom.status === 'finished') {
                 if (battleBreakdownLoadedFor !== bdKey) {
                     battleBreakdownLoadedFor = bdKey;
@@ -3924,13 +4023,12 @@
             const room = battleRoom;
             if (!room || !bd) return;
 
-            const filterAtLoad = teacherFormFilter;
             const players = battlePlayers.slice();
             const { data, error } = await sb.from('battle_answers')
                 .select('user_id, q_index, word, correct, answer')
                 .eq('room_id', room.id);
 
-            if (!battleRoom || battleRoom.id !== room.id || teacherFormFilter !== filterAtLoad) return;
+            if (!battleRoom || battleRoom.id !== room.id) return;
 
             if (error) {
                 const missing = /does not exist|PGRST20|42P01/i.test(error.message || '');
@@ -3939,7 +4037,7 @@
                     : '<p class="text-red-400 text-sm text-center py-4">' + escapeHtml(error.message) + '</p>';
                 return;
             }
-            renderAnswerStats(aggregateBattleAnswers(filterAnswerRows(data, players)), bd, battleBuildQuestions(room).words);
+            renderGroupedAnswerStats(data, players, bd, battleBuildQuestions(room).words);
         }
 
         async function battleLeave() {
@@ -4016,17 +4114,9 @@
                 listEl.innerHTML = `<p class="text-gray-400 text-center py-10">Word Jump leaderboard not available. Run <code class="text-emerald-600">supabase/wj_scores.sql</code> in the SQL editor.</p>`;
                 return;
             }
-            const board = (pack.board || []).filter(r => matchesFormFilter(r.email));
-            let totalGames = pack.totalGames;
-            let todayGames = pack.todayGames;
-            if (teacherFormFilter !== 'all') {
-                totalGames = board.reduce((sum, r) => sum + (r.plays || 0), 0);
-                if (pack.stampsError) todayGames = null;
-                else {
-                    const start = new Date(pack.dayStart).getTime();
-                    todayGames = pack.stamps.filter(s => matchesFormFilter(s.email) && new Date(s.created_at).getTime() >= start).length;
-                }
-            }
+            const board = pack.board || [];
+            const totalGames = pack.totalGames;
+            const todayGames = pack.todayGames;
             const best = board.length ? board[0].score : 0;
             const todayLabel = todayGames === null ? '—' : todayGames;
             statsEl.innerHTML = `
@@ -4046,21 +4136,18 @@
                     <p class="text-3xl font-bold text-indigo-600">${todayLabel}</p>
                     <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Today</p>
                 </div>`;
-            if (!pack.board.length) {
+            if (!board.length) {
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>';
                 return;
             }
-            if (!board.length) {
-                listEl.innerHTML = `<p class="text-gray-400 text-center py-10">No Word Jump games for ${escapeHtml(formScopeLabel())}.</p>`;
-                return;
-            }
-            listEl.innerHTML = '<div class="space-y-2">' + board.map((r, i) => {
+            listEl.innerHTML = renderFormSections(groupRowsByForm(board), (list) =>
+                '<div class="space-y-2">' + list.map((r, i) => {
                 const medal = ['🥇', '🥈', '🥉'][i] || `<span class="text-gray-400">${i + 1}.</span>`;
                 const name = displayName(r);
                 return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
                     <span class="w-7 text-center text-sm font-bold">${medal}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${escapeHtml(name)}</p>${formAssignControl(r.email)}</div>
+                        <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${escapeHtml(name)}</p>${classBadge(r.email)}${formAssignControl(r.email)}</div>
                         <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">${r.plays} game${r.plays === 1 ? '' : 's'} · last ${timeAgo(r.created_at)}</p>
                     </div>
                     <div class="text-right">
@@ -4068,7 +4155,7 @@
                         <p class="text-[10px] text-gray-400">${r.height}px · ${r.words} words</p>
                     </div>
                 </div>`;
-            }).join('') + '</div>';
+            }).join('') + '</div>');
         }
 
         // A room only belongs on the dashboard once people actually met.
@@ -4114,14 +4201,13 @@
                     : '<p class="text-red-400 text-center py-10">Cannot load battles: ' + escapeHtml(adminCache.battlesError.message) + '</p>';
                 return;
             }
-            const allRooms = adminCache.battles;
-            const rooms = allRooms.filter(room => teacherFormFilter === 'all' || (room.battle_players || []).some(p => matchesFormFilter(p.email)));
+            const rooms = adminCache.battles;
             const playing = rooms.filter(r => r.status === 'playing').length;
             const waiting = rooms.filter(r => r.status === 'waiting').length;
             const finished = rooms.filter(r => r.status === 'finished').length;
             const students = new Set();
             rooms.forEach(r => (r.battle_players || []).forEach(p => {
-                if (matchesFormFilter(p.email)) students.add((p.email || '').toLowerCase());
+                students.add((p.email || '').toLowerCase());
             }));
             statsEl.innerHTML = `
                 <div class="bg-indigo-50 rounded-2xl p-5 text-center border-2 border-indigo-100">
@@ -4141,12 +4227,8 @@
                     <div class="text-sm text-gray-500 font-bold">Students (24h)</div>
                 </div>
             `;
-            if (!allRooms.length) {
-                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No connected battles in the last 24 hours.</p>';
-                return;
-            }
             if (!rooms.length) {
-                listEl.innerHTML = `<p class="text-gray-400 text-center py-10">No connected battles for ${escapeHtml(formScopeLabel())} in the last 24 hours.</p>`;
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No connected battles in the last 24 hours.</p>';
                 return;
             }
             const statusPill = s => s === 'playing'
@@ -4154,16 +4236,21 @@
                 : s === 'waiting'
                     ? '<span class="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">WAITING</span>'
                     : '<span class="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">FINISHED</span>';
+            const playerLine = p => `<div class="flex items-center justify-between gap-2">
+                                    <span class="text-gray-700 font-bold">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}${classBadge(p.email)}</span>
+                                    ${formAssignControl(p.email)}
+                                    <span class="text-indigo-600 font-bold">${p.score} pts · ${p.correct} correct${p.done ? ' ✔' : ''}</span>
+                               </div>`;
             listEl.innerHTML = `
                 <div class="space-y-3">
                     ${rooms.map(r => {
-                        const ps = (r.battle_players || []).filter(p => matchesFormFilter(p.email));
+                        const ps = r.battle_players || [];
+                        const groups = groupRowsByForm(ps).filter(g => g.rows.length);
+                        const mixed = groups.length > 1;
                         const lines = ps.length
-                            ? ps.map(p => `<div class="flex items-center justify-between gap-2">
-                                    <span class="text-gray-700 font-bold">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
-                                    ${formAssignControl(p.email)}
-                                    <span class="text-indigo-600 font-bold">${p.score} pts · ${p.correct} correct${p.done ? ' ✔' : ''}</span>
-                               </div>`).join('')
+                            ? (mixed
+                                ? groups.map(g => `<div class="mt-2 first:mt-0"><div class="text-[10px] font-bold uppercase tracking-wider ${g.id ? 'text-orange-500' : 'text-gray-400'} mb-1">${escapeHtml(g.label)}</div>${g.rows.map(playerLine).join('')}</div>`).join('')
+                                : ps.map(playerLine).join(''))
                             : '<span class="text-gray-400 text-sm">No players yet</span>';
                         return `<div>
                             <div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
@@ -4171,6 +4258,7 @@
                                     <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
                                     ${statusPill(r.status)}
                                     <span class="text-xs font-bold px-2 py-1 rounded-full ${r.mode === 'class' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}">${r.mode === 'class' ? 'CLASS' : '1v1'}</span>
+                                    ${!mixed && groups.length === 1 ? `<span class="text-xs font-bold px-2 py-1 rounded-full ${groups[0].id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}">${escapeHtml(groups[0].label)}</span>` : ''}
                                     <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
                                 </div>
                                 <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>
@@ -4199,12 +4287,10 @@
             el.innerHTML = '<p class="text-gray-400 text-sm text-center py-3">Loading question breakdown…</p>';
 
             const room = (adminBattleRooms || []).find(r => r.id === roomId);
-            const filterAtLoad = teacherFormFilter;
             const { data, error } = await sb.from('battle_answers')
                 .select('user_id, q_index, word, correct, answer')
                 .eq('room_id', roomId);
 
-            if (teacherFormFilter !== filterAtLoad) return;
             if (error) {
                 const missing = /does not exist|PGRST20|42P01/i.test(error.message || '');
                 el.innerHTML = missing
@@ -4212,7 +4298,7 @@
                     : '<p class="text-red-400 text-sm text-center py-3">' + escapeHtml(error.message) + '</p>';
                 return;
             }
-            renderAnswerStats(aggregateBattleAnswers(filterAnswerRows(data, room ? room.battle_players : [])), el, room ? battleBuildQuestions(room).words : null);
+            renderGroupedAnswerStats(data, room ? room.battle_players : [], el, room ? battleBuildQuestions(room).words : null);
         }
 
         function changeView(viewId) {
@@ -4240,10 +4326,9 @@
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
-            if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); mountFormFilters(); loadLeaderboard(lbModeFilter); }
+            if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }
             if (viewId === 'admin-view') {
                 updateMascot("Admin dashboard — student usage overview.");
-                mountFormFilters();
                 ensureFormDirectory(true).then(() => {
                     const view = document.getElementById('admin-view');
                     if (!view || view.classList.contains('hidden')) return;
@@ -6250,8 +6335,6 @@
             if (WJ.tiltZero === null) WJ.tiltZero = e.gamma;
             WJ.tiltValue = WJ.clamp((e.gamma - WJ.tiltZero) / WJ.TILT_RANGE, -1, 1);
         };
-
-        mountFormFilters();
 
         window.onload = () => {
             loadAllCategoriesFromSheet();

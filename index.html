@@ -550,6 +550,18 @@
                     <h2 class="text-3xl font-bold text-blue-600 mb-2">⚔️ Word Battle</h2>
                     <p class="text-gray-400 mb-8">Everyone in a room gets the same questions (10, 15 or 20 — pick below). Highest score wins — ties go to the faster player.</p>
 
+                    <!-- Word Jump entry -->
+                    <div class="mb-8 bg-gradient-to-r from-emerald-50 to-sky-50 rounded-2xl p-6 border-2 border-emerald-100 flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 class="font-bold text-emerald-700 text-lg">
+                                🦘 Word Jump
+                                <span class="text-[10px] align-middle ml-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full">SOLO</span>
+                            </h3>
+                            <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — bounce on platforms, blast monsters, catch letters to spell the word.</p>
+                        </div>
+                        <button onclick="changeView('wordjump-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
+                    </div>
+
                     <!-- Lobby -->
                     <div id="battle-lobby">
                         <div class="flex items-center gap-3 mb-6 flex-wrap">
@@ -649,6 +661,31 @@
                             <button onclick="battleLeave()" class="px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Back to Hub</button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div id="wordjump-view" class="view hidden w-full">
+                <button onclick="WJ.quit()" class="mb-6 text-gray-400 flex items-center gap-2 hover:text-emerald-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Word Battle
+                </button>
+                <div class="cat-card p-4 md:p-8">
+                    <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-emerald-600">🦘 Word Jump</h2>
+                            <p class="text-gray-400 text-sm">Climb forever. Spell the word on the way up.</p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <select id="wj-topic" onchange="WJ.changeTopic(this.value)" class="p-2 px-3 rounded-xl border-2 border-emerald-100 bg-white font-bold text-gray-700 text-sm"></select>
+                            <button id="wj-tilt-btn" onclick="WJ.enableTilt()" class="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">📱 Tilt: off</button>
+                            <button id="wj-sound-btn" onclick="WJ.toggleSound()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔊 On</button>
+                            <button onclick="WJ.togglePause()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⏸ Pause</button>
+                        </div>
+                    </div>
+                    <div id="wj-stage" class="relative mx-auto rounded-2xl overflow-hidden border-2 border-emerald-100" style="max-width:420px; aspect-ratio:2/3;">
+                        <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
+                        <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
+                    </div>
+                    <p class="text-center text-xs text-gray-400 mt-3">Tilt your phone, or hold the left / right half · tap to shoot · P to pause</p>
                 </div>
             </div>
 
@@ -941,6 +978,7 @@
                 renderCategories();
                 renderTenseGrid();
                 if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
+                if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
             } catch (e) { updateMascot("Oh no, connection lost!"); }
         }
 
@@ -3028,6 +3066,7 @@
 
         function changeView(viewId) {
             if (viewId !== 'battle-view') battleStopPolling();
+            if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             if (window.lastFinalView) {
                 window.lastFinalView.remove();
                 window.lastFinalView = null;
@@ -3046,6 +3085,7 @@
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }
             if (viewId === 'admin-view') { updateMascot("Admin dashboard — student usage overview."); loadAdminDashboard(); loadGrammarAdmin('all'); loadLoginAdmin(); loadBattleAdmin(); }
             if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }
+            if (viewId === 'wordjump-view') { updateMascot("Jump, spell, climb — how high can you go?"); requestAnimationFrame(() => WJ.mount()); }
         }
 
         // Handle Enter key in quiz
@@ -3092,6 +3132,1235 @@
                 }
             } catch (e) { console.log('Failed to load participle clauses data'); }
         }
+
+        /* ==========================================================
+           Word Jump — endless vertical climber (Doodle Jump style)
+           Canvas only, no assets. Tilt / arrow keys / touch.
+           ========================================================== */
+        const WJ = {
+            W: 400, H: 600,
+            GRAVITY: 2000, JUMP_V: -1030,
+            MOVE_MAX: 470, MOVE_ACC: 3600, FRICTION: 3400,
+            mounted: false, running: false, paused: false, state: 'intro',
+            raf: 0, lastTs: 0, acc: 0,
+            canvas: null, ctx: null,
+            keys: { left: false, right: false },
+            tiltOn: false, tiltZero: null, tiltValue: 0,
+            holdDir: 0, holdPointer: null,
+            platforms: [], pickups: [], monsters: [], ufos: [], holes: [],
+            shots: [], particles: [], toasts: [],
+            player: null,
+            camY: 0, topY: 0, maxClimb: 0, bonus: 0,
+            word: null, wordsDone: 0, spawnCount: 0, nextWordIn: 0,
+            topic: '', soundOn: true, audio: null,
+            lastShot: 0, bound: false
+        };
+
+        WJ.rand = (a, b) => a + Math.random() * (b - a);
+        WJ.pick = arr => arr[Math.floor(Math.random() * arr.length)];
+        WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
+        WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
+        WJ.neededLetter = () => (WJ.word ? (WJ.word.text[WJ.word.pos] || '') : '');
+
+        WJ.beep = function (freq, dur, type, vol) {
+            if (!WJ.soundOn) return;
+            try {
+                if (!WJ.audio) WJ.audio = new (window.AudioContext || window.webkitAudioContext)();
+                const ac = WJ.audio;
+                if (ac.state === 'suspended') ac.resume();
+                const o = ac.createOscillator(), g = ac.createGain();
+                o.type = type || 'square';
+                o.frequency.value = freq;
+                o.connect(g); g.connect(ac.destination);
+                const t = ac.currentTime, d = dur || 0.09, v = vol == null ? 0.05 : vol;
+                g.gain.setValueAtTime(v, t);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+                o.start(t); o.stop(t + d + 0.02);
+            } catch (e) { /* audio is optional */ }
+        };
+
+        WJ.roundRect = function (ctx, x, y, w, h, r) {
+            const rr = Math.min(r, w / 2, h / 2);
+            ctx.beginPath();
+            ctx.moveTo(x + rr, y);
+            ctx.arcTo(x + w, y, x + w, y + h, rr);
+            ctx.arcTo(x + w, y + h, x, y + h, rr);
+            ctx.arcTo(x, y + h, x, y, rr);
+            ctx.arcTo(x, y, x + w, y, rr);
+            ctx.closePath();
+        };
+
+        /* ---------------- lifecycle ---------------- */
+
+        WJ.mount = function () {
+            const canvas = document.getElementById('wj-canvas');
+            if (!canvas) return;
+            WJ.canvas = canvas;
+            WJ.ctx = canvas.getContext('2d');
+            WJ.overlay = document.getElementById('wj-overlay');
+            WJ.mounted = true;
+            WJ.bindInput();
+            WJ.resize();
+            if (!WJ.platforms.length) WJ.reset();
+            WJ.populateTopics();
+            WJ.setTopicDefault();
+            WJ.showIntro();
+            WJ.draw();
+        };
+
+        WJ.resize = function () {
+            const c = WJ.canvas;
+            if (!c) return;
+            const rect = c.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            c.width = Math.round(rect.width * dpr);
+            c.height = Math.round(rect.height * dpr);
+        };
+
+        WJ.reset = function () {
+            WJ.platforms = []; WJ.pickups = []; WJ.monsters = []; WJ.ufos = []; WJ.holes = [];
+            WJ.shots = []; WJ.particles = []; WJ.toasts = [];
+            WJ.player = {
+                x: WJ.W / 2, y: 0, vx: 0, vy: 0, w: 34, h: 40, face: 1,
+                prop: 0, jet: 0, shoes: 0, shield: 0, rainbow: 0
+            };
+            WJ.camY = -WJ.H + 120;
+            WJ.topY = 0;
+            WJ.maxClimb = 0;
+            WJ.bonus = 0;
+            WJ.wordsDone = 0;
+            WJ.spawnCount = 0;
+            WJ.nextWordIn = 0;
+            WJ.paused = false;
+            WJ.platforms.push({
+                x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
+                baseX: WJ.W / 2 - 46, baseY: 0, phase: 0, amp: 0, speed: 0,
+                dead: false, fuse: 0, gadget: null
+            });
+            WJ.genUpTo(-WJ.H - 220);
+            WJ.newWord();
+        };
+
+        WJ.start = function () {
+            if (!WJ.canvas) WJ.mount();
+            WJ.reset();
+            WJ.hideOverlay();
+            WJ.state = 'playing';
+            WJ.paused = false;
+            WJ.running = true;
+            WJ.lastTs = 0; WJ.acc = 0;
+            cancelAnimationFrame(WJ.raf);
+            WJ.raf = requestAnimationFrame(WJ.frame);
+        };
+
+        WJ.stop = function () {
+            WJ.running = false;
+            if (WJ.raf) cancelAnimationFrame(WJ.raf);
+            WJ.raf = 0;
+            WJ.holdDir = 0;
+            WJ.keys.left = WJ.keys.right = false;
+            WJ.state = 'intro';
+            WJ.hideOverlay();
+        };
+
+        WJ.quit = function () {
+            WJ.stop();
+            changeView('battle-view');
+        };
+
+        WJ.togglePause = function () {
+            if (WJ.state !== 'playing') return;
+            WJ.paused = !WJ.paused;
+            if (WJ.paused) {
+                WJ.setOverlay(`
+                    <div class="w-full">
+                        <div class="text-4xl mb-2">⏸</div>
+                        <h3 class="text-xl font-bold text-gray-700 mb-4">Paused</h3>
+                        <button onclick="WJ.togglePause()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold">Resume</button>
+                        <button onclick="WJ.start()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Restart</button>
+                        <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Quit</button>
+                    </div>`, true);
+            } else {
+                WJ.hideOverlay();
+            }
+        };
+
+        WJ.toggleSound = function () {
+            WJ.soundOn = !WJ.soundOn;
+            const b = document.getElementById('wj-sound-btn');
+            if (b) b.innerText = WJ.soundOn ? '🔊 On' : '🔇 Off';
+            if (WJ.soundOn) WJ.beep(660, 0.08, 'sine', 0.04);
+        };
+
+        WJ.setOverlay = function (html, show) {
+            const el = WJ.overlay || document.getElementById('wj-overlay');
+            if (!el) return;
+            WJ.overlay = el;
+            if (!show) {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+                el.innerHTML = '';
+                return;
+            }
+            el.innerHTML = html;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+        };
+
+        WJ.hideOverlay = function () { WJ.setOverlay('', false); };
+
+        WJ.showIntro = function () {
+            WJ.state = 'intro';
+            const best = Number(localStorage.getItem('wj_best') || 0);
+            WJ.setOverlay(`
+                <div class="w-full py-2">
+                    <div class="text-5xl mb-1">🦘</div>
+                    <h3 class="text-2xl font-bold text-emerald-600 mb-1">Word Jump</h3>
+                    <p class="text-gray-500 text-sm mb-4">Bounce upward forever. Spell the word on the way up.</p>
+                    <div class="text-left bg-white rounded-xl border border-emerald-100 p-4 text-sm text-gray-600 space-y-2 mb-4">
+                        <p>👈 <b>Hold the pads</b> at the bottom (or tilt your phone) to move.</p>
+                        <p>👆 <b>Tap anywhere else</b> to shoot a nose ball at monsters and UFOs.</p>
+                        <p>🔤 Catch the glowing letters <b>in order</b> to spell the word.</p>
+                        <p>🧱 Brown breaks · white vanishes · yellow explodes · blue &amp; grey move.</p>
+                    </div>
+                    <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Start climbing</button>
+                    <p class="text-xs text-gray-400 mt-3">Best ${best} · Desktop: ← → and Space to shoot</p>
+                </div>`, true);
+        };
+
+        WJ.gameOver = function (reason) {
+            if (WJ.state === 'over') return;
+            WJ.running = false;
+            if (WJ.raf) cancelAnimationFrame(WJ.raf);
+            WJ.raf = 0;
+            WJ.state = 'over';
+            const score = WJ.score();
+            const prev = Number(localStorage.getItem('wj_best') || 0);
+            const isBest = score > prev;
+            if (isBest) localStorage.setItem('wj_best', score);
+            localStorage.setItem('wj_words', Number(localStorage.getItem('wj_words') || 0) + WJ.wordsDone);
+            WJ.beep(150, 0.4, 'sawtooth', 0.06);
+            WJ.setOverlay(`
+                <div class="w-full py-2">
+                    <div class="text-4xl mb-2">${isBest ? '🏆' : '💥'}</div>
+                    <h3 class="text-2xl font-bold text-gray-700 mb-1">${isBest ? 'New best!' : 'Game over'}</h3>
+                    <p class="text-gray-400 text-sm mb-4">${escapeHtml(reason)}</p>
+                    <div class="flex justify-center gap-8 mb-5">
+                        <div><p class="text-3xl font-bold text-emerald-600">${score}</p><p class="text-xs text-gray-400">height</p></div>
+                        <div><p class="text-3xl font-bold text-gray-600">${Math.max(score, prev)}</p><p class="text-xs text-gray-400">best</p></div>
+                        <div><p class="text-3xl font-bold text-indigo-500">${WJ.wordsDone}</p><p class="text-xs text-gray-400">words</p></div>
+                    </div>
+                    <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
+                    <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Back to Word Battle</button>
+                </div>`, true);
+            WJ.draw();
+        };
+
+        /* ---------------- words & topics ---------------- */
+
+        WJ.wordPool = function () {
+            const names = (!WJ.topic || WJ.topic === '__all__') ? SHEET_NAMES : [WJ.topic];
+            const seen = {};
+            const list = [];
+            names.forEach(n => (categories[n] || []).forEach(w => {
+                const raw = primaryAnswer(w.en).trim();
+                if (!/^[A-Za-z]{3,11}$/.test(raw)) return;
+                const key = raw.toLowerCase();
+                if (seen[key]) return;
+                seen[key] = 1;
+                list.push({ en: key, zh: w.zh || '' });
+            }));
+            if (list.length < 15) {
+                [['tiger', '老虎'], ['rocket', '火箭'], ['garden', '花園'], ['planet', '行星'], ['pencil', '鉛筆'],
+                 ['orange', '橙'], ['silver', '銀色'], ['bridge', '橋'], ['forest', '森林'], ['winter', '冬天'],
+                 ['travel', '旅行'], ['dragon', '龍'], ['market', '市場'], ['yellow', '黃色'], ['castle', '城堡'],
+                 ['rabbit', '兔子'], ['island', '島嶼'], ['office', '辦公室'], ['camera', '相機'], ['pocket', '口袋']]
+                    .forEach(p => {
+                        if (!seen[p[0]]) { seen[p[0]] = 1; list.push({ en: p[0], zh: p[1] }); }
+                    });
+            }
+            return list;
+        };
+
+        WJ.newWord = function () {
+            const pool = WJ.wordPool();
+            let pickW = WJ.pick(pool);
+            let guard = 0;
+            while (WJ.word && pickW.en === WJ.word.text.toLowerCase() && guard++ < 6) pickW = WJ.pick(pool);
+            WJ.word = { text: pickW.en.toUpperCase(), zh: pickW.zh, pos: 0 };
+            WJ.refreshDynamicLetters();
+        };
+
+        WJ.refreshDynamicLetters = function () {
+            const need = WJ.neededLetter();
+            if (!need) return;
+            WJ.pickups.forEach(p => { if (p.dynamic) p.ch = need; });
+        };
+
+        WJ.completeWord = function () {
+            WJ.wordsDone++;
+            WJ.bonus += 100 + WJ.word.text.length * 10;
+            WJ.burst(WJ.player.x, WJ.player.y - WJ.player.h / 2, '#facc15', 26);
+            WJ.beep(1046, 0.14, 'triangle', 0.06);
+            if (Math.random() < 0.5) {
+                WJ.player.shield = 8;
+                WJ.toast('🛡️ ' + WJ.word.text + ' — shield!', '#0ea5e9');
+            } else {
+                WJ.player.rainbow = 4.5;
+                WJ.toast('🌈 ' + WJ.word.text + ' — rainbow!', '#a855f7');
+            }
+            WJ.nextWordIn = 1.1;
+            WJ.word = Object.assign({}, WJ.word, { pos: WJ.word.text.length });
+        };
+
+        WJ.populateTopics = function () {
+            const sel = document.getElementById('wj-topic');
+            if (!sel) return;
+            const names = SHEET_NAMES.filter(n => (categories[n] || []).length);
+            const cur = sel.value;
+            sel.innerHTML = '<option value="__all__">🎲 All topics</option>' +
+                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(topicLabel(n))}</option>`).join('');
+            if (cur && sel.options && Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+        };
+
+        WJ.setTopicDefault = function () {
+            const sel = document.getElementById('wj-topic');
+            if (!sel) return;
+            if (!WJ.topic) {
+                WJ.topic = (currentTopic && (categories[currentTopic] || []).length) ? currentTopic : '__all__';
+            }
+            if (sel.options && Array.from(sel.options).some(o => o.value === WJ.topic)) sel.value = WJ.topic;
+        };
+
+        WJ.changeTopic = function (v) {
+            WJ.topic = v || '__all__';
+            if (WJ.state === 'playing') WJ.newWord();
+        };
+
+        /* ---------------- world generation ---------------- */
+
+        WJ.genUpTo = function (targetY) {
+            let guard = 0;
+            while (WJ.topY > targetY && guard++ < 300) {
+                WJ.topY -= WJ.rand(70, 100) * (1 - WJ.difficulty() * 0.12);
+                WJ.spawnPlatform(WJ.topY);
+            }
+        };
+
+        WJ.spawnPlatform = function (y) {
+            const d = WJ.difficulty();
+            const w = WJ.rand(62, 90);
+            const x = WJ.rand(8, WJ.W - w - 8);
+            const table = [
+                ['green', 52 - 16 * d],
+                ['blue', 14],
+                ['gray', 12],
+                ['brown', 9 + 5 * d],
+                ['yellow', 8 + 4 * d],
+                ['white', 6 + 3 * d]
+            ];
+            let total = 0;
+            table.forEach(t => { total += t[1]; });
+            let r = Math.random() * total, type = 'green';
+            for (let i = 0; i < table.length; i++) {
+                r -= table[i][1];
+                if (r <= 0) { type = table[i][0]; break; }
+            }
+
+            const pl = {
+                x, y, w, h: 13, type,
+                baseX: x, baseY: y,
+                phase: Math.random() * Math.PI * 2,
+                amp: type === 'blue' ? WJ.rand(26, 46) : (type === 'gray' ? WJ.rand(20, 40) : 0),
+                speed: WJ.rand(0.7, 1.5),
+                dead: false, fuse: 0, gadget: null
+            };
+            WJ.platforms.push(pl);
+
+            if (type !== 'brown' && type !== 'white' && y < -700 && Math.random() < 0.09) {
+                pl.gadget = {
+                    kind: WJ.pick(['spring', 'spring', 'propeller', 'jetpack', 'shoes', 'shield']),
+                    used: false
+                };
+            }
+
+            WJ.spawnCount++;
+            if (y < -420 && Math.random() < 0.5) {
+                const need = WJ.neededLetter();
+                const useNeed = !!need && Math.random() < 0.6;
+                const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                WJ.pickups.push({
+                    kind: 'letter',
+                    ch: useNeed ? need : alpha[Math.floor(Math.random() * 26)],
+                    dynamic: useNeed,
+                    x: pl.x + pl.w / 2, y: y - 26, r: 15,
+                    bob: Math.random() * 6.28, taken: false
+                });
+            }
+
+            if (y < -1500 && Math.random() < 0.05 + 0.07 * d) {
+                WJ.monsters.push({
+                    x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
+                    range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
+                    speed: WJ.rand(28, 55), r: 19, dead: false
+                });
+            }
+            if (y < -2400 && Math.random() < 0.022) {
+                WJ.ufos.push({
+                    x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
+                    r: 26, dead: false, beam: false, bob: Math.random() * 6.28
+                });
+            }
+            if (y < -3000 && d > 0.25 && Math.random() < 0.02) {
+                WJ.holes.push({
+                    x: WJ.rand(70, WJ.W - 70), y: y - WJ.rand(80, 160),
+                    r: 28, dead: false
+                });
+            }
+        };
+
+        /* ---------------- gameplay ---------------- */
+
+        WJ.land = function (pl) {
+            const p = WJ.player;
+            p.y = pl.y;
+            p.vx *= 0.98;
+            if (pl.type === 'brown') {
+                pl.dead = true;
+                WJ.burst(pl.x + pl.w / 2, pl.y, '#a16207', 14);
+                WJ.beep(180, 0.1, 'sawtooth', 0.04);
+                return;
+            }
+            if (pl.type === 'white') pl.dead = true;
+            if (pl.type === 'yellow' && !pl.fuse) pl.fuse = 1.1;
+
+            let v = WJ.JUMP_V;
+            if (p.shoes > 0) { p.shoes--; v = WJ.JUMP_V * 1.42; }
+            if (pl.gadget && !pl.gadget.used) {
+                pl.gadget.used = true;
+                v = WJ.applyGadget(pl.gadget.kind, v);
+            }
+            p.vy = v;
+            WJ.beep(520, 0.05, 'sine', 0.03);
+        };
+
+        WJ.applyGadget = function (kind, v) {
+            const p = WJ.player;
+            if (kind === 'spring') { WJ.beep(700, 0.1, 'sine', 0.05); return WJ.JUMP_V * 1.9; }
+            if (kind === 'propeller') { p.prop = 2.6; WJ.beep(440, 0.18, 'triangle', 0.05); return WJ.JUMP_V * 0.7; }
+            if (kind === 'jetpack') { p.jet = 1.5; WJ.beep(300, 0.25, 'sawtooth', 0.05); return WJ.JUMP_V; }
+            if (kind === 'shoes') { p.shoes = 6; WJ.beep(600, 0.1, 'square', 0.04); return v; }
+            if (kind === 'shield') { p.shield = 8; WJ.beep(880, 0.14, 'triangle', 0.05); return v; }
+            return v;
+        };
+
+        WJ.collectLetter = function (pk) {
+            pk.taken = true;
+            const need = WJ.neededLetter();
+            if (pk.ch === need) {
+                WJ.word.pos++;
+                WJ.burst(pk.x, pk.y, '#22c55e', 10);
+                WJ.beep(880, 0.08, 'triangle', 0.05);
+                if (WJ.word.pos >= WJ.word.text.length) WJ.completeWord();
+                else WJ.refreshDynamicLetters();
+            } else {
+                WJ.beep(200, 0.07, 'sawtooth', 0.03);
+            }
+        };
+
+        WJ.shoot = function () {
+            if (WJ.state !== 'playing' || WJ.paused) return;
+            const now = performance.now();
+            if (now - WJ.lastShot < 170) return;
+            WJ.lastShot = now;
+            const p = WJ.player;
+            WJ.shots.push({
+                x: p.x + p.face * 14, y: p.y - p.h * 0.7,
+                vx: p.vx * 0.12, vy: -960, life: 1.5, dead: false
+            });
+            WJ.beep(760, 0.05, 'square', 0.025);
+        };
+
+        WJ.burst = function (x, y, color, n) {
+            for (let i = 0; i < n; i++) {
+                WJ.particles.push({
+                    x, y,
+                    vx: WJ.rand(-190, 190), vy: WJ.rand(-240, 90),
+                    life: WJ.rand(0.3, 0.75), max: 0.75,
+                    color, r: WJ.rand(1.6, 4)
+                });
+            }
+        };
+
+        WJ.toast = function (text, color) {
+            WJ.toasts.push({ text, color, life: 1.6 });
+        };
+
+        WJ.hurt = function (reason) {
+            const p = WJ.player;
+            if (p.rainbow > 0) return false;
+            if (p.shield > 0) {
+                p.shield = 0;
+                WJ.toast('🛡️ Shield saved you!', '#0ea5e9');
+                WJ.beep(320, 0.2, 'triangle', 0.05);
+                return true;
+            }
+            WJ.gameOver(reason);
+            return false;
+        };
+
+        /* ---------------- update ---------------- */
+
+        WJ.update = function (dt) {
+            const p = WJ.player;
+
+            // --- horizontal input ---
+            let dir = 0;
+            if (WJ.keys.left || WJ.holdDir === -1) dir -= 1;
+            if (WJ.keys.right || WJ.holdDir === 1) dir += 1;
+            if (WJ.tiltOn && Math.abs(WJ.tiltValue) > 0.08) dir = WJ.tiltValue;
+            if (dir !== 0) {
+                p.vx += dir * WJ.MOVE_ACC * dt;
+                if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
+            } else {
+                const f = WJ.FRICTION * dt;
+                if (Math.abs(p.vx) <= f) p.vx = 0;
+                else p.vx -= Math.sign(p.vx) * f;
+            }
+            p.vx = WJ.clamp(p.vx, -WJ.MOVE_MAX, WJ.MOVE_MAX);
+
+            ['prop', 'jet', 'shield', 'rainbow'].forEach(k => {
+                if (p[k] > 0) p[k] = Math.max(0, p[k] - dt);
+            });
+
+            // --- vertical ---
+            if (p.jet > 0) p.vy = -980;
+            else if (p.prop > 0) p.vy = -240;
+            else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
+
+            const prevFeet = p.y;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+
+            if (p.x < -p.w / 2) p.x = WJ.W + p.w / 2;
+            else if (p.x > WJ.W + p.w / 2) p.x = -p.w / 2;
+
+            if (p.y - WJ.camY < WJ.H * 0.42) WJ.camY = p.y - WJ.H * 0.42;
+            WJ.maxClimb = Math.max(WJ.maxClimb, -p.y);
+
+            WJ.genUpTo(WJ.camY - WJ.H * 0.6);
+
+            // --- platforms ---
+            for (const pl of WJ.platforms) {
+                if (pl.dead) continue;
+                if (pl.type === 'blue') {
+                    pl.phase += pl.speed * dt;
+                    pl.x = WJ.clamp(pl.baseX + Math.sin(pl.phase) * pl.amp, 4, WJ.W - pl.w - 4);
+                } else if (pl.type === 'gray') {
+                    pl.phase += pl.speed * dt;
+                    pl.y = pl.baseY + Math.sin(pl.phase) * pl.amp;
+                } else if (pl.type === 'yellow' && pl.fuse > 0) {
+                    pl.fuse -= dt;
+                    if (pl.fuse <= 0) {
+                        pl.dead = true;
+                        WJ.burst(pl.x + pl.w / 2, pl.y, '#f59e0b', 16);
+                        WJ.beep(160, 0.12, 'sawtooth', 0.05);
+                    }
+                }
+            }
+
+            // --- landing ---
+            if (p.vy > 0) {
+                for (const pl of WJ.platforms) {
+                    if (pl.dead) continue;
+                    if (prevFeet <= pl.y + 1 && p.y >= pl.y &&
+                        p.x + p.w * 0.34 > pl.x && p.x - p.w * 0.34 < pl.x + pl.w) {
+                        WJ.land(pl);
+                        break;
+                    }
+                }
+            }
+
+            // --- pickups ---
+            for (const pk of WJ.pickups) {
+                if (pk.taken) continue;
+                pk.bob += dt * 3;
+                const dy = (p.y - p.h / 2) - pk.y;
+                const dx = p.x - pk.x;
+                if (dx * dx + dy * dy < 32 * 32) WJ.collectLetter(pk);
+            }
+
+            // --- monsters ---
+            for (const m of WJ.monsters) {
+                if (m.dead) continue;
+                m.x += m.dir * m.speed * dt;
+                if (m.x < m.baseX - m.range) { m.x = m.baseX - m.range; m.dir = 1; }
+                if (m.x > m.baseX + m.range) { m.x = m.baseX + m.range; m.dir = -1; }
+
+                const dx = Math.abs(p.x - m.x);
+                const dy = Math.abs((p.y - p.h / 2) - m.y);
+                if (dx < m.r + p.w * 0.3 && dy < m.r + p.h * 0.35) {
+                    if (p.rainbow > 0) {
+                        m.dead = true;
+                        WJ.bonus += 30;
+                        WJ.burst(m.x, m.y, '#a855f7', 14);
+                        WJ.beep(900, 0.1, 'triangle', 0.05);
+                    } else if (p.vy > 220 && p.y < m.y + 6) {
+                        m.dead = true;
+                        p.vy = WJ.JUMP_V * 1.05;
+                        WJ.bonus += 30;
+                        WJ.burst(m.x, m.y, '#c084fc', 16);
+                        WJ.beep(700, 0.12, 'square', 0.05);
+                    } else if (!WJ.hurt('A monster got you!')) {
+                        return;
+                    } else {
+                        m.dead = true;
+                        WJ.burst(m.x, m.y, '#c084fc', 14);
+                        p.vy = WJ.JUMP_V * 0.8;
+                    }
+                }
+            }
+
+            // --- UFOs ---
+            for (const u of WJ.ufos) {
+                if (u.dead) continue;
+                u.bob += dt * 2;
+                const px = p.x, py = p.y - p.h / 2;
+                const dx = u.x - px, dy = u.y - py;
+                u.beam = false;
+                if (Math.abs(dx) < 90 && dy < 0 && dy > -210) {
+                    u.beam = true;
+                    const d = Math.hypot(dx, dy) || 1;
+                    p.vx += (dx / d) * 900 * dt;
+                    p.vy += (dy / d) * 820 * dt;
+                    if (d < 30) {
+                        if (!WJ.hurt('A UFO tractor beam caught you!')) return;
+                        u.dead = true;
+                        WJ.burst(u.x, u.y, '#38bdf8', 16);
+                    }
+                }
+            }
+
+            // --- black holes ---
+            for (const h of WJ.holes) {
+                const px = p.x, py = p.y - p.h / 2;
+                const dx = h.x - px, dy = h.y - py;
+                const d = Math.hypot(dx, dy) || 1;
+                if (d < 160) {
+                    const pull = (1 - d / 160) * 1200;
+                    p.vx += (dx / d) * pull * dt;
+                    p.vy += (dy / d) * pull * 0.55 * dt;
+                }
+                if (d < h.r + 6) { WJ.gameOver('A black hole swallowed you!'); return; }
+            }
+
+            // --- shots ---
+            for (const s of WJ.shots) {
+                if (s.dead) continue;
+                s.x += s.vx * dt;
+                s.y += s.vy * dt;
+                s.life -= dt;
+                if (s.life <= 0) s.dead = true;
+                for (const m of WJ.monsters) {
+                    if (m.dead) continue;
+                    if (Math.hypot(s.x - m.x, s.y - m.y) < m.r + 10) {
+                        m.dead = true; s.dead = true;
+                        WJ.bonus += 30;
+                        WJ.burst(m.x, m.y, '#c084fc', 16);
+                        WJ.beep(840, 0.09, 'square', 0.045);
+                    }
+                }
+                for (const u of WJ.ufos) {
+                    if (u.dead) continue;
+                    if (Math.hypot(s.x - u.x, s.y - u.y) < u.r + 8) {
+                        u.dead = true; s.dead = true;
+                        WJ.bonus += 40;
+                        WJ.burst(u.x, u.y, '#38bdf8', 18);
+                        WJ.beep(560, 0.14, 'sawtooth', 0.05);
+                    }
+                }
+            }
+
+            // --- particles & toasts ---
+            for (const pt of WJ.particles) {
+                pt.life -= dt;
+                pt.vy += 620 * dt;
+                pt.x += pt.vx * dt;
+                pt.y += pt.vy * dt;
+            }
+            for (const t of WJ.toasts) t.life -= dt;
+
+            // --- next word ---
+            if (WJ.nextWordIn > 0) {
+                WJ.nextWordIn -= dt;
+                if (WJ.nextWordIn <= 0) WJ.newWord();
+            }
+
+            // --- cleanup ---
+            const cutoff = WJ.camY + WJ.H + 160;
+            WJ.platforms = WJ.platforms.filter(pl => !pl.dead && pl.y < cutoff);
+            WJ.pickups = WJ.pickups.filter(pk => !pk.taken && pk.y < cutoff);
+            WJ.monsters = WJ.monsters.filter(m => !m.dead && m.y < cutoff);
+            WJ.ufos = WJ.ufos.filter(u => !u.dead && u.y < cutoff);
+            WJ.holes = WJ.holes.filter(h => h.y < cutoff);
+            WJ.shots = WJ.shots.filter(s => !s.dead);
+            WJ.particles = WJ.particles.filter(pt => pt.life > 0);
+            WJ.toasts = WJ.toasts.filter(t => t.life > 0);
+
+            // --- fall out ---
+            if (p.y - WJ.camY > WJ.H + 70) WJ.gameOver('You fell too far!');
+        };
+
+        /* ---------------- frame loop ---------------- */
+
+        WJ.frame = function (ts) {
+            if (!WJ.running) return;
+            if (!WJ.lastTs) WJ.lastTs = ts;
+            let dt = (ts - WJ.lastTs) / 1000;
+            WJ.lastTs = ts;
+            if (dt > 0.25) dt = 0.25;
+            if (!WJ.paused) {
+                WJ.acc += dt;
+                const step = 1 / 120;
+                let guard = 0;
+                while (WJ.acc >= step && guard++ < 8 && WJ.running) {
+                    WJ.update(step);
+                    WJ.acc -= step;
+                }
+            }
+            WJ.draw();
+            if (WJ.running) WJ.raf = requestAnimationFrame(WJ.frame);
+        };
+
+        /* ---------------- rendering ---------------- */
+
+        WJ.draw = function () {
+            const ctx = WJ.ctx;
+            if (!ctx || !WJ.canvas) return;
+            const sx = WJ.canvas.width / WJ.W;
+            const sy = WJ.canvas.height / WJ.H;
+            ctx.setTransform(sx, 0, 0, sy, 0, 0);
+            ctx.clearRect(0, 0, WJ.W, WJ.H);
+
+            // paper + grid
+            ctx.fillStyle = '#fdf9ef';
+            ctx.fillRect(0, 0, WJ.W, WJ.H);
+            const gs = 26;
+            const oy = ((WJ.camY % gs) + gs) % gs;
+            ctx.strokeStyle = 'rgba(120,160,215,0.16)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x <= WJ.W; x += gs) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, WJ.H); }
+            for (let y = -gs + oy; y <= WJ.H + gs; y += gs) { ctx.moveTo(0, y + 0.5); ctx.lineTo(WJ.W, y + 0.5); }
+            ctx.stroke();
+
+            // platforms
+            const colors = {
+                green: ['#7ed957', '#4c8c2b'],
+                blue: ['#4fa8f5', '#2563b0'],
+                gray: ['#9aa5b1', '#5b6672'],
+                brown: ['#b07a4f', '#6b4226'],
+                yellow: ['#f7c948', '#b07d16'],
+                white: ['#ffffff', '#c3cbd6']
+            };
+            for (const pl of WJ.platforms) {
+                const y = pl.y - WJ.camY;
+                if (y < -60 || y > WJ.H + 60) continue;
+                const col = colors[pl.type] || colors.green;
+                ctx.fillStyle = col[0];
+                ctx.strokeStyle = col[1];
+                ctx.lineWidth = 2.5;
+                WJ.roundRect(ctx, pl.x, y, pl.w, pl.h, 6);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                WJ.roundRect(ctx, pl.x + 5, y + 2.5, pl.w - 10, 3, 2);
+                ctx.fill();
+
+                if (pl.type === 'brown') {
+                    ctx.strokeStyle = col[1];
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(pl.x + pl.w / 2 - 4, y + 1);
+                    ctx.lineTo(pl.x + pl.w / 2, y + 6);
+                    ctx.lineTo(pl.x + pl.w / 2 + 4, y + 12);
+                    ctx.stroke();
+                }
+                if (pl.type === 'yellow' && pl.fuse > 0 && Math.floor(pl.fuse * 12) % 2 === 0) {
+                    ctx.fillStyle = 'rgba(239,68,68,0.6)';
+                    WJ.roundRect(ctx, pl.x, y, pl.w, pl.h, 6);
+                    ctx.fill();
+                }
+                if (pl.gadget && !pl.gadget.used) {
+                    WJ.drawGadget(ctx, pl.gadget.kind, pl.x + pl.w / 2, y - 14);
+                }
+            }
+
+            // black holes
+            for (const h of WJ.holes) {
+                const y = h.y - WJ.camY;
+                if (y < -120 || y > WJ.H + 120) continue;
+                const g = ctx.createRadialGradient(h.x, y, 3, h.x, y, h.r * 2.4);
+                g.addColorStop(0, 'rgba(2,6,23,0.95)');
+                g.addColorStop(0.45, 'rgba(30,41,59,0.5)');
+                g.addColorStop(1, 'rgba(30,41,59,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(h.x, y, h.r * 2.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(h.x, y, h.r, 0, Math.PI * 2);
+                ctx.fillStyle = '#060b18';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(147,197,253,0.85)';
+                ctx.lineWidth = 2;
+                const t = performance.now() / 500;
+                ctx.beginPath();
+                ctx.arc(h.x, y, h.r + 5, t, t + 1.6);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(h.x, y, h.r + 5, t + Math.PI, t + Math.PI + 1.6);
+                ctx.stroke();
+            }
+
+            // pickups
+            for (const pk of WJ.pickups) {
+                if (pk.taken) continue;
+                const y = pk.y - WJ.camY + Math.sin(pk.bob) * 3;
+                if (y < -40 || y > WJ.H + 40) continue;
+                const isNext = pk.ch === WJ.neededLetter();
+                ctx.save();
+                if (isNext) { ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 14; }
+                ctx.fillStyle = isNext ? '#fffbe8' : '#ffffff';
+                ctx.strokeStyle = isNext ? '#f59e0b' : '#cbd5e1';
+                ctx.lineWidth = 2.5;
+                WJ.roundRect(ctx, pk.x - 14, y - 14, 28, 28, 8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = isNext ? '#b45309' : '#64748b';
+                ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(pk.ch, pk.x, y + 1);
+                ctx.restore();
+            }
+
+            // monsters
+            for (const m of WJ.monsters) {
+                if (m.dead) continue;
+                const y = m.y - WJ.camY;
+                if (y < -50 || y > WJ.H + 50) continue;
+                ctx.fillStyle = '#7e22ce';
+                for (let i = -1; i <= 1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(m.x + i * 9 - 5, y - m.r + 3);
+                    ctx.lineTo(m.x + i * 9, y - m.r - 9);
+                    ctx.lineTo(m.x + i * 9 + 5, y - m.r + 3);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.beginPath();
+                ctx.arc(m.x, y, m.r, 0, Math.PI * 2);
+                ctx.fillStyle = '#c084fc';
+                ctx.fill();
+                ctx.strokeStyle = '#6b21a8';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(m.x - 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(m.x + 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#1f2937';
+                ctx.beginPath(); ctx.arc(m.x - 5, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(m.x + 7, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#6b21a8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(m.x, y + 7, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+                ctx.stroke();
+            }
+
+            // UFOs
+            for (const u of WJ.ufos) {
+                if (u.dead) continue;
+                const y = u.y - WJ.camY + Math.sin(u.bob) * 4;
+                if (y < -80 || y > WJ.H + 80) continue;
+                if (u.beam) {
+                    const g = ctx.createLinearGradient(u.x, y, u.x, y + 210);
+                    g.addColorStop(0, 'rgba(56,189,248,0.45)');
+                    g.addColorStop(1, 'rgba(56,189,248,0)');
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.moveTo(u.x - 12, y + 6);
+                    ctx.lineTo(u.x + 12, y + 6);
+                    ctx.lineTo(u.x + 62, y + 210);
+                    ctx.lineTo(u.x - 62, y + 210);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.beginPath();
+                ctx.ellipse(u.x, y, u.r, u.r * 0.42, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fill();
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(u.x, y - 4, u.r * 0.48, Math.PI, 0);
+                ctx.fillStyle = 'rgba(125,211,252,0.9)';
+                ctx.fill();
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#f59e0b';
+                for (let i = -1; i <= 1; i++) {
+                    ctx.beginPath();
+                    ctx.arc(u.x + i * 13, y + 3, 2.6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // shots
+            ctx.fillStyle = '#f59e0b';
+            for (const s of WJ.shots) {
+                if (s.dead) continue;
+                const y = s.y - WJ.camY;
+                ctx.beginPath();
+                ctx.arc(s.x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // particles
+            for (const pt of WJ.particles) {
+                ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+                ctx.fillStyle = pt.color;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y - WJ.camY, pt.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            WJ.drawPlayer(ctx);
+            WJ.drawPads(ctx);
+            WJ.drawHud(ctx);
+        };
+
+        WJ.drawGadget = function (ctx, kind, x, y) {
+            const map = { spring: '🌀', propeller: '🚁', jetpack: '🚀', shoes: '👟', shield: '🛡️' };
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff7d6';
+            ctx.fill();
+            ctx.strokeStyle = '#e0b43a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.font = '14px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(map[kind] || '✦', x, y + 1);
+            ctx.restore();
+        };
+
+        WJ.drawPlayer = function (ctx) {
+            const p = WJ.player;
+            if (!p) return;
+            const x = p.x, y = p.y - WJ.camY, w = p.w, h = p.h;
+
+            if (p.rainbow > 0) {
+                const hue = (performance.now() / 8) % 360;
+                ctx.beginPath();
+                ctx.arc(x, y - h / 2, 34, 0, Math.PI * 2);
+                ctx.fillStyle = 'hsla(' + hue + ',95%,62%,0.3)';
+                ctx.fill();
+            }
+
+            if (p.jet > 0) {
+                const fl = 12 + Math.random() * 16;
+                const g = ctx.createLinearGradient(x, y, x, y + fl);
+                g.addColorStop(0, 'rgba(251,191,36,0.95)');
+                g.addColorStop(1, 'rgba(239,68,68,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.moveTo(x - 7, y - 2);
+                ctx.lineTo(x + 7, y - 2);
+                ctx.lineTo(x, y + fl);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // body
+            WJ.roundRect(ctx, x - w / 2, y - h, w, h, 13);
+            ctx.fillStyle = '#dff26b';
+            ctx.strokeStyle = '#55771a';
+            ctx.lineWidth = 3;
+            ctx.fill();
+            ctx.stroke();
+
+            // eyes
+            const eyeY = y - h * 0.66;
+            [-6, 6].forEach(dx => {
+                ctx.beginPath();
+                ctx.arc(x + dx, eyeY, 4.8, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = '#55771a';
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(x + dx + p.face * 1.6, eyeY + 0.6, 2.1, 0, Math.PI * 2);
+                ctx.fillStyle = '#1f2937';
+                ctx.fill();
+            });
+
+            // nose cannon
+            const nx = x + p.face * (w / 2 - 1), ny = y - h * 0.42;
+            ctx.beginPath();
+            ctx.moveTo(nx, ny - 6);
+            ctx.lineTo(nx + p.face * 13, ny - 3);
+            ctx.lineTo(nx + p.face * 13, ny + 4);
+            ctx.lineTo(nx, ny + 6);
+            ctx.closePath();
+            ctx.fillStyle = '#f4a261';
+            ctx.fill();
+            ctx.strokeStyle = '#b5651d';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // feet
+            ctx.fillStyle = '#55771a';
+            [-7, 7].forEach(dx => {
+                ctx.beginPath();
+                ctx.ellipse(x + dx, y - 1, 5, 3.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // propeller hat
+            if (p.prop > 0) {
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y - h);
+                ctx.lineTo(x, y - h - 9);
+                ctx.stroke();
+                const spin = performance.now() / 40;
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath();
+                ctx.ellipse(x + Math.cos(spin) * 11, y - h - 11, 11, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(x - Math.cos(spin) * 11, y - h - 11, 11, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // shield bubble
+            if (p.shield > 0) {
+                const a = 0.45 + 0.3 * Math.sin(performance.now() / 150);
+                ctx.beginPath();
+                ctx.arc(x, y - h / 2, 33, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56,189,248,0.12)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(56,189,248,' + a + ')';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+        };
+
+        WJ.drawPads = function (ctx) {
+            const y = WJ.H - 64;
+            [[62, -1], [WJ.W - 62, 1]].forEach(item => {
+                const x = item[0], dir = item[1];
+                const active = WJ.holdDir === dir || (dir < 0 ? WJ.keys.left : WJ.keys.right);
+                ctx.beginPath();
+                ctx.arc(x, y, 40, 0, Math.PI * 2);
+                ctx.fillStyle = active ? 'rgba(16,185,129,0.28)' : 'rgba(255,255,255,0.7)';
+                ctx.fill();
+                ctx.strokeStyle = active ? '#10b981' : '#cbd5e1';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + dir * 13, y);
+                ctx.lineTo(x - dir * 9, y - 15);
+                ctx.lineTo(x - dir * 9, y + 15);
+                ctx.closePath();
+                ctx.fillStyle = active ? '#047857' : '#64748b';
+                ctx.fill();
+            });
+        };
+
+        WJ.drawHud = function (ctx) {
+            const best = Math.max(Number(localStorage.getItem('wj_best') || 0), WJ.score());
+
+            // score, top-left
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.font = 'bold 32px Fredoka, system-ui, sans-serif';
+            ctx.fillStyle = '#334155';
+            ctx.fillText(String(WJ.score()), 16, 40);
+            ctx.font = 'bold 11px Fredoka, system-ui, sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('BEST ' + best, 18, 55);
+
+            // current word, top-centre
+            const word = WJ.word;
+            if (word) {
+                const n = word.text.length;
+                const gap = Math.min(22, 250 / Math.max(1, n - 1));
+                const totalW = gap * (n - 1);
+                const startX = WJ.W / 2 - totalW / 2;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 23px Fredoka, system-ui, sans-serif';
+                for (let i = 0; i < n; i++) {
+                    const got = i < word.pos;
+                    const isNext = i === word.pos;
+                    const cx = startX + i * gap;
+                    if (isNext) {
+                        ctx.beginPath();
+                        ctx.arc(cx, 66, 14, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(250,204,21,0.4)';
+                        ctx.fill();
+                    }
+                    ctx.fillStyle = got ? '#16a34a' : (isNext ? '#b45309' : '#94a3b8');
+                    ctx.fillText(word.text[i], cx, 67);
+                }
+                if (word.zh) {
+                    ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(word.zh, WJ.W / 2, 88);
+                }
+            }
+
+            // power-up badges, right edge
+            const p = WJ.player;
+            const badges = [];
+            if (p) {
+                if (p.rainbow > 0) badges.push(['🌈', Math.ceil(p.rainbow)]);
+                if (p.jet > 0) badges.push(['🚀', Math.ceil(p.jet)]);
+                if (p.prop > 0) badges.push(['🚁', Math.ceil(p.prop)]);
+                if (p.shoes > 0) badges.push(['👟', p.shoes]);
+                if (p.shield > 0) badges.push(['🛡️', Math.ceil(p.shield)]);
+            }
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 13px Fredoka, system-ui, sans-serif';
+            let by = 66;
+            badges.forEach(b => {
+                const label = b[0] + ' ' + b[1] + 's';
+                const tw = ctx.measureText(label).width + 14;
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                WJ.roundRect(ctx, WJ.W - 12 - tw, by - 11, tw, 22, 11);
+                ctx.fill();
+                ctx.fillStyle = '#475569';
+                ctx.fillText(label, WJ.W - 19, by);
+                by += 26;
+            });
+
+            // toast
+            const toast = WJ.toasts[WJ.toasts.length - 1];
+            if (toast) {
+                ctx.globalAlpha = Math.min(1, toast.life);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
+                ctx.fillStyle = toast.color;
+                ctx.fillText(toast.text, WJ.W / 2, 120);
+                ctx.globalAlpha = 1;
+            }
+        };
+
+        /* ---------------- input ---------------- */
+
+        WJ.bindInput = function () {
+            if (WJ.bound) return;
+            WJ.bound = true;
+            const c = WJ.canvas;
+            if (!c) { WJ.bound = false; return; }
+
+            c.addEventListener('pointerdown', e => {
+                if (WJ.state !== 'playing' || WJ.paused) return;
+                e.preventDefault();
+                const rect = c.getBoundingClientRect();
+                if (!rect.width) return;
+                const lx = (e.clientX - rect.left) * (WJ.W / rect.width);
+                const ly = (e.clientY - rect.top) * (WJ.H / rect.height);
+                const padY = WJ.H - 64;
+                const inLeft = Math.hypot(lx - 62, ly - padY) < 62;
+                const inRight = Math.hypot(lx - (WJ.W - 62), ly - padY) < 62;
+                if (inLeft || inRight) {
+                    WJ.holdDir = inLeft ? -1 : 1;
+                    WJ.holdPointer = e.pointerId;
+                    try { c.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                } else {
+                    WJ.shoot();
+                }
+            });
+            c.addEventListener('pointerup', e => {
+                if (WJ.holdPointer === e.pointerId) {
+                    WJ.holdDir = 0;
+                    WJ.holdPointer = null;
+                }
+            });
+            c.addEventListener('pointercancel', e => {
+                if (WJ.holdPointer === e.pointerId) {
+                    WJ.holdDir = 0;
+                    WJ.holdPointer = null;
+                }
+            });
+            c.addEventListener('pointerleave', () => { WJ.holdDir = 0; WJ.holdPointer = null; });
+            c.addEventListener('contextmenu', e => e.preventDefault());
+
+            document.addEventListener('keydown', e => {
+                const view = document.getElementById('wordjump-view');
+                if (!view || view.classList.contains('hidden')) return;
+                if (WJ.state !== 'playing') return;
+                const k = e.key;
+                if (k === 'ArrowLeft' || k === 'a' || k === 'A') { WJ.keys.left = true; e.preventDefault(); }
+                else if (k === 'ArrowRight' || k === 'd' || k === 'D') { WJ.keys.right = true; e.preventDefault(); }
+                else if (k === 'ArrowUp' || k === ' ' || k === 'w' || k === 'W') { WJ.shoot(); e.preventDefault(); }
+                else if (k === 'p' || k === 'P' || k === 'Escape') { WJ.togglePause(); }
+            });
+            document.addEventListener('keyup', e => {
+                const k = e.key;
+                if (k === 'ArrowLeft' || k === 'a' || k === 'A') WJ.keys.left = false;
+                if (k === 'ArrowRight' || k === 'd' || k === 'D') WJ.keys.right = false;
+            });
+
+            window.addEventListener('resize', () => { if (WJ.mounted) WJ.resize(); });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden && WJ.state === 'playing' && !WJ.paused) WJ.togglePause();
+            });
+        };
+
+        WJ.enableTilt = async function () {
+            try {
+                if (typeof DeviceOrientationEvent !== 'undefined' &&
+                    typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const res = await DeviceOrientationEvent.requestPermission();
+                    if (res !== 'granted') {
+                        WJ.toast('Tilt not allowed — use touch or keys.', '#ef4444');
+                        return;
+                    }
+                }
+                window.addEventListener('deviceorientation', WJ.onTilt);
+                WJ.tiltZero = null;
+                WJ.tiltOn = true;
+                const b = document.getElementById('wj-tilt-btn');
+                if (b) b.innerText = '📱 Tilt: on';
+                WJ.toast('Tilt on — hold your phone upright.', '#22c55e');
+                WJ.beep(660, 0.1, 'sine', 0.04);
+            } catch (e) {
+                WJ.toast('Tilt unavailable on this device.', '#ef4444');
+            }
+        };
+
+        WJ.onTilt = function (e) {
+            if (e.gamma == null) return;
+            if (WJ.tiltZero === null) WJ.tiltZero = e.gamma;
+            WJ.tiltValue = WJ.clamp((e.gamma - WJ.tiltZero) / 28, -1, 1);
+        };
 
         window.onload = () => {
             loadAllCategoriesFromSheet();

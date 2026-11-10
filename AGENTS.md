@@ -48,6 +48,8 @@
 | `sub-category-view` | Listening／Recitation／Revision 三個活動 |
 | `quiz-view` | 測驗主體（speaker 鈕／中文大字／input／hint／計分） |
 | `word-list-view` | Revision 單字表（`showWordList`） |
+| `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
+| `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，
@@ -212,4 +214,87 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   所以同一間房兩個／全班學生仍然係**同一批、同一數量、同一次序**。
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
+
+---
+
+## 10. Word Jump（Doodle Jump 式爬高拼字遊戲）
+
+入口：`battle-view` 頂部嘅「🦘 Word Jump」卡 → `changeView('wordjump-view')`。
+純前端、單機、**唔需要 Supabase／SQL**，全部邏輯喺 `index.html` 一個
+`const WJ = { … }` 物件（喺 `window.onload` 之前），HTML 係 `#wordjump-view`。
+
+### 10.1 結構
+| 位置 | 內容 |
+|---|---|
+| `#wordjump-view` | 工具列（topic／tilt／sound／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay` |
+| `WJ.mount()` | 入 view 時 call（`changeView` 內 `requestAnimationFrame`），綁 input、resize、reset |
+| `WJ.stop()` | 離開 view 時 call（`changeView` 開頭 `WJ.stop()`），停 RAF、清 overlay |
+| `WJ.quit()` | 返回 `battle-view` |
+| `WJ.gameOver()` | 唯一結束點，寫 `localStorage` |
+
+Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（上限 2）縮放。
+物理用**固定 1/120 秒**步長（`WJ.frame` 內 accumulator，最多補 8 步），
+所以唔同 fps 跑出嚟一樣。
+
+### 10.2 操作
+- **手機**：底部兩個圓形方向 pad（半徑 40，x=62 同 x=W−62，y=H−64）按住左右行；
+  pad 以外位置**點一下 = 射鼻球**。唔再用「按畫面左右半邊」，避免同射擊衝突。
+- **重力感應**：工具列「📱 Tilt」撳一次開（iOS 要 `DeviceOrientationEvent.requestPermission`），
+  開啟時以當時角度做零點，`gamma` 偏 28° 為滿速。
+- **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
+- 切去其他 tab（`visibilitychange`）會自動暫停。
+
+### 10.3 平台
+| 顏色 | 行為 |
+|---|---|
+| 綠 | 普通，安全 |
+| 藍 | 左右水平移動（`amp` 26–46） |
+| 灰 | 上下垂直移動（`amp` 20–40） |
+| 棕 | 踩中即斷，**唔會彈**，直接跌落 |
+| 黃 | 踩中 1.1 秒後爆炸消失（臨爆會閃紅） |
+| 白 | 踩一次即消失 |
+
+生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
+越高綠台越少、陷阱越多，平台間距亦輕微收窄。
+
+### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
+彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
+彈簧鞋 6 次 ×1.42 跳力 · 護盾 8 秒（擋一次怪物／UFO，黑洞同跌落擋唔到）。
+
+### 10.5 敵人
+- **怪物**：紫色，平台上方左右巡邏。碰到 = game over；可射爆、踩頭踩扁（+30 分），
+  彩虹模式撞到會直接消滅。
+- **UFO**：下方有吸力光束，入咗光束會被拉向它；可射爆（+40 分）。
+- **黑洞**：160px 內有引力，中心 28px 內必死，護盾擋唔到。
+
+### 10.6 Spelling Jump（拼字）
+- 畫面頂中央顯示當前單字（已拼字母變綠、下一個字母有黃圈）＋中文提示。
+- 平台上方會出字母磚：**50% 平台有**，當中 60% 係「下一個需要嘅字母」（`dynamic: true`），
+  其餘隨機 A–Z。執錯字母只會發一聲低音，唔會懲罰。
+- 拼完一個字：+100 + 字長×10 分，隨機送 **護盾 8 秒** 或 **彩虹無敵 4.5 秒**，
+  1.1 秒後換下一個字（`WJ.nextWordIn`）。
+- 字母磚 `dynamic` 會喺 `WJ.refreshDynamicLetters()` 時自動變成新目標字母，
+  所以唔會出現「執極都執唔到」嘅死局。
+
+### 10.7 題庫來源
+`WJ.wordPool()` 由 `categories`（Google Sheet）揀字，經 `primaryAnswer()` 取第一個答案，
+再用 `/^[A-Za-z]{3,11}$/` 過濾（所以 `plaza / square / mall`、有空格／連字號嘅字自動排除）。
+Topic 下拉有「🎲 All topics」＋每個有字嘅 tab；預設跟 `currentTopic`，冇就 All。
+題庫少過 15 個字會補 20 個內建後備字（tiger、rocket、garden…），所以 Sheet 斷線都玩到。
+Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics()` 更新下拉。
+
+### 10.8 分數與儲存
+- 分數 = `max(0, floor(maxClimb / 10) + bonus)`；`bonus` 來自拼字、殺怪、踩怪。
+- `localStorage["wj_best"]` 最高分、`localStorage["wj_words"]` 累計拼對字數（只加不減）。
+- 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
+
+### 10.9 改動提示
+- 調手感改 `WJ.GRAVITY`（2000）／`WJ.JUMP_V`（−1030）／`WJ.MOVE_MAX`（470）。
+- 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
+  `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
+- 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →
+  `WJ.drawGadget()` 個 `map` 加 emoji → `WJ.drawHud()` badges 加顯示。
+- 改字母密度改 `spawnPlatform()` 內嗰個 `Math.random() < 0.5` 同 `0.6`。
+- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）；`canvas` 內容喺
+  OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
 

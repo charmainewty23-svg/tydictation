@@ -597,7 +597,7 @@
                         <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Press Confirm to add the word to this form's bank; it appears in the list below straight away. Use − to delete or clear a word.</p>
                         <div class="flex items-stretch gap-2 mb-4 flex-wrap sm:flex-nowrap">
                             <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <input id="nv-zh" type="text" placeholder="中文 (needed for Recitation)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
                             <button type="button" id="nv-save-btn" onclick="nvSaveWord()" title="Confirm" aria-label="Confirm" class="shrink-0 px-5 h-11 bg-orange-500 text-white rounded-full font-bold text-sm leading-none flex items-center justify-center">Confirm</button>
                             <button type="button" id="nv-cancel-btn" onclick="nvCancelEdit()" title="Clear this row" aria-label="Clear this row" class="w-11 h-11 shrink-0 bg-white border-2 border-orange-100 text-gray-500 rounded-full font-bold text-2xl leading-none flex items-center justify-center">−</button>
                         </div>
@@ -2205,7 +2205,9 @@
             }
             if (nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh) || data) {
                 if (data && !nvRows.some(w => Number(w.id) === Number(data.id))) nvUpsertLocal(data);
-                nvShowFeedback('Saved “' + escapeHtml(label) + '” to the ' + escapeHtml(form) + ' word bank. It is in the list below, and students in ' + escapeHtml(form) + ' can practise it now.', false);
+                let savedMsg = 'Saved “' + escapeHtml(label) + '” to the ' + escapeHtml(form) + ' word bank. It is in the list below, and students in ' + escapeHtml(form) + ' can practise it now.';
+                if (en && !zh) savedMsg += ' Add the 中文 if you want this word in Recitation.';
+                nvShowFeedback(savedMsg, false);
             } else {
                 nvShowFeedback('Confirm did not add the word to the list. ' + nvSqlSetupHtml(), true);
             }
@@ -2259,6 +2261,17 @@
             if (allWords.length === 0) {
                 updateMascot("No words in this category!");
                 return;
+            }
+
+            if (mode === 'recitation') {
+                const withChinese = allWords.filter(w => String(w && w.zh || '').trim());
+                if (!withChinese.length) {
+                    updateMascot(currentTopic === NEW_VOCAB
+                        ? "Recitation shows the Chinese, then you type the English. Please add 中文 to these words first."
+                        : "These words don't have Chinese yet, so Recitation can't start.");
+                    return;
+                }
+                allWords = withChinese;
             }
             
             quizMode = mode;

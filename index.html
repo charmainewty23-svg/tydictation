@@ -557,7 +557,7 @@
                                 🦘 Word Jump
                                 <span class="text-[10px] align-middle ml-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full">SOLO</span>
                             </h3>
-                            <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — bounce on platforms, blast monsters, catch letters to spell the word.</p>
+                            <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — read the Chinese, land on the matching English word, blast monsters.</p>
                         </div>
                         <button onclick="changeView('wordjump-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
                     </div>
@@ -672,7 +672,7 @@
                     <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
                         <div>
                             <h2 class="text-3xl font-bold text-emerald-600">🦘 Word Jump</h2>
-                            <p class="text-gray-400 text-sm">Climb forever. Spell the word on the way up.</p>
+                            <p class="text-gray-400 text-sm">Climb forever. Match the Chinese to the English word.</p>
                         </div>
                         <div class="flex items-center gap-2 flex-wrap">
                             <select id="wj-topic" onchange="WJ.changeTopic(this.value)" class="p-2 px-3 rounded-xl border-2 border-emerald-100 bg-white font-bold text-gray-700 text-sm"></select>
@@ -685,7 +685,7 @@
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
                     </div>
-                    <p class="text-center text-xs text-gray-400 mt-3">Tilt your phone, or hold the left / right half · tap to shoot · P to pause</p>
+                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · P to pause</p>
                 </div>
             </div>
 
@@ -3139,19 +3139,21 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 2000, JUMP_V: -1030,
-            MOVE_MAX: 470, MOVE_ACC: 3600, FRICTION: 3400,
+            GRAVITY: 1000, JUMP_V: -740,
+            MOVE_MAX: 460, MOVE_ACC: 5200, FRICTION: 3200,
+            TILT_RANGE: 14, TILT_DEAD: 0.04,
+            QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
             raf: 0, lastTs: 0, acc: 0,
             canvas: null, ctx: null,
             keys: { left: false, right: false },
-            tiltOn: false, tiltZero: null, tiltValue: 0,
+            tiltOn: false, tiltZero: null, tiltValue: 0, tiltSmooth: 0,
             holdDir: 0, holdPointer: null,
-            platforms: [], pickups: [], monsters: [], ufos: [], holes: [],
+            platforms: [], quizRows: [], monsters: [], ufos: [], holes: [],
             shots: [], particles: [], toasts: [],
             player: null,
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
-            word: null, wordsDone: 0, spawnCount: 0, nextWordIn: 0,
+            wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
             topic: '', soundOn: true, audio: null,
             lastShot: 0, bound: false
         };
@@ -3161,7 +3163,6 @@
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
-        WJ.neededLetter = () => (WJ.word ? (WJ.word.text[WJ.word.pos] || '') : '');
 
         WJ.beep = function (freq, dur, type, vol) {
             if (!WJ.soundOn) return;
@@ -3220,7 +3221,7 @@
         };
 
         WJ.reset = function () {
-            WJ.platforms = []; WJ.pickups = []; WJ.monsters = []; WJ.ufos = []; WJ.holes = [];
+            WJ.platforms = []; WJ.quizRows = []; WJ.monsters = []; WJ.ufos = []; WJ.holes = [];
             WJ.shots = []; WJ.particles = []; WJ.toasts = [];
             WJ.player = {
                 x: WJ.W / 2, y: 0, vx: 0, vy: 0, w: 34, h: 40, face: 1,
@@ -3231,8 +3232,10 @@
             WJ.maxClimb = 0;
             WJ.bonus = 0;
             WJ.wordsDone = 0;
-            WJ.spawnCount = 0;
-            WJ.nextWordIn = 0;
+            WJ.streak = 0;
+            WJ.bestStreak = 0;
+            WJ.nextQuizY = -560;
+            WJ.afterQuiz = false;
             WJ.paused = false;
             WJ.platforms.push({
                 x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
@@ -3240,7 +3243,6 @@
                 dead: false, fuse: 0, gadget: null
             });
             WJ.genUpTo(-WJ.H - 220);
-            WJ.newWord();
         };
 
         WJ.start = function () {
@@ -3318,11 +3320,12 @@
                 <div class="w-full py-2">
                     <div class="text-5xl mb-1">🦘</div>
                     <h3 class="text-2xl font-bold text-emerald-600 mb-1">Word Jump</h3>
-                    <p class="text-gray-500 text-sm mb-4">Bounce upward forever. Spell the word on the way up.</p>
+                    <p class="text-gray-500 text-sm mb-4">Read the Chinese, then land on the English word that matches it.</p>
                     <div class="text-left bg-white rounded-xl border border-emerald-100 p-4 text-sm text-gray-600 space-y-2 mb-4">
                         <p>👈 <b>Hold the pads</b> at the bottom (or tilt your phone) to move.</p>
-                        <p>👆 <b>Tap anywhere else</b> to shoot a nose ball at monsters and UFOs.</p>
-                        <p>🔤 Catch the glowing letters <b>in order</b> to spell the word.</p>
+                        <p>🟪 <b>Purple tiles</b> carry English words — bounce on the one that means the word on top.</p>
+                        <p>🔥 Answer a few in a row for bonus points and a shield.</p>
+                        <p>👆 <b>Tap anywhere else</b> to shoot at monsters and UFOs.</p>
                         <p>🧱 Brown breaks · white vanishes · yellow explodes · blue &amp; grey move.</p>
                     </div>
                     <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Start climbing</button>
@@ -3384,35 +3387,91 @@
             return list;
         };
 
-        WJ.newWord = function () {
-            const pool = WJ.wordPool();
-            let pickW = WJ.pick(pool);
-            let guard = 0;
-            while (WJ.word && pickW.en === WJ.word.text.toLowerCase() && guard++ < 6) pickW = WJ.pick(pool);
-            WJ.word = { text: pickW.en.toUpperCase(), zh: pickW.zh, pos: 0 };
-            WJ.refreshDynamicLetters();
-        };
-
-        WJ.refreshDynamicLetters = function () {
-            const need = WJ.neededLetter();
-            if (!need) return;
-            WJ.pickups.forEach(p => { if (p.dynamic) p.ch = need; });
-        };
-
-        WJ.completeWord = function () {
-            WJ.wordsDone++;
-            WJ.bonus += 100 + WJ.word.text.length * 10;
-            WJ.burst(WJ.player.x, WJ.player.y - WJ.player.h / 2, '#facc15', 26);
-            WJ.beep(1046, 0.14, 'triangle', 0.06);
-            if (Math.random() < 0.5) {
-                WJ.player.shield = 8;
-                WJ.toast('🛡️ ' + WJ.word.text + ' — shield!', '#0ea5e9');
-            } else {
-                WJ.player.rainbow = 4.5;
-                WJ.toast('🌈 ' + WJ.word.text + ' — rainbow!', '#a855f7');
+        /* The question is always the nearest unanswered word row at or above
+           the player, so the HUD never shows a word that is still far away. */
+        WJ.activeRow = function () {
+            const p = WJ.player;
+            let best = null;
+            for (const r of WJ.quizRows) {
+                if (r.resolved) continue;
+                if (r.y > p.y + 150) continue;
+                if (!best || r.y > best.y) best = r;
             }
-            WJ.nextWordIn = 1.1;
-            WJ.word = Object.assign({}, WJ.word, { pos: WJ.word.text.length });
+            return best;
+        };
+
+        WJ.spawnQuizRow = function (y) {
+            const d = WJ.difficulty();
+            const count = d < 0.3 ? 2 : 3;
+            const pool = WJ.wordPool();
+            if (!pool.length) return;
+
+            const target = WJ.pick(pool);
+            const used = {};
+            used[target.en] = 1;
+            const options = [{ en: target.en, zh: target.zh || '', ok: true }];
+            let guard = 0;
+            while (options.length < count && guard++ < 200) {
+                const cand = WJ.pick(pool);
+                if (used[cand.en]) continue;
+                used[cand.en] = 1;
+                options.push({ en: cand.en, zh: cand.zh || '', ok: false });
+            }
+            for (let i = options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const t = options[i]; options[i] = options[j]; options[j] = t;
+            }
+
+            const pad = 4, gap = 8;
+            const w = Math.min(170, (WJ.W - pad * 2 - gap * (count - 1)) / count);
+            const totalW = w * count + gap * (count - 1);
+            let x = (WJ.W - totalW) / 2;
+
+            const row = { y, en: target.en.toUpperCase(), zh: target.zh || '', resolved: false, ok: null, picked: null };
+            options.forEach(o => {
+                const pl = {
+                    x, y, w, h: 28, type: 'quiz',
+                    baseX: x, baseY: y, phase: 0, amp: 0, speed: 0,
+                    dead: false, fuse: 0, gadget: null,
+                    word: o.en.toUpperCase(), correct: !!o.ok, row
+                };
+                WJ.platforms.push(pl);
+                x += w + gap;
+            });
+            WJ.quizRows.push(row);
+        };
+
+        WJ.answerRow = function (row, pl) {
+            row.resolved = true;
+            row.ok = !!pl.correct;
+            row.picked = pl;
+            if (pl.correct) {
+                WJ.wordsDone++;
+                WJ.streak++;
+                if (WJ.streak > WJ.bestStreak) WJ.bestStreak = WJ.streak;
+                const gain = 60 + row.en.length * 5 + Math.min(90, WJ.streak * 10);
+                WJ.bonus += gain;
+                WJ.burst(pl.x + pl.w / 2, row.y - 8, '#22c55e', 24);
+                WJ.beep(880, 0.09, 'triangle', 0.05);
+                WJ.beep(1180, 0.12, 'triangle', 0.04);
+                WJ.toast('✅ ' + row.en + '  +' + gain, '#15803d');
+                if (window.speechSynthesis) {
+                    try {
+                        const u = new SpeechSynthesisUtterance(row.en.toLowerCase());
+                        u.lang = 'en-US';
+                        u.rate = 0.9;
+                        window.speechSynthesis.speak(u);
+                    } catch (e) { /* speech is optional */ }
+                }
+                if (WJ.streak > 0 && WJ.streak % 5 === 0) {
+                    WJ.player.shield = Math.max(WJ.player.shield, 8);
+                    WJ.toast('🔥 ' + WJ.streak + ' in a row — shield!', '#0ea5e9');
+                }
+            } else {
+                WJ.streak = 0;
+                WJ.beep(170, 0.18, 'sawtooth', 0.05);
+                WJ.toast('❌ ' + row.zh + ' = ' + row.en, '#dc2626');
+            }
         };
 
         WJ.populateTopics = function () {
@@ -3436,7 +3495,9 @@
 
         WJ.changeTopic = function (v) {
             WJ.topic = v || '__all__';
-            if (WJ.state === 'playing') WJ.newWord();
+            // Skip the question he is already climbing towards; the next row
+            // that spawns will come from the new topic.
+            WJ.quizRows.forEach(r => { if (!r.resolved) r.resolved = true; });
         };
 
         /* ---------------- world generation ---------------- */
@@ -3444,8 +3505,24 @@
         WJ.genUpTo = function (targetY) {
             let guard = 0;
             while (WJ.topY > targetY && guard++ < 300) {
-                WJ.topY -= WJ.rand(70, 100) * (1 - WJ.difficulty() * 0.12);
-                WJ.spawnPlatform(WJ.topY);
+                // Leave a wider gap above a word row so the player has to come
+                // down on it instead of hopping straight over it.
+                const step = (WJ.afterQuiz ? WJ.rand(158, 198) : WJ.rand(84, 112)) * (1 - WJ.difficulty() * 0.1);
+                const nextY = WJ.topY - step;
+                if (nextY <= WJ.nextQuizY) {
+                    // Keep at least 115px under the row: from a bounce there the
+                    // player cannot reach the next platform above, so he has to
+                    // come down on the word row instead of sailing past it.
+                    const quizY = Math.min(WJ.nextQuizY, WJ.topY - 115);
+                    WJ.spawnQuizRow(quizY);
+                    WJ.topY = quizY;
+                    WJ.nextQuizY = quizY - WJ.rand(WJ.QUIZ_GAP_MIN, WJ.QUIZ_GAP_MAX);
+                    WJ.afterQuiz = true;
+                } else {
+                    WJ.topY = nextY;
+                    WJ.spawnPlatform(WJ.topY);
+                    WJ.afterQuiz = false;
+                }
             }
         };
 
@@ -3474,7 +3551,7 @@
                 baseX: x, baseY: y,
                 phase: Math.random() * Math.PI * 2,
                 amp: type === 'blue' ? WJ.rand(26, 46) : (type === 'gray' ? WJ.rand(20, 40) : 0),
-                speed: WJ.rand(0.7, 1.5),
+                speed: WJ.rand(0.5, 1.1),
                 dead: false, fuse: 0, gadget: null
             };
             WJ.platforms.push(pl);
@@ -3486,25 +3563,12 @@
                 };
             }
 
-            WJ.spawnCount++;
-            if (y < -420 && Math.random() < 0.5) {
-                const need = WJ.neededLetter();
-                const useNeed = !!need && Math.random() < 0.6;
-                const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                WJ.pickups.push({
-                    kind: 'letter',
-                    ch: useNeed ? need : alpha[Math.floor(Math.random() * 26)],
-                    dynamic: useNeed,
-                    x: pl.x + pl.w / 2, y: y - 26, r: 15,
-                    bob: Math.random() * 6.28, taken: false
-                });
-            }
 
             if (y < -1500 && Math.random() < 0.05 + 0.07 * d) {
                 WJ.monsters.push({
                     x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
                     range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
-                    speed: WJ.rand(28, 55), r: 19, dead: false
+                    speed: WJ.rand(20, 40), r: 19, dead: false
                 });
             }
             if (y < -2400 && Math.random() < 0.022) {
@@ -3535,6 +3599,7 @@
             }
             if (pl.type === 'white') pl.dead = true;
             if (pl.type === 'yellow' && !pl.fuse) pl.fuse = 1.1;
+            if (pl.row && !pl.row.resolved) WJ.answerRow(pl.row, pl);
 
             let v = WJ.JUMP_V;
             if (p.shoes > 0) { p.shoes--; v = WJ.JUMP_V * 1.42; }
@@ -3554,20 +3619,6 @@
             if (kind === 'shoes') { p.shoes = 6; WJ.beep(600, 0.1, 'square', 0.04); return v; }
             if (kind === 'shield') { p.shield = 8; WJ.beep(880, 0.14, 'triangle', 0.05); return v; }
             return v;
-        };
-
-        WJ.collectLetter = function (pk) {
-            pk.taken = true;
-            const need = WJ.neededLetter();
-            if (pk.ch === need) {
-                WJ.word.pos++;
-                WJ.burst(pk.x, pk.y, '#22c55e', 10);
-                WJ.beep(880, 0.08, 'triangle', 0.05);
-                if (WJ.word.pos >= WJ.word.text.length) WJ.completeWord();
-                else WJ.refreshDynamicLetters();
-            } else {
-                WJ.beep(200, 0.07, 'sawtooth', 0.03);
-            }
         };
 
         WJ.shoot = function () {
@@ -3620,7 +3671,12 @@
             let dir = 0;
             if (WJ.keys.left || WJ.holdDir === -1) dir -= 1;
             if (WJ.keys.right || WJ.holdDir === 1) dir += 1;
-            if (WJ.tiltOn && Math.abs(WJ.tiltValue) > 0.08) dir = WJ.tiltValue;
+            if (WJ.tiltOn) {
+                WJ.tiltSmooth += (WJ.tiltValue - WJ.tiltSmooth) * Math.min(1, dt * 20);
+                if (Math.abs(WJ.tiltSmooth) > WJ.TILT_DEAD) dir = WJ.clamp(WJ.tiltSmooth * 1.25, -1, 1);
+            } else {
+                WJ.tiltSmooth = 0;
+            }
             if (dir !== 0) {
                 p.vx += dir * WJ.MOVE_ACC * dt;
                 if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
@@ -3636,8 +3692,8 @@
             });
 
             // --- vertical ---
-            if (p.jet > 0) p.vy = -980;
-            else if (p.prop > 0) p.vy = -240;
+            if (p.jet > 0) p.vy = -700;
+            else if (p.prop > 0) p.vy = -180;
             else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
 
             const prevFeet = p.y;
@@ -3681,15 +3737,6 @@
                         break;
                     }
                 }
-            }
-
-            // --- pickups ---
-            for (const pk of WJ.pickups) {
-                if (pk.taken) continue;
-                pk.bob += dt * 3;
-                const dy = (p.y - p.h / 2) - pk.y;
-                const dx = p.x - pk.x;
-                if (dx * dx + dy * dy < 32 * 32) WJ.collectLetter(pk);
             }
 
             // --- monsters ---
@@ -3792,16 +3839,10 @@
             }
             for (const t of WJ.toasts) t.life -= dt;
 
-            // --- next word ---
-            if (WJ.nextWordIn > 0) {
-                WJ.nextWordIn -= dt;
-                if (WJ.nextWordIn <= 0) WJ.newWord();
-            }
-
             // --- cleanup ---
             const cutoff = WJ.camY + WJ.H + 160;
             WJ.platforms = WJ.platforms.filter(pl => !pl.dead && pl.y < cutoff);
-            WJ.pickups = WJ.pickups.filter(pk => !pk.taken && pk.y < cutoff);
+            WJ.quizRows = WJ.quizRows.filter(r => r.y < cutoff);
             WJ.monsters = WJ.monsters.filter(m => !m.dead && m.y < cutoff);
             WJ.ufos = WJ.ufos.filter(u => !u.dead && u.y < cutoff);
             WJ.holes = WJ.holes.filter(h => h.y < cutoff);
@@ -3863,18 +3904,48 @@
                 gray: ['#9aa5b1', '#5b6672'],
                 brown: ['#b07a4f', '#6b4226'],
                 yellow: ['#f7c948', '#b07d16'],
-                white: ['#ffffff', '#c3cbd6']
+                white: ['#ffffff', '#c3cbd6'],
+                quiz: ['#818cf8', '#4338ca']
             };
+            const activeRow = WJ.activeRow();
             for (const pl of WJ.platforms) {
                 const y = pl.y - WJ.camY;
-                if (y < -60 || y > WJ.H + 60) continue;
-                const col = colors[pl.type] || colors.green;
+                if (y < -80 || y > WJ.H + 80) continue;
+                let col = colors[pl.type] || colors.green;
+                if (pl.type === 'quiz' && pl.row && pl.row.resolved) {
+                    if (pl.correct) col = ['#34d399', '#047857'];
+                    else if (pl.row.picked === pl) col = ['#f87171', '#b91c1c'];
+                    else col = ['#e2e8f0', '#94a3b8'];
+                }
                 ctx.fillStyle = col[0];
                 ctx.strokeStyle = col[1];
                 ctx.lineWidth = 2.5;
                 WJ.roundRect(ctx, pl.x, y, pl.w, pl.h, 6);
                 ctx.fill();
                 ctx.stroke();
+
+                if (pl.type === 'quiz') {
+                    if (pl.row === activeRow && !pl.row.resolved) {
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(67,56,202,0.30)';
+                        ctx.lineWidth = 7;
+                        WJ.roundRect(ctx, pl.x - 2.5, y - 2.5, pl.w + 5, pl.h + 5, 9);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    let fs = 15;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    while (fs > 8) {
+                        ctx.font = 'bold ' + fs + 'px Fredoka, system-ui, sans-serif';
+                        if (ctx.measureText(pl.word).width <= pl.w - 10) break;
+                        fs--;
+                    }
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(pl.word, pl.x + pl.w / 2, y + pl.h / 2 + 1);
+                    continue;
+                }
+
                 ctx.fillStyle = 'rgba(255,255,255,0.5)';
                 WJ.roundRect(ctx, pl.x + 5, y + 2.5, pl.w - 10, 3, 2);
                 ctx.fill();
@@ -3923,29 +3994,6 @@
                 ctx.beginPath();
                 ctx.arc(h.x, y, h.r + 5, t + Math.PI, t + Math.PI + 1.6);
                 ctx.stroke();
-            }
-
-            // pickups
-            for (const pk of WJ.pickups) {
-                if (pk.taken) continue;
-                const y = pk.y - WJ.camY + Math.sin(pk.bob) * 3;
-                if (y < -40 || y > WJ.H + 40) continue;
-                const isNext = pk.ch === WJ.neededLetter();
-                ctx.save();
-                if (isNext) { ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 14; }
-                ctx.fillStyle = isNext ? '#fffbe8' : '#ffffff';
-                ctx.strokeStyle = isNext ? '#f59e0b' : '#cbd5e1';
-                ctx.lineWidth = 2.5;
-                WJ.roundRect(ctx, pk.x - 14, y - 14, 28, 28, 8);
-                ctx.fill();
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = isNext ? '#b45309' : '#64748b';
-                ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(pk.ch, pk.x, y + 1);
-                ctx.restore();
             }
 
             // monsters
@@ -4196,41 +4244,46 @@
             // score, top-left
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
-            ctx.font = 'bold 32px Fredoka, system-ui, sans-serif';
+            ctx.font = 'bold 26px Fredoka, system-ui, sans-serif';
             ctx.fillStyle = '#334155';
-            ctx.fillText(String(WJ.score()), 16, 40);
-            ctx.font = 'bold 11px Fredoka, system-ui, sans-serif';
+            ctx.fillText(String(WJ.score()), 14, 36);
+            ctx.font = 'bold 9px Fredoka, system-ui, sans-serif';
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('BEST ' + best, 18, 55);
+            ctx.fillText('BEST ' + best, 16, 49);
+            if (WJ.streak > 1) {
+                ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
+                ctx.fillStyle = '#ea580c';
+                ctx.fillText('🔥 x' + WJ.streak, 16, 66);
+            }
 
-            // current word, top-centre
-            const word = WJ.word;
-            if (word) {
-                const n = word.text.length;
-                const gap = Math.min(22, 250 / Math.max(1, n - 1));
-                const totalW = gap * (n - 1);
-                const startX = WJ.W / 2 - totalW / 2;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.font = 'bold 23px Fredoka, system-ui, sans-serif';
-                for (let i = 0; i < n; i++) {
-                    const got = i < word.pos;
-                    const isNext = i === word.pos;
-                    const cx = startX + i * gap;
-                    if (isNext) {
-                        ctx.beginPath();
-                        ctx.arc(cx, 66, 14, 0, Math.PI * 2);
-                        ctx.fillStyle = 'rgba(250,204,21,0.4)';
-                        ctx.fill();
-                    }
-                    ctx.fillStyle = got ? '#16a34a' : (isNext ? '#b45309' : '#94a3b8');
-                    ctx.fillText(word.text[i], cx, 67);
+            // question card (Chinese prompt), top-centre
+            const row = WJ.activeRow();
+            const cardX = 92, cardY = 8, cardW = WJ.W - cardX * 2, cardH = 62;
+            ctx.fillStyle = 'rgba(255,255,255,0.94)';
+            ctx.strokeStyle = row ? '#c7d2fe' : '#e2e8f0';
+            ctx.lineWidth = 2;
+            WJ.roundRect(ctx, cardX, cardY, cardW, cardH, 14);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if (row) {
+                let fs = 26;
+                while (fs > 12) {
+                    ctx.font = 'bold ' + fs + 'px "PingFang HK", "Noto Sans TC", Fredoka, system-ui, sans-serif';
+                    if (ctx.measureText(row.zh).width <= cardW - 18) break;
+                    fs--;
                 }
-                if (word.zh) {
-                    ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.fillText(word.zh, WJ.W / 2, 88);
-                }
+                ctx.fillStyle = '#1e293b';
+                ctx.fillText(row.zh, WJ.W / 2, cardY + 26, cardW - 16);
+                ctx.font = 'bold 10px Fredoka, system-ui, sans-serif';
+                ctx.fillStyle = '#818cf8';
+                ctx.fillText('JUMP ON THE RIGHT WORD', WJ.W / 2, cardY + 48);
+            } else {
+                ctx.font = 'bold 13px Fredoka, system-ui, sans-serif';
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('Keep climbing…', WJ.W / 2, cardY + 31);
             }
 
             // power-up badges, right edge
@@ -4245,8 +4298,8 @@
             }
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 13px Fredoka, system-ui, sans-serif';
-            let by = 66;
+            ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
+            let by = 26;
             badges.forEach(b => {
                 const label = b[0] + ' ' + b[1] + 's';
                 const tw = ctx.measureText(label).width + 14;
@@ -4266,7 +4319,7 @@
                 ctx.textBaseline = 'middle';
                 ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
                 ctx.fillStyle = toast.color;
-                ctx.fillText(toast.text, WJ.W / 2, 120);
+                ctx.fillText(toast.text, WJ.W / 2, 96, WJ.W - 24);
                 ctx.globalAlpha = 1;
             }
         };
@@ -4335,19 +4388,28 @@
         };
 
         WJ.enableTilt = async function () {
+            const b = document.getElementById('wj-tilt-btn');
+            if (WJ.tiltOn) {
+                window.removeEventListener('deviceorientation', WJ.onTilt);
+                WJ.tiltOn = false;
+                WJ.tiltValue = 0;
+                WJ.tiltSmooth = 0;
+                if (b) b.innerText = '📱 Tilt: off';
+                WJ.toast('Tilt off — use the pads.', '#94a3b8');
+                return;
+            }
             try {
                 if (typeof DeviceOrientationEvent !== 'undefined' &&
                     typeof DeviceOrientationEvent.requestPermission === 'function') {
                     const res = await DeviceOrientationEvent.requestPermission();
                     if (res !== 'granted') {
-                        WJ.toast('Tilt not allowed — use touch or keys.', '#ef4444');
+                        WJ.toast('Tilt not allowed — use the pads.', '#ef4444');
                         return;
                     }
                 }
                 window.addEventListener('deviceorientation', WJ.onTilt);
                 WJ.tiltZero = null;
                 WJ.tiltOn = true;
-                const b = document.getElementById('wj-tilt-btn');
                 if (b) b.innerText = '📱 Tilt: on';
                 WJ.toast('Tilt on — hold your phone upright.', '#22c55e');
                 WJ.beep(660, 0.1, 'sine', 0.04);
@@ -4359,7 +4421,7 @@
         WJ.onTilt = function (e) {
             if (e.gamma == null) return;
             if (WJ.tiltZero === null) WJ.tiltZero = e.gamma;
-            WJ.tiltValue = WJ.clamp((e.gamma - WJ.tiltZero) / 28, -1, 1);
+            WJ.tiltValue = WJ.clamp((e.gamma - WJ.tiltZero) / WJ.TILT_RANGE, -1, 1);
         };
 
         window.onload = () => {

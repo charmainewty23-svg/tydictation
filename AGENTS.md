@@ -196,3 +196,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 三個 SQL 要順序跑：`battle.sql` → `battle_class.sql` → `battle_live.sql` → `battle_stats.sql`。
 - 未跑 9.5 都唔會壞：前端偵測到表唔存在就自動停寫，畫面顯示提示。
 
+### 9.6 題目數量 10 / 15 / 20 — `supabase/battle_question_count.sql`
+- `create_battle` 同 `create_class_battle` 加 `p_question_count`（DB 夾在 5–30，
+  前端只出 10/15/20）。
+- 前端 lobby 有 `#battle-count-select`，用 `localStorage["battle_qcount"]` 記住選擇；
+  1v1 同 class room 共用同一個設定。
+- `battleBuildQuestions()` 改讀 `room.question_count`（以前 hardcode 10），
+  所以同一間房兩個／全班學生仍然係**同一批、同一數量、同一次序**。
+- 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
+  避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
+

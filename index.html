@@ -552,6 +552,15 @@
 
                     <!-- Lobby -->
                     <div id="battle-lobby">
+                        <div class="flex items-center gap-3 mb-6 flex-wrap">
+                            <label class="text-sm text-gray-500 font-bold">Questions per battle</label>
+                            <select id="battle-count-select" onchange="localStorage.setItem('battle_qcount', this.value)" class="p-2 px-4 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                            </select>
+                            <span class="text-xs text-gray-400">Applies to both 1v1 rooms and class rooms.</span>
+                        </div>
                         <div class="grid md:grid-cols-2 gap-6">
                             <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100">
                                 <h3 class="font-bold text-blue-700 text-lg mb-4">Create a room</h3>
@@ -2174,7 +2183,7 @@
                 const j = Math.floor(rnd() * (i + 1));
                 const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
             }
-            return { topic, words: arr.slice(0, Math.min(BATTLE_QUESTION_COUNT, arr.length)) };
+            return { topic, words: arr.slice(0, Math.min(Number(room.question_count) || BATTLE_QUESTION_COUNT, arr.length)) };
         }
 
         function battleNormalize(s) {
@@ -2193,7 +2202,7 @@
             if (m.includes('NOT_A_MEMBER')) return 'You are not in that room.';
             if (m.includes('NOT_TEACHER')) return 'Only the teacher account can open a class room.';
             if (m.includes('CANNOT_END')) return 'Cannot end that battle.';
-            if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle SQL is not set up yet. Run supabase/battle.sql then supabase/battle_class.sql in Supabase.';
+            if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle SQL is missing — run supabase/battle_question_count.sql (or the files in supabase/ in order).';
             return m;
         }
 
@@ -2230,6 +2239,11 @@
         function battleEnter() {
             if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
             battlePopulateTopics();
+            const qsel = document.getElementById('battle-count-select');
+            if (qsel) {
+                const saved = localStorage.getItem('battle_qcount');
+                if (saved && Array.from(qsel.options).some(o => o.value === saved)) qsel.value = saved;
+            }
             battleSetError('');
             const classEntry = document.getElementById('battle-class-entry');
             if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
@@ -2241,6 +2255,12 @@
             }
         }
 
+        function battleQuestionCount() {
+            const sel = document.getElementById('battle-count-select');
+            const n = sel ? parseInt(sel.value, 10) : 10;
+            return [10, 15, 20].includes(n) ? n : 10;
+        }
+
         async function battleCreateRoom() {
             battleSetError('');
             if (!currentUser) return battleSetError('Please login first.');
@@ -2250,7 +2270,9 @@
             const sel = document.getElementById('battle-topic-select');
             const topic = sel ? sel.value : '__random__';
             const seed = Math.floor(Math.random() * 2000000000) + 1;
-            const { data, error } = await sb.rpc('create_battle', { p_topic: topic, p_seed: seed });
+            const { data, error } = await sb.rpc('create_battle', {
+                p_topic: topic, p_seed: seed, p_question_count: battleQuestionCount()
+            });
             if (error) return battleSetError(battleErrorMessage(error));
             battleAdoptRoom(data);
         }
@@ -2266,7 +2288,8 @@
             const topic = sel ? sel.value : '__random__';
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const { data, error } = await sb.rpc('create_class_battle', {
-                p_topic: topic, p_seed: seed, p_max_players: 60
+                p_topic: topic, p_seed: seed, p_max_players: 60,
+                p_question_count: battleQuestionCount()
             });
             if (error) return battleSetError(battleErrorMessage(error));
             battleAdoptRoom(data);

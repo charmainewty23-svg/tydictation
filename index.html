@@ -1147,6 +1147,54 @@
             return formSections().map(s => ({ id: s.id, label: s.label, rows: buckets.get(s.id) || [] }));
         }
 
+        const adminFormOpen = {};
+
+        function adminFormKey(scope, formId) {
+            return String(scope || '') + '::' + (formId || 'unassigned');
+        }
+
+        function isAdminFormOpen(scope, formId) {
+            return !!adminFormOpen[adminFormKey(scope, formId)];
+        }
+
+        function setAdminFormOpen(scope, formId, open) {
+            const id = formId || 'unassigned';
+            adminFormOpen[adminFormKey(scope, id)] = !!open;
+            const root = document.querySelector('[data-form-scope="' + scope + '"][data-form-group="' + id + '"]');
+            if (!root) return;
+            const body = root.querySelector('.admin-form-body');
+            if (body) body.classList.toggle('hidden', !open);
+            const plus = root.querySelector('.admin-form-expand');
+            const minus = root.querySelector('.admin-form-collapse');
+            if (plus) {
+                plus.classList.toggle('bg-orange-500', !open);
+                plus.classList.toggle('text-white', !open);
+                plus.classList.toggle('bg-orange-100', !!open);
+                plus.classList.toggle('text-orange-600', !!open);
+                plus.setAttribute('aria-pressed', (!open).toString());
+            }
+            if (minus) {
+                minus.classList.toggle('bg-orange-500', !!open);
+                minus.classList.toggle('text-white', !!open);
+                minus.classList.toggle('bg-orange-100', !open);
+                minus.classList.toggle('text-orange-600', !open);
+                minus.setAttribute('aria-pressed', (!!open).toString());
+            }
+        }
+
+        function adminFormToggleButtons(scope, formId, label, open) {
+            const id = formId || 'unassigned';
+            const safeScope = escapeHtml(scope);
+            const safeId = escapeHtml(id);
+            const safeLabel = escapeHtml(label);
+            const plusCls = !open ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600';
+            const minusCls = open ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600';
+            return `<span class="inline-flex items-center gap-1 ml-1">
+                <button type="button" class="admin-form-expand w-7 h-7 rounded-full font-bold text-base leading-none ${plusCls} hover:bg-orange-500 hover:text-white transition-colors" aria-label="Expand ${safeLabel}" aria-pressed="${!open ? 'true' : 'false'}" onclick="event.stopPropagation(); setAdminFormOpen('${safeScope}','${safeId}',true)">+</button>
+                <button type="button" class="admin-form-collapse w-7 h-7 rounded-full font-bold text-base leading-none ${minusCls} hover:bg-orange-500 hover:text-white transition-colors" aria-label="Collapse ${safeLabel}" aria-pressed="${open ? 'true' : 'false'}" onclick="event.stopPropagation(); setAdminFormOpen('${safeScope}','${safeId}',false)">-</button>
+            </span>`;
+        }
+
         function renderFormSections(groups, renderRows, options) {
             const opts = options || {};
             const hasAny = (groups || []).some(g => g.rows.length);
@@ -1157,12 +1205,21 @@
                     ? renderRows(g.rows, g)
                     : `<p class="text-gray-400 text-center py-4">${opts.emptyForm || 'No students in this form yet.'}</p>`;
                 const tone = g.id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500';
-                return `<section class="mt-8 first:mt-0" data-form-group="${escapeHtml(g.id || 'unassigned')}">
-                    <h4 class="text-lg font-bold text-gray-600 mb-3 flex items-center gap-2">
+                const groupId = g.id || 'unassigned';
+                const collapsible = !!(opts.collapsible && opts.scope);
+                const open = collapsible && isAdminFormOpen(opts.scope, groupId);
+                const toggles = collapsible ? adminFormToggleButtons(opts.scope, groupId, g.label, open) : '';
+                const wrapped = collapsible
+                    ? `<div class="admin-form-body${open ? '' : ' hidden'}">${body}</div>`
+                    : body;
+                const scopeAttr = collapsible ? ` data-form-scope="${escapeHtml(opts.scope)}"` : '';
+                return `<section class="mt-8 first:mt-0" data-form-group="${escapeHtml(groupId)}"${scopeAttr}>
+                    <h4 class="text-lg font-bold text-gray-600 mb-3 flex items-center gap-2 flex-wrap">
                         <span class="px-3 py-1 rounded-full ${tone}">${escapeHtml(g.label)}</span>
                         <span class="text-sm font-bold text-gray-400">${g.rows.length}</span>
+                        ${toggles}
                     </h4>
-                    ${body}
+                    ${wrapped}
                 </section>`;
             }).join('');
         }
@@ -3199,7 +3256,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `);
+            `, { collapsible: true, scope: 'admin-activity' });
         }
 
         let grammarAdminFilter = 'all';
@@ -3280,7 +3337,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `);
+            `, { collapsible: true, scope: 'grammar-admin' });
         }
 
         // --- Admin: student login activity ---
@@ -3419,7 +3476,7 @@
                         </div>
                     `).join('')}
                 </div>
-            `);
+            `, { collapsible: true, scope: 'login-admin' });
         }
 
         function updateMascot(text) {
@@ -4513,7 +4570,7 @@
                         <p class="text-[10px] text-gray-400">${r.height}px · ${r.words} words</p>
                     </div>
                 </div>`;
-            }).join('') + '</div>');
+            }).join('') + '</div>', { collapsible: true, scope: 'wj-admin' });
         }
 
         // A room only belongs on the dashboard once people actually met.
@@ -4772,7 +4829,8 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 1610, JUMP_V: -1014, WORD_BOOST: -1224,
+            GRAVITY: 1030, JUMP_V: -811, WORD_BOOST: -979,
+            JET_V: -765, PROP_V: -193,
             MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
@@ -4791,7 +4849,8 @@
             boostPending: false, anchors: [], durable: [],
             topic: '', soundOn: true, audio: null,
             lastShot: 0, bound: false, autoFs: false,
-            milestones: [], passFlash: 0, passLabels: []
+            milestones: [], passFlash: 0, passLabels: [],
+            CHEERS: ['wow!', 'superb!', 'bravo!'], cheerIndex: 0
         };
 
         WJ.rand = (a, b) => a + Math.random() * (b - a);
@@ -5358,7 +5417,7 @@
 
         /* A jump only spends its full airtime if the next pad is all the way
            back at the height you left. A pad 250px up is met on the way down
-           much sooner, so the sideways distance is shorter than speed * 1.26s.
+           much sooner, so the sideways distance is shorter than speed * 1.58s.
            REACH_FACTOR keeps a margin for reversing leftover speed and for the
            fixed 1/120 step. */
         WJ.REACH_FACTOR = 0.8;
@@ -5803,12 +5862,17 @@
             const p = WJ.player;
             WJ.burst(p.x, p.y - p.h * 0.55, '#fbbf24', 16);
             WJ.burst(p.x, p.y - p.h * 0.15, '#34d399', 10);
+            const cheers = WJ.CHEERS;
+            const text = cheers[WJ.cheerIndex % cheers.length];
+            WJ.cheerIndex = (WJ.cheerIndex + 1) % cheers.length;
+            const colors = { 'wow!': '#d97706', 'superb!': '#047857', 'bravo!': '#4338ca' };
             WJ.passLabels.push({
                 x: WJ.clamp(p.x, 78, WJ.W - 78),
                 y: p.y - p.h - 10,
-                text: "Let's go!",
-                life: 1.15,
-                max: 1.15
+                text,
+                color: colors[text] || '#047857',
+                life: 1.25,
+                max: 1.25
             });
         };
 
@@ -5840,6 +5904,43 @@
             ctx.restore();
         };
 
+        WJ.rectsOverlap = function (a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        };
+
+        /* Quiz-word tiles currently on screen. Name tags must not cover these. */
+        WJ.vocabScreenRects = function () {
+            const rects = [];
+            for (const pl of WJ.platforms) {
+                if (pl.type !== 'quiz' || pl.dead) continue;
+                const y = pl.y - WJ.camY;
+                if (y < -40 || y > WJ.H + 40) continue;
+                rects.push({ x: pl.x - 4, y: y - 4, w: pl.w + 8, h: pl.h + 8 });
+            }
+            return rects;
+        };
+
+        /* Nudge a name tag up or down in small steps until it clears obstacles.
+           Returns null if it cannot be placed in the safe band without overlap. */
+        WJ.placeLabelY = function (preferredY, boxW, obstacles, minY, maxY) {
+            const h = 18;
+            const fits = y => {
+                if (y < minY || y > maxY) return false;
+                const box = { x: 16, y: y - 9, w: boxW, h };
+                for (let i = 0; i < obstacles.length; i++) {
+                    if (WJ.rectsOverlap(box, obstacles[i])) return false;
+                }
+                return true;
+            };
+            if (fits(preferredY)) return preferredY;
+            const step = 4, maxNudge = 72;
+            for (let d = step; d <= maxNudge; d += step) {
+                if (fits(preferredY - d)) return preferredY - d;
+                if (fits(preferredY + d)) return preferredY + d;
+            }
+            return null;
+        };
+
         WJ.drawMilestoneLabels = function (ctx) {
             const marks = WJ.milestones;
             if (!marks || !marks.length) return;
@@ -5854,15 +5955,16 @@
                 if (y > -20 && y < WJ.H + 20) visible.push(m);
             }
             visible.sort((a, b) => b.height - a.height);
-            let lastY = -999;
+            const obstacles = WJ.vocabScreenRects();
+            const minY = 78, maxY = WJ.H - 108;
             for (let i = 0; i < visible.length; i++) {
                 const m = visible[i];
-                let y = -m.height - WJ.camY;
-                if (y < lastY + 16) y = lastY + 16;
-                if (y < 78 || y > WJ.H - 108) continue;
-                lastY = y;
+                const preferred = -m.height - WJ.camY;
                 const name = m.name.length > 18 ? m.name.slice(0, 17) + '…' : m.name;
                 const tw = Math.min(ctx.measureText(name).width + 14, 138);
+                const y = WJ.placeLabelY(preferred, tw, obstacles, minY, maxY);
+                if (y == null) continue;
+                obstacles.push({ x: 16, y: y - 11, w: tw, h: 22 });
                 ctx.fillStyle = m.passed ? 'rgba(236,253,245,0.94)' : 'rgba(255,255,255,0.92)';
                 ctx.strokeStyle = m.passed ? 'rgba(16,185,129,0.75)' : 'rgba(99,102,241,0.55)';
                 ctx.lineWidth = 1.5;
@@ -5880,7 +5982,7 @@
             ctx.save();
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 18px Fredoka, system-ui, sans-serif';
+            ctx.font = 'bold 22px Fredoka, system-ui, sans-serif';
             ctx.lineWidth = 4;
             for (let i = 0; i < WJ.passLabels.length; i++) {
                 const lb = WJ.passLabels[i];
@@ -5888,7 +5990,7 @@
                 ctx.globalAlpha = Math.max(0, Math.min(1, lb.life / 0.4));
                 ctx.strokeStyle = 'rgba(255,255,255,0.94)';
                 ctx.strokeText(lb.text, lb.x, y);
-                ctx.fillStyle = '#047857';
+                ctx.fillStyle = lb.color || '#047857';
                 ctx.fillText(lb.text, lb.x, y);
             }
             ctx.restore();
@@ -5945,8 +6047,8 @@
             });
 
             // --- vertical ---
-            if (p.jet > 0) p.vy = -956;
-            else if (p.prop > 0) p.vy = -241;
+            if (p.jet > 0) p.vy = WJ.JET_V;
+            else if (p.prop > 0) p.vy = WJ.PROP_V;
             else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
 
             const prevFeet = p.y;

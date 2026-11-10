@@ -3218,9 +3218,9 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1300, JUMP_V: -822,
-            MOVE_MAX: 240, MOVE_ACC: 2200, FRICTION: 8000,
+            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 34,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.60,
-            TILT_RANGE: 8, TILT_DEAD: 0.025,
+            TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
             raf: 0, lastTs: 0, acc: 0,
@@ -3861,29 +3861,27 @@
             if (WJ.keys.right || WJ.holdDir === 1) dir += 1;
             if (WJ.tiltOn) {
                 WJ.tiltSmooth += (WJ.tiltValue - WJ.tiltSmooth) * Math.min(1, dt * 20);
-                if (Math.abs(WJ.tiltSmooth) > WJ.TILT_DEAD) dir = WJ.clamp(WJ.tiltSmooth * 1.25, -1, 1);
+                // Soft curve: a small tilt creeps, a firm tilt runs. Without it
+                // 4 degrees was already 60% of full speed, which felt frantic.
+                if (Math.abs(WJ.tiltSmooth) > WJ.TILT_DEAD) {
+                    const t = WJ.clamp(WJ.tiltSmooth, -1, 1);
+                    dir = Math.sign(t) * Math.pow(Math.abs(t), WJ.TILT_CURVE);
+                }
             } else {
                 WJ.tiltSmooth = 0;
             }
-            // Eased steering: he leans into a direction over ~120ms and coasts
-            // a little when you let go. The top speed also grows with height,
-            // so a fresh run starts calm and opens up as you climb.
-            if (Math.abs(dir) < 0.06) dir = 0;
+            // Proportional steering: the speed follows the input, so half a
+            // tilt is half speed and a full tilt (or a held pad) is top speed.
+            // It eases in over ~0.1s and settles ~7px after you let go.
+            if (Math.abs(dir) < 0.04) dir = 0;
             const cap = WJ.speedCap();
-            if (dir !== 0) {
-                p.vx += dir * WJ.MOVE_ACC * dt;
-                if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
-            }
-            // Weak input gets drag too, so a tiny leftover tilt doesn't creep.
-            const grip = Math.min(1, Math.abs(dir));
-            const drag = WJ.FRICTION * (1 - grip) * (1 - grip) * (1 - grip);
-            const dv = drag * dt;
-            if (dv > 0) {
-                if (Math.abs(p.vx) <= dv) p.vx = 0;
-                else p.vx -= Math.sign(p.vx) * dv;
-            }
-            p.vx = WJ.clamp(p.vx, -cap, cap);
-            if (Math.abs(p.vx) < 4) p.vx = 0;
+            const target = dir * cap;
+            if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
+            const rate = Math.abs(target) >= Math.abs(p.vx) ? WJ.STEER_RATE : WJ.STEER_STOP;
+            p.vx += (target - p.vx) * Math.min(1, dt * rate);
+            // Only snap to a full stop when there is no input asking for a
+            // slow creep, otherwise a gentle tilt could never start moving.
+            if (Math.abs(p.vx) < 1.5 && target === 0) p.vx = 0;
 
             ['prop', 'jet', 'shield', 'rainbow'].forEach(k => {
                 if (p[k] > 0) p[k] = Math.max(0, p[k] - dt);

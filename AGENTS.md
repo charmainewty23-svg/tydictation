@@ -241,12 +241,18 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   pad 以外位置**點一下 = 射鼻球**。唔再用「按畫面左右半邊」，避免同射擊衝突。
 - **重力感應**：工具列「📱 Tilt」係開關（再撳一次熄）。iOS 要
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
-  `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
-  所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
-- **左右速度**：`MOVE_MAX 240`／`MOVE_ACC 2200`／`FRICTION 8000`，
-  加速約 **67ms** 到頂，放手會**滑 3–11px**（頂速時 3px，起步慢時多啲，
-  因為 tilt 平滑仲有少少推力）。`|dir| < 0.06` 當 0、`|vx| < 4` 歸零，
-  所以 1.2° 嘅殘餘傾斜唔會慢慢漂。
+  `TILT_RANGE = 11°` 就滿速、`TILT_DEAD = 0.025` 死區，再過一條
+  **`TILT_CURVE = 1.6` 次方曲線**（`dir = sign(t)·|t|^1.6`）同平滑。
+  所以傾斜角同速度係**成比例**：2° ≈ 7%、4° ≈ 20%、6° ≈ 38%、8° ≈ 60%、
+  11° = 100%。覺得太敏感就加 `TILT_RANGE`，太鈍就減；想「細傾更慢」就加大
+  `TILT_CURVE`（1.0 = 完全線性）。
+- **左右速度（按輸入比例）**：`MOVE_MAX 240`、`STEER_RATE 22`（加速）、
+  `STEER_STOP 34`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
+  到 95%，放手**滑 3–8px**。`|dir| < 0.04` 當 0；只有 `target = 0` 而且
+  `|vx| < 1.5` 才歸零（否則慢速微調永遠起唔到步）。
+  **注意**：以前嘅 `MOVE_ACC` + `FRICTION × (1-|dir|)³` 模型已經刪走——
+  摩擦力係常數、唔隨速度變，結果係「一過門檻就衝到頂速、門檻以下完全唔郁」，
+  冇中間速，呢個就係「太快」嘅根源。
 - **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.60 + 0.40 × min(1, maxClimb/3200))`，
   即係**每局開頭 145 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 2.7s 變 1.7s）。
   想慢就減 `MOVE_MAX`／`SPEED_RAMP_FROM`（0.60）。
@@ -312,8 +318,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.9 改動提示
 - 調手感改 `WJ.GRAVITY`（1300）／`WJ.JUMP_V`（−822）／`WJ.MOVE_MAX`（240）／
-  `WJ.MOVE_ACC`（2200）／`WJ.FRICTION`（8000）。想「少啲滑」就加 `FRICTION`、
-  想「滑多啲」就減。想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
+  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（34）／`WJ.TILT_RANGE`（11）／
+  `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
+  想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
   道具上升速度 `jet -775`／`prop -195` 要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.60）同
   `WJ.SPEED_RAMP_AT`（3200px）。
@@ -322,7 +329,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →
   `WJ.drawGadget()` 個 `map` 加 emoji → `WJ.drawHud()` badges 加顯示。
 - 改題目密度改 `WJ.QUIZ_GAP_MIN`／`QUIZ_GAP_MAX`；改選項數改 `spawnQuizRow()` 嘅 `count`。
-- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）——`TILT_RANGE = 8`
+- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）——`TILT_RANGE = 11`
   係憑手感估，實機太敏感就調大、太鈍就調細；`canvas` 內容喺
   OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
 

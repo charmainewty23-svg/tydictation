@@ -157,8 +157,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - RPC：`record_login(nickname, ua)`，前端喺 `onAuthStateChange` 每次 session 首次進入時 call。
   `login_count` 只在距上次登入 **>12 小時**才 +1，避免 F5／token refresh 造假數。
 - RLS：**只有 ADMIN_EMAIL 讀得到**（`auth.jwt() ->> 'email'`）。
-- Admin 卡片「🕒 Student Logins」→ `loadLoginAdmin()`：今日／7 日／從未登入統計，
-  相對時間＋hover 顯示香港時間＋裝置（由 UA 推斷，**冇 IP**）。
+- Admin 卡片「🕒 Student Logins」→ `loadLoginAdmin()`：已追蹤人數、今日、7 日，
+ 相對時間＋hover 顯示香港時間＋裝置（由 UA 推斷，**冇 IP**）。
+ **唔再**顯示「Has scores but no login record」名單，亦唔再顯示同一個數（舊「Never Logged In」格）。
 
 ### 9.2 Word Battle 1v1 — `supabase/battle.sql`
 - 表：`battle_rooms`（code 4 位、topic、seed、status、host/guest）、
@@ -172,6 +173,8 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   才轉 `finished`。中離：guest 走 → 房回 waiting；host 走 → 房刪除（**只限未開始**）。
 - 同步方式：**1.5 秒輪詢**（`battlePoll`），冇用 Realtime，唔使開 dashboard 設定。
 - Admin 卡片「⚔️ Battles」→ `loadBattleAdmin()`，睇最近 24 小時房間同即時比數。
+ **未成功連線嘅房唔顯示**：1v1 未有 guest（而且未開始）會被 `battleRoomPaired()` 濾走；
+ class 房要至少有一個學生先出現。已開始／已完結、或者 1v1 兩個位都坐滿嘅房照出。
 - 誠實聲明：分數由 client 寫入，可以造假；房間、代碼、加入資格係 server 端 RLS／RPC 管。
 - 舊房保留 **7 日**（`create_battle` 時順手清走更舊嘅）。
 
@@ -441,3 +444,17 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `wj_scores.sql`）」，admin 卡顯示同一句提示，遊戲照玩。
 - 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(100)`。
 - 誠實聲明：分數由 client 寫入，**可以造假**；同 Word Battle 一樣只適合課堂激勵。
+
+### 10.12 同學高度線（milestone markers）
+
+爬升時，背景會畫其他同學嘅個人最佳高度：淡虛線橫過畫面、左右各一條短槓，
+左邊一粒名牌寫**英文名**（`WJ.markerName()`：nickname 入面嘅拉丁字母；冇就用
+電郵 @ 前面。中文名唔會畫上畫面）。
+
+- 資料：`wj_leaderboard` 嘅 `height`（冇 height 先用 `score × 10`），`WJ.loadMilestones()`
+  喺進入 Word Jump 時拉頭 60 名。**唔包括自己**。低過 120px 嘅紀錄唔畫。
+- 玩家腳嘅高度（`-p.y`）穿過某條線，嗰條線變綠，並播一次輕量通過效果：
+  畫面閃一下、兩下粒子、浮起 `Let's go!`。同一幀穿過幾條只播一次。
+  已經喺腳下面嘅線（資料遲咗先載入）會直接標做已過，唔會補播。
+- **冇朋友系統**，所以唔會有「過朋友先播特別音效」。通過本身亦冇加新音效。
+- 重開（`WJ.reset`）會清通過狀態，下一局可以再過同一批線。載入失敗就當冇線，遊戲照玩。

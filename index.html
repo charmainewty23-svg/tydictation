@@ -890,7 +890,7 @@
                     <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
                             <h2 class="text-3xl font-bold text-indigo-600 mb-2">⚔️ Battles</h2>
-                            <p class="text-gray-400 mb-6">Rooms from the last 24 hours (duel + class)</p>
+                            <p class="text-gray-400 mb-6">Connected rooms from the last 24 hours (duel + class)</p>
                         </div>
                         <button onclick="loadBattleAdmin()" class="px-4 py-2 rounded-full font-bold text-sm bg-indigo-500 text-white hover:bg-indigo-600 transition-colors">↻ Refresh</button>
                     </div>
@@ -2203,12 +2203,9 @@
             const statsEl = document.getElementById('login-admin-stats');
             const listEl = document.getElementById('login-admin-container');
 
-            const [logsRes, resultsRes] = await Promise.all([
-                sb.from('student_logins')
-                    .select('email, nickname, first_login_at, last_login_at, login_count, user_agent')
-                    .order('last_login_at', { ascending: false }),
-                sb.from('dictation_results').select('email')
-            ]);
+            const logsRes = await sb.from('student_logins')
+                .select('email, nickname, first_login_at, last_login_at, login_count, user_agent')
+                .order('last_login_at', { ascending: false });
 
             if (logsRes.error) {
                 statsEl.innerHTML = '';
@@ -2220,9 +2217,6 @@
             }
 
             const logs = logsRes.data || [];
-            const scoringEmails = new Set((resultsRes.data || []).map(r => (r.email || '').toLowerCase()));
-            const loggedEmails = new Set(logs.map(l => (l.email || '').toLowerCase()));
-            const neverLoggedIn = [...scoringEmails].filter(e => e && !loggedEmails.has(e));
 
             const todayKey = hkDayKey(new Date().toISOString());
             const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
@@ -2241,10 +2235,6 @@
                 <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
                     <div class="text-3xl font-bold text-purple-600">${loggedThisWeek}</div>
                     <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
-                </div>
-                <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
-                    <div class="text-3xl font-bold text-orange-600">${neverLoggedIn.length}</div>
-                    <div class="text-sm text-gray-500 font-bold">Never Logged In</div>
                 </div>
             `;
 
@@ -2275,15 +2265,6 @@
                         </div>
                     `).join('')}
                 </div>
-                ${neverLoggedIn.length ? `
-                    <div class="mt-6 pt-6 border-t border-gray-100">
-                        <h4 class="font-bold text-gray-600 mb-2">⚠️ Has scores but no login record (${neverLoggedIn.length})</h4>
-                        <div class="flex flex-wrap gap-2">
-                            ${neverLoggedIn.map(e => `<span class="bg-orange-50 text-orange-600 text-xs font-bold px-3 py-1 rounded-full">${escapeHtml(e)}</span>`).join('')}
-                        </div>
-                        <p class="text-gray-400 text-xs mt-2">These students played before login tracking was switched on, or their record failed to save.</p>
-                    </div>
-                ` : ''}
             `;
         }
 
@@ -3140,6 +3121,16 @@
             }).join('') + '</div>';
         }
 
+        // A room only belongs on the dashboard once people actually met.
+        // Duel: the guest joined (or the match started, which requires a guest).
+        // Class: at least one student joined. A host waiting alone is not a battle.
+        function battleRoomPaired(room) {
+            const players = room.battle_players || [];
+            if ((room.mode || 'duel') === 'class') return players.length > 0;
+            if (players.length >= 2 || room.guest_id) return true;
+            return (room.status === 'playing' || room.status === 'finished') && !!room.started_at;
+        }
+
         async function loadBattleAdmin() {
             if (!isAdmin()) return;
             const statsEl = document.getElementById('battle-admin-stats');
@@ -3147,8 +3138,9 @@
             const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
             const { data, error } = await sb.from('battle_rooms')
-                .select('id, code, topic, mode, status, seed, question_count, created_at, started_at, finished_at, battle_players(nickname, email, score, correct, done)')
+                .select('id, code, topic, mode, status, seed, question_count, guest_id, created_at, started_at, finished_at, battle_players(nickname, email, score, correct, done)')
                 .gte('created_at', since)
+                .or('guest_id.not.is.null,status.neq.waiting,mode.eq.class')
                 .order('created_at', { ascending: false })
                 .limit(60);
 
@@ -3161,7 +3153,7 @@
                 return;
             }
 
-            const rooms = data || [];
+            const rooms = (data || []).filter(battleRoomPaired);
             adminBattleRooms = rooms;
             const playing = rooms.filter(r => r.status === 'playing').length;
             const waiting = rooms.filter(r => r.status === 'waiting').length;
@@ -3189,7 +3181,7 @@
             `;
 
             if (!rooms.length) {
-                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No battles in the last 6 hours.</p>';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No connected battles in the last 24 hours.</p>';
                 return;
             }
 
@@ -3350,7 +3342,8 @@
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
             boostPending: false, lastX: null,
             topic: '', soundOn: true, audio: null,
-            lastShot: 0, bound: false, autoFs: false
+            lastShot: 0, bound: false, autoFs: false,
+            milestones: [], passFlash: 0, passLabels: []
         };
 
         WJ.rand = (a, b) => a + Math.random() * (b - a);
@@ -3410,6 +3403,7 @@
             WJ.populateTopics();
             WJ.setTopicDefault();
             WJ.showIntro();
+            WJ.loadMilestones();
             WJ.draw();
         };
 
@@ -3442,6 +3436,10 @@
             WJ.nextQuizY = -560;
             WJ.afterQuiz = false;
             WJ.paused = false;
+            WJ.passFlash = 0;
+            WJ.passLabels = [];
+            WJ.lastPassFx = null;
+            (WJ.milestones || []).forEach(m => { m.passed = false; });
             WJ.platforms.push({
                 x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
                 baseX: WJ.W / 2 - 46, baseY: 0, phase: 0, amp: 0, speed: 0,
@@ -4088,6 +4086,164 @@
             WJ.toasts.push({ text, color, life: 1.6 });
         };
 
+        /* Other students' personal-best heights, drawn as altitude lines.
+           There is no friend list, so every other saved best is eligible. */
+        WJ.markerName = function (row) {
+            const words = s => (String(s || '').match(/[A-Za-z]+(?:['’.-][A-Za-z]+)*/g) || []).filter(w => w.length >= 2);
+            const pretty = s => s.split(' ').map(w => {
+                if (!w) return w;
+                if (w !== w.toLowerCase() && w !== w.toUpperCase()) return w;
+                return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+            }).join(' ');
+            const fromNick = pretty(words(row.nickname).join(' '));
+            if (fromNick.length >= 2) return fromNick;
+            const fromMail = pretty(words(String(row.email || '').split('@')[0].replace(/[._+-]+/g, ' ')).join(' '));
+            return fromMail || 'Classmate';
+        };
+
+        WJ.loadMilestones = async function () {
+            if (typeof sb === 'undefined' || !sb) return;
+            const req = (WJ.milestoneReq = (WJ.milestoneReq || 0) + 1);
+            try {
+                const { data, error } = await sb.from('wj_leaderboard')
+                    .select('user_id,nickname,email,score,height')
+                    .order('height', { ascending: false })
+                    .limit(60);
+                if (req !== WJ.milestoneReq || error || !data) return;
+                const me = currentUser ? currentUser.id : null;
+                const alt = WJ.player ? -WJ.player.y : 0;
+                const seen = {};
+                const list = [];
+                data.forEach(r => {
+                    if (!r || (me && r.user_id === me)) return;
+                    if (r.user_id && seen[r.user_id]) return;
+                    if (r.user_id) seen[r.user_id] = 1;
+                    let h = Number(r.height) || 0;
+                    if (h < 40) h = (Number(r.score) || 0) * 10;
+                    if (h < 120) return;
+                    list.push({
+                        user_id: r.user_id || null,
+                        name: WJ.markerName(r),
+                        height: h,
+                        passed: alt >= h
+                    });
+                });
+                list.sort((a, b) => a.height - b.height);
+                WJ.milestones = list;
+            } catch (e) { /* markers are optional */ }
+        };
+
+        WJ.checkMilestones = function () {
+            const marks = WJ.milestones;
+            if (!marks || !marks.length || !WJ.player) return;
+            const alt = -WJ.player.y;
+            let crossed = false;
+            for (let i = 0; i < marks.length; i++) {
+                const m = marks[i];
+                if (m.passed) continue;
+                if (alt < m.height) break;
+                m.passed = true;
+                crossed = true;
+            }
+            if (!crossed) return;
+            const now = performance.now();
+            if (WJ.lastPassFx != null && now - WJ.lastPassFx < 800) return;
+            WJ.lastPassFx = now;
+            WJ.passFlash = 1;
+            const p = WJ.player;
+            WJ.burst(p.x, p.y - p.h * 0.55, '#fbbf24', 16);
+            WJ.burst(p.x, p.y - p.h * 0.15, '#34d399', 10);
+            WJ.passLabels.push({
+                x: WJ.clamp(p.x, 78, WJ.W - 78),
+                y: p.y - p.h - 10,
+                text: "Let's go!",
+                life: 1.15,
+                max: 1.15
+            });
+        };
+
+        WJ.drawMilestoneLines = function (ctx) {
+            const marks = WJ.milestones;
+            if (!marks || !marks.length) return;
+            ctx.save();
+            for (let i = 0; i < marks.length; i++) {
+                const m = marks[i];
+                const y = -m.height - WJ.camY;
+                if (y < -8 || y > WJ.H + 8) continue;
+                ctx.setLineDash([6, 5]);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = m.passed ? 'rgba(16,185,129,0.5)' : 'rgba(79,70,229,0.38)';
+                ctx.beginPath();
+                ctx.moveTo(8, y + 0.5);
+                ctx.lineTo(WJ.W - 8, y + 0.5);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = m.passed ? 'rgba(5,150,105,0.85)' : 'rgba(67,56,202,0.8)';
+                ctx.beginPath();
+                ctx.moveTo(8, y - 7);
+                ctx.lineTo(8, y + 7);
+                ctx.moveTo(WJ.W - 8, y - 7);
+                ctx.lineTo(WJ.W - 8, y + 7);
+                ctx.stroke();
+            }
+            ctx.restore();
+        };
+
+        WJ.drawMilestoneLabels = function (ctx) {
+            const marks = WJ.milestones;
+            if (!marks || !marks.length) return;
+            ctx.save();
+            ctx.font = 'bold 11px Fredoka, system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const visible = [];
+            for (let i = 0; i < marks.length; i++) {
+                const m = marks[i];
+                const y = -m.height - WJ.camY;
+                if (y > -20 && y < WJ.H + 20) visible.push(m);
+            }
+            visible.sort((a, b) => b.height - a.height);
+            let lastY = -999;
+            for (let i = 0; i < visible.length; i++) {
+                const m = visible[i];
+                let y = -m.height - WJ.camY;
+                if (y < lastY + 16) y = lastY + 16;
+                if (y < 78 || y > WJ.H - 108) continue;
+                lastY = y;
+                const name = m.name.length > 18 ? m.name.slice(0, 17) + '…' : m.name;
+                const tw = Math.min(ctx.measureText(name).width + 14, 138);
+                ctx.fillStyle = m.passed ? 'rgba(236,253,245,0.94)' : 'rgba(255,255,255,0.92)';
+                ctx.strokeStyle = m.passed ? 'rgba(16,185,129,0.75)' : 'rgba(99,102,241,0.55)';
+                ctx.lineWidth = 1.5;
+                WJ.roundRect(ctx, 16, y - 9, tw, 18, 8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = m.passed ? '#047857' : '#4338ca';
+                ctx.fillText(name, 23, y + 0.5, tw - 12);
+            }
+            ctx.restore();
+        };
+
+        WJ.drawPassLabels = function (ctx) {
+            if (!WJ.passLabels || !WJ.passLabels.length) return;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 18px Fredoka, system-ui, sans-serif';
+            ctx.lineWidth = 4;
+            for (let i = 0; i < WJ.passLabels.length; i++) {
+                const lb = WJ.passLabels[i];
+                const y = lb.y - WJ.camY;
+                ctx.globalAlpha = Math.max(0, Math.min(1, lb.life / 0.4));
+                ctx.strokeStyle = 'rgba(255,255,255,0.94)';
+                ctx.strokeText(lb.text, lb.x, y);
+                ctx.fillStyle = '#047857';
+                ctx.fillText(lb.text, lb.x, y);
+            }
+            ctx.restore();
+        };
+
         WJ.hurt = function (reason) {
             const p = WJ.player;
             if (p.rainbow > 0) return false;
@@ -4152,6 +4308,7 @@
 
             if (p.y - WJ.camY < WJ.H * 0.42) WJ.camY = p.y - WJ.H * 0.42;
             WJ.maxClimb = Math.max(WJ.maxClimb, -p.y);
+            WJ.checkMilestones();
 
             WJ.genUpTo(WJ.camY - WJ.H * 0.6);
 
@@ -4308,6 +4465,11 @@
                 pt.y += pt.vy * dt;
             }
             for (const t of WJ.toasts) t.life -= dt;
+            if (WJ.passFlash > 0) WJ.passFlash = Math.max(0, WJ.passFlash - dt * 1.8);
+            for (const lb of WJ.passLabels) {
+                lb.life -= dt;
+                lb.y -= 42 * dt;
+            }
 
             // --- cleanup ---
             const cutoff = WJ.camY + WJ.H + 160;
@@ -4319,6 +4481,7 @@
             WJ.shots = WJ.shots.filter(s => !s.dead);
             WJ.particles = WJ.particles.filter(pt => pt.life > 0);
             WJ.toasts = WJ.toasts.filter(t => t.life > 0);
+            WJ.passLabels = WJ.passLabels.filter(lb => lb.life > 0);
 
             // --- fall out ---
             if (p.y - WJ.camY > WJ.H + 70) WJ.gameOver('You fell too far!');
@@ -4366,6 +4529,7 @@
             for (let x = 0; x <= WJ.W; x += gs) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, WJ.H); }
             for (let y = -gs + oy; y <= WJ.H + gs; y += gs) { ctx.moveTo(0, y + 0.5); ctx.lineTo(WJ.W, y + 0.5); }
             ctx.stroke();
+            WJ.drawMilestoneLines(ctx);
 
             // platforms
             const colors = {
@@ -4540,6 +4704,11 @@
                 }
             }
 
+            if (WJ.passFlash > 0) {
+                ctx.fillStyle = 'rgba(254, 243, 199, ' + (0.28 * Math.min(1, WJ.passFlash)) + ')';
+                ctx.fillRect(0, 0, WJ.W, WJ.H);
+            }
+
             // shots
             ctx.fillStyle = '#f59e0b';
             for (const s of WJ.shots) {
@@ -4560,8 +4729,10 @@
             }
             ctx.globalAlpha = 1;
 
+            WJ.drawMilestoneLabels(ctx);
             WJ.drawPlayer(ctx);
             WJ.drawPads(ctx);
+            WJ.drawPassLabels(ctx);
             WJ.drawHud(ctx);
         };
 

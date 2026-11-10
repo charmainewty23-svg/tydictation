@@ -504,7 +504,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
 - 學生冇 form：唔會見到其他年級嘅字，只見到要老師先設定年級。
-- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。
+- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師加字或刪字成功之後，下面字表會即刻更新；4 秒輪詢只係背景同步。老師字庫用 +／− 掣加字同刪字。
 - 錯題簿：Dictation Master 嘅 **Error Book** 格，同 New Vocab 入面個掣。
   `checkAnswer` 第三次先錯就收入去（任何 Dictation 題目，包括 New Vocab）。
   喺錯題簿答對就刪走。登入寫 `error_book`（只可以讀寫自己）；未登入用

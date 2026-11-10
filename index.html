@@ -576,18 +576,17 @@
                             <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
                             <div id="nv-form-switch" class="flex gap-2 flex-wrap"></div>
                         </div>
-                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English.</p>
-                        <div class="grid sm:grid-cols-2 gap-3 mb-3">
-                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                        </div>
-                        <div class="flex gap-2 mb-4">
-                            <button id="nv-save-btn" onclick="nvSaveWord()" class="px-5 py-2 bg-orange-500 text-white rounded-xl font-bold">Add word</button>
-                            <button id="nv-cancel-btn" onclick="nvCancelEdit()" class="hidden px-5 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Cancel</button>
+                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Use + to add a word and − to delete one.</p>
+                        <div class="flex items-stretch gap-2 mb-4 flex-wrap sm:flex-nowrap">
+                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <button type="button" id="nv-save-btn" onclick="nvSaveWord()" title="Add word" aria-label="Add word" class="w-11 h-11 shrink-0 bg-orange-500 text-white rounded-full font-bold text-2xl leading-none flex items-center justify-center">+</button>
+                            <button type="button" id="nv-cancel-btn" onclick="nvCancelEdit()" title="Clear this row" aria-label="Clear this row" class="w-11 h-11 shrink-0 bg-white border-2 border-orange-100 text-gray-500 rounded-full font-bold text-2xl leading-none flex items-center justify-center">−</button>
                         </div>
                         <div id="nv-editor-list" class="space-y-2"></div>
+                        <button type="button" id="nv-add-another" onclick="nvStartNewWord()" title="Add another word" aria-label="Add another word" class="mt-3 w-11 h-11 bg-orange-500 text-white rounded-full font-bold text-2xl leading-none flex items-center justify-center">+</button>
                     </div>
-                    <button onclick="openErrorBook()" class="mb-2 px-4 py-2 bg-white border-2 border-orange-100 text-orange-600 rounded-full font-bold text-sm">📒 錯題簿 · Error Book</button>
+                    <button onclick="openErrorBook()" class="mb-2 px-4 py-2 bg-white border-2 border-orange-100 text-orange-600 rounded-full font-bold text-sm">📒 Error Book</button>
                 </div>
                 <div id="dictation-activities" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
@@ -828,7 +827,7 @@
                     <span>←</span> Back to Topics
                 </button>
                 <div class="cat-card p-8">
-                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 錯題簿</h2>
+                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 Error Book</h2>
                     <p class="text-gray-400 mb-6">Words you missed. Answer one correctly here and it leaves the book.</p>
                     <div id="eb-note" class="hidden text-amber-600 font-bold text-sm mb-4"></div>
                     <div id="eb-list" class="space-y-2 mb-6"></div>
@@ -1476,6 +1475,8 @@
         let nvSig = '';
         let nvSchemaMissing = false;
         let nvEditingId = null;
+        let nvFetchGen = 0;
+        let nvSaving = false;
         let myFormValue = '';
         let myFormLoaded = false;
 
@@ -1718,7 +1719,9 @@
         }
 
         async function nvRefresh(force) {
+            const gen = ++nvFetchGen;
             const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await fetchMyForm(true);
+            if (gen !== nvFetchGen) return;
             const status = document.getElementById('nv-status');
             const activities = document.getElementById('dictation-activities');
             const scope = document.getElementById('nv-scope');
@@ -1749,6 +1752,7 @@
                 .select('id,en,zh,created_at,updated_at')
                 .eq('form', form)
                 .order('id');
+            if (gen !== nvFetchGen) return;
             if (error) {
                 nvSchemaMissing = isMissingSchema(error.message);
                 nvRows = [];
@@ -1810,9 +1814,9 @@
                         <span class="text-gray-400 ml-2">${w.zh ? escapeHtml(w.zh) : '<span class="text-gray-300">Chinese later</span>'}</span>
                         ${nvAddedToday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">today</span>' : ''}
                     </div>
-                    <div class="flex gap-2 shrink-0">
+                    <div class="flex items-center gap-2 shrink-0">
                         <button type="button" onclick="nvBeginEdit(${Number(w.id)})" class="text-xs font-bold text-orange-600">Edit</button>
-                        <button type="button" onclick="nvDeleteWord(${Number(w.id)})" class="text-xs font-bold text-red-400">Delete</button>
+                        <button type="button" onclick="nvDeleteWord(${Number(w.id)})" title="Delete word" aria-label="Delete word" class="w-9 h-9 bg-white border-2 border-red-100 text-red-500 rounded-full font-bold text-xl leading-none flex items-center justify-center">−</button>
                     </div>
                 </div>`).join('');
         }
@@ -1826,10 +1830,50 @@
             if (en) en.value = row.en;
             if (zh) zh.value = row.zh || '';
             const save = document.getElementById('nv-save-btn');
-            const cancel = document.getElementById('nv-cancel-btn');
-            if (save) save.innerText = 'Save word';
-            if (cancel) cancel.classList.remove('hidden');
+            if (save) { save.title = 'Save word'; save.setAttribute('aria-label', 'Save word'); }
             if (en) en.focus();
+        }
+
+        function nvComposerKey(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                nvSaveWord();
+            }
+        }
+
+        function nvStartNewWord() {
+            nvCancelEdit();
+            const en = document.getElementById('nv-en');
+            if (en) {
+                en.focus();
+                if (typeof en.scrollIntoView === 'function') en.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function nvRowSig() {
+            return nvRows.map(w => [w.id, w.en, w.zh, w.created_at].join('\t')).join('\n');
+        }
+
+        function nvPaintLocal() {
+            nvSig = nvRowSig();
+            nvApplyPractice();
+            nvRenderStatus();
+            nvRenderEditorList();
+        }
+
+        function nvUpsertLocal(row) {
+            if (!row || row.id == null) return;
+            if (!row.created_at) row.created_at = new Date().toISOString();
+            const idx = nvRows.findIndex(w => Number(w.id) === Number(row.id));
+            if (idx >= 0) nvRows[idx] = Object.assign({}, nvRows[idx], row);
+            else nvRows.push(row);
+            nvRows.sort((a, b) => Number(a.id) - Number(b.id));
+            nvPaintLocal();
+        }
+
+        function nvRemoveLocal(id) {
+            nvRows = nvRows.filter(w => Number(w.id) !== Number(id));
+            nvPaintLocal();
         }
 
         function nvCancelEdit() {
@@ -1839,13 +1883,11 @@
             if (en) en.value = '';
             if (zh) zh.value = '';
             const save = document.getElementById('nv-save-btn');
-            const cancel = document.getElementById('nv-cancel-btn');
-            if (save) save.innerText = 'Add word';
-            if (cancel) cancel.classList.add('hidden');
+            if (save) { save.title = 'Add word'; save.setAttribute('aria-label', 'Add word'); }
         }
 
         async function nvSaveWord() {
-            if (!isAdmin()) return;
+            if (!isAdmin() || nvSaving) return;
             const en = (document.getElementById('nv-en').value || '').trim();
             const zh = (document.getElementById('nv-zh').value || '').trim();
             if (!en && !zh) {
@@ -1853,11 +1895,20 @@
                 return;
             }
             const form = nvEditForm || FORM_LEVELS[0].id;
-            let error;
-            if (nvEditingId) {
-                ({ error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', nvEditingId).eq('form', form));
-            } else {
-                ({ error } = await sb.from('new_vocab_words').insert({ form, en, zh }));
+            const editingId = nvEditingId;
+            nvSaving = true;
+            const saveBtn = document.getElementById('nv-save-btn');
+            if (saveBtn) saveBtn.disabled = true;
+            let data, error;
+            try {
+                if (editingId) {
+                    ({ data, error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', editingId).eq('form', form).select('id,en,zh,created_at,updated_at').maybeSingle());
+                } else {
+                    ({ data, error } = await sb.from('new_vocab_words').insert({ form, en, zh }).select('id,en,zh,created_at,updated_at').maybeSingle());
+                }
+            } finally {
+                nvSaving = false;
+                if (saveBtn) saveBtn.disabled = false;
             }
             if (error) {
                 const check = /new_vocab_words_has_text|check constraint/i.test(error.message || '');
@@ -1868,19 +1919,23 @@
                 console.warn(error.message);
                 return;
             }
-            nvCancelEdit();
+            if (data) nvUpsertLocal(data);
+            nvStartNewWord();
             nvRefresh(true);
         }
 
         async function nvDeleteWord(id) {
-            if (!isAdmin()) return;
+            if (!isAdmin() || nvSaving) return;
+            nvSaving = true;
             const { error } = await sb.from('new_vocab_words').delete().eq('id', id);
+            nvSaving = false;
             if (error) {
                 updateMascot('Could not delete that word.');
                 console.warn(error.message);
                 return;
             }
             if (Number(nvEditingId) === Number(id)) nvCancelEdit();
+            nvRemoveLocal(id);
             nvRefresh(true);
         }
 

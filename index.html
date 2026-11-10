@@ -3217,7 +3217,7 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 1300, JUMP_V: -822,
+            GRAVITY: 1300, JUMP_V: -822, WORD_BOOST: -980,
             MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 58,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
@@ -3233,6 +3233,7 @@
             player: null,
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
+            boostPending: false,
             topic: '', soundOn: true, audio: null,
             lastShot: 0, bound: false, autoFs: false
         };
@@ -3319,6 +3320,7 @@
             WJ.maxClimb = 0;
             WJ.bonus = 0;
             WJ.wordsDone = 0;
+            WJ.boostPending = false;
             WJ.streak = 0;
             WJ.bestStreak = 0;
             WJ.nextQuizY = -560;
@@ -3639,10 +3641,14 @@
                 if (WJ.streak > WJ.bestStreak) WJ.bestStreak = WJ.streak;
                 const gain = 60 + row.en.length * 5 + Math.min(90, WJ.streak * 10);
                 WJ.bonus += gain;
+                // Landing on the right word launches him upward, which is the
+                // main way to gain height (and therefore score) now.
+                WJ.boostPending = true;
+                const lift = Math.round(WJ.WORD_BOOST * WJ.WORD_BOOST / (2 * WJ.GRAVITY));
                 WJ.burst(pl.x + pl.w / 2, row.y - 8, '#22c55e', 24);
                 WJ.beep(880, 0.09, 'triangle', 0.05);
                 WJ.beep(1180, 0.12, 'triangle', 0.04);
-                WJ.toast('✅ ' + row.en + '  +' + gain, '#15803d');
+                WJ.toast('✅ ' + row.en + '  +' + gain + '  ·  ⬆ ' + lift + 'px', '#15803d');
                 if (window.speechSynthesis) {
                     try {
                         const u = new SpeechSynthesisUtterance(row.en.toLowerCase());
@@ -3796,6 +3802,13 @@
                 v = WJ.applyGadget(pl.gadget.kind, v);
             }
             p.vy = v;
+            // A correct word match overrides the normal bounce with a much
+            // bigger launch, so answering well literally climbs higher.
+            if (WJ.boostPending) {
+                WJ.boostPending = false;
+                p.vy = Math.min(p.vy, WJ.WORD_BOOST);
+                WJ.beep(660, 0.08, 'square', 0.04);
+            }
             WJ.beep(520, 0.05, 'sine', 0.03);
         };
 

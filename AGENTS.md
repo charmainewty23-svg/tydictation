@@ -297,8 +297,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   （難度 <0.3）或 3 個（之後）：1 個正確答案 + 1–2 個同題庫抽出嚟嘅干擾項。
 - HUD 頂部白卡顯示**中文**（`row.zh`）＋「JUMP ON THE RIGHT WORD」；
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
-- 踩中正確字磚：`+60 + 字長×5 + min(90, 連對×10)` 分、讀出英文（SpeechSynthesis）、
-  toast ✅；每連續 5 題送護盾 8 秒。
+- 踩中正確字磚：**彈高 369px**（`WJ.WORD_BOOST = -980` 取代原本 `JUMP_V -822`
+  嘅反彈，`h = 980² / (2 × 1300) = 369`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
+  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 369px`；每連續 5 題送護盾 8 秒。
+  **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
+  `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
+  喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
+  想彈得更高／矮就改 `WJ.WORD_BOOST`（-980 ≈ 369px；-1150 ≈ 508px；-800 ≈ 246px）。
 - 踩錯：toast ❌ 顯示正確答案、連對清零（**唔會懲罰分數／唔會死**），
   正確嗰塊會變綠比玩家睇。
 - 答完／漏咗（跌落去）之後，`activeRow()` 自動跳去下一排。
@@ -315,6 +320,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.8 分數與儲存
 - 分數 = `max(0, floor(maxClimb / 10) + bonus)`；`bonus` 來自答對、殺怪、踩怪。
+- `maxClimb` = 全場最高點（`WJ.maxClimb = max(maxClimb, -p.y)`），所以**答對字磚
+  嗰下嘅 369px 彈升會永久計入 height 分**（+36 分），就算之後跌返落嚟都唔會扣。
 - `localStorage["wj_best"]` 最高分、`localStorage["wj_words"]` 累計答對題數（只加不減）。
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 

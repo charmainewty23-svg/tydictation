@@ -262,6 +262,11 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   改為同一頁自動按每個學生顯示名稱入面嘅班別代號分成 F3、F4、F6、Unassigned 幾個部分：
   Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown；
   房間列表入面亦會按年級標示／分組學生）、Word Jump admin 排名，同埋老師先見到嘅 Hub Leaderboard。
+  老師 dashboard 入面嘅學生名單（Student Activity、Grammar Quest、Student Logins、
+  Word Jump admin）每個級別標題旁邊有 **(+)** 展開同 **(-)** 暫時收起掣，預設全部收起，
+  可以逐級獨立開關，避免一版過列出所有級別學生。Unassigned 同樣有呢對掣。開關狀態
+  喺今次瀏覽記住（重新 render／Refresh 唔會重置），唔係舊嘅 All／F3／F4／F6 篩選掣。
+  學生自己嗰個 Leaderboard、Hub Leaderboard，同 Word Battle 課堂直播板**唔會**出現呢對掣。
   學生自己嗰個 Leaderboard 同其他學生介面**唔會**出現呢種分組。
   New Vocab／Word Battle 揀邊個年級字庫嘅掣仍然保留，因為嗰啲係題目庫選擇，唔係學生名單篩選。
 - 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`。下拉暫時存唔到，
@@ -317,7 +322,7 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   冇中間速，呢個就係「太快」嘅根源。
 - **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.45 + 0.55 × min(1, maxClimb/3200))`，
   即係**每局開頭 108 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 3.7s 變 1.7s）。
-  **但係 108 px/s 唔夠橫越成個畫面**：滯空 1.26s 只行到 **136px**，所以平台
+  **但係 108 px/s 唔夠橫越成個畫面**：滯空 1.58s 只行到 **170px**，所以平台
   唔可以擺得太遠——見 §10.3 嘅 `reach` 限制。想慢就減 `MOVE_MAX`／
   `SPEED_RAMP_FROM`（0.45）；想開頭快返就加（改完要順便睇 `reach`）。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
@@ -340,8 +345,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 **三個「跳唔到」修正（2026-11，用戶連續三次反映）：**
 
 1. **下一個台一定跳到**（`WJ.spawnPlatform` / `WJ.horizBudget`）。舊式
-   `reach = speedCap() × 1.26s × 0.8 + 平台寬` 用咗**成段滯空**，但下一個台如果
-   已經離腳 80–275px，玩家係落返嚟途中就穿過佢，實際橫向時間短過 1.26s。
+   `reach = speedCap() × 1.58s × 0.8 + 平台寬` 用咗**成段滯空**，但下一個台如果
+   已經離腳 80–275px，玩家係落返嚟途中就穿過佢，實際橫向時間短過 1.58s。
    再加藍台左右擺、灰台上下擺、棕台唔彈，就會喺中段留低一個畫面都跨唔到嘅空位
    （老師 iPhone 全屏、分數 ~1186 嗰張相就係咁）。而家每個新台都要同時滿足：
    - 垂直距離（連灰台向上嘅 amp）≤ 跳高 − 36px（`WJ.maxGap`，跳高 319 → **283px**）。
@@ -368,13 +373,15 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 - 開頭（`maxClimb < 1500`）：步距 `rand(68, 90)`、平台寬 `rand(74, 104)`。
 - 之後：步距 `rand(76, 102)`、平台寬 `rand(62, 90)`（原本 `84–112`）。
 - 綠台權重 `52 - 16d` → `58 - 14d`，實測綠台佔 **59–66%**（原本 ~52%）。
-手感係「短促、夠高」：`GRAVITY 1610`／`JUMP_V -1014` → 跳高 **319px**、
-每次滯空 **1.26s**。先前係 1300／−822（跳高 256px），用戶反映「跳唔夠高」
-彈唔到上字磚，所以**只加跳高、唔加滯空**（G 同 V 一齊 ×1.23）。
-更早試過 2000／−1030（1.03s 太急）同 750／−645（1.72s 太飄）。
-想改而**保持跳高不變**：滯空乘 s，就 `GRAVITY ÷ s²`、`JUMP_V ÷ s`。
-例如想再「快上快落」（滯空 ×0.9）：`GRAVITY 1988`、`JUMP_V -913`。
+手感係「夠高、睇得清字」：`GRAVITY 1030`／`JUMP_V -811` → 跳高仍然 **319px**、
+每次滯空 **1.58s**。呢對係由上一版 `1610`／`−1014`（滯空 1.26s，老師反映彈跳太快、
+睇唔切生字）用滯空 ×1.25、跳高不變算出嚟：`GRAVITY ÷ 1.25²`、`JUMP_V ÷ 1.25`。
+再早係 1300／−822（跳高 256px，跳唔夠高）、2000／−1030（1.03s 太急）同
+750／−645（1.72s 太飄）。想改而**保持跳高不變**：滯空乘 s，就 `GRAVITY ÷ s²`、
+`JUMP_V ÷ s`。例如想再「快上快落」（滯空 ×0.9）：`GRAVITY 1272`、`JUMP_V -730`。
 （跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍。）
+道具上升速度 `JET_V -765`／`PROP_V -193` 同字磚加成 `WORD_BOOST -979`（仍然
+彈高 465px）都要跟同一個滯空倍數一齊調。
 
 ### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
 彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
@@ -392,13 +399,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   （難度 <0.3）或 3 個（之後）：1 個正確答案 + 1–2 個同題庫抽出嚟嘅干擾項。
 - HUD 頂部白卡顯示**中文**（`row.zh`）＋「JUMP ON THE RIGHT WORD」；
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
-- 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -1224` 取代原本 `JUMP_V -1014`
-  嘅反彈，`h = 1224² / (2 × 1610) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
+- 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -979` 取代原本 `JUMP_V -811`
+  嘅反彈，`h = 979² / (2 × 1030) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
   讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 465px`；每連續 5 題送護盾 8 秒。
   **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
-  想彈得更高／矮就改 `WJ.WORD_BOOST`（-1224 ≈ 465px；-1400 ≈ 609px；-1000 ≈ 311px）。
+  想彈得更高／矮就改 `WJ.WORD_BOOST`（-979 ≈ 465px；-1120 ≈ 609px；-800 ≈ 311px）。
 - 踩錯：toast ❌ 顯示正確答案、連對清零（**唔會懲罰分數／唔會死**），
   正確嗰塊會變綠比玩家睇。Toast 畫喺 `WJ.H - 140`（畫面底部、方向 pad 之上）——
   以前畫喺 `y = 96`，啱啱好蓋住上面嗰排字磚。
@@ -439,11 +446,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1610）／`WJ.JUMP_V`（−1014）／`WJ.MOVE_MAX`（240）／
+- 調手感改 `WJ.GRAVITY`（1030）／`WJ.JUMP_V`（−811）／`WJ.MOVE_MAX`（240）／
   `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（30）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
-  道具上升速度 `jet -956`／`prop -241` 要一齊按比例調。
+  道具上升速度 `JET_V -765`／`PROP_V -193` 同 `WORD_BOOST`（保持 465px）要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
   `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
   （240 × 0.45 = 108 px/s）。
@@ -454,7 +461,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 題目有幾密：`WJ.QUIZ_GAP_MIN/MAX`（380／500）。實際排距會多 ~70px
   （因為字磚要擺喺平台上方 115px），所以**唔好直接當成排距**。
 - 平台橫向距離係 `WJ.horizBudget(gap, climb)`（跟**呢一跳**嘅垂直距離計滯空，
-  唔係成段 1.26s）。改 `MOVE_MAX`／`SPEED_RAMP_FROM`／`GRAVITY`／`JUMP_V`
+  唔係成段 1.58s）。改 `MOVE_MAX`／`SPEED_RAMP_FROM`／`GRAVITY`／`JUMP_V`
   之後要重跑手機闊度嘅攀爬模擬；預算自動跟新常數，但字磚上方 240–275 必須
   仍然細過 `WJ.maxGap()`（跳高 − 36），先至跳到又跳唔過條問題。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
@@ -523,9 +530,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 - 資料：`wj_leaderboard` 嘅 `height`（冇 height 先用 `score × 10`），`WJ.loadMilestones()`
   喺進入 Word Jump 時拉頭 60 名。**唔包括自己**。低過 120px 嘅紀錄唔畫。
+- 名牌畫喺虛線左邊。如果會蓋住畫面入面嘅生字磚（`quiz` platforms），
+  `WJ.placeLabelY()` 會以 4px 為一步向上或向下微調（最多 72px），直到唔再同字磚
+  或者其他名牌重疊；調唔開就暫時唔畫個名，虛線仍然保留。名牌亦會避開頂部 HUD
+  同底部方向 pad（`y < 78` 或 `y > H-108`）。
 - 玩家腳嘅高度（`-p.y`）穿過某條線，嗰條線變綠，並播一次輕量通過效果：
-  畫面閃一下、兩下粒子、浮起 `Let's go!`。同一幀穿過幾條只播一次。
-  已經喺腳下面嘅線（資料遲咗先載入）會直接標做已過，唔會補播。
+  畫面閃一下、兩下粒子、浮起鼓勵字，按 `WJ.CHEERS` 輪流：`wow!` → `superb!` →
+  `bravo!` → 再返 `wow!`（`WJ.cheerIndex` 跨局保留，唔會每局都由同一句開始）。
+  同一幀穿過幾條只播一次。已經喺腳下面嘅線（資料遲咗先載入）會直接標做已過，
+  唔會補播。訪客冇同學線，所以呢句鼓勵亦唔會出現。
 - **冇朋友系統**，所以唔會有「過朋友先播特別音效」。通過本身亦冇加新音效。
 - 重開（`WJ.reset`）會清通過狀態，下一局可以再過同一批線。載入失敗就當冇線，遊戲照玩。
 

@@ -3217,8 +3217,8 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 750, JUMP_V: -645,
-            MOVE_MAX: 280, MOVE_ACC: 2400, FRICTION: 6000,
+            GRAVITY: 1300, JUMP_V: -822,
+            MOVE_MAX: 240, MOVE_ACC: 2200, FRICTION: 8000,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.60,
             TILT_RANGE: 8, TILT_DEAD: 0.025,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
@@ -3890,8 +3890,8 @@
             });
 
             // --- vertical ---
-            if (p.jet > 0) p.vy = -610;
-            else if (p.prop > 0) p.vy = -155;
+            if (p.jet > 0) p.vy = -775;
+            else if (p.prop > 0) p.vy = -195;
             else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
 
             const prevFeet = p.y;

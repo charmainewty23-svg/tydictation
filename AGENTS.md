@@ -243,13 +243,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
   `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
   所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
-- **左右速度**：`MOVE_MAX 280`／`MOVE_ACC 2400`／`FRICTION 6000`，
-  加速約 **75ms** 到頂，放手會**滑 5–15px**（頂速時 5px，起步慢時反而多啲，
+- **左右速度**：`MOVE_MAX 240`／`MOVE_ACC 2200`／`FRICTION 8000`，
+  加速約 **67ms** 到頂，放手會**滑 3–11px**（頂速時 3px，起步慢時多啲，
   因為 tilt 平滑仲有少少推力）。`|dir| < 0.06` 當 0、`|vx| < 4` 歸零，
   所以 1.2° 嘅殘餘傾斜唔會慢慢漂。
 - **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.60 + 0.40 × min(1, maxClimb/3200))`，
-  即係**每局開頭 168 px/s，爬到 3200px 就 280 px/s**（橫越 400px 由 2.3s 變 1.4s）。
-  想開頭更慢就減 `SPEED_RAMP_FROM`（0.60）；想快啲到頂速就減 `SPEED_RAMP_AT`（3200）。
+  即係**每局開頭 145 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 2.7s 變 1.7s）。
+  想慢就減 `MOVE_MAX`／`SPEED_RAMP_FROM`（0.60）。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -266,10 +266,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 
 生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
 越高綠台越少、陷阱越多、平台間距亦輕微收窄。
-節奏偏慢（`GRAVITY 750`／`JUMP_V -645`）：跳高 **277px**、每次滯空 **1.72s**，
-實測爬升約 **105px/s**。想再慢／快而**保持跳高不變**：滯空乘 s，就
-`GRAVITY ÷ s²`、`JUMP_V ÷ s`。例如再慢 10%（s = 1.1）：`GRAVITY 620`、`JUMP_V -586`。
-（跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍。）
+手感係「短促、唔飄」：`GRAVITY 1300`／`JUMP_V -822` → 跳高 **256px**、
+每次滯空 **1.26s**（最初 2000／−1030 係 1.03s，中間試過 750／−645 嘅 1.72s
+太飄，最後定喺呢個）。
+想改而**保持跳高不變**：滯空乘 s，就 `GRAVITY ÷ s²`、`JUMP_V ÷ s`。
+例如想再「快上快落」（滯空 ×0.9）：`GRAVITY 1605`、`JUMP_V -740`。
+（跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍；字磚上 158–198px
+嘅空隙要跳得過，所以跳高唔可以低過 ~220px。）
 
 ### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
 彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
@@ -308,10 +311,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（750）／`WJ.JUMP_V`（−645）／`WJ.MOVE_MAX`（280）／
-  `WJ.MOVE_ACC`（2400）／`WJ.FRICTION`（6000）。想「少啲滑」就加 `FRICTION`、
-  想「滑多啲」就減。想成個節奏慢啲又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`
-  （見 §10.3）；道具上升速度 `jet -610`／`prop -155` 要一齊按比例調。
+- 調手感改 `WJ.GRAVITY`（1300）／`WJ.JUMP_V`（−822）／`WJ.MOVE_MAX`（240）／
+  `WJ.MOVE_ACC`（2200）／`WJ.FRICTION`（8000）。想「少啲滑」就加 `FRICTION`、
+  想「滑多啲」就減。想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
+  道具上升速度 `jet -775`／`prop -195` 要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.60）同
   `WJ.SPEED_RAMP_AT`（3200px）。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →

@@ -226,7 +226,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 ### 10.1 結構
 | 位置 | 內容 |
 |---|---|
-| `#wordjump-view` | 工具列（topic／tilt／full screen／sound／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay`＋`#wj-exit-fs` |
+| `#wordjump-view` | 工具列（topic／tilt／full screen／sound／restart／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay`＋`#wj-re-btn`＋`#wj-exit-fs` |
 | 語言 | **全部介面文字用英文**（按鈕、說明、排行榜、admin 卡）。只有**題目本身**（`row.zh` 中文提示、`categories` 嘅中文答案、後備字表）保留中文，因為嗰啲係學習內容，唔係 UI。 |
 | `WJ.mount()` | 入 view 時 call（`changeView` 內 `requestAnimationFrame`），綁 input、resize、reset |
 | `WJ.stop()` | 離開 view 時 call（`changeView` 開頭 `WJ.stop()`），停 RAF、清 overlay |
@@ -293,8 +293,11 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
    之前 8px 磚隙、兩側 26px 邊位都會直接穿過跌落去。
    ⚠️ 只改 resolved = false 嘅排；答完嘅排照舊可以穿過落下面平台。
 
-**開頭加密**（`genUpTo`）：`maxClimb < 1500` 時步距 `rand(68, 90)`、平台寬
-`rand(74, 104)`（平時 `84–112`／`62–90`），所以最初十幾塊台又密又闊。
+**密度**（用戶 2026-11 要求「開頭可加密」＋「綠字磚可加密」）：
+
+- 開頭（`maxClimb < 1500`）：步距 `rand(68, 90)`、平台寬 `rand(74, 104)`。
+- 之後：步距 `rand(76, 102)`、平台寬 `rand(62, 90)`（原本 `84–112`）。
+- 綠台權重 `52 - 16d` → `58 - 14d`，實測綠台佔 **59–66%**（原本 ~52%）。
 手感係「短促、夠高」：`GRAVITY 1610`／`JUMP_V -1014` → 跳高 **319px**、
 每次滯空 **1.26s**。先前係 1300／−822（跳高 256px），用戶反映「跳唔夠高」
 彈唔到上字磚，所以**只加跳高、唔加滯空**（G 同 V 一齊 ×1.23）。
@@ -314,7 +317,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 - **黑洞**：160px 內有引力，中心 28px 內必死，護盾擋唔到。
 
 ### 10.6 題目：睇中文，跳上正確英文
-- 每隔 `520–660px` 高度有一排**紫色字磚**（`spawnQuizRow`），一排 2 個
+- 每隔 `QUIZ_GAP`（`380–500`，經 `min(nextQuizY, topY-115)` 修正後實測**每 ~510px**）
+  有一排**紫色字磚**（`spawnQuizRow`），一排 2 個
   （難度 <0.3）或 3 個（之後）：1 個正確答案 + 1–2 個同題庫抽出嚟嘅干擾項。
 - HUD 頂部白卡顯示**中文**（`row.zh`）＋「JUMP ON THE RIGHT WORD」；
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
@@ -334,6 +338,20 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   所以跳高減 115 就係「可以由下面平台跳到幾高」；必須**細過**呢個空隙，
   否則玩家可以直接跳過字磚唔答（原本跳高 256px 時空隙 158–198 剛好夠，
   加到 319px 之後空隙要加到 240–275 先擋得住）。
+
+### 10.6b 重開（RE）
+
+- **兩個入口**：工具列 `🔁 Restart`；畫面底部中央 `↺ Restart`（`#wj-re-btn`）。
+  後者**喺全屏都用得到**（全屏時工具列收埋咗），全屏時會升到 `bottom: 38px`
+  避開 `✕ Exit full screen`。
+- `WJ.restart(force)`：`reset()` → `state='playing'` → 重開 RAF → toast `↺ New run`。
+  **唔會碰全屏狀態**（唔會 `requestFullscreen`、唔會退出），所以喺全屏按完仍然全屏。
+- 誤觸保護：遊戲進行中而且分數 > 0，`WJ.restart()` 會 `confirm()` 問一次
+  （「Restart this run? Your score will be lost.」）。暫停選單同完場選單傳
+  `WJ.restart(true)` 略過 confirm，因為嗰下已經係刻意撳。
+- `Play again`（完場）同暫停選單嘅 `Restart` 都已經改用 `WJ.restart(true)`
+  （以前用 `WJ.start()`，會再叫一次全屏 API）。
+- 想改位置改 `#wj-re-btn` CSS；想改確認文字改 `WJ.restart` 入面嘅字串。
 
 ### 10.7 題庫來源
 `WJ.wordPool()` 由 `categories`（Google Sheet）揀字，經 `primaryAnswer()` 取第一個答案，
@@ -359,8 +377,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
   `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
   （240 × 0.45 = 108 px/s）。
-- 想改開頭有幾密：`genUpTo` 嘅 `opening`（`maxClimb < 1500`）同 `rand(68, 90)`；
-  平台闊度喺 `spawnPlatform` 嘅 `opening ? rand(74, 104) : rand(62, 90)`。
+- 想改有幾密：`genUpTo` 嘅 `opening`（`maxClimb < 1500`）同兩組步距
+  `rand(68, 90)`／`rand(76, 102)`；平台闊度喺 `spawnPlatform` 嘅
+  `opening ? rand(74, 104) : rand(62, 90)`；綠台比例係 `table` 嘅
+  `['green', 58 - 14 * d]`。
+- 題目有幾密：`WJ.QUIZ_GAP_MIN/MAX`（380／500）。實際排距會多 ~70px
+  （因為字磚要擺喺平台上方 115px），所以**唔好直接當成排距**。
 - 平台橫向距離上限 `reach` 喺 `spawnPlatform`；**加 `SPEED_RAMP_FROM` 可以放寬**，
   減就要收窄，否則又會出現「對面平台去唔到」。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →

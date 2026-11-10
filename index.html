@@ -302,6 +302,31 @@
             font-size: 11px;
             font-weight: 700;
         }
+        /* RE: reset the run. Always on screen, so it also works in full
+           screen where the toolbar above the canvas is hidden. */
+        #wj-re-btn {
+            position: absolute;
+            z-index: 25;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            color: #4b5563;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        #wj-re-btn:active { background: #ecfdf5; color: #047857; }
+        /* Stack it above the exit-full-screen pill when both are shown. */
+        #wj-stage:fullscreen #wj-re-btn,
+        #wj-stage:-webkit-full-screen #wj-re-btn,
+        body.wj-fs #wj-re-btn {
+            bottom: 38px;
+        }
         #wj-stage:fullscreen #wj-fs-enter,
         #wj-stage:-webkit-full-screen #wj-fs-enter,
         body.wj-fs #wj-fs-enter {
@@ -754,6 +779,7 @@
                             <button id="wj-tilt-btn" onclick="WJ.enableTilt()" class="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">📱 Tilt: off</button>
                             <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">⛶ Full screen</button>
                             <button id="wj-sound-btn" onclick="WJ.toggleSound()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔊 On</button>
+                            <button onclick="WJ.restart()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔁 Restart</button>
                             <button onclick="WJ.togglePause()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⏸ Pause</button>
                         </div>
                     </div>
@@ -762,6 +788,7 @@
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
                         <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ Full screen</button>
                         <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ Exit full screen</button>
+                        <button id="wj-re-btn" onclick="WJ.restart()" title="Restart this run" aria-label="Restart this run">↺ Restart</button>
                     </div>
                     <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · the ⛶ button (top right) toggles full screen</p>
                 </div>
@@ -3309,7 +3336,7 @@
             MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
-            QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
+            QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
             mounted: false, running: false, paused: false, state: 'intro',
             raf: 0, lastTs: 0, acc: 0,
             canvas: null, ctx: null,
@@ -3558,7 +3585,7 @@
                         <div class="text-4xl mb-2">⏸</div>
                         <h3 class="text-xl font-bold text-gray-700 mb-4">Paused</h3>
                         <button onclick="WJ.togglePause()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold">Resume</button>
-                        <button onclick="WJ.start()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Restart</button>
+                        <button onclick="WJ.restart(true)" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Restart</button>
                         <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Quit</button>
                     </div>`, true);
             } else {
@@ -3589,6 +3616,27 @@
         };
 
         WJ.hideOverlay = function () { WJ.setOverlay('', false); };
+
+        /* RE - wipe the run and start again. Full screen state is left alone
+           on purpose, so this works mid-jump, while paused, after a game over
+           and from the intro without kicking the player out of full screen.
+           force=true comes from the pause / game-over menus, where the tap is
+           already deliberate. */
+        WJ.restart = function (force) {
+            if (!WJ.canvas) { WJ.mount(); return; }
+            if (!force && WJ.state === 'playing' && !WJ.paused && WJ.score() > 0) {
+                if (!window.confirm('Restart this run? Your score will be lost.')) return;
+            }
+            WJ.hideOverlay();
+            WJ.reset();
+            WJ.state = 'playing';
+            WJ.paused = false;
+            WJ.running = true;
+            WJ.lastTs = 0; WJ.acc = 0;
+            cancelAnimationFrame(WJ.raf);
+            WJ.raf = requestAnimationFrame(WJ.frame);
+            WJ.toast('↺ New run', '#0f766e');
+        };
 
         WJ.showIntro = function () {
             WJ.state = 'intro';
@@ -3698,7 +3746,7 @@
                         <p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p>
                         <p class="text-xs text-gray-300">Loading…</p>
                     </div>
-                    <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
+                    <button onclick="WJ.restart(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
                     <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Back to Word Battle</button>
                 </div>`, true);
             WJ.loadLeaderboard();
@@ -3864,7 +3912,7 @@
                 const opening = WJ.maxClimb < 1500 && !WJ.afterQuiz;
                 const base = WJ.afterQuiz ? WJ.rand(240, 275)
                           : opening ? WJ.rand(68, 90)
-                          : WJ.rand(84, 112);
+                          : WJ.rand(76, 102);
                 const step = base * (1 - WJ.difficulty() * 0.1);
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
@@ -3915,7 +3963,7 @@
             const x = (hi > lo) ? WJ.rand(lo, hi) : WJ.rand(8, WJ.W - w - 8);
             WJ.lastX = x + w / 2;
             const table = [
-                ['green', 52 - 16 * d],
+                ['green', 58 - 14 * d],
                 ['blue', 14],
                 ['gray', 12],
                 ['brown', 9 + 5 * d],

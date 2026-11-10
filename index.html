@@ -388,6 +388,15 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
             Sign in with Google
         </button>
+        <div class="mt-10 w-full max-w-sm flex flex-col items-center">
+            <p class="text-sm font-bold text-gray-400 mb-3">or continue as a guest</p>
+            <form onsubmit="signInAsGuest(event)" class="w-full flex flex-col items-center gap-3">
+                <input id="guest-password" type="password" inputmode="numeric" maxlength="8" placeholder="Guest password" autocomplete="off" class="w-full p-4 rounded-2xl border-2 border-orange-100 bg-white text-center font-bold text-gray-700 tracking-widest">
+                <button type="submit" class="w-full py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-2xl font-bold hover:bg-orange-50 transition-colors">Guest login</button>
+                <p id="guest-login-error" class="hidden text-red-500 font-bold text-sm"></p>
+            </form>
+            <p class="text-xs text-gray-400 mt-3 text-center leading-relaxed">Guests can use all of Dictation Master and play Word Jump. Leaderboards, My Records and the teacher dashboard stay hidden.</p>
+        </div>
     </div>
 
     <!-- Main App (hidden until logged in) -->
@@ -458,6 +467,14 @@
                     <button class="btn-paw w-full mt-4">Open Dictation</button>
                 </div>
 
+                <div id="hub-wordjump-entry" class="hub-card md:col-span-2" onclick="openWordJump('hub-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#6ee7b7;">
+                    <div class="text-4xl">🦘</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-emerald-600">Word Jump</h2>
+                        <p class="text-gray-400 text-sm">Solo practice climb — read the Chinese, land on the English word.</p>
+                    </div>
+                </div>
+
                 <div class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
                     <div class="text-4xl">⚔️</div>
                     <div>
@@ -466,12 +483,12 @@
                     </div>
                 </div>
 
-                <div class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                <div id="hub-records-entry" class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">📋</div>
                     <h2 class="text-xl font-bold text-gray-600">My Records</h2>
                 </div>
 
-                <div class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
+                <div id="hub-leaderboard-entry" class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">🏆</div>
                     <h2 class="text-xl font-bold text-gray-600">Leaderboard</h2>
                 </div>
@@ -571,6 +588,7 @@
                         <button type="button" id="nv-scope-all" onclick="nvSetScope('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">All words</button>
                     </div>
                     <div id="nv-status" class="text-gray-500 font-bold mb-4"></div>
+                    <div id="nv-feedback" class="hidden mb-4 p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 font-bold text-sm leading-relaxed"></div>
                     <div id="nv-editor" class="hidden bg-orange-50 border-2 border-orange-100 rounded-2xl p-5 mb-6">
                         <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
                             <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
@@ -579,7 +597,7 @@
                         <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Press Confirm to add the word to this form's bank; it appears in the list below straight away. Use − to delete or clear a word.</p>
                         <div class="flex items-stretch gap-2 mb-4 flex-wrap sm:flex-nowrap">
                             <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
-                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <input id="nv-zh" type="text" placeholder="中文 (needed for Recitation)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
                             <button type="button" id="nv-save-btn" onclick="nvSaveWord()" title="Confirm" aria-label="Confirm" class="shrink-0 px-5 h-11 bg-orange-500 text-white rounded-full font-bold text-sm leading-none flex items-center justify-center">Confirm</button>
                             <button type="button" id="nv-cancel-btn" onclick="nvCancelEdit()" title="Clear this row" aria-label="Clear this row" class="w-11 h-11 shrink-0 bg-white border-2 border-orange-100 text-gray-500 rounded-full font-bold text-2xl leading-none flex items-center justify-center">−</button>
                         </div>
@@ -669,12 +687,12 @@
                             </h3>
                             <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — read the Chinese, land on the matching English word, blast monsters.</p>
                         </div>
-                        <button onclick="changeView('wordjump-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
+                        <button onclick="openWordJump('battle-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
                     </div>
 
                     <!-- Lobby -->
                     <div id="battle-lobby">
-                        <div class="flex items-center gap-3 mb-6 flex-wrap">
+                        <div id="battle-count-row" class="flex items-center gap-3 mb-6 flex-wrap">
                             <label class="text-sm text-gray-500 font-bold">Questions per battle</label>
                             <select id="battle-count-select" onchange="localStorage.setItem('battle_qcount', this.value)" class="p-2 px-4 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">
                                 <option value="10" selected>10</option>
@@ -683,14 +701,15 @@
                             </select>
                             <span class="text-xs text-gray-400">Applies to both 1v1 rooms and class rooms.</span>
                         </div>
-                        <div class="grid md:grid-cols-2 gap-6">
+                        <div id="battle-room-actions" class="grid md:grid-cols-2 gap-6">
                             <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100">
                                 <h3 class="font-bold text-blue-700 text-lg mb-4">Create a room</h3>
                                 <label class="text-sm text-gray-500 font-bold">Topic</label>
                                 <select id="battle-topic-select" onchange="battleSyncVocabForm()" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
                                 <div id="battle-vocab-form-wrap" class="hidden mb-4">
-                                    <label class="text-sm text-gray-500 font-bold">New Vocab form</label>
+                                    <label id="battle-vocab-form-label" class="text-sm text-gray-500 font-bold">New Vocab form</label>
                                     <select id="battle-vocab-form-select" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                    <p id="battle-vocab-form-hint" class="text-sm text-amber-700 font-bold mt-2 hidden"></p>
                                     <label class="text-sm text-gray-500 font-bold mt-3 block">Which words</label>
                                     <select id="battle-vocab-scope" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700">
                                         <option value="all" selected>Full bank</option>
@@ -786,7 +805,7 @@
 
             <div id="wordjump-view" class="view hidden w-full">
                 <button onclick="WJ.quit()" class="mb-6 text-gray-400 flex items-center gap-2 hover:text-emerald-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Word Battle
+                    <span>←</span> <span id="wj-back-label">Back to Hub</span>
                 </button>
                 <div class="cat-card p-4 md:p-8">
                     <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
@@ -989,7 +1008,25 @@
 
         let currentUser = null;
         let currentSubCategory = '';
-        function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
+        const GUEST_PASSWORD = '0203';
+        const GUEST_SESSION_KEY = 'learniTY_guest_session';
+        const GUEST_BLOCKED_VIEWS = ['leaderboard-view', 'admin-view', 'my-records-view'];
+        let guestSession = false;
+
+        function isGuestUser() { return !!guestSession; }
+        function isAdmin() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
+        function isSignedIn() { return isGuestUser() || !!currentUser; }
+        function canUseCloud() { return !isGuestUser() && !!currentUser; }
+
+        function hasGuestSessionFlag() {
+            try { return sessionStorage.getItem(GUEST_SESSION_KEY) === '1'; } catch (e) { return false; }
+        }
+        function writeGuestSessionFlag() {
+            try { sessionStorage.setItem(GUEST_SESSION_KEY, '1'); } catch (e) {}
+        }
+        function clearGuestSessionFlag() {
+            try { sessionStorage.removeItem(GUEST_SESSION_KEY); } catch (e) {}
+        }
 
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
         // every dropdown, display-name parser, grouping, and the old-browser
@@ -1019,23 +1056,22 @@
         // logins look like s231014@…, whose first digit is an admission year,
         // not the form.
         //
-        // Typical displayed name: "4C 16 Lai Ka Lok 黎嘉樂", "3A 08 Chan Tai Man".
-        // Take the first digit. If it maps to FORM_LEVELS (3 → F3, 4 → F4,
-        // 6 → F6), that is the form. If a single class letter clearly follows
-        // that digit (C in 4C), show the class badge. No displayed name, or a
-        // first digit that is not 3/4/6, stays Unassigned.
-        function formFromFirstDigit(text) {
+        // Assign F3/F4/F6 only when the displayed name clearly provides a
+        // class/form code at the start, e.g. "4C 16 Lai Ka Lok 黎嘉樂",
+        // "3A 08 Chan Tai Man", "6D 21 Wong", or "Form 4C …". A name with
+        // no class code, such as "Liu Chun Ming", stays Unassigned. A stray
+        // 3, 4 or 6 later in a name, student number or year is ignored.
+        function formFromClassCodeAtStart(text) {
             const empty = { form: '', classId: '' };
-            const raw = String(text || '');
-            const idx = raw.search(/\d/);
-            if (idx < 0) return empty;
-            const digit = raw.charAt(idx);
+            const raw = String(text || '').trim();
+            if (!raw) return empty;
+            const m = /^(?:form\s*|f\.?\s*)?([346])([a-z])(?=$|[^a-z])/i.exec(raw);
+            if (!m) return empty;
+            const digit = m[1];
+            const letter = m[2].toUpperCase();
             const form = normalizeForm('F' + digit);
             if (!form) return empty;
-            const rest = raw.slice(idx + 1);
-            const m = /^([a-zA-Z])(?=$|[^a-zA-Z])/.exec(rest);
-            const classId = m ? (digit + m[1].toUpperCase()) : '';
-            return { form, classId };
+            return { form, classId: digit + letter };
         }
 
         // A real Google / on-screen name, not an email or email local-part
@@ -1051,7 +1087,7 @@
         }
 
         function parseDisplayNameFormClass(nickname) {
-            return formFromFirstDigit(nickname);
+            return formFromClassCodeAtStart(nickname);
         }
 
         function nicknameOfEmail(email, nickname) {
@@ -1063,7 +1099,7 @@
 
         let formOverrides = new Map();
         let formDirRequest = 0;
-        let formDirectory = { byEmail: new Map(), nicknames: new Map(), loaded: false, missing: false, error: '', pending: null };
+        let formDirectory = { byEmail: new Map(), nicknames: new Map(), sources: new Map(), loaded: false, missing: false, error: '', pending: null };
         let formSaveSeq = 0;
 
         function isMissingSchema(message) {
@@ -1073,9 +1109,14 @@
         function formOfEmail(email, nickname) {
             const key = String(email || '').toLowerCase();
             if (formOverrides.has(key)) return formOverrides.get(key) || '';
+            const parsed = parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
             const stored = formDirectory.byEmail.get(key) || '';
-            if (stored) return stored;
-            return parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
+            const source = formDirectory.sources.get(key) || '';
+            // Teacher dropdown always wins. An automatic or unknown stored
+            // form (for example Liu Chun Ming wrongly saved as F6) is ignored
+            // unless the displayed name itself still has a class code.
+            if (source === 'teacher') return stored || '';
+            return parsed;
         }
 
         function classOfEmail(email, nickname) {
@@ -1171,13 +1212,21 @@
             formDirectory.loaded = false;
             formDirectory.pending = (async () => {
                 try {
-                    let res = await sb.from('student_logins').select('user_id, email, form, nickname');
+                    let res = await sb.from('student_logins').select('user_id, email, form, form_source, nickname');
                     let formColumnMissing = false;
+                    let sourceColumnMissing = false;
                     if (res.error && isMissingSchema(res.error.message)) {
-                        const retry = await sb.from('student_logins').select('user_id, email, nickname');
-                        if (!retry.error) {
-                            res = retry;
-                            formColumnMissing = true;
+                        const retryForm = await sb.from('student_logins').select('user_id, email, form, nickname');
+                        if (!retryForm.error) {
+                            res = retryForm;
+                            sourceColumnMissing = true;
+                        } else if (isMissingSchema(retryForm.error.message)) {
+                            const retry = await sb.from('student_logins').select('user_id, email, nickname');
+                            if (!retry.error) {
+                                res = retry;
+                                formColumnMissing = true;
+                                sourceColumnMissing = true;
+                            }
                         }
                     }
                     if (req !== formDirRequest) return formDirectory;
@@ -1187,20 +1236,30 @@
                         if (formDirectory.missing) {
                             formDirectory.byEmail = new Map();
                             formDirectory.nicknames = new Map();
+                            formDirectory.sources = new Map();
                         }
                     } else {
                         const map = new Map();
                         const nicks = new Map();
+                        const sources = new Map();
                         (res.data || []).forEach(row => {
                             const email = String(row.email || '').toLowerCase();
                             if (!email) return;
                             if (!formColumnMissing) map.set(email, normalizeForm(row.form));
+                            if (!sourceColumnMissing) {
+                                const src = String(row.form_source || '').trim().toLowerCase();
+                                if (src) sources.set(email, src);
+                            }
                             const nick = String(row.nickname || '').trim();
                             if (nick) nicks.set(email, nick);
                         });
-                        formOverrides.forEach((value, email) => map.set(email, value));
+                        formOverrides.forEach((value, email) => {
+                            map.set(email, value);
+                            sources.set(email, value ? 'teacher' : '');
+                        });
                         formDirectory.byEmail = map;
                         formDirectory.nicknames = nicks;
+                        formDirectory.sources = sources;
                         formDirectory.missing = formColumnMissing;
                         formDirectory.error = '';
                     }
@@ -1247,8 +1306,10 @@
             if (!key) return;
             const seq = ++formSaveSeq;
             const prev = formOverrides.has(key) ? formOverrides.get(key) : (formDirectory.byEmail.get(key) || '');
+            const prevSource = formDirectory.sources.get(key) || '';
             formOverrides.set(key, canonical);
             formDirectory.byEmail.set(key, canonical);
+            formDirectory.sources.set(key, canonical ? 'teacher' : '');
             refreshTeacherSurfaces();
             const { error } = await sb.rpc('set_student_form', { p_email: email, p_form: canonical });
             if (seq !== formSaveSeq) return;
@@ -1256,6 +1317,7 @@
                 console.warn('set_student_form failed:', error.message);
                 formOverrides.set(key, prev);
                 formDirectory.byEmail.set(key, prev);
+                formDirectory.sources.set(key, prevSource);
                 refreshTeacherSurfaces();
                 updateMascot(isMissingSchema(error.message)
                     ? 'Form saving is not set up yet. Run supabase/student_forms.sql in the SQL editor.'
@@ -1263,32 +1325,19 @@
             }
         }
 
-        // Fill student_logins.form when it is still empty. Prefer a form from
-        // the displayed login name (Google full_name / name). Never guess from
-        // the email. Otherwise upload an old browser choice once.
-        // claim_own_form never overwrites a teacher edit. Skip the teacher
-        // account. The shared-computer lock only applies to the old
-        // localStorage value, not to a display-name-derived form.
+        // Fill student_logins.form from a class code in the displayed login
+        // name (Google full_name / name). Never guess from the email, and
+        // never upload an old localStorage form. An empty p_form asks
+        // claim_own_form to release a previous automatic claim only
+        // (supabase/student_forms_source.sql); a teacher dropdown value is
+        // left alone. Skip the teacher account.
         async function claimSavedForm(user) {
             if (!user || !user.email || user.email === ADMIN_EMAIL) return;
             const nick = user.user_metadata?.full_name || user.user_metadata?.name || '';
-            const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form;
-            const saved = normalizeForm(localStorage.getItem(FORM_STORAGE_KEY) || '');
-            let form = fromName;
-            if (!form && saved) {
-                let bound = '';
-                try { bound = localStorage.getItem(FORM_CLAIMED_BY_KEY) || ''; } catch (e) { bound = ''; }
-                if (bound) return;
-                form = saved;
-            }
-            if (!form) return;
-            const { error } = await sb.rpc('claim_own_form', { p_form: form });
+            const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form || '';
+            const { error } = await sb.rpc('claim_own_form', { p_form: fromName });
             if (error) {
                 console.warn('Form claim failed:', error.message);
-                return;
-            }
-            if (!fromName) {
-                try { localStorage.setItem(FORM_CLAIMED_BY_KEY, user.id); } catch (e) {}
             }
         }
 
@@ -1302,9 +1351,55 @@
             });
         }
 
+        function endGuestSession() {
+            guestSession = false;
+            clearGuestSessionFlag();
+        }
+
+        function startGuestSession() {
+            guestSession = true;
+            writeGuestSessionFlag();
+            loginRecorded = true;
+            myFormValue = '';
+            myFormLoaded = true;
+            ownFormPersisted = false;
+            updateAuthUI();
+            adoptErrorBookUser();
+            if (sheetCategoriesReady) renderCategories();
+            else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
+            showApp();
+            updateMascot("Guest mode: you can use all of Dictation Master and play Word Jump. Leaderboards stay off.");
+        }
+
+        function signInAsGuest(event) {
+            if (event) event.preventDefault();
+            const input = document.getElementById('guest-password');
+            const err = document.getElementById('guest-login-error');
+            const typed = String(input && input.value || '').trim();
+            if (typed !== GUEST_PASSWORD) {
+                if (err) {
+                    err.classList.remove('hidden');
+                    err.innerText = 'That guest password is not right.';
+                }
+                return;
+            }
+            if (input) input.value = '';
+            if (err) { err.classList.add('hidden'); err.innerText = ''; }
+            startGuestSession();
+        }
+
         async function signOut() {
-            await sb.auth.signOut();
-            currentUser = null;
+            endGuestSession();
+            if (currentUser) {
+                currentUser = null;
+                try { await sb.auth.signOut(); } catch (e) {}
+            }
+            loginRecorded = false;
+            myFormValue = '';
+            myFormLoaded = false;
+            ownFormPersisted = false;
+            adoptErrorBookUser();
+            updateAuthUI();
             showLogin();
         }
 
@@ -1312,13 +1407,23 @@
             const btn = document.getElementById('auth-btn');
             const nickname = document.getElementById('auth-nickname');
             const adminBtn = document.getElementById('admin-hub-entry');
+            const lbCard = document.getElementById('hub-leaderboard-entry');
+            const recCard = document.getElementById('hub-records-entry');
+            if (isGuestUser()) {
+                if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
+                if (nickname) nickname.innerText = 'Guest';
+                if (adminBtn) adminBtn.classList.add('hidden');
+                if (lbCard) lbCard.classList.add('hidden');
+                if (recCard) recCard.classList.add('hidden');
+                return;
+            }
+            if (lbCard) lbCard.classList.remove('hidden');
+            if (recCard) recCard.classList.remove('hidden');
             if (currentUser) {
                 const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
-                btn.innerText = 'Logout';
-                btn.onclick = signOut;
-                nickname.innerText = name;
-                if (adminBtn && isAdmin()) adminBtn.classList.remove('hidden');
-                else if (adminBtn) adminBtn.classList.add('hidden');
+                if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
+                if (nickname) nickname.innerText = name;
+                if (adminBtn) adminBtn.classList.toggle('hidden', !isAdmin());
             }
         }
 
@@ -1360,9 +1465,11 @@
                 await sb.auth.signOut();
                 document.getElementById('login-mascot-text').innerText = "Please use your school account to login (" + SCHOOL_DOMAIN + ")";
                 currentUser = null;
+                endGuestSession();
                 adoptErrorBookUser();
                 showLogin();
             } else if (session) {
+                endGuestSession();
                 currentUser = session.user;
                 recordLogin(session.user);
                 updateAuthUI();
@@ -1370,8 +1477,13 @@
                 showApp();
             } else {
                 currentUser = null;
-                adoptErrorBookUser();
-                showLogin();
+                if (hasGuestSessionFlag()) {
+                    startGuestSession();
+                } else {
+                    guestSession = false;
+                    adoptErrorBookUser();
+                    showLogin();
+                }
             }
         });
         
@@ -1397,6 +1509,8 @@
         };
 
         let categories = {};
+        let sheetCategoriesReady = false;
+        let sheetCategoriesLoading = false;
         let currentTopic = '';
         
         // Quiz State
@@ -1428,6 +1542,8 @@
         let pcTab = 'revision';
 
         async function loadAllCategoriesFromSheet() {
+            if (sheetCategoriesLoading) return;
+            sheetCategoriesLoading = true;
             try {
                 const promises = SHEET_NAMES.map(async (name) => {
                     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
@@ -1439,13 +1555,17 @@
                 });
                 const results = await Promise.all(promises);
                 results.forEach(res => { if (res.words.length > 0) categories[res.name] = res.words; });
+                sheetCategoriesReady = true;
                 renderCategories();
                 renderTenseGrid();
                 if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
                 if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
             } catch (e) {
+                sheetCategoriesReady = true;
                 updateMascot("Oh no, connection lost!");
                 renderCategories();
+            } finally {
+                sheetCategoriesLoading = false;
             }
         }
 
@@ -1507,6 +1627,12 @@
                 const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝", "basics": "🔤" };
                 appendDictationTile(container, emojis[cat] || '📦', topicLabel(cat), () => selectTopic(cat));
             });
+            if (sheetCategoriesReady && SHEET_NAMES.every(cat => !categories[cat])) {
+                const note = document.createElement('p');
+                note.className = 'col-span-full text-center text-sm text-amber-600 font-bold mt-2';
+                note.textContent = 'The Google Sheet topics did not load. Check your connection, then refresh to try again. New Vocab and Error Book are still available.';
+                container.appendChild(note);
+            }
         }
 
         function appendDictationTile(container, emoji, label, onclick) {
@@ -1532,11 +1658,13 @@
         let nvRows = [];
         let nvSig = '';
         let nvSchemaMissing = false;
+        let formSchemaMissing = false;
         let nvEditingId = null;
         let nvFetchGen = 0;
         let nvSaving = false;
         let myFormValue = '';
         let myFormLoaded = false;
+        let ownFormPersisted = false;
 
         function quizLeave() {
             changeView(quizSource === 'errorbook' ? 'error-book-view' : 'sub-category-view');
@@ -1547,22 +1675,27 @@
         }
 
         function errorBookStorageKey() {
-            return currentUser ? ('error_book:' + currentUser.id) : 'error_book:guest';
+            if (isGuestUser()) return 'error_book:guest-session';
+            return canUseCloud() ? ('error_book:' + currentUser.id) : 'error_book:guest';
+        }
+
+        function errorBookStore() {
+            return isGuestUser() ? sessionStorage : localStorage;
         }
 
         function saveErrorBookLocal() {
-            try { localStorage.setItem(errorBookStorageKey(), JSON.stringify(errorBook)); } catch (e) {}
+            try { errorBookStore().setItem(errorBookStorageKey(), JSON.stringify(errorBook)); } catch (e) {}
         }
 
         function readErrorBookLocal() {
             try {
-                const parsed = JSON.parse(localStorage.getItem(errorBookStorageKey()) || '[]');
+                const parsed = JSON.parse(errorBookStore().getItem(errorBookStorageKey()) || '[]');
                 return Array.isArray(parsed) ? parsed.filter(w => w && w.en) : [];
             } catch (e) { return []; }
         }
 
         function adoptErrorBookUser() {
-            if (currentUser) {
+            if (canUseCloud()) {
                 try { localStorage.removeItem('error_book:guest'); } catch (e) {}
             }
             const next = currentUser ? currentUser.id : null;
@@ -1575,7 +1708,7 @@
         }
 
         async function loadErrorBook() {
-            if (currentUser) {
+            if (canUseCloud()) {
                 const { data, error } = await sb.from('error_book').select('en,zh,topic').eq('user_id', currentUser.id).order('created_at');
                 if (!error && data) {
                     errorBook = data.map(w => ({ en: w.en, zh: w.zh || '', topic: w.topic || '' }));
@@ -1585,7 +1718,7 @@
                     return;
                 }
                 ebCloudNote = error && isMissingSchema(error.message)
-                    ? 'The error book table is not ready yet. Words stay on this account in this browser until supabase/new_vocab.sql is run.'
+                    ? 'The Error Book table is not ready yet, so missed words stay only on this device until you run supabase/student_forms.sql and then supabase/new_vocab.sql in the Supabase SQL editor (same setup as New Vocab; skip files you have already run). Then refresh.'
                     : '';
                 if (error && !isMissingSchema(error.message)) console.warn('Error book load failed:', error.message);
             } else {
@@ -1601,7 +1734,7 @@
             if (!en || errorBook.some(w => w.en === en)) return;
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from('error_book').upsert({
                 user_id: currentUser.id, en, zh, topic: currentTopic || ''
             }, { onConflict: 'user_id,en' }).then(({ error }) => {
@@ -1615,7 +1748,7 @@
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
                 if (error) console.warn('Error book remove failed:', error.message);
             });
@@ -1725,24 +1858,105 @@
             }, NV_POLL_MS);
         }
 
-        function nvActiveForm() {
-            if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
-            return myFormValue || '';
+        function nvSqlSetupHtml() {
+            return 'New Vocab and Error Book need a one-time setup in the <strong>Supabase SQL editor</strong>. Run these files in order (skip any you have already run; they are safe to re-run):'
+                + '<ol class="list-decimal ml-5 mt-2 mb-2 space-y-1 font-semibold">'
+                + '<li><code>supabase/login_tracking.sql</code> — skip if login tracking already works.</li>'
+                + '<li><code>supabase/student_forms.sql</code> — needed so each student has a form (F3 / F4 / F6).</li>'
+                + '<li>The Word Battle SQL files — skip if Word Battle already works.</li>'
+                + '<li><code>supabase/new_vocab.sql</code> — creates the New Vocab word bank and the Error Book table. If this was run before the battle tables, run it once more.</li>'
+                + '<li><code>supabase/new_vocab_unassigned_read.sql</code> — needed so Unassigned students and guests can read every form\'s bank.</li>'
+                + '</ol>'
+                + 'Then refresh this page. Until the earlier files are done, Confirm cannot save a word. Until the last file is done, Unassigned students and guests may see an empty word bank.';
         }
 
-        async function fetchMyForm(force) {
-            if (!currentUser) { myFormValue = ''; myFormLoaded = true; return ''; }
-            if (myFormLoaded && !force) return myFormValue;
+        function nvShowFeedback(html, isError) {
+            const box = document.getElementById('nv-feedback');
+            if (!box) return;
+            if (!html) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            box.classList.remove('hidden');
+            box.className = 'mb-4 p-4 rounded-2xl border-2 font-bold text-sm leading-relaxed ' + (isError
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : 'border-green-200 bg-green-50 text-green-800');
+            box.innerHTML = html;
+        }
+
+        function ownDisplayedForm() {
+            if (!currentUser || isAdmin() || isGuestUser()) return '';
+            const nick = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
+            return parseDisplayNameFormClass(displayedLoginName(currentUser.email, nick)).form || '';
+        }
+
+        function nvActiveForm() {
+            if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
+            if (isGuestUser()) return '';
+            return myFormValue || ownDisplayedForm() || '';
+        }
+
+        function browsesAllVocab() {
+            if (isAdmin()) return false;
+            if (isGuestUser()) return true;
+            return isSignedIn() && !nvActiveForm();
+        }
+
+        async function resolveOwnForm(force) {
+            if (isGuestUser() || !currentUser) { myFormValue = ''; myFormLoaded = true; ownFormPersisted = false; return ''; }
+            if (isAdmin()) { myFormLoaded = true; return nvEditForm || FORM_LEVELS[0].id; }
+            if (myFormLoaded && !force && ownFormPersisted) return myFormValue;
+            let stored = '';
             const { data, error } = await sb.rpc('my_form');
             myFormLoaded = true;
             if (error) {
-                nvSchemaMissing = isMissingSchema(error.message);
-                myFormValue = '';
-                return '';
+                formSchemaMissing = isMissingSchema(error.message);
+            } else {
+                formSchemaMissing = false;
+                stored = normalizeForm(data) || '';
             }
-            nvSchemaMissing = false;
-            myFormValue = normalizeForm(data) || '';
-            return myFormValue;
+            const inferred = ownDisplayedForm();
+            // A stored F3/F4/F6 is only trusted when the displayed name still
+            // has a class code, or the teacher assigned it (form_source).
+            // Otherwise Liu Chun Ming (no class code) must stay Unassigned,
+            // even if an old automatic claim wrote F6.
+            let teacherSet = false;
+            if (stored && !inferred) {
+                try {
+                    const src = await sb.rpc('my_form_source');
+                    if (!src.error) {
+                        teacherSet = String(src.data || '').toLowerCase() === 'teacher';
+                    }
+                } catch (e) { /* my_form_source may not exist yet */ }
+            }
+            if (stored && (inferred || teacherSet)) {
+                myFormValue = stored;
+                ownFormPersisted = true;
+                if (inferred && stored !== inferred && !formSchemaMissing) {
+                    await claimSavedForm(currentUser);
+                }
+                return stored;
+            }
+            if (!formSchemaMissing) {
+                await claimSavedForm(currentUser);
+                const again = await sb.rpc('my_form');
+                if (!again.error) {
+                    stored = normalizeForm(again.data) || '';
+                    if (stored && (inferred || teacherSet)) {
+                        myFormValue = stored;
+                        ownFormPersisted = true;
+                        return stored;
+                    }
+                }
+            }
+            ownFormPersisted = false;
+            myFormValue = inferred;
+            return inferred;
+        }
+
+        async function fetchMyForm(force) {
+            return resolveOwnForm(force);
         }
 
         function nvEnsureFormSwitch() {
@@ -1778,47 +1992,39 @@
 
         async function nvRefresh(force) {
             const gen = ++nvFetchGen;
-            const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await fetchMyForm(true);
+            const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await resolveOwnForm(force || !myFormLoaded);
             if (gen !== nvFetchGen) return;
             const status = document.getElementById('nv-status');
             const activities = document.getElementById('dictation-activities');
             const scope = document.getElementById('nv-scope');
-            if (!isAdmin() && !currentUser) {
+            const hidePractice = () => {
                 nvRows = [];
                 nvApplyPractice();
-                if (status) status.innerText = 'Sign in with your school account, then ask your teacher to set your form.';
                 if (activities) activities.classList.add('hidden');
                 if (scope) scope.classList.add('hidden');
+            };
+            if (!isAdmin() && !isSignedIn()) {
+                hidePractice();
+                if (status) status.innerText = 'Sign in with your school account, or as a guest, to open New Vocab.';
+                nvShowFeedback('', false);
                 return;
             }
-            if (!isAdmin() && nvSchemaMissing) {
-                if (status) status.innerText = 'New Vocab is not ready yet. Ask your teacher to run supabase/new_vocab.sql.';
-                if (activities) activities.classList.add('hidden');
-                if (scope) scope.classList.add('hidden');
-                return;
-            }
-            if (!isAdmin() && !form) {
-                nvRows = [];
-                nvApplyPractice();
-                if (status) status.innerText = 'Your teacher still needs to set your form (F3, F4 or F6). Then this word bank will show up.';
-                if (activities) activities.classList.add('hidden');
-                if (scope) scope.classList.add('hidden');
-                return;
-            }
+            const allForms = !isAdmin() && !form;
             if (scope) scope.classList.remove('hidden');
-            const { data, error } = await sb.from('new_vocab_words')
-                .select('id,en,zh,created_at,updated_at')
-                .eq('form', form)
+            let query = sb.from('new_vocab_words')
+                .select('id,en,zh,form,created_at,updated_at')
                 .order('id');
+            if (!allForms) query = query.eq('form', form);
+            else query = query.in('form', FORM_LEVELS.map(f => f.id));
+            const { data, error } = await query;
             if (gen !== nvFetchGen) return;
             if (error) {
                 nvSchemaMissing = isMissingSchema(error.message);
-                nvRows = [];
-                nvApplyPractice();
+                hidePractice();
                 if (status) status.innerText = nvSchemaMissing
-                    ? 'New Vocab is not ready yet. Run supabase/new_vocab.sql in the Supabase SQL editor.'
+                    ? 'New Vocab is not ready yet — the word-bank table has not been created.'
                     : 'Could not load New Vocab.';
-                if (activities) activities.classList.add('hidden');
+                nvShowFeedback(nvSchemaMissing ? nvSqlSetupHtml() : ('Could not load New Vocab: ' + escapeHtml(error.message || '')), true);
                 return;
             }
             nvSchemaMissing = false;
@@ -1828,6 +2034,9 @@
             nvRows = rows;
             nvApplyPractice();
             if (activities) activities.classList.remove('hidden');
+            if (scope) scope.classList.remove('hidden');
+            const fb = document.getElementById('nv-feedback');
+            if (fb && fb.className.indexOf('amber-') !== -1) nvShowFeedback('', false);
             nvRenderStatus();
             if (force || (sig !== nvSig && !typing)) {
                 nvSig = sig;
@@ -1846,13 +2055,16 @@
             const todayCount = nvRows.filter(w => nvAddedToday(w.created_at || w.updated_at)).length;
             const showing = nvPracticeRows().length;
             if (!nvRows.length) {
-                status.innerText = form ? (form + ' word bank is empty. Words you add stay until you delete them.') : '';
+                status.innerText = browsesAllVocab()
+                    ? 'All forms · no New Vocab words yet. If your teacher already added some, run supabase/new_vocab_unassigned_read.sql in the SQL editor, then refresh.'
+                    : (form ? (form + ' word bank is empty. Words you add stay until you delete them.') : '');
                 return;
             }
             const newest = nvRows.reduce((a, w) => !a || w.updated_at > a ? w.updated_at : a, '');
             const when = typeof hkDate === 'function' ? hkDate(newest) : '';
             const scopeLabel = nvScope === 'today' ? (showing + ' added today') : (showing + ' in the bank');
-            status.innerText = form + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
+            const formLabelText = browsesAllVocab() ? 'All forms' : form;
+            status.innerText = formLabelText + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
         }
 
         function nvRenderEditorList() {
@@ -1950,6 +2162,7 @@
             const zh = (document.getElementById('nv-zh').value || '').trim();
             if (!en && !zh) {
                 updateMascot('Type the English, the Chinese, or both.');
+                nvShowFeedback('Type the English, the Chinese, or both, then press Confirm.', true);
                 return;
             }
             const form = nvEditForm || FORM_LEVELS[0].id;
@@ -1970,16 +2183,34 @@
             }
             if (error) {
                 const check = /new_vocab_words_has_text|check constraint/i.test(error.message || '');
-                updateMascot(check ? 'Type the English, the Chinese, or both.'
-                    : isMissingSchema(error.message)
-                    ? 'Run supabase/new_vocab.sql in the SQL editor before adding words.'
-                    : 'Could not save that word.');
+                const missing = isMissingSchema(error.message);
+                const msg = check ? 'Type the English, the Chinese, or both.'
+                    : missing
+                    ? 'Confirm could not save the word because the New Vocab table is missing.'
+                    : ('Could not save that word: ' + (error.message || 'please try again.'));
+                updateMascot(msg);
+                nvShowFeedback(missing ? (msg + ' ' + nvSqlSetupHtml()) : escapeHtml(msg), true);
                 console.warn(error.message);
                 return;
             }
             if (data) nvUpsertLocal(data);
+            const label = en || zh;
             nvStartNewWord();
-            nvRefresh(true);
+            await nvRefresh(true);
+            const visible = nvPracticeRows().some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh)
+                || nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh);
+            if (!visible && data) {
+                // Saved, but the current "Added today" filter hid it — switch so the new word is on screen.
+                if (nvScope === 'today') nvSetScope('all');
+            }
+            if (nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh) || data) {
+                if (data && !nvRows.some(w => Number(w.id) === Number(data.id))) nvUpsertLocal(data);
+                let savedMsg = 'Saved “' + escapeHtml(label) + '” to the ' + escapeHtml(form) + ' word bank. It is in the list below, and students in ' + escapeHtml(form) + ' can practise it now.';
+                if (en && !zh) savedMsg += ' Add the 中文 if you want this word in Recitation.';
+                nvShowFeedback(savedMsg, false);
+            } else {
+                nvShowFeedback('Confirm did not add the word to the list. ' + nvSqlSetupHtml(), true);
+            }
         }
 
         async function nvDeleteWord(id) {
@@ -2030,6 +2261,17 @@
             if (allWords.length === 0) {
                 updateMascot("No words in this category!");
                 return;
+            }
+
+            if (mode === 'recitation') {
+                const withChinese = allWords.filter(w => String(w && w.zh || '').trim());
+                if (!withChinese.length) {
+                    updateMascot(currentTopic === NEW_VOCAB
+                        ? "Recitation shows the Chinese, then you type the English. Please add 中文 to these words first."
+                        : "These words don't have Chinese yet, so Recitation can't start.");
+                    return;
+                }
+                allWords = withChinese;
             }
             
             quizMode = mode;
@@ -2194,15 +2436,17 @@
             const correctCount = quizResults.filter(r => r.correct).length;
             const accuracy = Math.round((correctCount / total) * 100);
 
-            // Save to localStorage
-            const history = JSON.parse(localStorage.getItem('dict_history') || '[]');
+            // Save to local (session-only for guests, so a later visitor is not mixed in)
+            const historyStore = isGuestUser() ? sessionStorage : localStorage;
+            const historyKey = isGuestUser() ? 'dict_history_guest' : 'dict_history';
+            const history = JSON.parse(historyStore.getItem(historyKey) || '[]');
             const record = { t: Date.now(), topic: currentTopic, mode: quizMode, score: quizScore, total: total, correct: correctCount, accuracy: accuracy };
             history.push(record);
-            localStorage.setItem('dict_history', JSON.stringify(history));
+            historyStore.setItem(historyKey, JSON.stringify(history));
 
-            // Sync to Supabase if logged in
+            // Sync to Supabase if a school account is signed in (never for guests)
             let cloudSynced = false;
-            if (currentUser) {
+            if (canUseCloud()) {
                 sb.from("dictation_results").insert({
                     user_id: currentUser.id,
                     email: currentUser.email,
@@ -2232,7 +2476,7 @@
                 <h2 class="text-4xl font-bold text-orange-600 mb-2">Quiz Finished!</h2>
                 <p class="text-2xl text-gray-500 mb-4">You earned ${quizScore} points in ${currentTopic}.</p>
                 <p class="text-xl text-gray-400 mb-8">Accuracy: ${correctCount}/${total} (${accuracy}%)</p>
-                ${currentUser ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>'}
+                ${canUseCloud() ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : (isGuestUser() ? '<p class="text-sm text-gray-400 mb-4">Guest results stay in this visit only and are not added to any leaderboard.</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>')}
 
                 <div class="bg-orange-50 rounded-2xl p-6 mb-8 border-2 border-orange-100">
                     <h3 class="text-lg font-bold text-orange-600 mb-2">🏅 Best Score (${quizMode})</h3>
@@ -2262,7 +2506,7 @@
         }
 
         function saveGrammarToCloud(grammarType, score, total) {
-            if (!currentUser) return;
+            if (!canUseCloud()) return;
             sb.from("dictation_results").insert({
                 user_id: currentUser.id,
                 email: currentUser.email,
@@ -2830,6 +3074,7 @@
         }
 
         async function loadLeaderboard(mode) {
+            if (isGuestUser()) return;
             lbModeFilter = mode || 'all';
             paintChoiceButtons('.lb-mode-btn', lbModeFilter);
             const container = document.getElementById('leaderboard-container');
@@ -2845,6 +3090,7 @@
         }
 
         function renderLeaderboard() {
+            if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
             if (!container || !lbRows) return;
             if (lbRowsError || !lbRows.length) {
@@ -3184,6 +3430,10 @@
 
         async function loadCloudRecords() {
             const container = document.getElementById('cloud-records-container');
+            if (isGuestUser()) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Guest visits are not saved to cloud records or leaderboards.</p>';
+                return;
+            }
             if (!currentUser) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Please login to view cloud records.</p>';
                 return;
@@ -3316,14 +3566,59 @@
 
         function battleFillVocabForms() {
             const sel = document.getElementById('battle-vocab-form-select');
-            if (!sel || sel.options.length) return;
-            sel.innerHTML = FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+            if (!sel) return;
+            const own = isAdmin() || isGuestUser() || browsesAllVocab() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (isAdmin() || browsesAllVocab()) {
+                const keep = (sel.value === 'ALL' || normalizeForm(sel.value)) ? sel.value : (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
+                const allOpt = browsesAllVocab() ? '<option value="ALL">All forms</option>' : '';
+                sel.innerHTML = allOpt + FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+                sel.value = keep && Array.from(sel.options).some(o => o.value === keep) ? keep : (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
+                sel.disabled = false;
+                sel.classList.remove('opacity-70');
+            } else if (own) {
+                sel.innerHTML = `<option value="${own}">${own}</option>`;
+                sel.value = own;
+                sel.disabled = true;
+                sel.classList.add('opacity-70');
+            } else {
+                sel.innerHTML = '';
+                sel.disabled = true;
+            }
         }
 
         function battleSyncVocabForm() {
             const topic = battleTopicValue();
             const wrap = document.getElementById('battle-vocab-form-wrap');
-            if (wrap) wrap.classList.toggle('hidden', topic !== NEW_VOCAB);
+            const hint = document.getElementById('battle-vocab-form-hint');
+            const label = document.getElementById('battle-vocab-form-label');
+            const isVocab = topic === NEW_VOCAB;
+            if (wrap) wrap.classList.toggle('hidden', !isVocab);
+            battleFillVocabForms();
+            const own = isAdmin() || isGuestUser() || browsesAllVocab() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (label) label.innerText = (isAdmin() || browsesAllVocab()) ? 'New Vocab form' : 'Your form';
+            if (!hint) return;
+            if (!isVocab || isAdmin()) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2 hidden';
+                hint.innerText = '';
+                return;
+            }
+            if (isGuestUser()) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2';
+                hint.innerText = 'Guests can practise New Vocab in Dictation Master. Creating or joining a Word Battle room needs a school Google login.';
+                return;
+            }
+            if (browsesAllVocab()) {
+                hint.className = 'text-sm text-gray-500 font-bold mt-2';
+                hint.innerText = 'Your form is Unassigned, so you can use New Vocab from every form, or pick one form for this room.';
+                return;
+            }
+            if (!own) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2';
+                hint.innerText = 'Your form is not set yet, so you cannot open a New Vocab battle. Your displayed login name needs a class code such as 4C, or your teacher can assign F3, F4 or F6.';
+            } else {
+                hint.className = 'text-sm text-gray-500 font-bold mt-2';
+                hint.innerText = 'This battle will use the ' + own + ' New Vocab bank only.';
+            }
         }
 
         function battleTopicValue() {
@@ -3333,7 +3628,12 @@
 
         function battleVocabForm() {
             const sel = document.getElementById('battle-vocab-form-select');
-            return normalizeForm(sel ? sel.value : '') || FORM_LEVELS[0].id;
+            if (isAdmin() || browsesAllVocab()) {
+                const raw = sel ? sel.value : '';
+                if (String(raw).toUpperCase() === 'ALL') return 'ALL';
+                return normalizeForm(raw) || (browsesAllVocab() ? 'ALL' : FORM_LEVELS[0].id);
+            }
+            return normalizeForm(myFormValue || ownDisplayedForm() || '') || '';
         }
 
         function battleVocabToday() {
@@ -3360,6 +3660,10 @@
 
         async function battleAttachVocab(room) {
             const form = battleVocabForm();
+            if (!form) {
+                try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                return battleSetError('Your form is not set yet, so you cannot start a New Vocab battle.');
+            }
             const asked = battleQuestionCount();
             const todayOnly = battleVocabToday();
             const { data, error } = await sb.rpc('set_battle_vocab', { p_room_id: room.id, p_form: form, p_today_only: todayOnly });
@@ -3389,8 +3693,22 @@
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
         }
 
-        function battleEnter() {
-            if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
+        async function battleEnter() {
+            if (!isSignedIn()) { updateMascot('Please login to play Word Battle.'); return; }
+            if (isGuestUser()) {
+                battlePopulateTopics();
+                battleSetError('Guests can play Word Jump here. Creating or joining a Word Battle room needs a school Google login.');
+                const classEntry = document.getElementById('battle-class-entry');
+                if (classEntry) classEntry.classList.add('hidden');
+                const actions = document.getElementById('battle-room-actions');
+                if (actions) actions.classList.add('hidden');
+                const countRow = document.getElementById('battle-count-row');
+                if (countRow) countRow.classList.add('hidden');
+                updateMascot("Play Word Jump here. Word Battle rooms need a school Google login.");
+                battleShowPanel('lobby');
+                return;
+            }
+            if (!isAdmin()) await resolveOwnForm(true);
             battlePopulateTopics();
             const qsel = document.getElementById('battle-count-select');
             if (qsel) {
@@ -3400,6 +3718,10 @@
             battleSetError('');
             const classEntry = document.getElementById('battle-class-entry');
             if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
+            const actions = document.getElementById('battle-room-actions');
+            if (actions) actions.classList.remove('hidden');
+            const countRow = document.getElementById('battle-count-row');
+            if (countRow) countRow.classList.remove('hidden');
             if (battleRoom) {
                 battlePoll();
                 battleStartPolling();
@@ -3416,8 +3738,13 @@
 
         async function battleCreateRoom() {
             battleSetError('');
+            if (isGuestUser()) return battleSetError('Guests cannot create a Word Battle room. Sign in with your school Google account to play.');
             if (!currentUser) return battleSetError('Please login first.');
+            if (!isAdmin()) await resolveOwnForm(true);
             const topic = battleTopicValue();
+            if (topic === NEW_VOCAB && !isAdmin() && !battleVocabForm()) {
+                return battleSetError('Your form is not set yet, so you cannot open a New Vocab battle. Ask your teacher to assign F3, F4 or F6, or sign in with a displayed name that includes a class code such as 4C.');
+            }
             if (topic !== NEW_VOCAB && !SHEET_NAMES.some(n => (categories[n] || []).length)) {
                 return battleSetError('Word bank is still loading — please wait a moment.');
             }
@@ -3454,12 +3781,27 @@
 
         async function battleJoinRoom() {
             battleSetError('');
+            if (isGuestUser()) return battleSetError('Guests cannot join a Word Battle room. Sign in with your school Google account to play.');
             if (!currentUser) return battleSetError('Please login first.');
+            if (!isAdmin()) await resolveOwnForm(true);
             const input = document.getElementById('battle-code-input');
             const code = (input ? input.value : '').trim().toUpperCase();
             if (code.length !== 4) return battleSetError('Enter the 4-character room code.');
             const { data, error } = await sb.rpc('join_battle', { p_code: code });
             if (error) return battleSetError(battleErrorMessage(error));
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!isAdmin() && !browsesAllVocab() && room && room.topic === NEW_VOCAB) {
+                const own = battleVocabForm();
+                const roomForm = (String(room.vocab_form || '').toUpperCase() === 'ALL') ? 'ALL' : normalizeForm(room.vocab_form || '');
+                if (!own) {
+                    try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                    return battleSetError('Your form is not set yet, so you cannot join a New Vocab battle.');
+                }
+                if (roomForm && roomForm !== own) {
+                    try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                    return battleSetError('That New Vocab battle is for ' + roomForm + '. You can only use the ' + own + ' word bank.');
+                }
+            }
             battleAdoptRoom(data);
         }
 
@@ -4317,7 +4659,16 @@
             renderGroupedAnswerStats(data, room ? room.battle_players : [], el, room ? battleBuildQuestions(room).words : null);
         }
 
+        function openWordJump(fromView) {
+            if (typeof WJ !== 'undefined') WJ.backView = fromView || 'hub-view';
+            changeView('wordjump-view');
+        }
+
         function changeView(viewId) {
+            if (isGuestUser() && GUEST_BLOCKED_VIEWS.indexOf(viewId) !== -1) {
+                updateMascot('Leaderboards and rankings are not available in guest mode.');
+                viewId = 'hub-view';
+            }
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
@@ -4332,7 +4683,11 @@
             window.scrollTo(0,0);
             
             if (viewId === 'hub-view') updateMascot("Awesome! What would you like to learn next?");
-            if (viewId === 'home-view') updateMascot("Choose a topic to begin your dictation journey.");
+            if (viewId === 'home-view') {
+                updateMascot("Choose a topic to begin your dictation journey.");
+                if (sheetCategoriesReady) renderCategories();
+                else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
+            }
             if (viewId === 'sub-category-view') {
                 updateMascot(currentTopic === NEW_VOCAB ? "New Vocab keeps every word. Added today is just this lesson." : `Ready to practice ${currentTopic}? Pick an activity!`);
                 if (currentTopic === NEW_VOCAB) nvEnter();
@@ -4356,7 +4711,14 @@
                 });
             }
             if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }
-            if (viewId === 'wordjump-view') { updateMascot("Jump, spell, climb — how high can you go?"); requestAnimationFrame(() => WJ.mount()); }
+            if (viewId === 'wordjump-view') {
+                updateMascot("Jump, spell, climb — how high can you go?");
+                const back = document.getElementById('wj-back-label');
+                if (back) back.innerText = (typeof WJ !== 'undefined' && WJ.backView === 'battle-view') ? 'Back to Word Battle' : 'Back to Hub';
+                if (sheetCategoriesReady) { /* topics already in memory */ }
+                else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
+                requestAnimationFrame(() => WJ.mount());
+            }
         }
 
         // Handle Enter key in quiz
@@ -4659,7 +5021,7 @@
 
         WJ.quit = function () {
             WJ.stop();
-            changeView('battle-view');
+            changeView(WJ.backView || 'hub-view');
         };
 
         WJ.togglePause = function () {
@@ -4752,7 +5114,7 @@
            determined student could fake one — keep this for classroom fun,
            not for assessment. */
         WJ.submitScore = function (score) {
-            if (!currentUser || typeof sb === 'undefined' || !sb) return;
+            if (!canUseCloud() || typeof sb === 'undefined' || !sb) return;
             const topic = (WJ.topic && WJ.topic !== '__all__') ? WJ.topic : 'all';
             sb.from('wj_scores').insert({
                 user_id: currentUser.id,
@@ -4783,6 +5145,10 @@
         WJ.loadLeaderboard = async function () {
             const box = () => document.getElementById('wj-lb');
             if (!box()) return;
+            if (isGuestUser()) {
+                box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p><p class="text-xs text-gray-400">Leaderboards are hidden in guest mode. Sign in with your school account to see class rankings.</p>';
+                return;
+            }
             if (typeof sb === 'undefined' || !sb) { box().innerHTML = '<p class="text-xs text-gray-400">The leaderboard needs a connection.</p>'; return; }
             try {
                 const { data, error } = await sb.from('wj_leaderboard')
@@ -4812,10 +5178,11 @@
             WJ.raf = 0;
             WJ.state = 'over';
             const score = WJ.score();
-            const prev = Number(localStorage.getItem('wj_best') || 0);
+            const store = isGuestUser() ? sessionStorage : localStorage;
+            const prev = Number(store.getItem('wj_best') || 0);
             const isBest = score > prev;
-            if (isBest) localStorage.setItem('wj_best', score);
-            localStorage.setItem('wj_words', Number(localStorage.getItem('wj_words') || 0) + WJ.wordsDone);
+            if (isBest) store.setItem('wj_best', score);
+            store.setItem('wj_words', Number(store.getItem('wj_words') || 0) + WJ.wordsDone);
             WJ.submitScore(score);
             WJ.beep(150, 0.4, 'sawtooth', 0.06);
             WJ.setOverlay(`
@@ -4833,7 +5200,7 @@
                         <p class="text-xs text-gray-300">Loading…</p>
                     </div>
                     <button onclick="WJ.restart(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
-                    <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Back to Word Battle</button>
+                    <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">${WJ.backView === 'battle-view' ? 'Back to Word Battle' : 'Back to Hub'}</button>
                 </div>`, true);
             WJ.loadLeaderboard();
             WJ.draw();
@@ -5385,7 +5752,7 @@
         };
 
         WJ.loadMilestones = async function () {
-            if (typeof sb === 'undefined' || !sb) return;
+            if (isGuestUser() || typeof sb === 'undefined' || !sb) { WJ.milestones = []; return; }
             const req = (WJ.milestoneReq = (WJ.milestoneReq || 0) + 1);
             try {
                 const { data, error } = await sb.from('wj_leaderboard')

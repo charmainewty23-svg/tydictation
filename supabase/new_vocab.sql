@@ -81,6 +81,7 @@ create policy "teacher manages new vocab" on public.new_vocab_words
 drop policy if exists "student reads own form vocab" on public.new_vocab_words;
 create policy "student reads own form vocab" on public.new_vocab_words
     for select
+    to authenticated
     using (form is not null and form = public.my_form());
 
 grant select, insert, update, delete on public.new_vocab_words to authenticated;

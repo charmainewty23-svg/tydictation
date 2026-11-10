@@ -218,6 +218,25 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
 
+### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
+
+年級**唔再**喺登入時叫學生揀。舊版只係把 `localStorage["student_form_level"]`
+（`F.4` / `F.6`）留喺學生自己部機，**冇**寫入 Supabase，所以老師畫面之前濾唔到。
+
+- **單一清單**：`FORM_LEVELS`（而家 `F4`、`F6`）。加新年級只改呢個陣列，
+  `id` 用 `F` + 年份（例如 `F5`）。篩選掣、老師下拉、同舊 localStorage 遷移都讀呢度。
+- 欄：`student_logins.form`（text，null = Unassigned）。
+- RPC：
+  - `claim_own_form(p_form)` — 學生登入時，如果部機仲有舊選擇，而且資料庫嗰行 `form` 仲係 null，先寫入。
+    **唔會**覆蓋老師已改嘅值。管理員帳戶唔會執走呢份 localStorage。
+    同一部瀏覽器只交俾第一個登入嘅學生（`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級。
+  - `set_student_form(p_email, p_form)` — 只限 `ADMIN_EMAIL`。每個老師畫面嘅學生行有下拉可以改；
+    揀「—」就變回 Unassigned。
+- 老師篩選：All / 每個 form / Unassigned，記住喺 `localStorage["teacher_form_filter"]`。
+  會改 Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown）、
+  Word Jump admin 排名，同埋老師先見到嘅 Hub Leaderboard。學生自己嗰個 Leaderboard 唔顯示呢個篩選。
+- 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`，個個暫時當 Unassigned。
+
 ---
 
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
@@ -454,7 +473,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     `changeView('admin-view')` 會自動 call。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，admin 卡顯示同一句提示，遊戲照玩。
-- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(100)`。
+- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(1000)`，
+  先至唔會因為全球頭 100 名冇晒某個 form 而濾走佢哋。畫面上嘅名次跟住 form 篩選重排。
 - 誠實聲明：分數由 client 寫入，**可以造假**；同 Word Battle 一樣只適合課堂激勵。
 
 ### 10.12 同學高度線（milestone markers）

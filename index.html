@@ -571,6 +571,7 @@
                         <button type="button" id="nv-scope-all" onclick="nvSetScope('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">All words</button>
                     </div>
                     <div id="nv-status" class="text-gray-500 font-bold mb-4"></div>
+                    <div id="nv-feedback" class="hidden mb-4 p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 font-bold text-sm leading-relaxed"></div>
                     <div id="nv-editor" class="hidden bg-orange-50 border-2 border-orange-100 rounded-2xl p-5 mb-6">
                         <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
                             <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
@@ -689,8 +690,9 @@
                                 <label class="text-sm text-gray-500 font-bold">Topic</label>
                                 <select id="battle-topic-select" onchange="battleSyncVocabForm()" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
                                 <div id="battle-vocab-form-wrap" class="hidden mb-4">
-                                    <label class="text-sm text-gray-500 font-bold">New Vocab form</label>
+                                    <label id="battle-vocab-form-label" class="text-sm text-gray-500 font-bold">New Vocab form</label>
                                     <select id="battle-vocab-form-select" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                    <p id="battle-vocab-form-hint" class="text-sm text-amber-700 font-bold mt-2 hidden"></p>
                                     <label class="text-sm text-gray-500 font-bold mt-3 block">Which words</label>
                                     <select id="battle-vocab-scope" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700">
                                         <option value="all" selected>Full bank</option>
@@ -1532,11 +1534,13 @@
         let nvRows = [];
         let nvSig = '';
         let nvSchemaMissing = false;
+        let formSchemaMissing = false;
         let nvEditingId = null;
         let nvFetchGen = 0;
         let nvSaving = false;
         let myFormValue = '';
         let myFormLoaded = false;
+        let ownFormPersisted = false;
 
         function quizLeave() {
             changeView(quizSource === 'errorbook' ? 'error-book-view' : 'sub-category-view');
@@ -1585,7 +1589,7 @@
                     return;
                 }
                 ebCloudNote = error && isMissingSchema(error.message)
-                    ? 'The error book table is not ready yet. Words stay on this account in this browser until supabase/new_vocab.sql is run.'
+                    ? 'The Error Book table is not ready yet, so missed words stay only on this device until you run supabase/student_forms.sql and then supabase/new_vocab.sql in the Supabase SQL editor (same setup as New Vocab; skip files you have already run). Then refresh.'
                     : '';
                 if (error && !isMissingSchema(error.message)) console.warn('Error book load failed:', error.message);
             } else {
@@ -1725,24 +1729,81 @@
             }, NV_POLL_MS);
         }
 
-        function nvActiveForm() {
-            if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
-            return myFormValue || '';
+        function nvSqlSetupHtml() {
+            return 'New Vocab and Error Book need a one-time setup in the <strong>Supabase SQL editor</strong>. Run these files in order (skip any you have already run; they are safe to re-run):'
+                + '<ol class="list-decimal ml-5 mt-2 mb-2 space-y-1 font-semibold">'
+                + '<li><code>supabase/login_tracking.sql</code> — skip if login tracking already works.</li>'
+                + '<li><code>supabase/student_forms.sql</code> — needed so each student has a form (F3 / F4 / F6).</li>'
+                + '<li>The Word Battle SQL files — skip if Word Battle already works.</li>'
+                + '<li><code>supabase/new_vocab.sql</code> — creates the New Vocab word bank and the Error Book table. If this was run before the battle tables, run it once more.</li>'
+                + '</ol>'
+                + 'Then refresh this page. Until that is done, Confirm cannot save a word, and students cannot see a form word bank.';
         }
 
-        async function fetchMyForm(force) {
-            if (!currentUser) { myFormValue = ''; myFormLoaded = true; return ''; }
-            if (myFormLoaded && !force) return myFormValue;
+        function nvShowFeedback(html, isError) {
+            const box = document.getElementById('nv-feedback');
+            if (!box) return;
+            if (!html) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+            box.classList.remove('hidden');
+            box.className = 'mb-4 p-4 rounded-2xl border-2 font-bold text-sm leading-relaxed ' + (isError
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : 'border-green-200 bg-green-50 text-green-800');
+            box.innerHTML = html;
+        }
+
+        function ownDisplayedForm() {
+            if (!currentUser || isAdmin()) return '';
+            const nick = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
+            return parseDisplayNameFormClass(displayedLoginName(currentUser.email, nick)).form || '';
+        }
+
+        function nvActiveForm() {
+            if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
+            return myFormValue || ownDisplayedForm() || '';
+        }
+
+        async function resolveOwnForm(force) {
+            if (!currentUser) { myFormValue = ''; myFormLoaded = true; ownFormPersisted = false; return ''; }
+            if (isAdmin()) { myFormLoaded = true; return nvEditForm || FORM_LEVELS[0].id; }
+            if (myFormLoaded && !force && ownFormPersisted) return myFormValue;
+            let stored = '';
             const { data, error } = await sb.rpc('my_form');
             myFormLoaded = true;
             if (error) {
-                nvSchemaMissing = isMissingSchema(error.message);
-                myFormValue = '';
-                return '';
+                formSchemaMissing = isMissingSchema(error.message);
+            } else {
+                formSchemaMissing = false;
+                stored = normalizeForm(data) || '';
             }
-            nvSchemaMissing = false;
-            myFormValue = normalizeForm(data) || '';
-            return myFormValue;
+            if (stored) {
+                myFormValue = stored;
+                ownFormPersisted = true;
+                return stored;
+            }
+            const inferred = ownDisplayedForm();
+            if (inferred && !formSchemaMissing) {
+                await claimSavedForm(currentUser);
+                const again = await sb.rpc('my_form');
+                if (!again.error) {
+                    stored = normalizeForm(again.data) || '';
+                    if (stored) {
+                        myFormValue = stored;
+                        ownFormPersisted = true;
+                        return stored;
+                    }
+                }
+            }
+            ownFormPersisted = false;
+            myFormValue = inferred;
+            return inferred;
+        }
+
+        async function fetchMyForm(force) {
+            return resolveOwnForm(force);
         }
 
         function nvEnsureFormSwitch() {
@@ -1778,31 +1839,27 @@
 
         async function nvRefresh(force) {
             const gen = ++nvFetchGen;
-            const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await fetchMyForm(true);
+            const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await resolveOwnForm(force || !myFormLoaded);
             if (gen !== nvFetchGen) return;
             const status = document.getElementById('nv-status');
             const activities = document.getElementById('dictation-activities');
             const scope = document.getElementById('nv-scope');
-            if (!isAdmin() && !currentUser) {
+            const hidePractice = () => {
                 nvRows = [];
                 nvApplyPractice();
-                if (status) status.innerText = 'Sign in with your school account, then ask your teacher to set your form.';
                 if (activities) activities.classList.add('hidden');
                 if (scope) scope.classList.add('hidden');
-                return;
-            }
-            if (!isAdmin() && nvSchemaMissing) {
-                if (status) status.innerText = 'New Vocab is not ready yet. Ask your teacher to run supabase/new_vocab.sql.';
-                if (activities) activities.classList.add('hidden');
-                if (scope) scope.classList.add('hidden');
+            };
+            if (!isAdmin() && !currentUser) {
+                hidePractice();
+                if (status) status.innerText = 'Sign in with your school account to open your form\'s New Vocab bank.';
+                nvShowFeedback('', false);
                 return;
             }
             if (!isAdmin() && !form) {
-                nvRows = [];
-                nvApplyPractice();
-                if (status) status.innerText = 'Your teacher still needs to set your form (F3, F4 or F6). Then this word bank will show up.';
-                if (activities) activities.classList.add('hidden');
-                if (scope) scope.classList.add('hidden');
+                hidePractice();
+                if (status) status.innerText = 'Your form is not set yet, so this word bank is closed.';
+                nvShowFeedback('Your displayed login name needs a class code such as 4C (the digit is the form: 3 → F3, 4 → F4, 6 → F6). If no name is shown, ask your teacher to assign F3, F4 or F6. You will not see another form\'s words.', true);
                 return;
             }
             if (scope) scope.classList.remove('hidden');
@@ -1813,12 +1870,11 @@
             if (gen !== nvFetchGen) return;
             if (error) {
                 nvSchemaMissing = isMissingSchema(error.message);
-                nvRows = [];
-                nvApplyPractice();
+                hidePractice();
                 if (status) status.innerText = nvSchemaMissing
-                    ? 'New Vocab is not ready yet. Run supabase/new_vocab.sql in the Supabase SQL editor.'
+                    ? 'New Vocab is not ready yet — the word-bank table has not been created.'
                     : 'Could not load New Vocab.';
-                if (activities) activities.classList.add('hidden');
+                nvShowFeedback(nvSchemaMissing ? nvSqlSetupHtml() : ('Could not load New Vocab: ' + escapeHtml(error.message || '')), true);
                 return;
             }
             nvSchemaMissing = false;
@@ -1828,6 +1884,9 @@
             nvRows = rows;
             nvApplyPractice();
             if (activities) activities.classList.remove('hidden');
+            if (scope) scope.classList.remove('hidden');
+            const fb = document.getElementById('nv-feedback');
+            if (fb && fb.className.indexOf('amber-') !== -1) nvShowFeedback('', false);
             nvRenderStatus();
             if (force || (sig !== nvSig && !typing)) {
                 nvSig = sig;
@@ -1950,6 +2009,7 @@
             const zh = (document.getElementById('nv-zh').value || '').trim();
             if (!en && !zh) {
                 updateMascot('Type the English, the Chinese, or both.');
+                nvShowFeedback('Type the English, the Chinese, or both, then press Confirm.', true);
                 return;
             }
             const form = nvEditForm || FORM_LEVELS[0].id;
@@ -1970,16 +2030,32 @@
             }
             if (error) {
                 const check = /new_vocab_words_has_text|check constraint/i.test(error.message || '');
-                updateMascot(check ? 'Type the English, the Chinese, or both.'
-                    : isMissingSchema(error.message)
-                    ? 'Run supabase/new_vocab.sql in the SQL editor before adding words.'
-                    : 'Could not save that word.');
+                const missing = isMissingSchema(error.message);
+                const msg = check ? 'Type the English, the Chinese, or both.'
+                    : missing
+                    ? 'Confirm could not save the word because the New Vocab table is missing.'
+                    : ('Could not save that word: ' + (error.message || 'please try again.'));
+                updateMascot(msg);
+                nvShowFeedback(missing ? (msg + ' ' + nvSqlSetupHtml()) : escapeHtml(msg), true);
                 console.warn(error.message);
                 return;
             }
             if (data) nvUpsertLocal(data);
+            const label = en || zh;
             nvStartNewWord();
-            nvRefresh(true);
+            await nvRefresh(true);
+            const visible = nvPracticeRows().some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh)
+                || nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh);
+            if (!visible && data) {
+                // Saved, but the current "Added today" filter hid it — switch so the new word is on screen.
+                if (nvScope === 'today') nvSetScope('all');
+            }
+            if (nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh) || data) {
+                if (data && !nvRows.some(w => Number(w.id) === Number(data.id))) nvUpsertLocal(data);
+                nvShowFeedback('Saved “' + escapeHtml(label) + '” to the ' + escapeHtml(form) + ' word bank. It is in the list below, and students in ' + escapeHtml(form) + ' can practise it now.', false);
+            } else {
+                nvShowFeedback('Confirm did not add the word to the list. ' + nvSqlSetupHtml(), true);
+            }
         }
 
         async function nvDeleteWord(id) {
@@ -3316,14 +3392,53 @@
 
         function battleFillVocabForms() {
             const sel = document.getElementById('battle-vocab-form-select');
-            if (!sel || sel.options.length) return;
-            sel.innerHTML = FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+            if (!sel) return;
+            const own = isAdmin() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (isAdmin()) {
+                const keep = normalizeForm(sel.value) || FORM_LEVELS[0].id;
+                sel.innerHTML = FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+                sel.value = keep;
+                sel.disabled = false;
+                sel.classList.remove('opacity-70');
+            } else if (own) {
+                sel.innerHTML = `<option value="${own}">${own}</option>`;
+                sel.value = own;
+                sel.disabled = true;
+                sel.classList.add('opacity-70');
+            } else {
+                sel.innerHTML = '';
+                sel.disabled = true;
+            }
         }
 
         function battleSyncVocabForm() {
             const topic = battleTopicValue();
             const wrap = document.getElementById('battle-vocab-form-wrap');
-            if (wrap) wrap.classList.toggle('hidden', topic !== NEW_VOCAB);
+            const hint = document.getElementById('battle-vocab-form-hint');
+            const label = document.getElementById('battle-vocab-form-label');
+            const isVocab = topic === NEW_VOCAB;
+            if (wrap) wrap.classList.toggle('hidden', !isVocab);
+            battleFillVocabForms();
+            const own = isAdmin() ? '' : (myFormValue || ownDisplayedForm() || '');
+            if (label) label.innerText = isAdmin() ? 'New Vocab form' : 'Your form';
+            if (!hint) return;
+            if (!isVocab) {
+                hint.classList.add('hidden');
+                hint.innerText = '';
+                return;
+            }
+            if (isAdmin()) {
+                hint.classList.add('hidden');
+                hint.innerText = '';
+                return;
+            }
+            if (!own) {
+                hint.className = 'text-sm text-amber-700 font-bold mt-2';
+                hint.innerText = 'Your form is not set yet, so you cannot open a New Vocab battle. Your displayed login name needs a class code such as 4C, or your teacher can assign F3, F4 or F6.';
+            } else {
+                hint.className = 'text-sm text-gray-500 font-bold mt-2';
+                hint.innerText = 'This battle will use the ' + own + ' New Vocab bank only.';
+            }
         }
 
         function battleTopicValue() {
@@ -3332,6 +3447,7 @@
         }
 
         function battleVocabForm() {
+            if (!isAdmin()) return normalizeForm(myFormValue || ownDisplayedForm() || '') || '';
             const sel = document.getElementById('battle-vocab-form-select');
             return normalizeForm(sel ? sel.value : '') || FORM_LEVELS[0].id;
         }
@@ -3360,6 +3476,10 @@
 
         async function battleAttachVocab(room) {
             const form = battleVocabForm();
+            if (!form) {
+                try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                return battleSetError('Your form is not set yet, so you cannot start a New Vocab battle.');
+            }
             const asked = battleQuestionCount();
             const todayOnly = battleVocabToday();
             const { data, error } = await sb.rpc('set_battle_vocab', { p_room_id: room.id, p_form: form, p_today_only: todayOnly });
@@ -3389,8 +3509,9 @@
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
         }
 
-        function battleEnter() {
+        async function battleEnter() {
             if (!currentUser) { updateMascot('Please login to play Word Battle.'); return; }
+            if (!isAdmin()) await resolveOwnForm(true);
             battlePopulateTopics();
             const qsel = document.getElementById('battle-count-select');
             if (qsel) {
@@ -3417,7 +3538,11 @@
         async function battleCreateRoom() {
             battleSetError('');
             if (!currentUser) return battleSetError('Please login first.');
+            if (!isAdmin()) await resolveOwnForm(true);
             const topic = battleTopicValue();
+            if (topic === NEW_VOCAB && !isAdmin() && !battleVocabForm()) {
+                return battleSetError('Your form is not set yet, so you cannot open a New Vocab battle. Ask your teacher to assign F3, F4 or F6, or sign in with a displayed name that includes a class code such as 4C.');
+            }
             if (topic !== NEW_VOCAB && !SHEET_NAMES.some(n => (categories[n] || []).length)) {
                 return battleSetError('Word bank is still loading — please wait a moment.');
             }
@@ -3455,11 +3580,25 @@
         async function battleJoinRoom() {
             battleSetError('');
             if (!currentUser) return battleSetError('Please login first.');
+            if (!isAdmin()) await resolveOwnForm(true);
             const input = document.getElementById('battle-code-input');
             const code = (input ? input.value : '').trim().toUpperCase();
             if (code.length !== 4) return battleSetError('Enter the 4-character room code.');
             const { data, error } = await sb.rpc('join_battle', { p_code: code });
             if (error) return battleSetError(battleErrorMessage(error));
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!isAdmin() && room && room.topic === NEW_VOCAB) {
+                const own = battleVocabForm();
+                const roomForm = normalizeForm(room.vocab_form || '');
+                if (!own) {
+                    try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                    return battleSetError('Your form is not set yet, so you cannot join a New Vocab battle.');
+                }
+                if (roomForm && roomForm !== own) {
+                    try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                    return battleSetError('That New Vocab battle is for ' + roomForm + '. You can only use the ' + own + ' word bank.');
+                }
+            }
             battleAdoptRoom(data);
         }
 

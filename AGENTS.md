@@ -526,8 +526,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
-- 學生冇 form：唔會見到其他年級嘅字，只見到要老師先設定年級。
-- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師喺編輯器輸入英／中文之後撳 **Confirm**（確認）掣，先會存入而家揀咗嗰個年級（F3／F4／F6）字庫，並即刻顯示喺下面字表；4 秒輪詢只係背景同步。空卡唔會存。刪除或清空仍然用 − 掣。
+- 學生只可以用**自己年級**嘅 New Vocab：顯示登入名稱入面嘅班別代號（例如 `4C 16 …` → F4），或者老師下拉指定嘅年級。Unassigned（冇顯示名稱、又冇老師指定）會見到清楚提示，**唔會**見到其他年級嘅字庫，亦唔可以開其他年級嘅 Listening／Recitation／Revision 或 Word Battle New Vocab。老師編輯字庫同開 battle 仍然可以揀 F3／F4／F6。
+- 學生進入 New Vocab 時，如果資料庫 `form` 仲係空，會用顯示名稱再 try `claim_own_form`，等 RLS（`my_form()`）可以讀到自己嗰份字庫，唔使再登入一次。老師加完字之後，已經開住 New Vocab 嘅學生會經 4 秒輪詢見到新字。
+- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師喺編輯器輸入英／中文之後撳 **Confirm**（確認）掣，先會存入而家揀咗嗰個年級（F3／F4／F6）字庫，並即刻顯示喺下面字表；4 秒輪詢只係背景同步。空卡唔會存。刪除或清空仍然用 − 掣。如果 `new_vocab.sql`／`student_forms.sql` 未跑，Confirm **唔可以**默默失敗：編輯器上面會出現明顯提示，並列出要喺 Supabase SQL editor 按次序跑嘅檔案。
 - 錯題簿：Dictation Master 嘅 **Error Book** 格，同 New Vocab 入面個掣。
   `checkAnswer` 第三次先錯就收入去（任何 Dictation 題目，包括 New Vocab）。
   喺錯題簿答對就刪走。登入寫 `error_book`（只可以讀寫自己）；未登入用
@@ -537,4 +538,4 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
 - SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql`。
-  未跑之前，登入同其他 topic 照用；New Vocab 顯示要跑 SQL。
+  未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，只需再跑 `student_forms.sql` 同 `new_vocab.sql`。

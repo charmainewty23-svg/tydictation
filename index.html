@@ -752,7 +752,7 @@
                         <div class="flex items-center gap-2 flex-wrap">
                             <select id="wj-topic" onchange="WJ.changeTopic(this.value)" class="p-2 px-3 rounded-xl border-2 border-emerald-100 bg-white font-bold text-gray-700 text-sm"></select>
                             <button id="wj-tilt-btn" onclick="WJ.enableTilt()" class="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">📱 Tilt: off</button>
-                            <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">⛶ 全屏</button>
+                            <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">⛶ Full screen</button>
                             <button id="wj-sound-btn" onclick="WJ.toggleSound()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔊 On</button>
                             <button onclick="WJ.togglePause()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⏸ Pause</button>
                         </div>
@@ -760,10 +760,10 @@
                     <div id="wj-stage" class="relative mx-auto rounded-2xl overflow-hidden border-2 border-emerald-100" style="max-width:420px; aspect-ratio:2/3;">
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
-                        <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ 全屏</button>
-                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ 退出全屏</button>
+                        <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ Full screen</button>
+                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ Exit full screen</button>
                     </div>
-                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · 右上角 ⛶ 可切換全屏</p>
+                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · the ⛶ button (top right) toggles full screen</p>
                 </div>
             </div>
 
@@ -3305,7 +3305,7 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 1300, JUMP_V: -822, WORD_BOOST: -980,
+            GRAVITY: 1610, JUMP_V: -1014, WORD_BOOST: -1224,
             MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 58,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
@@ -3467,7 +3467,7 @@
             const enter = document.getElementById('wj-fs-enter');
             if (enter) enter.classList.toggle('hidden', on);
             const btn = document.getElementById('wj-fs-btn');
-            if (btn) btn.innerText = on ? '⛶ 退出全屏' : '⛶ 全屏';
+            if (btn) btn.innerText = on ? '⛶ Exit full screen' : '⛶ Full screen';
             requestAnimationFrame(() => {
                 if (!WJ.mounted) return;
                 WJ.resize();
@@ -3603,10 +3603,10 @@
                         <p>🔥 Answer a few in a row for bonus points and a shield.</p>
                         <p>👆 <b>Tap anywhere else</b> to shoot at monsters and UFOs.</p>
                         <p>🧱 Brown breaks · white vanishes · yellow explodes · blue &amp; grey move.</p>
-                        <p>⛶ <b>全屏</b>：遊戲畫面右上角有 ⛶ 掣，隨時撳。全屏時底部有 <b>✕ 退出全屏</b>。</p>
+                        <p>⛶ <b>Full screen</b>: tap the ⛶ button in the top-right corner at any time. In full screen, <b>✕ Exit full screen</b> sits at the bottom.</p>
                     </div>
-                    <button onclick="WJ.start(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">⛶ 全屏開始</button>
-                    <button onclick="WJ.start(false)" class="w-full mt-2 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">視窗模式開始</button>
+                    <button onclick="WJ.start(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">⛶ Start in full screen</button>
+                    <button onclick="WJ.start(false)" class="w-full mt-2 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">Start in a window</button>
                     <p class="text-xs text-gray-400 mt-3">Best ${best} · Desktop: ← → and Space to shoot</p>
                 </div>`, true);
         };
@@ -3638,9 +3638,9 @@
             const mine = meId && row.user_id === meId;
             return `<div class="flex items-center gap-2 py-1 ${mine ? 'rounded-lg bg-emerald-50 px-1' : ''}">
                 <span class="w-6 text-center text-sm">${medal}</span>
-                <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${escapeHtml(name)}${mine ? ' (你)' : ''}</span>
+                <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${escapeHtml(name)}${mine ? ' (you)' : ''}</span>
                 <span class="text-xs font-bold text-indigo-600">${row.score}</span>
-                <span class="w-12 text-right text-[10px] text-gray-400">${row.words || 0} 字</span>
+                <span class="w-12 text-right text-[10px] text-gray-400">${row.words || 0} words</span>
             </div>`;
         };
 
@@ -3648,7 +3648,7 @@
         WJ.loadLeaderboard = async function () {
             const box = () => document.getElementById('wj-lb');
             if (!box()) return;
-            if (typeof sb === 'undefined' || !sb) { box().innerHTML = '<p class="text-xs text-gray-400">排行榜要連線先用得。</p>'; return; }
+            if (typeof sb === 'undefined' || !sb) { box().innerHTML = '<p class="text-xs text-gray-400">The leaderboard needs a connection.</p>'; return; }
             try {
                 const { data, error } = await sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays')
@@ -3658,15 +3658,15 @@
                 if (!box()) return;   // overlay may have been replaced meanwhile
                 if (error) throw error;
                 if (!data || !data.length) {
-                    box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 最佳 7 名</p><p class="text-xs text-gray-400">暫時未有紀錄 — 登入後玩一局就上榜。</p>';
+                    box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p><p class="text-xs text-gray-400">No scores yet — sign in and play a game to get on the board.</p>';
                     return;
                 }
                 const me = currentUser ? currentUser.id : null;
-                box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-1">🏆 最佳 7 名</p>' +
+                box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-1">🏆 Top 7</p>' +
                     data.map((r, i) => WJ.rankRow(i, r, me)).join('') +
-                    (currentUser ? '' : '<p class="text-[10px] text-gray-400 mt-2">你未登入，今局唔會上榜。</p>');
+                    (currentUser ? '' : '<p class="text-[10px] text-gray-400 mt-2">You are not signed in, so this game will not be saved.</p>');
             } catch (e) {
-                if (box()) box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 最佳 7 名</p><p class="text-xs text-gray-400">排行榜載入唔到（老師要喺 Supabase 跑 <code>wj_scores.sql</code>）。</p>';
+                if (box()) box().innerHTML = '<p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p><p class="text-xs text-gray-400">Leaderboard unavailable — ask your teacher to run <code>wj_scores.sql</code>.</p>';
             }
         };
 
@@ -3694,8 +3694,8 @@
                         <div><p class="text-3xl font-bold text-indigo-500">${WJ.wordsDone}</p><p class="text-xs text-gray-400">words</p></div>
                     </div>
                     <div id="wj-lb" class="text-left border-t border-gray-100 pt-3 mb-4">
-                        <p class="text-xs font-bold text-gray-400 mb-2">🏆 最佳 7 名</p>
-                        <p class="text-xs text-gray-300">載入中…</p>
+                        <p class="text-xs font-bold text-gray-400 mb-2">🏆 Top 7</p>
+                        <p class="text-xs text-gray-300">Loading…</p>
                     </div>
                     <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
                     <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Back to Word Battle</button>
@@ -3854,7 +3854,7 @@
             while (WJ.topY > targetY && guard++ < 300) {
                 // Leave a wider gap above a word row so the player has to come
                 // down on it instead of hopping straight over it.
-                const step = (WJ.afterQuiz ? WJ.rand(158, 198) : WJ.rand(84, 112)) * (1 - WJ.difficulty() * 0.1);
+                const step = (WJ.afterQuiz ? WJ.rand(240, 275) : WJ.rand(84, 112)) * (1 - WJ.difficulty() * 0.1);
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
                     // Keep at least 115px under the row: from a bounce there the
@@ -4054,8 +4054,8 @@
             });
 
             // --- vertical ---
-            if (p.jet > 0) p.vy = -775;
-            else if (p.prop > 0) p.vy = -195;
+            if (p.jet > 0) p.vy = -956;
+            else if (p.prop > 0) p.vy = -241;
             else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
 
             const prevFeet = p.y;

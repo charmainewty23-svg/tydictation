@@ -227,6 +227,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 | 位置 | 內容 |
 |---|---|
 | `#wordjump-view` | 工具列（topic／tilt／full screen／sound／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay`＋`#wj-exit-fs` |
+| 語言 | **全部介面文字用英文**（按鈕、說明、排行榜、admin 卡）。只有**題目本身**（`row.zh` 中文提示、`categories` 嘅中文答案、後備字表）保留中文，因為嗰啲係學習內容，唔係 UI。 |
 | `WJ.mount()` | 入 view 時 call（`changeView` 內 `requestAnimationFrame`），綁 input、resize、reset |
 | `WJ.stop()` | 離開 view 時 call（`changeView` 開頭 `WJ.stop()`），停 RAF、清 overlay |
 | `WJ.quit()` | 返回 `battle-view` |
@@ -274,13 +275,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 
 生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
 越高綠台越少、陷阱越多、平台間距亦輕微收窄。
-手感係「短促、唔飄」：`GRAVITY 1300`／`JUMP_V -822` → 跳高 **256px**、
-每次滯空 **1.26s**（最初 2000／−1030 係 1.03s，中間試過 750／−645 嘅 1.72s
-太飄，最後定喺呢個）。
+手感係「短促、夠高」：`GRAVITY 1610`／`JUMP_V -1014` → 跳高 **319px**、
+每次滯空 **1.26s**。先前係 1300／−822（跳高 256px），用戶反映「跳唔夠高」
+彈唔到上字磚，所以**只加跳高、唔加滯空**（G 同 V 一齊 ×1.23）。
+更早試過 2000／−1030（1.03s 太急）同 750／−645（1.72s 太飄）。
 想改而**保持跳高不變**：滯空乘 s，就 `GRAVITY ÷ s²`、`JUMP_V ÷ s`。
-例如想再「快上快落」（滯空 ×0.9）：`GRAVITY 1605`、`JUMP_V -740`。
-（跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍；字磚上 158–198px
-嘅空隙要跳得過，所以跳高唔可以低過 ~220px。）
+例如想再「快上快落」（滯空 ×0.9）：`GRAVITY 1988`、`JUMP_V -913`。
+（跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍。）
 
 ### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
 彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
@@ -297,18 +298,21 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   （難度 <0.3）或 3 個（之後）：1 個正確答案 + 1–2 個同題庫抽出嚟嘅干擾項。
 - HUD 頂部白卡顯示**中文**（`row.zh`）＋「JUMP ON THE RIGHT WORD」；
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
-- 踩中正確字磚：**彈高 369px**（`WJ.WORD_BOOST = -980` 取代原本 `JUMP_V -822`
-  嘅反彈，`h = 980² / (2 × 1300) = 369`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
+- 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -1224` 取代原本 `JUMP_V -1014`
+  嘅反彈，`h = 1224² / (2 × 1610) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
   讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 369px`；每連續 5 題送護盾 8 秒。
   **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
-  想彈得更高／矮就改 `WJ.WORD_BOOST`（-980 ≈ 369px；-1150 ≈ 508px；-800 ≈ 246px）。
+  想彈得更高／矮就改 `WJ.WORD_BOOST`（-1224 ≈ 465px；-1400 ≈ 609px；-1000 ≈ 311px）。
 - 踩錯：toast ❌ 顯示正確答案、連對清零（**唔會懲罰分數／唔會死**），
   正確嗰塊會變綠比玩家睇。
 - 答完／漏咗（跌落去）之後，`activeRow()` 自動跳去下一排。
-- 字磚上方刻意留 **158–198px** 大空隙（`WJ.afterQuiz`），逼玩家落返字磚排，
-  唔會一跳就飛過。
+- 字磚上方刻意留 **240–275px** 大空隙（`WJ.afterQuiz`），逼玩家落返字磚排，
+  唔會一跳就飛過。**呢個數要跟 `JUMP_V` 一齊調**：字磚離下面平台 115px，
+  所以跳高減 115 就係「可以由下面平台跳到幾高」；必須**細過**呢個空隙，
+  否則玩家可以直接跳過字磚唔答（原本跳高 256px 時空隙 158–198 剛好夠，
+  加到 319px 之後空隙要加到 240–275 先擋得住）。
 
 ### 10.7 題庫來源
 `WJ.wordPool()` 由 `categories`（Google Sheet）揀字，經 `primaryAnswer()` 取第一個答案，
@@ -326,11 +330,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1300）／`WJ.JUMP_V`（−822）／`WJ.MOVE_MAX`（240）／
+- 調手感改 `WJ.GRAVITY`（1610）／`WJ.JUMP_V`（−1014）／`WJ.MOVE_MAX`（240）／
   `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（58）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
-  道具上升速度 `jet -775`／`prop -195` 要一齊按比例調。
+  道具上升速度 `jet -956`／`prop -241` 要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
   `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
   （240 × 0.45 = 108 px/s）。

@@ -3306,7 +3306,7 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1610, JUMP_V: -1014, WORD_BOOST: -1224,
-            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 58,
+            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
@@ -3321,7 +3321,7 @@
             player: null,
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
-            boostPending: false,
+            boostPending: false, lastX: null,
             topic: '', soundOn: true, audio: null,
             lastShot: 0, bound: false, autoFs: false
         };
@@ -3409,6 +3409,7 @@
             WJ.bonus = 0;
             WJ.wordsDone = 0;
             WJ.boostPending = false;
+            WJ.lastX = null;
             WJ.streak = 0;
             WJ.bestStreak = 0;
             WJ.nextQuizY = -560;
@@ -3782,6 +3783,9 @@
                 x += w + gap;
             });
             WJ.quizRows.push(row);
+            // A word row spans the screen, so the next platform may start
+            // anywhere above it.
+            WJ.lastX = null;
         };
 
         WJ.answerRow = function (row, pl) {
@@ -3853,14 +3857,22 @@
             let guard = 0;
             while (WJ.topY > targetY && guard++ < 300) {
                 // Leave a wider gap above a word row so the player has to come
-                // down on it instead of hopping straight over it.
-                const step = (WJ.afterQuiz ? WJ.rand(240, 275) : WJ.rand(84, 112)) * (1 - WJ.difficulty() * 0.1);
+                // down on it instead of hopping straight over it. The first
+                // few screens are deliberately crowded - at 108px/s the player
+                // could not cross the screen in one jump, so a lonely platform
+                // far away was literally unreachable.
+                const opening = WJ.maxClimb < 1500 && !WJ.afterQuiz;
+                const base = WJ.afterQuiz ? WJ.rand(240, 275)
+                          : opening ? WJ.rand(68, 90)
+                          : WJ.rand(84, 112);
+                const step = base * (1 - WJ.difficulty() * 0.1);
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
                     // Keep at least 115px under the row: from a bounce there the
                     // player cannot reach the next platform above, so he has to
                     // come down on the word row instead of sailing past it.
                     const quizY = Math.min(WJ.nextQuizY, WJ.topY - 115);
+                    WJ.safePadUnder(WJ.topY);
                     WJ.spawnQuizRow(quizY);
                     WJ.topY = quizY;
                     WJ.nextQuizY = quizY - WJ.rand(WJ.QUIZ_GAP_MIN, WJ.QUIZ_GAP_MAX);
@@ -3873,10 +3885,35 @@
             }
         };
 
+        /* The platform a word row sits on has to be a dependable launch pad.
+           A brown one breaks (no bounce) and a white one vanishes after one
+           hop, which is exactly what "I cannot jump up to the tile" felt like. */
+        WJ.safePadUnder = function (y) {
+            const pl = WJ.platforms[WJ.platforms.length - 1];
+            if (!pl || pl.type === 'quiz') return;
+            if (Math.abs(pl.y - y) > 0.5) return;
+            pl.type = 'green';
+            pl.amp = 0; pl.speed = 0;
+            pl.phase = 0;
+            pl.x = pl.baseX = WJ.clamp(pl.x, 8, WJ.W - pl.w - 8);
+            pl.y = pl.baseY = y;
+        };
+
         WJ.spawnPlatform = function (y) {
             const d = WJ.difficulty();
-            const w = WJ.rand(62, 90);
-            const x = WJ.rand(8, WJ.W - w - 8);
+            const opening = WJ.maxClimb < 1500;
+            const w = opening ? WJ.rand(74, 104) : WJ.rand(62, 90);
+            // Keep every platform within one jump of the previous one. The
+            // horizontal speed starts at 108px/s, so a platform on the far side
+            // of the screen simply could not be reached - that was the real
+            // "cannot jump up" bug, not the jump height.
+            const air = (2 * Math.abs(WJ.JUMP_V)) / WJ.GRAVITY;
+            const reach = WJ.speedCap() * air * 0.8 + w * 0.8 + 16;
+            const prevX = (WJ.lastX == null) ? WJ.W / 2 : WJ.lastX;
+            const lo = Math.max(8, prevX - reach - w / 2);
+            const hi = Math.min(WJ.W - w - 8, prevX + reach - w / 2);
+            const x = (hi > lo) ? WJ.rand(lo, hi) : WJ.rand(8, WJ.W - w - 8);
+            WJ.lastX = x + w / 2;
             const table = [
                 ['green', 52 - 16 * d],
                 ['blue', 14],
@@ -4091,12 +4128,35 @@
 
             // --- landing ---
             if (p.vy > 0) {
-                for (const pl of WJ.platforms) {
-                    if (pl.dead) continue;
-                    if (prevFeet <= pl.y + 1 && p.y >= pl.y &&
-                        p.x + p.w * 0.34 > pl.x && p.x - p.w * 0.34 < pl.x + pl.w) {
-                        WJ.land(pl);
-                        break;
+                // A word row behaves like one long ledge: falling anywhere on
+                // it drops you onto the nearest tile. Before this, dropping
+                // into the 8px gap between two tiles, or just past the last
+                // one, sent the player straight through the row - which read
+                // as "I cannot get up onto the word".
+                let landedRow = false;
+                for (const row of WJ.quizRows) {
+                    if (row.resolved) continue;
+                    if (!(prevFeet <= row.y + 1 && p.y >= row.y)) continue;
+                    let best = null, bd = 1e9;
+                    for (const pl of WJ.platforms) {
+                        if (pl.dead || pl.row !== row) continue;
+                        const dd = Math.abs((pl.x + pl.w / 2) - p.x);
+                        if (dd < bd) { bd = dd; best = pl; }
+                    }
+                    if (!best) continue;
+                    p.x = WJ.clamp(p.x, best.x + p.w * 0.3, best.x + best.w - p.w * 0.3);
+                    WJ.land(best);
+                    landedRow = true;
+                    break;
+                }
+                if (!landedRow) {
+                    for (const pl of WJ.platforms) {
+                        if (pl.dead) continue;
+                        if (prevFeet <= pl.y + 1 && p.y >= pl.y &&
+                            p.x + p.w * 0.4 > pl.x && p.x - p.w * 0.4 < pl.x + pl.w) {
+                            WJ.land(pl);
+                            break;
+                        }
                     }
                 }
             }
@@ -4681,7 +4741,9 @@
                 ctx.textBaseline = 'middle';
                 ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
                 ctx.fillStyle = toast.color;
-                ctx.fillText(toast.text, WJ.W / 2, 96, WJ.W - 24);
+                // Low on the screen: at y=96 the answer feedback used to land
+                // right on top of the word tiles and hide them.
+                ctx.fillText(toast.text, WJ.W / 2, WJ.H - 140, WJ.W - 24);
                 ctx.globalAlpha = 1;
             }
         };

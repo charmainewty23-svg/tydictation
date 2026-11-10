@@ -248,17 +248,18 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   11° = 100%。覺得太敏感就加 `TILT_RANGE`，太鈍就減；想「細傾更慢」就加大
   `TILT_CURVE`（1.0 = 完全線性）。
 - **左右速度（按輸入比例）**：`MOVE_MAX 240`、`STEER_RATE 22`（加速）、
-  `STEER_STOP 58`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
-  到 95%，放手**滑 1–4px**（基本即停）。`|dir| < 0.04` 當 0；只有 `target = 0`
-  而且 `|vx| < 1.5` 才歸零（否則慢速微調永遠起唔到步）。
+  `STEER_STOP 30`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
+  到 95%，放手**滑 2–8px**（開頭 ~4px、頂速 ~8px；用戶要「加強滑度」時由 58 減到 30，
+  減得越細越滑）。`|dir| < 0.04` 當 0；只有 `target = 0` 而且 `|vx| < 1.5`
+  才歸零（否則慢速微調永遠起唔到步）。
   **注意**：以前嘅 `MOVE_ACC` + `FRICTION × (1-|dir|)³` 模型已經刪走——
   摩擦力係常數、唔隨速度變，結果係「一過門檻就衝到頂速、門檻以下完全唔郁」，
   冇中間速，呢個就係「太快」嘅根源。
 - **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.45 + 0.55 × min(1, maxClimb/3200))`，
   即係**每局開頭 108 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 3.7s 變 1.7s）。
-  實測（2026-11）開頭最多慢到 108 都唔會令平台「跳唔到」——因為垂直間距只有
-  84–112px，一跳 256px 高已經覆蓋到上面兩三排平台，橫向需求反而分散。
-  想慢就減 `MOVE_MAX`／`SPEED_RAMP_FROM`（0.45）；想開頭快返就加。
+  **但係 108 px/s 唔夠橫越成個畫面**：滯空 1.26s 只行到 **136px**，所以平台
+  唔可以擺得太遠——見 §10.3 嘅 `reach` 限制。想慢就減 `MOVE_MAX`／
+  `SPEED_RAMP_FROM`（0.45）；想開頭快返就加（改完要順便睇 `reach`）。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -275,6 +276,25 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 
 生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
 越高綠台越少、陷阱越多、平台間距亦輕微收窄。
+
+**三個「跳唔到」修正（2026-11，用戶連續三次反映）：**
+
+1. **平台之間唔會再隔一個畫面咁遠**（`spawnPlatform`）：下一個平台嘅 x 會夾喺
+   `WJ.lastX ± reach`，`reach = speedCap() × 滯空 × 0.8 + 平台寬 × 0.8 + 16`
+   （開頭 **203px**、頂速 **334px**）。之前 x 係全畫面隨機，開頭 108px/s
+   只跳到 136px，所以對面嘅平台**根本去唔到**——呢個先係「跳唔上字磚」嘅真兇。
+   `WJ.quizRows` 一生成就 `WJ.lastX = null`（字磚橫跨成個畫面，上面任何位置都到）。
+2. **字磚下面一定有綠色實心台**（`WJ.safePadUnder`）：生成字磚排之前，會將
+   正下方嗰塊（`topY`，距離剛好 115px）強制轉做 `green`、`amp 0`。
+   之前 40% 字磚下面係棕／白／黃／移動台：棕台踩中即斷（唔彈），
+   白台彈完即消失，所以「明明跳咗都上唔到字磚」。
+3. **字磚排 = 一條橫跨畫面嘅長台**（`WJ.update` landing）：只要由上向下穿過
+   `row.y`，就一定落喺最近嗰塊字磚（會將 `p.x` 微調入該磚）。
+   之前 8px 磚隙、兩側 26px 邊位都會直接穿過跌落去。
+   ⚠️ 只改 resolved = false 嘅排；答完嘅排照舊可以穿過落下面平台。
+
+**開頭加密**（`genUpTo`）：`maxClimb < 1500` 時步距 `rand(68, 90)`、平台寬
+`rand(74, 104)`（平時 `84–112`／`62–90`），所以最初十幾塊台又密又闊。
 手感係「短促、夠高」：`GRAVITY 1610`／`JUMP_V -1014` → 跳高 **319px**、
 每次滯空 **1.26s**。先前係 1300／−822（跳高 256px），用戶反映「跳唔夠高」
 彈唔到上字磚，所以**只加跳高、唔加滯空**（G 同 V 一齊 ×1.23）。
@@ -306,7 +326,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
   想彈得更高／矮就改 `WJ.WORD_BOOST`（-1224 ≈ 465px；-1400 ≈ 609px；-1000 ≈ 311px）。
 - 踩錯：toast ❌ 顯示正確答案、連對清零（**唔會懲罰分數／唔會死**），
-  正確嗰塊會變綠比玩家睇。
+  正確嗰塊會變綠比玩家睇。Toast 畫喺 `WJ.H - 140`（畫面底部、方向 pad 之上）——
+  以前畫喺 `y = 96`，啱啱好蓋住上面嗰排字磚。
 - 答完／漏咗（跌落去）之後，`activeRow()` 自動跳去下一排。
 - 字磚上方刻意留 **240–275px** 大空隙（`WJ.afterQuiz`），逼玩家落返字磚排，
   唔會一跳就飛過。**呢個數要跟 `JUMP_V` 一齊調**：字磚離下面平台 115px，
@@ -325,19 +346,23 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 ### 10.8 分數與儲存
 - 分數 = `max(0, floor(maxClimb / 10) + bonus)`；`bonus` 來自答對、殺怪、踩怪。
 - `maxClimb` = 全場最高點（`WJ.maxClimb = max(maxClimb, -p.y)`），所以**答對字磚
-  嗰下嘅 369px 彈升會永久計入 height 分**（+36 分），就算之後跌返落嚟都唔會扣。
+  嗰下嘅 465px 彈升會永久計入 height 分**（+46 分），就算之後跌返落嚟都唔會扣。
 - `localStorage["wj_best"]` 最高分、`localStorage["wj_words"]` 累計答對題數（只加不減）。
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
 - 調手感改 `WJ.GRAVITY`（1610）／`WJ.JUMP_V`（−1014）／`WJ.MOVE_MAX`（240）／
-  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（58）／`WJ.TILT_RANGE`（11）／
+  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（30）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
   道具上升速度 `jet -956`／`prop -241` 要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
   `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
   （240 × 0.45 = 108 px/s）。
+- 想改開頭有幾密：`genUpTo` 嘅 `opening`（`maxClimb < 1500`）同 `rand(68, 90)`；
+  平台闊度喺 `spawnPlatform` 嘅 `opening ? rand(74, 104) : rand(62, 90)`。
+- 平台橫向距離上限 `reach` 喺 `spawnPlatform`；**加 `SPEED_RAMP_FROM` 可以放寬**，
+  減就要收窄，否則又會出現「對面平台去唔到」。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →

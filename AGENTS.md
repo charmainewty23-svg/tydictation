@@ -17,14 +17,21 @@
 - Sheet ID：`1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU`（擁有人＝本專案擁有人，可直接改）。
 - 讀取方式：`loadAllCategoriesFromSheet()` 經 gviz CSV 公開讀取，
   `https://docs.google.com/spreadsheets/d/<ID>/gviz/tq?tqx=out:csv&sheet=<tab名>`。
-- Tab（17 個，見 `SHEET_NAMES`）：charity, entertainment, environmental issues, family,
+- Tab（20 個，見 `SHEET_NAMES`）：charity, entertainment, environmental issues, family,
   fashion, festivals, food and restaurants, health, housing, law and order,
   modern communication, people, animals and pets, school, Shopping,
-  social affairs, MTR stations。
-- 欄位格式（每 tab 三欄，**第一行是標題會被 skip**）：`序號, 英文, 中文`。
-  `parseCSV()` 取 `parts[1]` 作 `en`、`parts[2]` 作 `zh`。
+  social affairs, MTR stations, sports, exam focus, basics。
+- 欄位格式（每 tab 三欄）：`序號, 英文, 中文`。`parseCSV()` 取 `parts[1]` 作 `en`、
+  `parts[2]` 作 `zh`。
+- **第一行**：大部分 tab 第一行係標題（例如 `Charity Level 1: ...`），會被 skip；
+  `basics` tab **冇**標題行，所以 `parseCSV()` 改成「第一行唔似資料（第二欄空
+  或第一欄唔係數字）才 skip」，兩款格式都食得住。
+- **一個 cell 多個答案**：例如 `plaza / square / mall`、`flat/unit`。
+  `answerVariants()` 用 `/` 切開，`isAnswerCorrect()` 接受任何一個寫法；
+  語音朗讀同 hint 只用**第一個**（`primaryAnswer()`）。新增題目照舊用 ` / ` 分隔就得。
 - **加新 topic 三步**：Sheet 加新 tab（同樣三欄格式）→ `SHEET_NAMES` 加名 →
   `renderCategories()` 嘅 emoji map 加 icon。缺 emoji 會 fallback 📦。
+  想個名顯示得靚（例如 `basics` → `Basics`）就加落 `TOPIC_LABELS`。
 - **gviz 只讀**：寫入一定要經其他通道（見 §5，成績唔擺 Sheet）。
 
 ## 3. 檔案地圖
@@ -37,7 +44,7 @@
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
 | `grammar-revision-view` | 時態格（`renderTenseGrid`，`showTenseDetail`） |
 | `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填） |
-| `home-view` | 17 topic 格（`#categories-grid`，Sheet 載入後填） |
+| `home-view` | 20 topic 格（`#categories-grid`，Sheet 載入後填） |
 | `sub-category-view` | Listening／Recitation／Revision 三個活動 |
 | `quiz-view` | 測驗主體（speaker 鈕／中文大字／input／hint／計分） |
 | `word-list-view` | Revision 單字表（`showWordList`） |
@@ -124,7 +131,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 ## 7. 已知問題
 
 1. `renderTenseGrid()` 要等 Sheet load 完先跑——斷網／quota 爆會連文法格都出唔到。修：拆開獨立呼叫。
-2. 每次入頁 fetch 足 17 個 tabs，無快取。修：抄 `sessionStorage` 10 分鐘快取（其他專案現成 pattern）。
+2. 每次入頁 fetch 足 20 個 tabs，無快取。修：抄 `sessionStorage` 10 分鐘快取（其他專案現成 pattern）。
 3. 分數零持久化（Phase 1 解決）。
 4. `Shopping` tab 大細楷同其他唔一致，改名要連 `SHEET_NAMES` 一齊改。
 

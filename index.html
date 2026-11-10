@@ -766,7 +766,11 @@
 
     <script>
         const SPREADSHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
-        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports", "exam focus"];
+        const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports", "exam focus", "basics"];
+
+        // Display-only label overrides (Sheet tab names stay untouched).
+        const TOPIC_LABELS = { "basics": "Basics" };
+        function topicLabel(name) { return TOPIC_LABELS[name] || name; }
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
         const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
 
@@ -943,14 +947,48 @@
         function parseCSV(text) {
             const lines = text.split(/\r?\n/);
             const data = [];
-            for (let i = 1; i < lines.length; i++) {
+            const seen = new Set();
+            for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
                 const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
-                if (parts.length >= 3) data.push({ cat: parts[0], en: parts[1], zh: parts[2] });
-                else if (parts.length === 2) data.push({ cat: '', en: parts[0], zh: parts[1] });
+                // Most tabs start with a title row like "Charity Level 1: ..."; the
+                // "basics" tab does not, so only skip a first row that is not data.
+                if (i === 0 && (parts.length < 3 || !parts[1] || !/^\d+$/.test(parts[0]))) continue;
+                let row;
+                if (parts.length >= 3) row = { cat: parts[0], en: parts[1], zh: parts[2] };
+                else if (parts.length === 2) row = { cat: '', en: parts[0], zh: parts[1] };
+                else continue;
+                if (!row.en) continue;
+                // the sheet sometimes repeats a row (e.g. "fifteen")
+                const key = row.en.toLowerCase() + '|' + row.zh.toLowerCase();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                data.push(row);
             }
             return data;
+        }
+
+        // One cell may hold several accepted answers, e.g. "plaza / square / mall".
+        function answerVariants(en) {
+            const out = String(en || '').split('/').map(s => s.trim()).filter(Boolean);
+            return out.length ? out : [String(en || '').trim()];
+        }
+
+        function primaryAnswer(en) {
+            return answerVariants(en)[0];
+        }
+
+        function quizNormalize(s) {
+            return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        }
+
+        // `normalize` lets the battle mode reuse its punctuation-insensitive rules.
+        function isAnswerCorrect(input, en, normalize) {
+            const norm = normalize || quizNormalize;
+            const typed = norm(input);
+            if (!typed) return false;
+            return answerVariants(en).some(v => norm(v) === typed);
         }
 
         function renderCategories() {
@@ -962,8 +1000,8 @@
                 const div = document.createElement('div');
                 div.className = "category-box shadow-sm";
                 div.onclick = () => selectTopic(cat);
-                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝" };
-                div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${cat}</div>`;
+                const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝", "basics": "🔤" };
+                div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${topicLabel(cat)}</div>`;
                 container.appendChild(div);
             });
         }
@@ -971,7 +1009,7 @@
         function selectTopic(topic) {
             currentTopic = topic;
             currentSubCategory = '';
-            document.getElementById('current-topic-title').innerText = topic;
+            document.getElementById('current-topic-title').innerText = topicLabel(topic);
             changeView('sub-category-view');
         }
 
@@ -1045,7 +1083,7 @@
 
         function speakCurrentWord() {
             if (quizIdx >= quizWords.length) return;
-            const word = quizWords[quizIdx].en;
+            const word = primaryAnswer(quizWords[quizIdx].en);
             const utterance = new SpeechSynthesisUtterance(word);
             utterance.lang = 'en-US';
             utterance.rate = 0.9;
@@ -1053,7 +1091,7 @@
         }
 
         function provideHint() {
-            const word = quizWords[quizIdx].en;
+            const word = primaryAnswer(quizWords[quizIdx].en);
             if (hintCount < word.length) {
                 hintCount++;
                 updateHintDisplay();
@@ -1061,7 +1099,7 @@
         }
 
         function updateHintDisplay() {
-            const word = quizWords[quizIdx].en;
+            const word = primaryAnswer(quizWords[quizIdx].en);
             const userInput = document.getElementById('quiz-answer-input').value.toLowerCase();
             let display = "";
             for (let i = 0; i < word.length; i++) {
@@ -1098,10 +1136,8 @@
         }
 
         function checkAnswer() {
-            const userVal = document.getElementById('quiz-answer-input').value.trim().toLowerCase();
-            const correctVal = quizWords[quizIdx].en.toLowerCase();
-            
-            const isCorrect = userVal === correctVal;
+            const typed = document.getElementById('quiz-answer-input').value;
+            const isCorrect = isAnswerCorrect(typed, quizWords[quizIdx].en);
 
             if (isCorrect) {
                 quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: true });
@@ -2223,7 +2259,7 @@
             if (!sel) return;
             const names = SHEET_NAMES.filter(n => (categories[n] || []).length);
             sel.innerHTML = '<option value="__random__">🎲 All topics (random)</option>' +
-                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(topicLabel(n))}</option>`).join('');
         }
 
         function battleStartPolling() {
@@ -2457,7 +2493,7 @@
             const w = battleWords[battleIdx];
             if (!w) return;
             const elapsed = Math.min(BATTLE_TIME_MS, Date.now() - battleQStart);
-            const ok = battleNormalize(inp.value) === battleNormalize(w.en);
+            const ok = isAnswerCorrect(inp.value, w.en, battleNormalize);
             battleLastAnswer = inp.value.trim().slice(0, 60);
             battleLastCorrect = ok;
             battleRecordAnswer(battleIdx, w.en, battleLastAnswer, ok, elapsed);
@@ -2714,7 +2750,7 @@
         function battleSpeak() {
             const w = battleWords[battleIdx];
             if (!w) return;
-            const utterance = new SpeechSynthesisUtterance(w.en);
+            const utterance = new SpeechSynthesisUtterance(primaryAnswer(w.en));
             utterance.lang = 'en-US';
             utterance.rate = 0.9;
             speechSynthesis.cancel();

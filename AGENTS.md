@@ -227,32 +227,37 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 - **單一清單**：`FORM_LEVELS`（而家 `F3`、`F4`、`F6`）。加新年級只改呢個陣列，
   `id` 用 `F` + 年份（例如 `F5`）。老師下拉、顯示名稱解析、畫面分組、同舊 localStorage 遷移都讀呢度。
-- 欄：`student_logins.form`（text，null = Unassigned，畫面會再按**顯示登入名稱**入面嘅班別代號推斷）。
-- 每個學生嘅年級，優先用 `student_logins.form`（或老師呢次改嘅下拉），否則只由
-  **顯示登入名稱**推斷（登入時 Google `user_metadata.full_name`，寫入 `student_logins.nickname`，
-  老師名單行上面嘅 `nickname`）。規則（`parseDisplayNameFormClass`／`formFromFirstDigit`）：
+- 欄：`student_logins.form`（text，null = Unassigned）同 `form_source`
+  （`teacher` = 老師下拉，`auto` = 由顯示名稱班別代號自動寫入，null = Unassigned）。
+  畫面會再按**顯示登入名稱**入面開頭嘅班別代號推斷。`form_source` 喺
+  `supabase/student_forms_source.sql`（或更新咗嘅 `student_forms.sql`）先有；未跑之前網站唔會壞。
+- 每個學生嘅年級，老師呢次改嘅下拉永遠優先（`form_source = teacher` 嘅已存 `form`）。
+  否則**只由顯示登入名稱**推斷（登入時 Google `user_metadata.full_name`，寫入
+  `student_logins.nickname`，老師名單行上面嘅 `nickname`）。規則
+  （`parseDisplayNameFormClass`／`formFromClassCodeAtStart`）：
   - **唔會**用電郵 local-part 估年級。學校 Google 登入好似 `s231014@lstyoungkhl.edu.hk`，
     前面嗰個 `23` 係學號／入學年份，唔係級別。
-  - 顯示名稱通常以班別代號開頭，再係班號同姓名，例如 `4C 16 Lai Ka Lok 黎嘉樂`、
-    `3A 08 Chan Tai Man`、`6D 21 Wong`。取名稱入面**第一個數字**；如果對應
-    `FORM_LEVELS`（而家 3 → F3、4 → F4、6 → F6），就歸入嗰個年級。
-    上面第一個例子：電郵係 `s231014@…`，顯示名稱係 `4C 16 Lai Ka Lok 黎嘉樂` → F4，班別徽章 `4C`。
-  - 班別徽章只喺嗰個第一個年級數字後面清楚跟住一個班別字母先顯示（字母後面係結尾、
-    空白、數字、或者分隔符）。
-  - 冇顯示名稱（或者名稱只係電郵／`s231014` 呢類 local-part 後備），又或者第一個數字
-    唔係 3／4／6，就歸入 Unassigned。
+  - 只會喺顯示名稱**開頭**清楚提供班別代號時先分到 F3／F4／F6，例如 `4C 16 Lai Ka Lok 黎嘉樂`、
+    `3A 08 Chan Tai Man`、`6D 21 Wong`，或者 `Form 4C …`。代號係 3／4／6 緊接一個班別字母
+    （字母後面係結尾、空白、數字、或者分隔符）。上面第一個例子：電郵係 `s231014@…`，
+    顯示名稱係 `4C 16 Lai Ka Lok 黎嘉樂` → F4，班別徽章 `4C`。
+  - 名稱入面後面先出現嘅 3／4／6（學號、年份、或者姓名中間一個數字）**唔算**班別。
+    例如 `Liu Chun Ming` 冇班別數字，必須歸入 Unassigned，就算舊自動分類曾經把佢寫成 F6。
+  - 冇顯示名稱（或者名稱只係電郵／`s231014` 呢類 local-part 後備），又或者開頭冇班別代號，
+    就歸入 Unassigned。
   - 老師畫面用每行嘅 `nickname`；如果嗰行冇可用顯示名稱，再由 `student_logins` 目錄補。
-    資料庫 `form` 如果仲係空，只要有顯示名稱，畫面會即刻按班別代號分組。
-    學生登入時如果資料庫仍然係空，會用顯示名稱推斷出嚟嘅年級 call `claim_own_form` 寫入；
-    **唔會**覆蓋老師已改嘅值，亦**唔會**用電郵估。
+    已存嘅自動／不明 `form` 喺顯示名稱冇班別代號時會被畫面忽略，所以 `Liu Chun Ming`
+    會即刻出現喺 Unassigned。老師下拉仍然會即時生效並寫入 `form_source = teacher`。
+    學生登入時，有班別代號先會 `claim_own_form` 寫入（`form_source = auto`）；
+    冇班別代號會叫 RPC 清走舊自動分類，**唔會**覆蓋老師已改嘅值，亦**唔會**用電郵或
+    舊 localStorage 估年級。
 - RPC：
-  - `claim_own_form(p_form)` — 學生登入時，如果資料庫嗰行 `form` 仲係 null，先寫入。
-    優先用顯示登入名稱推斷出嚟嘅年級；否則先用部機舊選擇。**唔會**覆蓋老師已改嘅值，
-    亦唔會用電郵估。管理員帳戶唔會執走呢份 localStorage。舊 localStorage 選擇只交俾
-    第一個登入嘅學生（`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級；
-    顯示名稱推斷唔受呢個鎖影響。
+  - `claim_own_form(p_form)` — 學生登入時，用顯示名稱開頭嘅班別代號寫入（`form_source = auto`），
+    或者用空字串清走舊自動分類。**唔會**覆蓋老師已改嘅值（`form_source = teacher`），
+    亦唔會用電郵或舊 localStorage 估。管理員帳戶唔會 claim。
   - `set_student_form(p_email, p_form)` — 只限 `ADMIN_EMAIL`。每個老師畫面嘅學生行有下拉可以改或補正；
-    揀「—」就變回 Unassigned（下次重新載入時，如果顯示名稱仍然推斷到年級，畫面會再按班別代號歸類）。
+    揀「—」就變回 Unassigned（並清走 `form_source`）。下次重新載入時，如果顯示名稱仍然
+    有班別代號，畫面會再按代號歸類。
 - 老師畫面**唔再用** All / F3 / F4 / F6 / Unassigned 篩選掣，亦唔再讀 `localStorage["teacher_form_filter"]`。
   改為同一頁自動按每個學生顯示名稱入面嘅班別代號分成 F3、F4、F6、Unassigned 幾個部分：
   Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown；
@@ -266,7 +271,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 學校 Google 登入保持不變。登入頁另外有 **Guest login**：每次新分頁／新瀏覽器 session 要輸入密碼 `0203` 先入到網站。正確之後用 `sessionStorage` 記住呢次分頁，刷新同一分頁唔使再輸入；關咗分頁或撳 Logout 就要再輸入。**唔會**用 Google 帳戶，亦唔會寫入 `student_logins`、成績表、Word Jump／Word Battle 排行榜。
 
-訪客當 Unassigned 用 New Vocab（可睇全部年級新增生字），同埋可以用 Dictation Master（包括 New Vocab、Error Book）、Grammar Quest、Word Jump 練習。Word Battle 房間（開房／加入）要學校 Google 帳戶；訪客喺 Word Battle 頁只可以撳入 Word Jump。
+訪客可以睇同用 **Dictation Master 入面全部內容**：Google Sheet 各個 topic、New Vocab（當 Unassigned，可睇全部年級新增生字）、Listening／Recitation／Revision，同埋呢次 session 嘅 Error Book。亦可以玩 Word Jump 練習（Hub 有獨立入口，Word Battle 頁頂部都有）。Grammar Quest 照用。Word Battle 房間（開房／加入）要學校 Google 帳戶；訪客喺 Word Battle 頁只可以撳入 Word Jump。
 
 訪客**唔可以**睇任何排行榜／其他人成績：Hub 嘅 Leaderboard、My Records、老師 dashboard 入口會隱藏，`changeView` 亦會擋住 `leaderboard-view`、`admin-view`、`my-records-view`。Word Jump game-over 唔顯示 Top 7，亦唔畫同學高度線、唔上傳分數。呢個密碼寫喺前端靜態檔，睇到網頁原始碼就睇到；只係課堂用嘅簡易閘，唔係真正帳號系統。
 
@@ -274,7 +279,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
 
-入口：`battle-view` 頂部嘅「🦘 Word Jump」卡 → `changeView('wordjump-view')`。
+入口：Hub 嘅「🦘 Word Jump」卡，或者 `battle-view` 頂部嘅同一張卡 → `openWordJump(...)` → `wordjump-view`。返回會返去撳入嚟嗰一頁（Hub 或 Word Battle）。
 純前端、單機、**唔需要 Supabase／SQL**，全部邏輯喺 `index.html` 一個
 `const WJ = { … }` 物件（喺 `window.onload` 之前），HTML 係 `#wordjump-view`。
 
@@ -546,5 +551,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql`。
-  未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。呢份 SQL 可重複跑；未跑亦唔會整壞網站，只係 Unassigned／訪客可能見到空字庫。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql`。
+  未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

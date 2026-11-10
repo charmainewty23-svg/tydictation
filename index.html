@@ -395,6 +395,7 @@
                 <button type="submit" class="w-full py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-2xl font-bold hover:bg-orange-50 transition-colors">Guest login</button>
                 <p id="guest-login-error" class="hidden text-red-500 font-bold text-sm"></p>
             </form>
+            <p class="text-xs text-gray-400 mt-3 text-center leading-relaxed">Guests can use all of Dictation Master and play Word Jump. Leaderboards, My Records and the teacher dashboard stay hidden.</p>
         </div>
     </div>
 
@@ -464,6 +465,14 @@
                     <h2 class="text-3xl font-bold text-orange-600">Dictation Master</h2>
                     <p class="text-gray-500 text-lg">Challenge your spelling and listening skills.</p>
                     <button class="btn-paw w-full mt-4">Open Dictation</button>
+                </div>
+
+                <div id="hub-wordjump-entry" class="hub-card md:col-span-2" onclick="openWordJump('hub-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#6ee7b7;">
+                    <div class="text-4xl">🦘</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-emerald-600">Word Jump</h2>
+                        <p class="text-gray-400 text-sm">Solo practice climb — read the Chinese, land on the English word.</p>
+                    </div>
                 </div>
 
                 <div class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
@@ -678,12 +687,12 @@
                             </h3>
                             <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — read the Chinese, land on the matching English word, blast monsters.</p>
                         </div>
-                        <button onclick="changeView('wordjump-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
+                        <button onclick="openWordJump('battle-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
                     </div>
 
                     <!-- Lobby -->
                     <div id="battle-lobby">
-                        <div class="flex items-center gap-3 mb-6 flex-wrap">
+                        <div id="battle-count-row" class="flex items-center gap-3 mb-6 flex-wrap">
                             <label class="text-sm text-gray-500 font-bold">Questions per battle</label>
                             <select id="battle-count-select" onchange="localStorage.setItem('battle_qcount', this.value)" class="p-2 px-4 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">
                                 <option value="10" selected>10</option>
@@ -796,7 +805,7 @@
 
             <div id="wordjump-view" class="view hidden w-full">
                 <button onclick="WJ.quit()" class="mb-6 text-gray-400 flex items-center gap-2 hover:text-emerald-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Word Battle
+                    <span>←</span> <span id="wj-back-label">Back to Hub</span>
                 </button>
                 <div class="cat-card p-4 md:p-8">
                     <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
@@ -1047,23 +1056,22 @@
         // logins look like s231014@…, whose first digit is an admission year,
         // not the form.
         //
-        // Typical displayed name: "4C 16 Lai Ka Lok 黎嘉樂", "3A 08 Chan Tai Man".
-        // Take the first digit. If it maps to FORM_LEVELS (3 → F3, 4 → F4,
-        // 6 → F6), that is the form. If a single class letter clearly follows
-        // that digit (C in 4C), show the class badge. No displayed name, or a
-        // first digit that is not 3/4/6, stays Unassigned.
-        function formFromFirstDigit(text) {
+        // Assign F3/F4/F6 only when the displayed name clearly provides a
+        // class/form code at the start, e.g. "4C 16 Lai Ka Lok 黎嘉樂",
+        // "3A 08 Chan Tai Man", "6D 21 Wong", or "Form 4C …". A name with
+        // no class code, such as "Liu Chun Ming", stays Unassigned. A stray
+        // 3, 4 or 6 later in a name, student number or year is ignored.
+        function formFromClassCodeAtStart(text) {
             const empty = { form: '', classId: '' };
-            const raw = String(text || '');
-            const idx = raw.search(/\d/);
-            if (idx < 0) return empty;
-            const digit = raw.charAt(idx);
+            const raw = String(text || '').trim();
+            if (!raw) return empty;
+            const m = /^(?:form\s*|f\.?\s*)?([346])([a-z])(?=$|[^a-z])/i.exec(raw);
+            if (!m) return empty;
+            const digit = m[1];
+            const letter = m[2].toUpperCase();
             const form = normalizeForm('F' + digit);
             if (!form) return empty;
-            const rest = raw.slice(idx + 1);
-            const m = /^([a-zA-Z])(?=$|[^a-zA-Z])/.exec(rest);
-            const classId = m ? (digit + m[1].toUpperCase()) : '';
-            return { form, classId };
+            return { form, classId: digit + letter };
         }
 
         // A real Google / on-screen name, not an email or email local-part
@@ -1079,7 +1087,7 @@
         }
 
         function parseDisplayNameFormClass(nickname) {
-            return formFromFirstDigit(nickname);
+            return formFromClassCodeAtStart(nickname);
         }
 
         function nicknameOfEmail(email, nickname) {
@@ -1091,7 +1099,7 @@
 
         let formOverrides = new Map();
         let formDirRequest = 0;
-        let formDirectory = { byEmail: new Map(), nicknames: new Map(), loaded: false, missing: false, error: '', pending: null };
+        let formDirectory = { byEmail: new Map(), nicknames: new Map(), sources: new Map(), loaded: false, missing: false, error: '', pending: null };
         let formSaveSeq = 0;
 
         function isMissingSchema(message) {
@@ -1101,9 +1109,14 @@
         function formOfEmail(email, nickname) {
             const key = String(email || '').toLowerCase();
             if (formOverrides.has(key)) return formOverrides.get(key) || '';
+            const parsed = parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
             const stored = formDirectory.byEmail.get(key) || '';
-            if (stored) return stored;
-            return parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
+            const source = formDirectory.sources.get(key) || '';
+            // Teacher dropdown always wins. An automatic or unknown stored
+            // form (for example Liu Chun Ming wrongly saved as F6) is ignored
+            // unless the displayed name itself still has a class code.
+            if (source === 'teacher') return stored || '';
+            return parsed;
         }
 
         function classOfEmail(email, nickname) {
@@ -1199,13 +1212,21 @@
             formDirectory.loaded = false;
             formDirectory.pending = (async () => {
                 try {
-                    let res = await sb.from('student_logins').select('user_id, email, form, nickname');
+                    let res = await sb.from('student_logins').select('user_id, email, form, form_source, nickname');
                     let formColumnMissing = false;
+                    let sourceColumnMissing = false;
                     if (res.error && isMissingSchema(res.error.message)) {
-                        const retry = await sb.from('student_logins').select('user_id, email, nickname');
-                        if (!retry.error) {
-                            res = retry;
-                            formColumnMissing = true;
+                        const retryForm = await sb.from('student_logins').select('user_id, email, form, nickname');
+                        if (!retryForm.error) {
+                            res = retryForm;
+                            sourceColumnMissing = true;
+                        } else if (isMissingSchema(retryForm.error.message)) {
+                            const retry = await sb.from('student_logins').select('user_id, email, nickname');
+                            if (!retry.error) {
+                                res = retry;
+                                formColumnMissing = true;
+                                sourceColumnMissing = true;
+                            }
                         }
                     }
                     if (req !== formDirRequest) return formDirectory;
@@ -1215,20 +1236,30 @@
                         if (formDirectory.missing) {
                             formDirectory.byEmail = new Map();
                             formDirectory.nicknames = new Map();
+                            formDirectory.sources = new Map();
                         }
                     } else {
                         const map = new Map();
                         const nicks = new Map();
+                        const sources = new Map();
                         (res.data || []).forEach(row => {
                             const email = String(row.email || '').toLowerCase();
                             if (!email) return;
                             if (!formColumnMissing) map.set(email, normalizeForm(row.form));
+                            if (!sourceColumnMissing) {
+                                const src = String(row.form_source || '').trim().toLowerCase();
+                                if (src) sources.set(email, src);
+                            }
                             const nick = String(row.nickname || '').trim();
                             if (nick) nicks.set(email, nick);
                         });
-                        formOverrides.forEach((value, email) => map.set(email, value));
+                        formOverrides.forEach((value, email) => {
+                            map.set(email, value);
+                            sources.set(email, value ? 'teacher' : '');
+                        });
                         formDirectory.byEmail = map;
                         formDirectory.nicknames = nicks;
+                        formDirectory.sources = sources;
                         formDirectory.missing = formColumnMissing;
                         formDirectory.error = '';
                     }
@@ -1275,8 +1306,10 @@
             if (!key) return;
             const seq = ++formSaveSeq;
             const prev = formOverrides.has(key) ? formOverrides.get(key) : (formDirectory.byEmail.get(key) || '');
+            const prevSource = formDirectory.sources.get(key) || '';
             formOverrides.set(key, canonical);
             formDirectory.byEmail.set(key, canonical);
+            formDirectory.sources.set(key, canonical ? 'teacher' : '');
             refreshTeacherSurfaces();
             const { error } = await sb.rpc('set_student_form', { p_email: email, p_form: canonical });
             if (seq !== formSaveSeq) return;
@@ -1284,6 +1317,7 @@
                 console.warn('set_student_form failed:', error.message);
                 formOverrides.set(key, prev);
                 formDirectory.byEmail.set(key, prev);
+                formDirectory.sources.set(key, prevSource);
                 refreshTeacherSurfaces();
                 updateMascot(isMissingSchema(error.message)
                     ? 'Form saving is not set up yet. Run supabase/student_forms.sql in the SQL editor.'
@@ -1291,32 +1325,19 @@
             }
         }
 
-        // Fill student_logins.form when it is still empty. Prefer a form from
-        // the displayed login name (Google full_name / name). Never guess from
-        // the email. Otherwise upload an old browser choice once.
-        // claim_own_form never overwrites a teacher edit. Skip the teacher
-        // account. The shared-computer lock only applies to the old
-        // localStorage value, not to a display-name-derived form.
+        // Fill student_logins.form from a class code in the displayed login
+        // name (Google full_name / name). Never guess from the email, and
+        // never upload an old localStorage form. An empty p_form asks
+        // claim_own_form to release a previous automatic claim only
+        // (supabase/student_forms_source.sql); a teacher dropdown value is
+        // left alone. Skip the teacher account.
         async function claimSavedForm(user) {
             if (!user || !user.email || user.email === ADMIN_EMAIL) return;
             const nick = user.user_metadata?.full_name || user.user_metadata?.name || '';
-            const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form;
-            const saved = normalizeForm(localStorage.getItem(FORM_STORAGE_KEY) || '');
-            let form = fromName;
-            if (!form && saved) {
-                let bound = '';
-                try { bound = localStorage.getItem(FORM_CLAIMED_BY_KEY) || ''; } catch (e) { bound = ''; }
-                if (bound) return;
-                form = saved;
-            }
-            if (!form) return;
-            const { error } = await sb.rpc('claim_own_form', { p_form: form });
+            const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form || '';
+            const { error } = await sb.rpc('claim_own_form', { p_form: fromName });
             if (error) {
                 console.warn('Form claim failed:', error.message);
-                return;
-            }
-            if (!fromName) {
-                try { localStorage.setItem(FORM_CLAIMED_BY_KEY, user.id); } catch (e) {}
             }
         }
 
@@ -1344,7 +1365,10 @@
             ownFormPersisted = false;
             updateAuthUI();
             adoptErrorBookUser();
+            if (sheetCategoriesReady) renderCategories();
+            else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
             showApp();
+            updateMascot("Guest mode: you can use all of Dictation Master and play Word Jump. Leaderboards stay off.");
         }
 
         function signInAsGuest(event) {
@@ -1485,6 +1509,8 @@
         };
 
         let categories = {};
+        let sheetCategoriesReady = false;
+        let sheetCategoriesLoading = false;
         let currentTopic = '';
         
         // Quiz State
@@ -1516,6 +1542,8 @@
         let pcTab = 'revision';
 
         async function loadAllCategoriesFromSheet() {
+            if (sheetCategoriesLoading) return;
+            sheetCategoriesLoading = true;
             try {
                 const promises = SHEET_NAMES.map(async (name) => {
                     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
@@ -1527,13 +1555,17 @@
                 });
                 const results = await Promise.all(promises);
                 results.forEach(res => { if (res.words.length > 0) categories[res.name] = res.words; });
+                sheetCategoriesReady = true;
                 renderCategories();
                 renderTenseGrid();
                 if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
                 if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
             } catch (e) {
+                sheetCategoriesReady = true;
                 updateMascot("Oh no, connection lost!");
                 renderCategories();
+            } finally {
+                sheetCategoriesLoading = false;
             }
         }
 
@@ -1595,6 +1627,12 @@
                 const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝", "basics": "🔤" };
                 appendDictationTile(container, emojis[cat] || '📦', topicLabel(cat), () => selectTopic(cat));
             });
+            if (sheetCategoriesReady && SHEET_NAMES.every(cat => !categories[cat])) {
+                const note = document.createElement('p');
+                note.className = 'col-span-full text-center text-sm text-amber-600 font-bold mt-2';
+                note.textContent = 'The Google Sheet topics did not load. Check your connection, then refresh to try again. New Vocab and Error Book are still available.';
+                container.appendChild(note);
+            }
         }
 
         function appendDictationTile(container, emoji, label, onclick) {
@@ -1878,18 +1916,34 @@
                 formSchemaMissing = false;
                 stored = normalizeForm(data) || '';
             }
-            if (stored) {
+            const inferred = ownDisplayedForm();
+            // A stored F3/F4/F6 is only trusted when the displayed name still
+            // has a class code, or the teacher assigned it (form_source).
+            // Otherwise Liu Chun Ming (no class code) must stay Unassigned,
+            // even if an old automatic claim wrote F6.
+            let teacherSet = false;
+            if (stored && !inferred) {
+                try {
+                    const src = await sb.rpc('my_form_source');
+                    if (!src.error) {
+                        teacherSet = String(src.data || '').toLowerCase() === 'teacher';
+                    }
+                } catch (e) { /* my_form_source may not exist yet */ }
+            }
+            if (stored && (inferred || teacherSet)) {
                 myFormValue = stored;
                 ownFormPersisted = true;
+                if (inferred && stored !== inferred && !formSchemaMissing) {
+                    await claimSavedForm(currentUser);
+                }
                 return stored;
             }
-            const inferred = ownDisplayedForm();
-            if (inferred && !formSchemaMissing) {
+            if (!formSchemaMissing) {
                 await claimSavedForm(currentUser);
                 const again = await sb.rpc('my_form');
                 if (!again.error) {
                     stored = normalizeForm(again.data) || '';
-                    if (stored) {
+                    if (stored && (inferred || teacherSet)) {
                         myFormValue = stored;
                         ownFormPersisted = true;
                         return stored;
@@ -3635,6 +3689,9 @@
                 if (classEntry) classEntry.classList.add('hidden');
                 const actions = document.getElementById('battle-room-actions');
                 if (actions) actions.classList.add('hidden');
+                const countRow = document.getElementById('battle-count-row');
+                if (countRow) countRow.classList.add('hidden');
+                updateMascot("Play Word Jump here. Word Battle rooms need a school Google login.");
                 battleShowPanel('lobby');
                 return;
             }
@@ -3650,6 +3707,8 @@
             if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
             const actions = document.getElementById('battle-room-actions');
             if (actions) actions.classList.remove('hidden');
+            const countRow = document.getElementById('battle-count-row');
+            if (countRow) countRow.classList.remove('hidden');
             if (battleRoom) {
                 battlePoll();
                 battleStartPolling();
@@ -4587,6 +4646,11 @@
             renderGroupedAnswerStats(data, room ? room.battle_players : [], el, room ? battleBuildQuestions(room).words : null);
         }
 
+        function openWordJump(fromView) {
+            if (typeof WJ !== 'undefined') WJ.backView = fromView || 'hub-view';
+            changeView('wordjump-view');
+        }
+
         function changeView(viewId) {
             if (isGuestUser() && GUEST_BLOCKED_VIEWS.indexOf(viewId) !== -1) {
                 updateMascot('Leaderboards and rankings are not available in guest mode.');
@@ -4606,7 +4670,11 @@
             window.scrollTo(0,0);
             
             if (viewId === 'hub-view') updateMascot("Awesome! What would you like to learn next?");
-            if (viewId === 'home-view') updateMascot("Choose a topic to begin your dictation journey.");
+            if (viewId === 'home-view') {
+                updateMascot("Choose a topic to begin your dictation journey.");
+                if (sheetCategoriesReady) renderCategories();
+                else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
+            }
             if (viewId === 'sub-category-view') {
                 updateMascot(currentTopic === NEW_VOCAB ? "New Vocab keeps every word. Added today is just this lesson." : `Ready to practice ${currentTopic}? Pick an activity!`);
                 if (currentTopic === NEW_VOCAB) nvEnter();
@@ -4630,7 +4698,14 @@
                 });
             }
             if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }
-            if (viewId === 'wordjump-view') { updateMascot("Jump, spell, climb — how high can you go?"); requestAnimationFrame(() => WJ.mount()); }
+            if (viewId === 'wordjump-view') {
+                updateMascot("Jump, spell, climb — how high can you go?");
+                const back = document.getElementById('wj-back-label');
+                if (back) back.innerText = (typeof WJ !== 'undefined' && WJ.backView === 'battle-view') ? 'Back to Word Battle' : 'Back to Hub';
+                if (sheetCategoriesReady) { /* topics already in memory */ }
+                else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
+                requestAnimationFrame(() => WJ.mount());
+            }
         }
 
         // Handle Enter key in quiz
@@ -4933,7 +5008,7 @@
 
         WJ.quit = function () {
             WJ.stop();
-            changeView('battle-view');
+            changeView(WJ.backView || 'hub-view');
         };
 
         WJ.togglePause = function () {
@@ -5112,7 +5187,7 @@
                         <p class="text-xs text-gray-300">Loading…</p>
                     </div>
                     <button onclick="WJ.restart(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors">Play again</button>
-                    <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Back to Word Battle</button>
+                    <button onclick="WJ.quit()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">${WJ.backView === 'battle-view' ? 'Back to Word Battle' : 'Back to Hub'}</button>
                 </div>`, true);
             WJ.loadLeaderboard();
             WJ.draw();

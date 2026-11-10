@@ -244,6 +244,45 @@
             75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
             100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
         }
+
+        /* ---- Word Jump: full screen (native API + CSS fallback for iOS) ---- */
+        #wj-stage:fullscreen,
+        #wj-stage:-webkit-full-screen,
+        body.wj-fs #wj-stage {
+            position: fixed;
+            inset: 0;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            max-width: none !important;
+            aspect-ratio: auto !important;
+            border: none;
+            border-radius: 0;
+            background: #0b1020;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #wj-stage:fullscreen canvas,
+        #wj-stage:-webkit-full-screen canvas,
+        body.wj-fs #wj-stage canvas {
+            width: auto;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 2 / 3;
+        }
+        /* Keep intro / game-over cards phone-width when the stage is huge. */
+        #wj-stage:fullscreen #wj-overlay > div,
+        #wj-stage:-webkit-full-screen #wj-overlay > div,
+        body.wj-fs #wj-overlay > div {
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        body.wj-fs {
+            overflow: hidden;
+            background: #0b1020;
+        }
     </style>
 </head>
 <body class="h-full">
@@ -677,6 +716,7 @@
                         <div class="flex items-center gap-2 flex-wrap">
                             <select id="wj-topic" onchange="WJ.changeTopic(this.value)" class="p-2 px-3 rounded-xl border-2 border-emerald-100 bg-white font-bold text-gray-700 text-sm"></select>
                             <button id="wj-tilt-btn" onclick="WJ.enableTilt()" class="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">📱 Tilt: off</button>
+                            <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⛶ Full screen</button>
                             <button id="wj-sound-btn" onclick="WJ.toggleSound()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔊 On</button>
                             <button onclick="WJ.togglePause()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⏸ Pause</button>
                         </div>
@@ -684,8 +724,9 @@
                     <div id="wj-stage" class="relative mx-auto rounded-2xl overflow-hidden border-2 border-emerald-100" style="max-width:420px; aspect-ratio:2/3;">
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
+                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ Exit full screen</button>
                     </div>
-                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · P to pause</p>
+                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · ⛶ plays full screen</p>
                 </div>
             </div>
 
@@ -3140,8 +3181,8 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1000, JUMP_V: -740,
-            MOVE_MAX: 460, MOVE_ACC: 5200, FRICTION: 3200,
-            TILT_RANGE: 14, TILT_DEAD: 0.04,
+            MOVE_MAX: 300, MOVE_ACC: 2400, FRICTION: 2200,
+            TILT_RANGE: 8, TILT_DEAD: 0.025,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
             raf: 0, lastTs: 0, acc: 0,
@@ -3155,7 +3196,7 @@
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
             topic: '', soundOn: true, audio: null,
-            lastShot: 0, bound: false
+            lastShot: 0, bound: false, autoFs: false
         };
 
         WJ.rand = (a, b) => a + Math.random() * (b - a);
@@ -3201,6 +3242,7 @@
             WJ.ctx = canvas.getContext('2d');
             WJ.overlay = document.getElementById('wj-overlay');
             WJ.mounted = true;
+            WJ.autoFs = true;
             WJ.bindInput();
             WJ.resize();
             if (!WJ.platforms.length) WJ.reset();
@@ -3247,6 +3289,7 @@
 
         WJ.start = function () {
             if (!WJ.canvas) WJ.mount();
+            WJ.enterFullscreen();
             WJ.reset();
             WJ.hideOverlay();
             WJ.state = 'playing';
@@ -3265,6 +3308,96 @@
             WJ.keys.left = WJ.keys.right = false;
             WJ.state = 'intro';
             WJ.hideOverlay();
+            WJ.exitFullscreenSoft();
+        };
+
+        /* ---------------- full screen ---------------- */
+
+        WJ.fsOn = function () {
+            const stage = document.getElementById('wj-stage');
+            const el = document.fullscreenElement || document.webkitFullscreenElement;
+            return (!!stage && el === stage) || document.body.classList.contains('wj-fs');
+        };
+
+        WJ.syncFsUi = function () {
+            const on = WJ.fsOn();
+            const exit = document.getElementById('wj-exit-fs');
+            if (exit) exit.classList.toggle('hidden', !on);
+            const btn = document.getElementById('wj-fs-btn');
+            if (btn) btn.innerText = on ? '⛶ Exit' : '⛶ Full screen';
+            requestAnimationFrame(() => {
+                if (!WJ.mounted) return;
+                WJ.resize();
+                WJ.draw();
+            });
+        };
+
+        WJ.fakeFullscreen = function (on) {
+            document.body.classList.toggle('wj-fs', !!on);
+            WJ.syncFsUi();
+        };
+
+        /* Ask the browser for real full screen. iOS Safari has no element full
+           screen and some in-app browsers never settle the promise, so after
+           900ms without full screen we fall back to the CSS version. */
+        WJ.fsPending = 0;
+
+        WJ.requestStageFullscreen = function () {
+            const stage = document.getElementById('wj-stage');
+            if (!stage) return;
+            const token = ++WJ.fsPending;
+            const giveUp = () => {
+                if (token !== WJ.fsPending || WJ.fsOn()) return;
+                WJ.fakeFullscreen(true);
+            };
+            if (stage.requestFullscreen) {
+                try {
+                    const p = stage.requestFullscreen();
+                    if (p && p.catch) p.catch(giveUp);
+                } catch (e) { giveUp(); }
+            } else if (stage.webkitRequestFullscreen) {
+                try { stage.webkitRequestFullscreen(); } catch (e) { giveUp(); }
+            } else {
+                giveUp();
+                return;
+            }
+            setTimeout(giveUp, 900);
+        };
+
+        WJ.toggleFullscreen = function () {
+            const stage = document.getElementById('wj-stage');
+            if (!stage) return;
+            WJ.autoFs = false;
+            const el = document.fullscreenElement || document.webkitFullscreenElement;
+            if (el) {
+                WJ.fsPending++;
+                const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) { const p = exit.call(document); if (p && p.catch) p.catch(() => {}); }
+                return;
+            }
+            if (document.body.classList.contains('wj-fs')) {
+                WJ.fsPending++;
+                WJ.fakeFullscreen(false);
+                return;
+            }
+            WJ.requestStageFullscreen();
+        };
+
+        WJ.enterFullscreen = function () {
+            if (!WJ.autoFs || WJ.fsOn()) return;
+            WJ.autoFs = false;
+            WJ.requestStageFullscreen();
+        };
+
+        WJ.exitFullscreenSoft = function () {
+            WJ.fsPending++;
+            document.body.classList.remove('wj-fs');
+            const el = document.fullscreenElement || document.webkitFullscreenElement;
+            if (el) {
+                const exit = document.exitFullscreen || document.webkitExitFullscreen;
+                if (exit) { const p = exit.call(document); if (p && p.catch) p.catch(() => {}); }
+            }
+            WJ.syncFsUi();
         };
 
         WJ.quit = function () {
@@ -3327,6 +3460,7 @@
                         <p>🔥 Answer a few in a row for bonus points and a shield.</p>
                         <p>👆 <b>Tap anywhere else</b> to shoot at monsters and UFOs.</p>
                         <p>🧱 Brown breaks · white vanishes · yellow explodes · blue &amp; grey move.</p>
+                        <p>⛶ <b>Start</b> goes full screen — tap <b>✕ Exit full screen</b> at the bottom to come out.</p>
                     </div>
                     <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Start climbing</button>
                     <p class="text-xs text-gray-400 mt-3">Best ${best} · Desktop: ← → and Space to shoot</p>
@@ -4382,6 +4516,8 @@
             });
 
             window.addEventListener('resize', () => { if (WJ.mounted) WJ.resize(); });
+            document.addEventListener('fullscreenchange', WJ.syncFsUi);
+            document.addEventListener('webkitfullscreenchange', WJ.syncFsUi);
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden && WJ.state === 'playing' && !WJ.paused) WJ.togglePause();
             });

@@ -226,7 +226,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 ### 10.1 結構
 | 位置 | 內容 |
 |---|---|
-| `#wordjump-view` | 工具列（topic／tilt／sound／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay` |
+| `#wordjump-view` | 工具列（topic／tilt／full screen／sound／pause）＋ `#wj-stage`＋`#wj-canvas`＋`#wj-overlay`＋`#wj-exit-fs` |
 | `WJ.mount()` | 入 view 時 call（`changeView` 內 `requestAnimationFrame`），綁 input、resize、reset |
 | `WJ.stop()` | 離開 view 時 call（`changeView` 開頭 `WJ.stop()`），停 RAF、清 overlay |
 | `WJ.quit()` | 返回 `battle-view` |
@@ -241,8 +241,10 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   pad 以外位置**點一下 = 射鼻球**。唔再用「按畫面左右半邊」，避免同射擊衝突。
 - **重力感應**：工具列「📱 Tilt」係開關（再撳一次熄）。iOS 要
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
-  `TILT_RANGE = 14°` 就滿速、`TILT_DEAD = 0.04` 死區、再乘 1.25 增益，
+  `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
   所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
+- **左右速度**：`MOVE_MAX 300`／`MOVE_ACC 2400`／`FRICTION 2200`。
+  覺得「郁太快」就減 `MOVE_MAX`；覺得「撳咗好耐先郁」就加 `MOVE_ACC`。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -299,14 +301,27 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（460）／
-  `WJ.MOVE_ACC`（5200）。越慢越好玩就減 `JUMP_V`；想跳高啲就減 `GRAVITY`。
+- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（300）／
+  `WJ.MOVE_ACC`（2400）。越慢越好玩就減 `JUMP_V`；想跳高啲就減 `GRAVITY`。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →
   `WJ.drawGadget()` 個 `map` 加 emoji → `WJ.drawHud()` badges 加顯示。
 - 改題目密度改 `WJ.QUIZ_GAP_MIN`／`QUIZ_GAP_MAX`；改選項數改 `spawnQuizRow()` 嘅 `count`。
-- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）——`TILT_RANGE = 14`
+- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）——`TILT_RANGE = 8`
   係憑手感估，實機太敏感就調大、太鈍就調細；`canvas` 內容喺
   OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
+
+### 10.10 全屏幕
+- 兩個掣：工具列 `#wj-fs-btn`（⛶ Full screen／Exit）＋遊戲畫面底部 `#wj-exit-fs`。
+- `WJ.start()` 會自動試入全屏幕一次（`WJ.autoFs`，只喺 `WJ.mount()` 設 true，
+  即每次入 view 一次）——因為 `requestFullscreen()` 要**用戶手勢**，撳 Start 正好係手勢。
+- **原生**：`#wj-stage.requestFullscreen()`（連 `webkitRequestFullscreen`）。
+- **iPhone Safari 冇 element fullscreen**：fallback 落 `document.body.classList.add('wj-fs')`，
+  CSS 將 `#wj-stage` 變 `position:fixed; inset:0; width:100vw; height:100dvh`，
+  canvas 保持 2:3 居中。呢個 fallback 冇得隱藏 Safari UI，但至少霸滿可用空間。
+- `fullscreenchange` / `webkitfullscreenchange` → `WJ.syncFsUi()`：更新掣字、
+  顯示／隱藏 `#wj-exit-fs`、`WJ.resize()` + `WJ.draw()`。
+- `WJ.stop()`（離開 view）會 `WJ.exitFullscreenSoft()`，所以唔會困住喺全屏幕。
+- 改 CSS 記得三組選擇器都要有：`:fullscreen`、`:-webkit-full-screen`、`body.wj-fs #wj-stage`。
 

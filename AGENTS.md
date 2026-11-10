@@ -243,13 +243,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
   `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
   所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
-- **左右速度**：`MOVE_MAX 320`／`MOVE_ACC 2600`／`FRICTION 6000`，
-  加速約 **83ms** 到頂，放手會**滑 7–18px**（頂速時 7px，起步慢時反而多啲，
+- **左右速度**：`MOVE_MAX 280`／`MOVE_ACC 2400`／`FRICTION 6000`，
+  加速約 **75ms** 到頂，放手會**滑 5–15px**（頂速時 5px，起步慢時反而多啲，
   因為 tilt 平滑仲有少少推力）。`|dir| < 0.06` 當 0、`|vx| < 4` 歸零，
   所以 1.2° 嘅殘餘傾斜唔會慢慢漂。
-- **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.62 + 0.38 × min(1, maxClimb/3200))`，
-  即係**每局開頭 198 px/s，爬到 3200px 就 320 px/s**。想開頭更慢就減
-  `SPEED_RAMP_FROM`（0.62）；想快啲到頂速就減 `SPEED_RAMP_AT`（3200）。
+- **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.60 + 0.40 × min(1, maxClimb/3200))`，
+  即係**每局開頭 168 px/s，爬到 3200px 就 280 px/s**（橫越 400px 由 2.3s 變 1.4s）。
+  想開頭更慢就減 `SPEED_RAMP_FROM`（0.60）；想快啲到頂速就減 `SPEED_RAMP_AT`（3200）。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -306,10 +306,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（320）／
-  `WJ.MOVE_ACC`（2600）／`WJ.FRICTION`（6000）。越慢越好玩就減 `JUMP_V`；
+- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（280）／
+  `WJ.MOVE_ACC`（2400）／`WJ.FRICTION`（6000）。越慢越好玩就減 `JUMP_V`；
   想跳高啲就減 `GRAVITY`；想「少啲滑」就加 `FRICTION`、想「滑多啲」就減。
-- 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.62）同
+- 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.60）同
   `WJ.SPEED_RAMP_AT`（3200px）。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。

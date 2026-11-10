@@ -3218,7 +3218,8 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1000, JUMP_V: -740,
-            MOVE_MAX: 300,
+            MOVE_MAX: 320, MOVE_ACC: 2600, FRICTION: 6000,
+            SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.62,
             TILT_RANGE: 8, TILT_DEAD: 0.025,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -3241,6 +3242,13 @@
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
+
+        /* Horizontal top speed ramps from SPEED_RAMP_FROM * MOVE_MAX at the
+           bottom of a run to MOVE_MAX once you have climbed a while. */
+        WJ.speedCap = function () {
+            const t = WJ.clamp(WJ.maxClimb / WJ.SPEED_RAMP_AT, 0, 1);
+            return WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+        };
 
         WJ.beep = function (freq, dur, type, vol) {
             if (!WJ.soundOn) return;
@@ -3857,12 +3865,25 @@
             } else {
                 WJ.tiltSmooth = 0;
             }
-            // Direct steering: the speed follows the input 1:1, with no
-            // momentum, so letting go stops him dead instead of sliding.
-            if (Math.abs(dir) < 0.05) dir = 0;
-            p.vx = WJ.clamp(dir, -1, 1) * WJ.MOVE_MAX;
-            if (Math.abs(p.vx) < 6) p.vx = 0;
-            if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
+            // Eased steering: he leans into a direction over ~120ms and coasts
+            // a little when you let go. The top speed also grows with height,
+            // so a fresh run starts calm and opens up as you climb.
+            if (Math.abs(dir) < 0.06) dir = 0;
+            const cap = WJ.speedCap();
+            if (dir !== 0) {
+                p.vx += dir * WJ.MOVE_ACC * dt;
+                if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
+            }
+            // Weak input gets drag too, so a tiny leftover tilt doesn't creep.
+            const grip = Math.min(1, Math.abs(dir));
+            const drag = WJ.FRICTION * (1 - grip) * (1 - grip) * (1 - grip);
+            const dv = drag * dt;
+            if (dv > 0) {
+                if (Math.abs(p.vx) <= dv) p.vx = 0;
+                else p.vx -= Math.sign(p.vx) * dv;
+            }
+            p.vx = WJ.clamp(p.vx, -cap, cap);
+            if (Math.abs(p.vx) < 4) p.vx = 0;
 
             ['prop', 'jet', 'shield', 'rainbow'].forEach(k => {
                 if (p[k] > 0) p[k] = Math.max(0, p[k] - dt);

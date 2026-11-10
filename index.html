@@ -3181,7 +3181,7 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1000, JUMP_V: -740,
-            MOVE_MAX: 300, MOVE_ACC: 2400, FRICTION: 2200,
+            MOVE_MAX: 300, MOVE_ACC: 3200, FRICTION: 6000,
             TILT_RANGE: 8, TILT_DEAD: 0.025,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -3811,13 +3811,19 @@
             } else {
                 WJ.tiltSmooth = 0;
             }
+            // Grip curve: a strong input gets full acceleration and no drag, a
+            // weak / released input gets more and more drag, so he stops dead
+            // instead of gliding across the screen.
+            const grip = Math.min(1, Math.abs(dir));
+            const drag = WJ.FRICTION * (1 - grip) * (1 - grip) * (1 - grip);
             if (dir !== 0) {
                 p.vx += dir * WJ.MOVE_ACC * dt;
                 if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
-            } else {
-                const f = WJ.FRICTION * dt;
-                if (Math.abs(p.vx) <= f) p.vx = 0;
-                else p.vx -= Math.sign(p.vx) * f;
+            }
+            const dv = drag * dt;
+            if (dv > 0) {
+                if (Math.abs(p.vx) <= dv) p.vx = 0;
+                else p.vx -= Math.sign(p.vx) * dv;
             }
             p.vx = WJ.clamp(p.vx, -WJ.MOVE_MAX, WJ.MOVE_MAX);
 

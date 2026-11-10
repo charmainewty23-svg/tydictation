@@ -243,8 +243,11 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
   `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
   所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
-- **左右速度**：`MOVE_MAX 300`／`MOVE_ACC 2400`／`FRICTION 2200`。
-  覺得「郁太快」就減 `MOVE_MAX`；覺得「撳咗好耐先郁」就加 `MOVE_ACC`。
+- **左右速度**：`MOVE_MAX 300`／`MOVE_ACC 3200`／`FRICTION 6000`。
+  用「grip curve」：`|dir|` 越細、阻力越大（`FRICTION × (1-|dir|)³`），
+  所以放手或者微微傾斜會即刻收步（實測由滿速停：50ms / 6px），
+  但大力傾斜仍然係全速加速（0→滿速 100ms）。
+  覺得仍然「太滑」就加 `FRICTION`（唔係加 `MOVE_MAX`）；覺得「太急停」就減 `FRICTION`。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -302,7 +305,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.9 改動提示
 - 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（300）／
-  `WJ.MOVE_ACC`（2400）。越慢越好玩就減 `JUMP_V`；想跳高啲就減 `GRAVITY`。
+  `WJ.MOVE_ACC`（3200）／`WJ.FRICTION`（6000）。越慢越好玩就減 `JUMP_V`；
+  想跳高啲就減 `GRAVITY`；想「唔滑」就加 `FRICTION`。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →

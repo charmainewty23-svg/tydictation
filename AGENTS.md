@@ -226,32 +226,34 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 （`F.4` / `F.6`）留喺學生自己部機，**冇**寫入 Supabase，所以老師畫面之前分唔到年級。
 
 - **單一清單**：`FORM_LEVELS`（而家 `F3`、`F4`、`F6`）。加新年級只改呢個陣列，
-  `id` 用 `F` + 年份（例如 `F5`）。老師下拉、電郵解析、畫面分組、同舊 localStorage 遷移都讀呢度。
-- 欄：`student_logins.form`（text，null = Unassigned，畫面會再嘗試由電郵推斷）。
-- 每個學生嘅年級，優先用 `student_logins.form`（或老師呢次改嘅下拉），否則由登入電郵
-  嘅 local-part **只喺意思清楚時**推斷。規則（`parseEmailFormClass`）：
-  - 表格年份只接受 `FORM_LEVELS` 入面嘅數字（而家 3、4、6）。
-  - 級別＋班別（例如 `3A` / `4B` / `6C`）：喺開頭（可選短前綴 `f` / `s` / `st` / `std` / `form`），
-    例如 `3a01@`、`s3a01@`、`f4b12@`；或者字母後面有班號、而且年份前面唔係數字，
-    例如 `wong3a01@`、`chan_3a12@`；又或者用 `.` `_` `-` 隔開而無班號，例如 `chan.3a.tai@`。
-  - 只有級別：token 邊界嘅 `f3`、`form-4`、`form6`。
-  - **唔會估**：年份前面已經有數字（`23a01@`）、同一個地址出現兩個唔同年份、
-    或者班別字母後面仲有英文字母（`3amywong@`）。推斷到嘅班別會以徽章顯示（例如 `3A`）。
+  `id` 用 `F` + 年份（例如 `F5`）。老師下拉、用戶名稱解析、畫面分組、同舊 localStorage 遷移都讀呢度。
+- 欄：`student_logins.form`（text，null = Unassigned，畫面會再按登入名稱第一個數字推斷）。
+- 每個學生嘅年級，優先用 `student_logins.form`（或老師呢次改嘅下拉），否則由登入
+  **用戶名稱**推斷。規則（`parseUsernameFormClass`／`formFromFirstDigit`）：
+  - 先睇電郵 local-part（`@` 前面嗰截學校 Google 登入名）。如果呢段冇可用嘅第一個數字
+    （唔喺 `FORM_LEVELS` 入面），再睇同一個學生嘅顯示暱稱／Google `full_name`。
+  - 取呢段字入面**第一個數字**。如果個數字對應 `FORM_LEVELS`（而家 3 → F3、4 → F4、
+    6 → F6），就歸入嗰個年級。其他第一個數字，或者完全冇數字，就留喺 Unassigned。
+    例如 `3a01@…` → F3，`4B12_chan@…` → F4，`s3a01@` / `wong3a01@` 都係 F3。
+  - 班別徽章（例如 `3A`）只喺嗰個第一個年級數字後面清楚跟住一個班別字母先顯示
+    （字母後面係結尾、數字、或者分隔符；`3amywong@` 仍然係 F3，但唔會顯示班別徽章）。
+  - 資料庫 `form` 如果仲係空，老師畫面會即刻用呢條第一個數字規則分組，唔使等學生再登入。
+    學生登入時如果資料庫仍然係空，會用同一條規則 call `claim_own_form` 寫入；**唔會**覆蓋老師已改嘅值。
 - RPC：
   - `claim_own_form(p_form)` — 學生登入時，如果資料庫嗰行 `form` 仲係 null，先寫入。
-    優先用電郵推斷出嚟嘅年級；否則先用部機舊選擇。**唔會**覆蓋老師已改嘅值。
+    優先用登入名稱第一個數字推斷出嚟嘅年級；否則先用部機舊選擇。**唔會**覆蓋老師已改嘅值。
     管理員帳戶唔會執走呢份 localStorage。舊 localStorage 選擇只交俾第一個登入嘅學生
-    （`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級；電郵推斷唔受呢個鎖影響。
+    （`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級；用戶名稱推斷唔受呢個鎖影響。
   - `set_student_form(p_email, p_form)` — 只限 `ADMIN_EMAIL`。每個老師畫面嘅學生行有下拉可以改或補正；
-    揀「—」就變回 Unassigned（下次重新載入時，如果電郵仍然清楚標示年級，畫面會再按電郵歸類）。
+    揀「—」就變回 Unassigned（下次重新載入時，如果登入名稱仍然推斷到年級，畫面會再按第一個數字歸類）。
 - 老師畫面**唔再用** All / F3 / F4 / F6 / Unassigned 篩選掣，亦唔再讀 `localStorage["teacher_form_filter"]`。
-  改為同一頁自動按每個學生電郵所屬年級分成 F3、F4、F6、Unassigned 幾個部分：
+  改為同一頁自動按每個學生登入名稱第一個數字分成 F3、F4、F6、Unassigned 幾個部分：
   Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown；
   房間列表入面亦會按年級標示／分組學生）、Word Jump admin 排名，同埋老師先見到嘅 Hub Leaderboard。
   學生自己嗰個 Leaderboard 同其他學生介面**唔會**出現呢種分組。
   New Vocab／Word Battle 揀邊個年級字庫嘅掣仍然保留，因為嗰啲係題目庫選擇，唔係學生名單篩選。
 - 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`。下拉暫時存唔到，
-  但電郵意思清楚嘅學生仍然會按年級歸類。
+  但登入名稱推斷到年級嘅學生仍然會按第一個數字歸類。
 
 ---
 
@@ -513,12 +515,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 唔好加落 `SHEET_NAMES`（否則 Word Jump／隨機 battle 會撈埋）。
 
 - 入口：Dictation Master → **New Vocab**。老師帳戶喺呢度揀年級、加字、改字、刪字。
-  英文、中文、或者兩個一齊都可以存；兩格都空先唔畀存。
+  英文、中文、或者兩個一齊都可以存；撳 Confirm 之後先寫入並即刻出現喺下面；兩格都空先唔畀存。
 - 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
 - 學生冇 form：唔會見到其他年級嘅字，只見到要老師先設定年級。
-- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師加字或刪字成功之後，下面字表會即刻更新；4 秒輪詢只係背景同步。老師字庫用 +／− 掣加字同刪字。
+- 開住 New Vocab 會每 4 秒重新讀（`nvRefresh`），唔使再登入。老師喺編輯器輸入英／中文之後撳 **Confirm**（確認）掣，先會存入而家揀咗嗰個年級（F3／F4／F6）字庫，並即刻顯示喺下面字表；4 秒輪詢只係背景同步。空卡唔會存。刪除或清空仍然用 − 掣。
 - 錯題簿：Dictation Master 嘅 **Error Book** 格，同 New Vocab 入面個掣。
   `checkAnswer` 第三次先錯就收入去（任何 Dictation 題目，包括 New Vocab）。
   喺錯題簿答對就刪走。登入寫 `error_book`（只可以讀寫自己）；未登入用

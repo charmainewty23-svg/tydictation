@@ -3218,7 +3218,7 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1300, JUMP_V: -822,
-            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 34,
+            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 58,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.60,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
@@ -3860,7 +3860,7 @@
             if (WJ.keys.left || WJ.holdDir === -1) dir -= 1;
             if (WJ.keys.right || WJ.holdDir === 1) dir += 1;
             if (WJ.tiltOn) {
-                WJ.tiltSmooth += (WJ.tiltValue - WJ.tiltSmooth) * Math.min(1, dt * 20);
+                WJ.tiltSmooth += (WJ.tiltValue - WJ.tiltSmooth) * Math.min(1, dt * 26);
                 // Soft curve: a small tilt creeps, a firm tilt runs. Without it
                 // 4 degrees was already 60% of full speed, which felt frantic.
                 if (Math.abs(WJ.tiltSmooth) > WJ.TILT_DEAD) {
@@ -3872,7 +3872,7 @@
             }
             // Proportional steering: the speed follows the input, so half a
             // tilt is half speed and a full tilt (or a held pad) is top speed.
-            // It eases in over ~0.1s and settles ~7px after you let go.
+            // It eases in over ~0.13s and stops within ~2px of letting go.
             if (Math.abs(dir) < 0.04) dir = 0;
             const cap = WJ.speedCap();
             const target = dir * cap;

@@ -247,9 +247,9 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   11° = 100%。覺得太敏感就加 `TILT_RANGE`，太鈍就減；想「細傾更慢」就加大
   `TILT_CURVE`（1.0 = 完全線性）。
 - **左右速度（按輸入比例）**：`MOVE_MAX 240`、`STEER_RATE 22`（加速）、
-  `STEER_STOP 34`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
-  到 95%，放手**滑 3–8px**。`|dir| < 0.04` 當 0；只有 `target = 0` 而且
-  `|vx| < 1.5` 才歸零（否則慢速微調永遠起唔到步）。
+  `STEER_STOP 58`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
+  到 95%，放手**滑 1–4px**（基本即停）。`|dir| < 0.04` 當 0；只有 `target = 0`
+  而且 `|vx| < 1.5` 才歸零（否則慢速微調永遠起唔到步）。
   **注意**：以前嘅 `MOVE_ACC` + `FRICTION × (1-|dir|)³` 模型已經刪走——
   摩擦力係常數、唔隨速度變，結果係「一過門檻就衝到頂速、門檻以下完全唔郁」，
   冇中間速，呢個就係「太快」嘅根源。
@@ -318,7 +318,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.9 改動提示
 - 調手感改 `WJ.GRAVITY`（1300）／`WJ.JUMP_V`（−822）／`WJ.MOVE_MAX`（240）／
-  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（34）／`WJ.TILT_RANGE`（11）／
+  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（58）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
   道具上升速度 `jet -775`／`prop -195` 要一齊按比例調。

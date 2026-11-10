@@ -226,34 +226,41 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 （`F.4` / `F.6`）留喺學生自己部機，**冇**寫入 Supabase，所以老師畫面之前分唔到年級。
 
 - **單一清單**：`FORM_LEVELS`（而家 `F3`、`F4`、`F6`）。加新年級只改呢個陣列，
-  `id` 用 `F` + 年份（例如 `F5`）。老師下拉、用戶名稱解析、畫面分組、同舊 localStorage 遷移都讀呢度。
-- 欄：`student_logins.form`（text，null = Unassigned，畫面會再按登入名稱第一個數字推斷）。
-- 每個學生嘅年級，優先用 `student_logins.form`（或老師呢次改嘅下拉），否則由登入
-  **用戶名稱**推斷。規則（`parseUsernameFormClass`／`formFromFirstDigit`）：
-  - 先睇電郵 local-part（`@` 前面嗰截學校 Google 登入名）。如果呢段冇可用嘅第一個數字
-    （唔喺 `FORM_LEVELS` 入面），再睇同一個學生嘅顯示暱稱／Google `full_name`。
-  - 取呢段字入面**第一個數字**。如果個數字對應 `FORM_LEVELS`（而家 3 → F3、4 → F4、
-    6 → F6），就歸入嗰個年級。其他第一個數字，或者完全冇數字，就留喺 Unassigned。
-    例如 `3a01@…` → F3，`4B12_chan@…` → F4，`s3a01@` / `wong3a01@` 都係 F3。
-  - 班別徽章（例如 `3A`）只喺嗰個第一個年級數字後面清楚跟住一個班別字母先顯示
-    （字母後面係結尾、數字、或者分隔符；`3amywong@` 仍然係 F3，但唔會顯示班別徽章）。
-  - 資料庫 `form` 如果仲係空，老師畫面會即刻用呢條第一個數字規則分組，唔使等學生再登入。
-    學生登入時如果資料庫仍然係空，會用同一條規則 call `claim_own_form` 寫入；**唔會**覆蓋老師已改嘅值。
+  `id` 用 `F` + 年份（例如 `F5`）。老師下拉、顯示名稱解析、畫面分組、同舊 localStorage 遷移都讀呢度。
+- 欄：`student_logins.form`（text，null = Unassigned，畫面會再按**顯示登入名稱**入面嘅班別代號推斷）。
+- 每個學生嘅年級，優先用 `student_logins.form`（或老師呢次改嘅下拉），否則只由
+  **顯示登入名稱**推斷（登入時 Google `user_metadata.full_name`，寫入 `student_logins.nickname`，
+  老師名單行上面嘅 `nickname`）。規則（`parseDisplayNameFormClass`／`formFromFirstDigit`）：
+  - **唔會**用電郵 local-part 估年級。學校 Google 登入好似 `s231014@lstyoungkhl.edu.hk`，
+    前面嗰個 `23` 係學號／入學年份，唔係級別。
+  - 顯示名稱通常以班別代號開頭，再係班號同姓名，例如 `4C 16 Lai Ka Lok 黎嘉樂`、
+    `3A 08 Chan Tai Man`、`6D 21 Wong`。取名稱入面**第一個數字**；如果對應
+    `FORM_LEVELS`（而家 3 → F3、4 → F4、6 → F6），就歸入嗰個年級。
+    上面第一個例子：電郵係 `s231014@…`，顯示名稱係 `4C 16 Lai Ka Lok 黎嘉樂` → F4，班別徽章 `4C`。
+  - 班別徽章只喺嗰個第一個年級數字後面清楚跟住一個班別字母先顯示（字母後面係結尾、
+    空白、數字、或者分隔符）。
+  - 冇顯示名稱（或者名稱只係電郵／`s231014` 呢類 local-part 後備），又或者第一個數字
+    唔係 3／4／6，就歸入 Unassigned。
+  - 老師畫面用每行嘅 `nickname`；如果嗰行冇可用顯示名稱，再由 `student_logins` 目錄補。
+    資料庫 `form` 如果仲係空，只要有顯示名稱，畫面會即刻按班別代號分組。
+    學生登入時如果資料庫仍然係空，會用顯示名稱推斷出嚟嘅年級 call `claim_own_form` 寫入；
+    **唔會**覆蓋老師已改嘅值，亦**唔會**用電郵估。
 - RPC：
   - `claim_own_form(p_form)` — 學生登入時，如果資料庫嗰行 `form` 仲係 null，先寫入。
-    優先用登入名稱第一個數字推斷出嚟嘅年級；否則先用部機舊選擇。**唔會**覆蓋老師已改嘅值。
-    管理員帳戶唔會執走呢份 localStorage。舊 localStorage 選擇只交俾第一個登入嘅學生
-    （`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級；用戶名稱推斷唔受呢個鎖影響。
+    優先用顯示登入名稱推斷出嚟嘅年級；否則先用部機舊選擇。**唔會**覆蓋老師已改嘅值，
+    亦唔會用電郵估。管理員帳戶唔會執走呢份 localStorage。舊 localStorage 選擇只交俾
+    第一個登入嘅學生（`student_form_claimed_by`），避免共用電腦個個都被寫成同一個年級；
+    顯示名稱推斷唔受呢個鎖影響。
   - `set_student_form(p_email, p_form)` — 只限 `ADMIN_EMAIL`。每個老師畫面嘅學生行有下拉可以改或補正；
-    揀「—」就變回 Unassigned（下次重新載入時，如果登入名稱仍然推斷到年級，畫面會再按第一個數字歸類）。
+    揀「—」就變回 Unassigned（下次重新載入時，如果顯示名稱仍然推斷到年級，畫面會再按班別代號歸類）。
 - 老師畫面**唔再用** All / F3 / F4 / F6 / Unassigned 篩選掣，亦唔再讀 `localStorage["teacher_form_filter"]`。
-  改為同一頁自動按每個學生登入名稱第一個數字分成 F3、F4、F6、Unassigned 幾個部分：
+  改為同一頁自動按每個學生顯示名稱入面嘅班別代號分成 F3、F4、F6、Unassigned 幾個部分：
   Admin usage、Grammar Quest、Student Logins、Battles（連 class 直播板同 question breakdown；
   房間列表入面亦會按年級標示／分組學生）、Word Jump admin 排名，同埋老師先見到嘅 Hub Leaderboard。
   學生自己嗰個 Leaderboard 同其他學生介面**唔會**出現呢種分組。
   New Vocab／Word Battle 揀邊個年級字庫嘅掣仍然保留，因為嗰啲係題目庫選擇，唔係學生名單篩選。
 - 未跑 SQL 唔會壞登入：Admin 頂部提示要跑 `student_forms.sql`。下拉暫時存唔到，
-  但登入名稱推斷到年級嘅學生仍然會按第一個數字歸類。
+  但有顯示名稱嘅學生仍然會按班別代號歸類。
 
 ---
 

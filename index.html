@@ -992,8 +992,8 @@
         function isAdmin() { return currentUser && currentUser.email === ADMIN_EMAIL; }
 
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
-        // every dropdown, email parser, grouping, and the old-browser migration
-        // follow this list.
+        // every dropdown, display-name parser, grouping, and the old-browser
+        // migration follow this list.
         const FORM_LEVELS = [
             { id: 'F3', label: 'F3' },
             { id: 'F4', label: 'F4' },
@@ -1013,19 +1013,17 @@
             return hit ? hit.label : (id || 'Unassigned');
         }
 
-        // Derive form (and class 班別 when a letter clearly follows the form
-        // digit) from the login username. Primary source is the email
-        // local-part (before @). If that string has no usable first digit —
-        // one that maps to FORM_LEVELS — also look at the displayed nickname
-        // / Google full_name for the same student.
+        // Derive form (and class 班別) only from the student's displayed
+        // login name — Google full_name, stored as nickname on student_logins
+        // and on teacher list rows. Never use the email local-part: school
+        // logins look like s231014@…, whose first digit is an admission year,
+        // not the form.
         //
-        // Rule: take the first digit that appears. If it maps to FORM_LEVELS
-        // (currently 3 → F3, 4 → F4, 6 → F6), that is the form. Any other
-        // first digit, or no digit, stays Unassigned unless the nickname
-        // fallback maps. A class badge (e.g. 3A) is shown only when a single
-        // class letter clearly follows that first form digit, then the end,
-        // a digit, or a separator — not more letters (so 3amywong is F3 with
-        // no badge).
+        // Typical displayed name: "4C 16 Lai Ka Lok 黎嘉樂", "3A 08 Chan Tai Man".
+        // Take the first digit. If it maps to FORM_LEVELS (3 → F3, 4 → F4,
+        // 6 → F6), that is the form. If a single class letter clearly follows
+        // that digit (C in 4C), show the class badge. No displayed name, or a
+        // first digit that is not 3/4/6, stays Unassigned.
         function formFromFirstDigit(text) {
             const empty = { form: '', classId: '' };
             const raw = String(text || '');
@@ -1040,20 +1038,32 @@
             return { form, classId };
         }
 
-        function parseUsernameFormClass(email, nickname) {
-            const local = String(email || '').split('@')[0].trim();
-            const fromLocal = formFromFirstDigit(local);
-            if (fromLocal.form) return fromLocal;
+        // A real Google / on-screen name, not an email or email local-part
+        // fallback such as s231014.
+        function displayedLoginName(email, nickname) {
+            const name = String(nickname || '').trim();
+            if (!name) return '';
+            const em = String(email || '').trim();
+            const local = em.split('@')[0].trim();
+            if (em && name.toLowerCase() === em.toLowerCase()) return '';
+            if (local && name.toLowerCase() === local.toLowerCase()) return '';
+            return name;
+        }
+
+        function parseDisplayNameFormClass(nickname) {
             return formFromFirstDigit(nickname);
         }
 
-        function parseEmailFormClass(email, nickname) {
-            return parseUsernameFormClass(email, nickname);
+        function nicknameOfEmail(email, nickname) {
+            const fromRow = displayedLoginName(email, nickname);
+            if (fromRow) return fromRow;
+            const key = String(email || '').toLowerCase();
+            return displayedLoginName(email, formDirectory.nicknames.get(key));
         }
 
         let formOverrides = new Map();
         let formDirRequest = 0;
-        let formDirectory = { byEmail: new Map(), loaded: false, missing: false, error: '', pending: null };
+        let formDirectory = { byEmail: new Map(), nicknames: new Map(), loaded: false, missing: false, error: '', pending: null };
         let formSaveSeq = 0;
 
         function isMissingSchema(message) {
@@ -1065,11 +1075,11 @@
             if (formOverrides.has(key)) return formOverrides.get(key) || '';
             const stored = formDirectory.byEmail.get(key) || '';
             if (stored) return stored;
-            return parseUsernameFormClass(email, nickname).form || '';
+            return parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
         }
 
         function classOfEmail(email, nickname) {
-            const parsed = parseUsernameFormClass(email, nickname);
+            const parsed = parseDisplayNameFormClass(nicknameOfEmail(email, nickname));
             if (!parsed.classId) return '';
             if (parsed.form && formOfEmail(email, nickname) !== parsed.form) return '';
             return parsed.classId;
@@ -1134,7 +1144,7 @@
                 return;
             }
             note.classList.remove('hidden');
-            note.innerHTML = 'Form assignments are not saved yet. Run <code>supabase/student_forms.sql</code> in the Supabase SQL editor, then refresh. Until then, students are still grouped from the first digit in their login name, but the form dropdown cannot be saved.';
+            note.innerHTML = 'Form assignments are not saved yet. Run <code>supabase/student_forms.sql</code> in the Supabase SQL editor, then refresh. Until then, students are still grouped from the class code in their displayed login name, but the form dropdown cannot be saved.';
         }
 
         function formAssignControl(email, nickname) {
@@ -1161,22 +1171,37 @@
             formDirectory.loaded = false;
             formDirectory.pending = (async () => {
                 try {
-                    const res = await sb.from('student_logins').select('user_id, email, form');
+                    let res = await sb.from('student_logins').select('user_id, email, form, nickname');
+                    let formColumnMissing = false;
+                    if (res.error && isMissingSchema(res.error.message)) {
+                        const retry = await sb.from('student_logins').select('user_id, email, nickname');
+                        if (!retry.error) {
+                            res = retry;
+                            formColumnMissing = true;
+                        }
+                    }
                     if (req !== formDirRequest) return formDirectory;
                     if (res.error) {
                         formDirectory.missing = isMissingSchema(res.error.message);
                         formDirectory.error = res.error.message;
-                        if (formDirectory.missing) formDirectory.byEmail = new Map();
+                        if (formDirectory.missing) {
+                            formDirectory.byEmail = new Map();
+                            formDirectory.nicknames = new Map();
+                        }
                     } else {
                         const map = new Map();
+                        const nicks = new Map();
                         (res.data || []).forEach(row => {
                             const email = String(row.email || '').toLowerCase();
                             if (!email) return;
-                            map.set(email, normalizeForm(row.form));
+                            if (!formColumnMissing) map.set(email, normalizeForm(row.form));
+                            const nick = String(row.nickname || '').trim();
+                            if (nick) nicks.set(email, nick);
                         });
                         formOverrides.forEach((value, email) => map.set(email, value));
                         formDirectory.byEmail = map;
-                        formDirectory.missing = false;
+                        formDirectory.nicknames = nicks;
+                        formDirectory.missing = formColumnMissing;
                         formDirectory.error = '';
                     }
                     formDirectory.loaded = true;
@@ -1239,17 +1264,17 @@
         }
 
         // Fill student_logins.form when it is still empty. Prefer a form from
-        // the first digit in the login name (email local-part, then nickname /
-        // Google full_name). Otherwise upload an old browser choice once.
+        // the displayed login name (Google full_name / name). Never guess from
+        // the email. Otherwise upload an old browser choice once.
         // claim_own_form never overwrites a teacher edit. Skip the teacher
         // account. The shared-computer lock only applies to the old
-        // localStorage value, not to a username-derived form.
+        // localStorage value, not to a display-name-derived form.
         async function claimSavedForm(user) {
             if (!user || !user.email || user.email === ADMIN_EMAIL) return;
             const nick = user.user_metadata?.full_name || user.user_metadata?.name || '';
-            const fromEmail = parseUsernameFormClass(user.email, nick).form;
+            const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form;
             const saved = normalizeForm(localStorage.getItem(FORM_STORAGE_KEY) || '');
-            let form = fromEmail;
+            let form = fromName;
             if (!form && saved) {
                 let bound = '';
                 try { bound = localStorage.getItem(FORM_CLAIMED_BY_KEY) || ''; } catch (e) { bound = ''; }
@@ -1262,7 +1287,7 @@
                 console.warn('Form claim failed:', error.message);
                 return;
             }
-            if (!fromEmail) {
+            if (!fromName) {
                 try { localStorage.setItem(FORM_CLAIMED_BY_KEY, user.id); } catch (e) {}
             }
         }

@@ -3340,7 +3340,7 @@
             player: null,
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
-            boostPending: false, lastX: null,
+            boostPending: false, anchors: [], durable: [],
             topic: '', soundOn: true, audio: null,
             lastShot: 0, bound: false, autoFs: false,
             milestones: [], passFlash: 0, passLabels: []
@@ -3430,7 +3430,8 @@
             WJ.bonus = 0;
             WJ.wordsDone = 0;
             WJ.boostPending = false;
-            WJ.lastX = null;
+            WJ.anchors = [];
+            WJ.durable = [];
             WJ.streak = 0;
             WJ.bestStreak = 0;
             WJ.nextQuizY = -560;
@@ -3445,6 +3446,7 @@
                 baseX: WJ.W / 2 - 46, baseY: 0, phase: 0, amp: 0, speed: 0,
                 dead: false, fuse: 0, gadget: null
             });
+            WJ.commitLayer([WJ.platforms[0]], true);
             WJ.genUpTo(-WJ.H - 220);
         };
 
@@ -3818,6 +3820,7 @@
             let x = (WJ.W - totalW) / 2;
 
             const row = { y, en: target.en.toUpperCase(), zh: target.zh || '', resolved: false, ok: null, picked: null };
+            const tiles = [];
             options.forEach(o => {
                 const pl = {
                     x, y, w, h: 28, type: 'quiz',
@@ -3826,12 +3829,13 @@
                     word: o.en.toUpperCase(), correct: !!o.ok, row
                 };
                 WJ.platforms.push(pl);
+                tiles.push(pl);
                 x += w + gap;
             });
             WJ.quizRows.push(row);
-            // A word row spans the screen, so the next platform may start
-            // anywhere above it.
-            WJ.lastX = null;
+            // A right answer and a wrong answer bounce off different tiles,
+            // so the pads above the row have to be reachable from every tile.
+            WJ.commitLayer(tiles, true);
         };
 
         WJ.answerRow = function (row, pl) {
@@ -3899,14 +3903,190 @@
 
         /* ---------------- world generation ---------------- */
 
+        /* A jump only spends its full airtime if the next pad is all the way
+           back at the height you left. A pad 250px up is met on the way down
+           much sooner, so the sideways distance is shorter than speed * 1.26s.
+           REACH_FACTOR keeps a margin for reversing leftover speed and for the
+           fixed 1/120 step. */
+        WJ.REACH_FACTOR = 0.8;
+        WJ.FOOT = 34 * 0.4;
+
+        WJ.jumpHeight = function () {
+            return (WJ.JUMP_V * WJ.JUMP_V) / (2 * WJ.GRAVITY);
+        };
+        /* Stay this far under the apex so the landing is a real crossing,
+           not a brush against the top of the jump. */
+        WJ.maxGap = function () {
+            return WJ.jumpHeight() - 36;
+        };
+        WJ.speedAt = function (climb) {
+            const t = WJ.clamp(climb / WJ.SPEED_RAMP_AT, 0, 1);
+            return WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+        };
+        WJ.airtimeForGap = function (gap) {
+            const v = Math.abs(WJ.JUMP_V), g = WJ.GRAVITY;
+            const disc = v * v - 2 * g * gap;
+            if (disc <= 1) return 0;
+            return (v + Math.sqrt(disc)) / g;
+        };
+        /* Distance covered while holding one direction from a standstill. */
+        WJ.steerDistance = function (t, speed) {
+            if (!(t > 0) || !(speed > 0)) return 0;
+            const r = WJ.STEER_RATE;
+            return speed * (t - (1 - Math.exp(-r * t)) / r);
+        };
+        WJ.horizBudget = function (gap, climb) {
+            if (!(gap >= 0) || gap >= WJ.jumpHeight() - 1) return 0;
+            return WJ.steerDistance(WJ.airtimeForGap(gap), WJ.speedAt(Math.max(0, climb))) * WJ.REACH_FACTOR;
+        };
+        WJ.circDist = function (a, b) {
+            const w = WJ.W;
+            let d = Math.abs(a - b) % w;
+            return d > w / 2 ? w - d : d;
+        };
+        /* How far (circular) the new pad's centre may sit from this anchor
+           and still be landable from the anchor's far edge. */
+        WJ.centerSep = function (anchor, w, budget, destAmpX) {
+            return budget - anchor.w / 2 + w / 2 - (anchor.ampX || 0) - (destAmpX || 0);
+        };
+
+        WJ.syncAnchors = function (list) {
+            WJ.anchors = (list || []).map(p => ({
+                x: p.baseX != null ? p.baseX : p.x,
+                y: p.baseY != null ? p.baseY : p.y,
+                w: p.w,
+                ampX: p.type === 'blue' ? (p.amp || 0) : 0,
+                ampY: p.type === 'gray' ? (p.amp || 0) : 0
+            }));
+        };
+        /* durable: this layer still bounces after you leave it (green / blue /
+           grey / word tile). White and yellow bounce once and are not durable,
+           so a later pad must also stay reachable from the last solid layer. */
+        WJ.commitLayer = function (list, durable) {
+            WJ.syncAnchors(list);
+            if (durable) WJ.durable = WJ.anchors.map(a => ({ x: a.x, y: a.y, w: a.w, ampX: a.ampX, ampY: a.ampY }));
+        };
+        WJ.goalAnchors = function (y) {
+            const out = [];
+            const push = a => {
+                for (let i = 0; i < out.length; i++) {
+                    if (Math.abs(out[i].x - a.x) < 1 && Math.abs(out[i].y - a.y) < 1 && Math.abs(out[i].w - a.w) < 1) return;
+                }
+                out.push(a);
+            };
+            (WJ.anchors || []).forEach(push);
+            (WJ.durable || []).forEach(a => {
+                const rise = a.y + (a.ampY || 0) - y;
+                if (rise > 8 && rise <= WJ.maxGap() + 1) push(a);
+            });
+            return out.length ? out : [{ x: WJ.W / 2 - 46, y: 0, w: 92, ampX: 0, ampY: 0 }];
+        };
+
+        WJ.pickType = function () {
+            const d = WJ.difficulty();
+            const table = [
+                ['green', 58 - 14 * d],
+                ['blue', 14],
+                ['gray', 12],
+                ['brown', 9 + 5 * d],
+                ['yellow', 8 + 4 * d],
+                ['white', 6 + 3 * d]
+            ];
+            let total = 0;
+            table.forEach(t => { total += t[1]; });
+            let r = Math.random() * total, type = 'green';
+            for (let i = 0; i < table.length; i++) {
+                r -= table[i][1];
+                if (r <= 0) { type = table[i][0]; break; }
+            }
+            return type;
+        };
+
+        /* Centres from which a pad of width w at this y is reachable from
+           every anchor, including the sideways sway of a blue pad (destAmpX)
+           and the upward bob of a grey pad (destAmpY). */
+        WJ.centersFor = function (goals, w, y, destAmpX, destAmpY) {
+            const minC = 8 + w / 2, maxC = WJ.W - 8 - w / 2;
+            if (!(maxC >= minC)) return [];
+            const rules = goals.map(a => {
+                const rise = a.y + (a.ampY || 0) - y + (destAmpY || 0);
+                const budget = WJ.horizBudget(rise, Math.max(0, -(a.y + (a.ampY || 0))));
+                return { a, budget };
+            });
+            const slots = [];
+            for (let c = minC; c <= maxC + 0.01; c += 2) {
+                let ok = true;
+                for (let i = 0; i < rules.length; i++) {
+                    const a = rules[i].a;
+                    const sep = WJ.centerSep(a, w, rules[i].budget, destAmpX || 0);
+                    if (WJ.circDist(a.x + a.w / 2, c) > sep + 0.01) { ok = false; break; }
+                }
+                if (ok) slots.push(c);
+            }
+            return slots;
+        };
+        /* Prefer a pad you can reach without wrapping. A wrap-around pad is
+           only used when every straight slot is blocked. */
+        WJ.chooseSlot = function (slots, goals) {
+            const straight = [];
+            for (let i = 0; i < slots.length; i++) {
+                const c = slots[i];
+                let wrap = false;
+                for (let j = 0; j < goals.length; j++) {
+                    const ac = goals[j].x + goals[j].w / 2;
+                    if (Math.abs(ac - c) > WJ.circDist(ac, c) + 0.75) { wrap = true; break; }
+                }
+                if (!wrap) straight.push(c);
+            }
+            const pool = straight.length ? straight : slots;
+            return pool[Math.floor(Math.random() * pool.length)];
+        };
+
+        WJ.makePlatform = function (x, y, w, type, amp) {
+            const d = WJ.difficulty();
+            const pl = {
+                x, y, w, h: 13, type,
+                baseX: x, baseY: y,
+                phase: Math.random() * Math.PI * 2,
+                amp: amp || 0,
+                speed: WJ.rand(0.5, 1.1),
+                dead: false, fuse: 0, gadget: null
+            };
+            WJ.platforms.push(pl);
+            if (type !== 'brown' && type !== 'white' && y < -700 && Math.random() < 0.09) {
+                pl.gadget = {
+                    kind: WJ.pick(['spring', 'spring', 'propeller', 'jetpack', 'shoes', 'shield']),
+                    used: false
+                };
+            }
+            if (y < -1500 && Math.random() < 0.05 + 0.07 * d) {
+                WJ.monsters.push({
+                    x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
+                    range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
+                    speed: WJ.rand(20, 40), r: 19, dead: false
+                });
+            }
+            if (y < -2400 && Math.random() < 0.022) {
+                WJ.ufos.push({
+                    x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
+                    r: 26, dead: false, beam: false, bob: Math.random() * 6.28
+                });
+            }
+            if (y < -3000 && d > 0.25 && Math.random() < 0.02) {
+                WJ.holes.push({
+                    x: WJ.rand(70, WJ.W - 70), y: y - WJ.rand(80, 160),
+                    r: 28, dead: false
+                });
+            }
+            return pl;
+        };
+
         WJ.genUpTo = function (targetY) {
             let guard = 0;
             while (WJ.topY > targetY && guard++ < 300) {
-                // Leave a wider gap above a word row so the player has to come
-                // down on it instead of hopping straight over it. The first
-                // few screens are deliberately crowded - at 108px/s the player
-                // could not cross the screen in one jump, so a lonely platform
-                // far away was literally unreachable.
+                // The tall gap above a word row is what stops a jump from the
+                // pad underneath sailing over the question. Step sizes below
+                // are the existing density tuning.
                 const opening = WJ.maxClimb < 1500 && !WJ.afterQuiz;
                 const base = WJ.afterQuiz ? WJ.rand(240, 275)
                           : opening ? WJ.rand(68, 90)
@@ -3914,9 +4094,9 @@
                 const step = base * (1 - WJ.difficulty() * 0.1);
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
-                    // Keep at least 115px under the row: from a bounce there the
-                    // player cannot reach the next platform above, so he has to
-                    // come down on the word row instead of sailing past it.
+                    // 115px under the row: high enough that the row is a
+                    // comfortable hop, low enough that the tall gap above the
+                    // row stays out of reach until you have bounced on a tile.
                     const quizY = Math.min(WJ.nextQuizY, WJ.topY - 115);
                     WJ.safePadUnder(WJ.topY);
                     WJ.spawnQuizRow(quizY);
@@ -3924,8 +4104,9 @@
                     WJ.nextQuizY = quizY - WJ.rand(WJ.QUIZ_GAP_MIN, WJ.QUIZ_GAP_MAX);
                     WJ.afterQuiz = true;
                 } else {
-                    WJ.topY = nextY;
-                    WJ.spawnPlatform(WJ.topY);
+                    const placedY = WJ.spawnPlatform(nextY);
+                    if (!(placedY < WJ.topY - 1)) break;
+                    WJ.topY = placedY;
                     WJ.afterQuiz = false;
                 }
             }
@@ -3946,73 +4127,89 @@
         };
 
         WJ.spawnPlatform = function (y) {
-            const d = WJ.difficulty();
+            if (!WJ.anchors || !WJ.anchors.length) {
+                WJ.commitLayer([{ x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green', baseX: WJ.W / 2 - 46, baseY: 0, amp: 0 }], true);
+            }
             const opening = WJ.maxClimb < 1500;
-            const w = opening ? WJ.rand(74, 104) : WJ.rand(62, 90);
-            // Keep every platform within one jump of the previous one. The
-            // horizontal speed starts at 108px/s, so a platform on the far side
-            // of the screen simply could not be reached - that was the real
-            // "cannot jump up" bug, not the jump height.
-            const air = (2 * Math.abs(WJ.JUMP_V)) / WJ.GRAVITY;
-            const reach = WJ.speedCap() * air * 0.8 + w * 0.8 + 16;
-            const prevX = (WJ.lastX == null) ? WJ.W / 2 : WJ.lastX;
-            const lo = Math.max(8, prevX - reach - w / 2);
-            const hi = Math.min(WJ.W - w - 8, prevX + reach - w / 2);
-            const x = (hi > lo) ? WJ.rand(lo, hi) : WJ.rand(8, WJ.W - w - 8);
-            WJ.lastX = x + w / 2;
-            const table = [
-                ['green', 58 - 14 * d],
-                ['blue', 14],
-                ['gray', 12],
-                ['brown', 9 + 5 * d],
-                ['yellow', 8 + 4 * d],
-                ['white', 6 + 3 * d]
-            ];
-            let total = 0;
-            table.forEach(t => { total += t[1]; });
-            let r = Math.random() * total, type = 'green';
-            for (let i = 0; i < table.length; i++) {
-                r -= table[i][1];
-                if (r <= 0) { type = table[i][0]; break; }
+            const w0 = opening ? WJ.rand(74, 104) : WJ.rand(62, 90);
+            let goals = WJ.goalAnchors(y);
+            let lowY = -1e9, gap = 0;
+            goals.forEach(a => {
+                const foot = a.y + (a.ampY || 0);
+                if (foot > lowY) lowY = foot;
+                gap = Math.max(gap, foot - y);
+            });
+            if (gap > WJ.maxGap()) {
+                const pulled = lowY - WJ.maxGap();
+                if (pulled < WJ.topY - 36) {
+                    y = pulled;
+                    gap = WJ.maxGap();
+                    goals = WJ.goalAnchors(y);
+                }
+            }
+            let type = WJ.pickType();
+            // A long rise (the band above a word row, or a jump that skips a
+            // broken pad) is a still green. Moving or breaking pads on a short
+            // airtime are what opened the unreachable holes.
+            const solidKind = t => t === 'green' || t === 'blue' || t === 'gray';
+            if (gap + 110 > WJ.maxGap() && !solidKind(type)) type = 'green';
+            if (gap > 160) type = 'green';
+
+            const attempts = [];
+            if (type === 'blue') {
+                attempts.push({ type: 'blue', ampX: 46, ampY: 0 });
+                attempts.push({ type: 'blue', ampX: 26, ampY: 0 });
+                attempts.push({ type: 'green', ampX: 0, ampY: 0 });
+            } else if (type === 'gray') {
+                const room = Math.max(0, WJ.maxGap() - gap);
+                const ampY = Math.min(WJ.rand(20, 40), room);
+                if (ampY >= 12) attempts.push({ type: 'gray', ampX: 0, ampY });
+                attempts.push({ type: 'green', ampX: 0, ampY: 0 });
+            } else {
+                attempts.push({ type: type, ampX: 0, ampY: 0 });
             }
 
-            const pl = {
-                x, y, w, h: 13, type,
-                baseX: x, baseY: y,
-                phase: Math.random() * Math.PI * 2,
-                amp: type === 'blue' ? WJ.rand(26, 46) : (type === 'gray' ? WJ.rand(20, 40) : 0),
-                speed: WJ.rand(0.5, 1.1),
-                dead: false, fuse: 0, gadget: null
-            };
-            WJ.platforms.push(pl);
-
-            if (type !== 'brown' && type !== 'white' && y < -700 && Math.random() < 0.09) {
-                pl.gadget = {
-                    kind: WJ.pick(['spring', 'spring', 'propeller', 'jetpack', 'shoes', 'shield']),
-                    used: false
-                };
+            let placed = null;
+            for (let i = 0; i < attempts.length && !placed; i++) {
+                const att = attempts[i];
+                const slots = WJ.centersFor(goals, w0, y, att.ampX, att.ampY);
+                if (!slots.length) continue;
+                const c = WJ.chooseSlot(slots, goals);
+                const amp = att.type === 'gray' ? att.ampY : att.ampX;
+                placed = [WJ.makePlatform(c - w0 / 2, y, w0, att.type, amp)];
             }
-
-
-            if (y < -1500 && Math.random() < 0.05 + 0.07 * d) {
-                WJ.monsters.push({
-                    x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
-                    range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
-                    speed: WJ.rand(20, 40), r: 19, dead: false
+            if (!placed) {
+                // One pad cannot cover every tile (or every solid pad) the
+                // player might be standing on. Put a still green over each.
+                placed = [];
+                let mid = 0;
+                goals.forEach(a => { mid += a.x + a.w / 2; });
+                mid /= goals.length;
+                const seen = {};
+                goals.forEach(a => {
+                    const rise = Math.max(8, a.y + (a.ampY || 0) - y);
+                    const budget = WJ.horizBudget(rise, Math.max(0, -(a.y + (a.ampY || 0))));
+                    let bw = Math.max(w0, a.w - 2 * budget + 2 * (a.ampX || 0) + 8);
+                    bw = Math.min(WJ.W - 16, bw);
+                    let sep = WJ.centerSep(a, bw, budget, 0);
+                    if (!(sep > 0)) sep = 0;
+                    const ac = a.x + a.w / 2;
+                    const pull = mid - ac;
+                    const mag = Math.min(Math.abs(pull), sep);
+                    let c = ac + (pull < 0 ? -1 : 1) * mag;
+                    c = WJ.clamp(c, 8 + bw / 2, WJ.W - 8 - bw / 2);
+                    const key = Math.round(c) + ':' + Math.round(bw);
+                    if (seen[key]) return;
+                    seen[key] = 1;
+                    placed.push(WJ.makePlatform(c - bw / 2, y, bw, 'green', 0));
                 });
             }
-            if (y < -2400 && Math.random() < 0.022) {
-                WJ.ufos.push({
-                    x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
-                    r: 26, dead: false, beam: false, bob: Math.random() * 6.28
-                });
+            const launch = placed.filter(pl => pl.type !== 'brown');
+            if (launch.length) {
+                const durable = launch.every(pl => pl.type === 'green' || pl.type === 'blue' || pl.type === 'gray');
+                WJ.commitLayer(launch, durable);
             }
-            if (y < -3000 && d > 0.25 && Math.random() < 0.02) {
-                WJ.holes.push({
-                    x: WJ.rand(70, WJ.W - 70), y: y - WJ.rand(80, 160),
-                    r: 28, dead: false
-                });
-            }
+            return y;
         };
 
         /* ---------------- gameplay ---------------- */

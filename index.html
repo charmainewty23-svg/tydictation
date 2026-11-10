@@ -564,8 +564,32 @@
                 <button onclick="changeView('home-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Topics
                 </button>
-                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-8 px-2 capitalize">Topic Name</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-4 px-2 capitalize">Topic Name</h2>
+                <div id="nv-panel" class="hidden mb-8">
+                    <div id="nv-scope" class="flex gap-2 flex-wrap mb-4">
+                        <button type="button" id="nv-scope-today" onclick="nvSetScope('today')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white">Added today</button>
+                        <button type="button" id="nv-scope-all" onclick="nvSetScope('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">All words</button>
+                    </div>
+                    <div id="nv-status" class="text-gray-500 font-bold mb-4"></div>
+                    <div id="nv-editor" class="hidden bg-orange-50 border-2 border-orange-100 rounded-2xl p-5 mb-6">
+                        <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+                            <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
+                            <div id="nv-form-switch" class="flex gap-2 flex-wrap"></div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English.</p>
+                        <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <input id="nv-zh" type="text" placeholder="中文 (optional)" autocomplete="off" class="p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                        </div>
+                        <div class="flex gap-2 mb-4">
+                            <button id="nv-save-btn" onclick="nvSaveWord()" class="px-5 py-2 bg-orange-500 text-white rounded-xl font-bold">Add word</button>
+                            <button id="nv-cancel-btn" onclick="nvCancelEdit()" class="hidden px-5 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold">Cancel</button>
+                        </div>
+                        <div id="nv-editor-list" class="space-y-2"></div>
+                    </div>
+                    <button onclick="openErrorBook()" class="mb-2 px-4 py-2 bg-white border-2 border-orange-100 text-orange-600 rounded-full font-bold text-sm">📒 錯題簿 · Error Book</button>
+                </div>
+                <div id="dictation-activities" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div class="category-box shadow-sm border-orange-100" onclick="startQuiz('listening')">
                         <div class="text-5xl mb-4">🎧</div>
                         <div class="font-bold text-center leading-tight">Listening</div>
@@ -583,7 +607,7 @@
 
             <!-- Quiz View (Used for Listening and Recitation) -->
             <div id="quiz-view" class="view hidden w-full">
-                <button onclick="changeView('sub-category-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                <button onclick="quizLeave()" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Activities
                 </button>
                 <div class="cat-card p-8 md:p-12 text-center">
@@ -664,7 +688,17 @@
                             <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100">
                                 <h3 class="font-bold text-blue-700 text-lg mb-4">Create a room</h3>
                                 <label class="text-sm text-gray-500 font-bold">Topic</label>
-                                <select id="battle-topic-select" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                <select id="battle-topic-select" onchange="battleSyncVocabForm()" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                <div id="battle-vocab-form-wrap" class="hidden mb-4">
+                                    <label class="text-sm text-gray-500 font-bold">New Vocab form</label>
+                                    <select id="battle-vocab-form-select" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700"></select>
+                                    <label class="text-sm text-gray-500 font-bold mt-3 block">Which words</label>
+                                    <select id="battle-vocab-scope" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700">
+                                        <option value="all" selected>Full bank</option>
+                                        <option value="today">Added today only</option>
+                                    </select>
+                                    <p class="text-xs text-gray-400 mt-2">Everyone in the room gets this same list, frozen when the room opens. Full bank is the usual choice.</p>
+                                </div>
                                 <button onclick="battleCreateRoom()" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">Create Room</button>
                             </div>
                             <div class="bg-orange-50 rounded-2xl p-6 border-2 border-orange-100">
@@ -783,10 +817,36 @@
             </div>
 
             <div id="word-list-view" class="view hidden w-full">
-                <button onclick="changeView('sub-category-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                <button onclick="leaveWordList()" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Activities
                 </button>
                 <div id="word-list-container" class="cat-card p-8 min-h-[500px]"></div>
+            </div>
+
+            <div id="error-book-view" class="view hidden w-full">
+                <button onclick="changeView('home-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Topics
+                </button>
+                <div class="cat-card p-8">
+                    <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 錯題簿</h2>
+                    <p class="text-gray-400 mb-6">Words you missed. Answer one correctly here and it leaves the book.</p>
+                    <div id="eb-note" class="hidden text-amber-600 font-bold text-sm mb-4"></div>
+                    <div id="eb-list" class="space-y-2 mb-6"></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <button onclick="startErrorBookQuiz('listening')" class="category-box shadow-sm border-orange-100">
+                            <div class="text-4xl mb-2">🎧</div>
+                            <div class="font-bold">Listening</div>
+                        </button>
+                        <button onclick="startErrorBookQuiz('recitation')" class="category-box shadow-sm border-orange-100">
+                            <div class="text-4xl mb-2">🗣️</div>
+                            <div class="font-bold">Recitation</div>
+                        </button>
+                        <button onclick="showErrorBookRevision()" class="category-box shadow-sm border-orange-100">
+                            <div class="text-4xl mb-2">📚</div>
+                            <div class="font-bold">Revision</div>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div id="my-records-view" class="view hidden w-full">
@@ -922,8 +982,10 @@
         const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports", "exam focus", "basics"];
 
         // Display-only label overrides (Sheet tab names stay untouched).
-        const TOPIC_LABELS = { "basics": "Basics" };
+        const TOPIC_LABELS = { "basics": "Basics", "New Vocab": "New Vocab", "Error Book": "Error Book" };
         function topicLabel(name) { return TOPIC_LABELS[name] || name; }
+        const NEW_VOCAB = 'New Vocab';
+        const ERROR_BOOK = 'Error Book';
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
         const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
 
@@ -940,6 +1002,7 @@
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
         // every filter, dropdown, and the old-browser migration follow this list.
         const FORM_LEVELS = [
+            { id: 'F3', label: 'F3' },
             { id: 'F4', label: 'F4' },
             { id: 'F6', label: 'F6' }
         ];
@@ -1230,20 +1293,27 @@
             await claimSavedForm(user);
         }
 
+        let errorBook = [];
+        let errorBookOwner = null;
+        let ebCloudNote = '';
+
         sb.auth.onAuthStateChange(async (_event, session) => {
             const email = session?.user?.email ?? "";
             if (session && !email.endsWith(SCHOOL_DOMAIN)) {
                 await sb.auth.signOut();
                 document.getElementById('login-mascot-text').innerText = "Please use your school account to login (" + SCHOOL_DOMAIN + ")";
                 currentUser = null;
+                adoptErrorBookUser();
                 showLogin();
             } else if (session) {
                 currentUser = session.user;
                 recordLogin(session.user);
                 updateAuthUI();
+                adoptErrorBookUser();
                 showApp();
             } else {
                 currentUser = null;
+                adoptErrorBookUser();
                 showLogin();
             }
         });
@@ -1274,6 +1344,8 @@
         
         // Quiz State
         let quizMode = 'listening'; // 'listening' or 'recitation'
+        let quizSource = 'topic';   // 'topic' or 'errorbook'
+        let wordListBack = 'topic';
         let quizWords = [];
         let quizIdx = 0;
         let quizScore = 0;
@@ -1314,7 +1386,10 @@
                 renderTenseGrid();
                 if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
                 if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
-            } catch (e) { updateMascot("Oh no, connection lost!"); }
+            } catch (e) {
+                updateMascot("Oh no, connection lost!");
+                renderCategories();
+            }
         }
 
         function parseCSV(text) {
@@ -1368,22 +1443,445 @@
             const container = document.getElementById('categories-grid');
             if (!container) return;
             container.innerHTML = "";
+            appendDictationTile(container, '🆕', 'New Vocab', () => selectTopic(NEW_VOCAB));
+            appendDictationTile(container, '📒', 'Error Book', () => openErrorBook());
             SHEET_NAMES.forEach(cat => {
                 if (!categories[cat]) return;
-                const div = document.createElement('div');
-                div.className = "category-box shadow-sm";
-                div.onclick = () => selectTopic(cat);
                 const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝", "basics": "🔤" };
-                div.innerHTML = `<div class="text-4xl mb-4">${emojis[cat] || '📦'}</div><div class="font-bold text-center leading-tight">${topicLabel(cat)}</div>`;
-                container.appendChild(div);
+                appendDictationTile(container, emojis[cat] || '📦', topicLabel(cat), () => selectTopic(cat));
             });
+        }
+
+        function appendDictationTile(container, emoji, label, onclick) {
+            const div = document.createElement('div');
+            div.className = "category-box shadow-sm";
+            div.onclick = onclick;
+            div.innerHTML = `<div class="text-4xl mb-4">${emoji}</div><div class="font-bold text-center leading-tight">${label}</div>`;
+            container.appendChild(div);
         }
 
         function selectTopic(topic) {
             currentTopic = topic;
             currentSubCategory = '';
+            quizSource = 'topic';
             document.getElementById('current-topic-title').innerText = topicLabel(topic);
             changeView('sub-category-view');
+        }
+
+        const NV_POLL_MS = 4000;
+        let nvTimer = 0;
+        let nvEditForm = '';
+        let nvScope = 'today';
+        let nvRows = [];
+        let nvSig = '';
+        let nvSchemaMissing = false;
+        let nvEditingId = null;
+        let myFormValue = '';
+        let myFormLoaded = false;
+
+        function quizLeave() {
+            changeView(quizSource === 'errorbook' ? 'error-book-view' : 'sub-category-view');
+        }
+
+        function leaveWordList() {
+            changeView(wordListBack === 'errorbook' ? 'error-book-view' : 'sub-category-view');
+        }
+
+        function errorBookStorageKey() {
+            return currentUser ? ('error_book:' + currentUser.id) : 'error_book:guest';
+        }
+
+        function saveErrorBookLocal() {
+            try { localStorage.setItem(errorBookStorageKey(), JSON.stringify(errorBook)); } catch (e) {}
+        }
+
+        function readErrorBookLocal() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(errorBookStorageKey()) || '[]');
+                return Array.isArray(parsed) ? parsed.filter(w => w && w.en) : [];
+            } catch (e) { return []; }
+        }
+
+        function adoptErrorBookUser() {
+            if (currentUser) {
+                try { localStorage.removeItem('error_book:guest'); } catch (e) {}
+            }
+            const next = currentUser ? currentUser.id : null;
+            if (errorBookOwner !== next) {
+                errorBook = [];
+                errorBookOwner = next;
+                ebCloudNote = '';
+            }
+            loadErrorBook();
+        }
+
+        async function loadErrorBook() {
+            if (currentUser) {
+                const { data, error } = await sb.from('error_book').select('en,zh,topic').eq('user_id', currentUser.id).order('created_at');
+                if (!error && data) {
+                    errorBook = data.map(w => ({ en: w.en, zh: w.zh || '', topic: w.topic || '' }));
+                    ebCloudNote = '';
+                    saveErrorBookLocal();
+                    if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
+                    return;
+                }
+                ebCloudNote = error && isMissingSchema(error.message)
+                    ? 'The error book table is not ready yet. Words stay on this account in this browser until supabase/new_vocab.sql is run.'
+                    : '';
+                if (error && !isMissingSchema(error.message)) console.warn('Error book load failed:', error.message);
+            } else {
+                ebCloudNote = '';
+            }
+            errorBook = readErrorBookLocal();
+            if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
+        }
+
+        function addErrorWord(word) {
+            const en = String(word && word.en || '').trim();
+            const zh = String(word && word.zh || '').trim();
+            if (!en || errorBook.some(w => w.en === en)) return;
+            errorBook.push({ en, zh, topic: currentTopic });
+            saveErrorBookLocal();
+            if (!currentUser) return;
+            sb.from('error_book').upsert({
+                user_id: currentUser.id, en, zh, topic: currentTopic || ''
+            }, { onConflict: 'user_id,en' }).then(({ error }) => {
+                if (error) console.warn('Error book save failed:', error.message);
+            });
+        }
+
+        function removeErrorWord(word) {
+            const en = String(word && word.en || '').trim();
+            if (!en) return;
+            errorBook = errorBook.filter(w => w.en !== en);
+            saveErrorBookLocal();
+            if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
+            if (!currentUser) return;
+            sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
+                if (error) console.warn('Error book remove failed:', error.message);
+            });
+        }
+
+        function openErrorBook() {
+            quizSource = 'errorbook';
+            changeView('error-book-view');
+        }
+
+        function renderErrorBook() {
+            const list = document.getElementById('eb-list');
+            const note = document.getElementById('eb-note');
+            if (!list) return;
+            if (note) {
+                note.classList.toggle('hidden', !ebCloudNote);
+                note.innerText = ebCloudNote || '';
+            }
+            if (!errorBook.length) {
+                list.innerHTML = '<p class="text-gray-400 text-center py-8">No words yet. A miss in Dictation Master is added here.</p>';
+                return;
+            }
+            list.innerHTML = errorBook.map(w => `
+                <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3">
+                    <span class="font-bold text-gray-800">${escapeHtml(w.en)}</span>
+                    <span class="text-gray-400">${escapeHtml(w.zh || '')}</span>
+                </div>`).join('');
+        }
+
+        function startErrorBookQuiz(mode) {
+            currentTopic = ERROR_BOOK;
+            startQuiz(mode, 'errorbook');
+        }
+
+        function showErrorBookRevision() {
+            if (!errorBook.length) {
+                updateMascot("Your error book is empty. Miss a word in dictation and it will show up here.");
+                return;
+            }
+            showWordList(ERROR_BOOK);
+        }
+
+        function nvAddedToday(iso) {
+            if (!iso || typeof hkDayKey !== 'function') return false;
+            return hkDayKey(iso) === hkDayKey(new Date().toISOString());
+        }
+
+        function nvHasEnglish(w) {
+            return !!String(w && w.en || '').trim();
+        }
+
+        function nvPracticeRows() {
+            if (nvScope === 'today') return nvRows.filter(w => nvAddedToday(w.created_at || w.updated_at));
+            return nvRows.slice();
+        }
+
+        function nvQuizRows() {
+            return nvPracticeRows().filter(nvHasEnglish).map(w => ({
+                en: String(w.en).trim(),
+                zh: String(w.zh || '').trim()
+            }));
+        }
+
+        function nvApplyPractice() {
+            categories[NEW_VOCAB] = nvQuizRows();
+        }
+
+        function nvPaintScope() {
+            const todayBtn = document.getElementById('nv-scope-today');
+            const allBtn = document.getElementById('nv-scope-all');
+            if (!todayBtn || !allBtn) return;
+            const todayOn = nvScope === 'today';
+            todayBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (todayOn ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600');
+            allBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (todayOn ? 'bg-orange-100 text-orange-600' : 'bg-orange-500 text-white');
+        }
+
+        function nvSetScope(scope) {
+            nvScope = scope === 'all' ? 'all' : 'today';
+            nvPaintScope();
+            nvApplyPractice();
+            nvRenderStatus();
+            nvRenderEditorList();
+            const listView = document.getElementById('word-list-view');
+            if (listView && !listView.classList.contains('hidden') && currentTopic === NEW_VOCAB) showWordList(NEW_VOCAB);
+        }
+
+        function nvHide() {
+            const panel = document.getElementById('nv-panel');
+            const activities = document.getElementById('dictation-activities');
+            if (panel) panel.classList.add('hidden');
+            if (activities) activities.classList.remove('hidden');
+        }
+
+        function nvStopPoll() {
+            if (nvTimer) { clearInterval(nvTimer); nvTimer = 0; }
+        }
+
+        function nvStartPoll() {
+            nvStopPoll();
+            nvTimer = setInterval(() => {
+                const sub = document.getElementById('sub-category-view');
+                const list = document.getElementById('word-list-view');
+                const onSub = sub && !sub.classList.contains('hidden');
+                const onList = list && !list.classList.contains('hidden');
+                if (currentTopic === NEW_VOCAB && (onSub || onList)) nvRefresh(false);
+                else nvStopPoll();
+            }, NV_POLL_MS);
+        }
+
+        function nvActiveForm() {
+            if (isAdmin()) return nvEditForm || FORM_LEVELS[0].id;
+            return myFormValue || '';
+        }
+
+        async function fetchMyForm(force) {
+            if (!currentUser) { myFormValue = ''; myFormLoaded = true; return ''; }
+            if (myFormLoaded && !force) return myFormValue;
+            const { data, error } = await sb.rpc('my_form');
+            myFormLoaded = true;
+            if (error) {
+                nvSchemaMissing = isMissingSchema(error.message);
+                myFormValue = '';
+                return '';
+            }
+            nvSchemaMissing = false;
+            myFormValue = normalizeForm(data) || '';
+            return myFormValue;
+        }
+
+        function nvEnsureFormSwitch() {
+            const box = document.getElementById('nv-form-switch');
+            if (!box) return;
+            if (!nvEditForm) nvEditForm = (teacherFormFilter && normalizeForm(teacherFormFilter)) || FORM_LEVELS[0].id;
+            box.innerHTML = FORM_LEVELS.map(f => {
+                const on = f.id === nvEditForm;
+                return `<button type="button" onclick="nvPickForm('${f.id}')" class="px-4 py-2 rounded-full font-bold text-sm ${on ? 'bg-orange-500 text-white' : 'bg-white text-orange-600 border-2 border-orange-100'}">${f.label}</button>`;
+            }).join('');
+        }
+
+        function nvPickForm(id) {
+            const next = normalizeForm(id);
+            if (!next || next === nvEditForm) return;
+            nvEditForm = next;
+            nvEditingId = null;
+            nvCancelEdit();
+            nvEnsureFormSwitch();
+            nvRefresh(true);
+        }
+
+        function nvEnter() {
+            const panel = document.getElementById('nv-panel');
+            if (panel) panel.classList.remove('hidden');
+            const editor = document.getElementById('nv-editor');
+            if (editor) editor.classList.toggle('hidden', !isAdmin());
+            if (isAdmin()) nvEnsureFormSwitch();
+            nvPaintScope();
+            nvRefresh(true);
+            nvStartPoll();
+        }
+
+        async function nvRefresh(force) {
+            const form = isAdmin() ? (nvEditForm || FORM_LEVELS[0].id) : await fetchMyForm(true);
+            const status = document.getElementById('nv-status');
+            const activities = document.getElementById('dictation-activities');
+            const scope = document.getElementById('nv-scope');
+            if (!isAdmin() && !currentUser) {
+                nvRows = [];
+                nvApplyPractice();
+                if (status) status.innerText = 'Sign in with your school account, then ask your teacher to set your form.';
+                if (activities) activities.classList.add('hidden');
+                if (scope) scope.classList.add('hidden');
+                return;
+            }
+            if (!isAdmin() && nvSchemaMissing) {
+                if (status) status.innerText = 'New Vocab is not ready yet. Ask your teacher to run supabase/new_vocab.sql.';
+                if (activities) activities.classList.add('hidden');
+                if (scope) scope.classList.add('hidden');
+                return;
+            }
+            if (!isAdmin() && !form) {
+                nvRows = [];
+                nvApplyPractice();
+                if (status) status.innerText = 'Your teacher still needs to set your form (F3, F4 or F6). Then this word bank will show up.';
+                if (activities) activities.classList.add('hidden');
+                if (scope) scope.classList.add('hidden');
+                return;
+            }
+            if (scope) scope.classList.remove('hidden');
+            const { data, error } = await sb.from('new_vocab_words')
+                .select('id,en,zh,created_at,updated_at')
+                .eq('form', form)
+                .order('id');
+            if (error) {
+                nvSchemaMissing = isMissingSchema(error.message);
+                nvRows = [];
+                nvApplyPractice();
+                if (status) status.innerText = nvSchemaMissing
+                    ? 'New Vocab is not ready yet. Run supabase/new_vocab.sql in the Supabase SQL editor.'
+                    : 'Could not load New Vocab.';
+                if (activities) activities.classList.add('hidden');
+                return;
+            }
+            nvSchemaMissing = false;
+            const rows = data || [];
+            const sig = rows.map(w => [w.id, w.en, w.zh, w.created_at].join('\t')).join('\n');
+            const typing = document.activeElement && (document.activeElement.id === 'nv-en' || document.activeElement.id === 'nv-zh');
+            nvRows = rows;
+            nvApplyPractice();
+            if (activities) activities.classList.remove('hidden');
+            nvRenderStatus();
+            if (force || (sig !== nvSig && !typing)) {
+                nvSig = sig;
+                nvRenderEditorList();
+                const listView = document.getElementById('word-list-view');
+                if (!force && listView && !listView.classList.contains('hidden') && currentTopic === NEW_VOCAB) showWordList(NEW_VOCAB);
+            } else if (!typing) {
+                nvSig = sig;
+            }
+        }
+
+        function nvRenderStatus() {
+            const status = document.getElementById('nv-status');
+            if (!status) return;
+            const form = nvActiveForm();
+            const todayCount = nvRows.filter(w => nvAddedToday(w.created_at || w.updated_at)).length;
+            const showing = nvPracticeRows().length;
+            if (!nvRows.length) {
+                status.innerText = form ? (form + ' word bank is empty. Words you add stay until you delete them.') : '';
+                return;
+            }
+            const newest = nvRows.reduce((a, w) => !a || w.updated_at > a ? w.updated_at : a, '');
+            const when = typeof hkDate === 'function' ? hkDate(newest) : '';
+            const scopeLabel = nvScope === 'today' ? (showing + ' added today') : (showing + ' in the bank');
+            status.innerText = form + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
+        }
+
+        function nvRenderEditorList() {
+            const list = document.getElementById('nv-editor-list');
+            if (!list || !isAdmin()) return;
+            const rows = nvPracticeRows();
+            if (!rows.length) {
+                list.innerHTML = '<p class="text-gray-400 text-sm">' + (nvScope === 'today' && nvRows.length
+                    ? 'Nothing added today. Switch to All words to see the rest of the bank.'
+                    : 'No words in this form yet.') + '</p>';
+                return;
+            }
+            list.innerHTML = rows.map(w => `
+                <div class="flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2">
+                    <div class="min-w-0">
+                        <span class="font-bold text-gray-800">${w.en ? escapeHtml(w.en) : '<span class="text-gray-300">English later</span>'}</span>
+                        <span class="text-gray-400 ml-2">${w.zh ? escapeHtml(w.zh) : '<span class="text-gray-300">Chinese later</span>'}</span>
+                        ${nvAddedToday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">today</span>' : ''}
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        <button type="button" onclick="nvBeginEdit(${Number(w.id)})" class="text-xs font-bold text-orange-600">Edit</button>
+                        <button type="button" onclick="nvDeleteWord(${Number(w.id)})" class="text-xs font-bold text-red-400">Delete</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function nvBeginEdit(id) {
+            const row = nvRows.find(w => Number(w.id) === Number(id));
+            if (!row) return;
+            nvEditingId = row.id;
+            const en = document.getElementById('nv-en');
+            const zh = document.getElementById('nv-zh');
+            if (en) en.value = row.en;
+            if (zh) zh.value = row.zh || '';
+            const save = document.getElementById('nv-save-btn');
+            const cancel = document.getElementById('nv-cancel-btn');
+            if (save) save.innerText = 'Save word';
+            if (cancel) cancel.classList.remove('hidden');
+            if (en) en.focus();
+        }
+
+        function nvCancelEdit() {
+            nvEditingId = null;
+            const en = document.getElementById('nv-en');
+            const zh = document.getElementById('nv-zh');
+            if (en) en.value = '';
+            if (zh) zh.value = '';
+            const save = document.getElementById('nv-save-btn');
+            const cancel = document.getElementById('nv-cancel-btn');
+            if (save) save.innerText = 'Add word';
+            if (cancel) cancel.classList.add('hidden');
+        }
+
+        async function nvSaveWord() {
+            if (!isAdmin()) return;
+            const en = (document.getElementById('nv-en').value || '').trim();
+            const zh = (document.getElementById('nv-zh').value || '').trim();
+            if (!en && !zh) {
+                updateMascot('Type the English, the Chinese, or both.');
+                return;
+            }
+            const form = nvEditForm || FORM_LEVELS[0].id;
+            let error;
+            if (nvEditingId) {
+                ({ error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', nvEditingId).eq('form', form));
+            } else {
+                ({ error } = await sb.from('new_vocab_words').insert({ form, en, zh }));
+            }
+            if (error) {
+                const check = /new_vocab_words_has_text|check constraint/i.test(error.message || '');
+                updateMascot(check ? 'Type the English, the Chinese, or both.'
+                    : isMissingSchema(error.message)
+                    ? 'Run supabase/new_vocab.sql in the SQL editor before adding words.'
+                    : 'Could not save that word.');
+                console.warn(error.message);
+                return;
+            }
+            nvCancelEdit();
+            nvRefresh(true);
+        }
+
+        async function nvDeleteWord(id) {
+            if (!isAdmin()) return;
+            const { error } = await sb.from('new_vocab_words').delete().eq('id', id);
+            if (error) {
+                updateMascot('Could not delete that word.');
+                console.warn(error.message);
+                return;
+            }
+            if (Number(nvEditingId) === Number(id)) nvCancelEdit();
+            nvRefresh(true);
         }
 
         function openActivity(type) {
@@ -1393,10 +1891,22 @@
         }
 
         // Shared Quiz Logic
-        function startQuiz(mode) {
-            let allWords = categories[currentTopic];
+        function startQuiz(mode, source) {
+            quizSource = source || 'topic';
+            let allWords = quizSource === 'errorbook'
+                ? errorBook.map(w => ({ en: w.en, zh: w.zh || '' }))
+                : categories[currentTopic];
             if (!allWords || allWords.length === 0) {
-                updateMascot("This topic is currently empty!");
+                if (currentTopic === NEW_VOCAB) {
+                    const visible = nvPracticeRows();
+                    if (!visible.length && nvScope === 'today' && nvRows.length) updateMascot("Nothing was added today. Switch to All words to practise the bank.");
+                    else if (visible.length) updateMascot("These words don't have English yet. You can still read them in Revision.");
+                    else updateMascot("This form's word bank is empty.");
+                } else if (quizSource === 'errorbook') {
+                    updateMascot("Your error book is empty. Miss a word in dictation and it will show up here.");
+                } else {
+                    updateMascot("This topic is currently empty!");
+                }
                 return;
             }
 
@@ -1410,7 +1920,8 @@
             }
             
             quizMode = mode;
-            quizWords = [...allWords].sort(() => 0.5 - Math.random()).slice(0, 15);
+            const limit = (currentTopic === NEW_VOCAB || quizSource === 'errorbook') ? allWords.length : 15;
+            quizWords = [...allWords].sort(() => 0.5 - Math.random()).slice(0, limit);
             quizIdx = 0;
             quizScore = 0;
             quizResults = [];
@@ -1442,9 +1953,16 @@
             document.getElementById('quiz-score').innerText = `Score: ${quizScore}`;
             
             if (quizMode === 'listening') {
-                document.getElementById('word-translation-hint').innerText = word.zh;
+                const hint = document.getElementById('word-translation-hint');
+                if (word.zh) {
+                    hint.innerText = word.zh;
+                    hint.classList.remove('hidden');
+                } else {
+                    hint.innerText = '';
+                    hint.classList.add('hidden');
+                }
             } else {
-                document.getElementById('giant-chinese-prompt').innerText = word.zh;
+                document.getElementById('giant-chinese-prompt').innerText = word.zh || 'Type the English word';
             }
             
             document.getElementById('quiz-answer-input').value = "";
@@ -1515,6 +2033,7 @@
             if (isCorrect) {
                 quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: true });
                 quizScore += Math.max(1, 10 - hintCount);
+                if (quizSource === 'errorbook') removeErrorWord(quizWords[quizIdx]);
                 showEncouragement();
                 updateMascot("Correct! Great job!");
                 advanceQuiz();
@@ -1531,6 +2050,7 @@
                 } else {
                     // 3rd wrong — show answer and move on
                     quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: false });
+                    if (quizSource !== 'errorbook') addErrorWord(quizWords[quizIdx]);
                     document.getElementById('hint-display').innerText = quizWords[quizIdx].en;
                     document.getElementById('hint-display').classList.add('text-red-500');
                     document.getElementById('hint-display').classList.remove('text-orange-500');
@@ -1620,7 +2140,7 @@
                     </div>
                 </div>
 
-                <button onclick="changeView('sub-category-view')" class="btn-paw">Return to Topic</button>
+                <button onclick="quizLeave()" class="btn-paw">Return to Topic</button>
             `;
             
             document.getElementById('quiz-view').classList.add('hidden');
@@ -1657,8 +2177,15 @@
         }
 
         function showWordList(catName) {
-            let words = categories[catName];
-            if (!words || words.length === 0) return;
+            let words = catName === ERROR_BOOK ? errorBook.slice()
+                : catName === NEW_VOCAB ? nvPracticeRows().map(w => ({ en: String(w.en || '').trim(), zh: String(w.zh || '').trim() }))
+                : categories[catName];
+            if (!words || words.length === 0) {
+                updateMascot(catName === NEW_VOCAB && nvScope === 'today' && nvRows.length
+                    ? "Nothing was added today. Switch to All words."
+                    : (catName === NEW_VOCAB ? "This form's word bank is empty." : "No words to revise yet."));
+                return;
+            }
 
             const isExamFocus = catName === 'exam focus';
             if (isExamFocus && currentSubCategory) {
@@ -1669,7 +2196,7 @@
             container.innerHTML = `
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h2 class="text-3xl font-bold text-orange-600 capitalize">Revision: ${catName}</h2>
+                        <h2 class="text-3xl font-bold text-orange-600 capitalize">Revision: ${escapeHtml(catName)}</h2>
                         <p class="text-gray-400 mt-1">Study the terms before your dictation.</p>
                     </div>
                     <span class="bg-orange-100 text-orange-600 px-4 py-1.5 rounded-full text-lg font-bold">${words.length} Words</span>
@@ -1685,13 +2212,14 @@
                 <div id="word-list-items" class="space-y-3">
                     ${words.map(w => `
                         <div class="word-list-item">
-                            <span class="font-bold text-2xl text-gray-800">${w.en}</span>
-                            <span class="text-gray-400 font-medium text-xl">${w.zh}</span>
+                            <span class="font-bold text-2xl text-gray-800">${w.en ? escapeHtml(w.en) : '<span class="text-gray-300">English later</span>'}</span>
+                            <span class="text-gray-400 font-medium text-xl">${w.zh ? escapeHtml(w.zh) : ''}</span>
                         </div>
                     `).join('')}
                 </div>
             `;
             changeView('word-list-view');
+            wordListBack = catName === ERROR_BOOK ? 'errorbook' : 'topic';
         }
 
         function filterRevision(cat) {
@@ -2631,6 +3159,7 @@
         }
 
         function battleBuildQuestions(room) {
+            if (room && room.topic === NEW_VOCAB) return battleBuildVocabQuestions(room);
             const rnd = mulberry32((Number(room.seed) || 1) >>> 0);
             const usable = SHEET_NAMES.filter(n => (categories[n] || []).filter(w => w.en).length >= 5);
             let topic = room.topic;
@@ -2685,7 +3214,75 @@
             if (!sel) return;
             const names = SHEET_NAMES.filter(n => (categories[n] || []).length);
             sel.innerHTML = '<option value="__random__">🎲 All topics (random)</option>' +
-                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(topicLabel(n))}</option>`).join('');
+                names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(topicLabel(n))}</option>`).join('') +
+                '<option value="New Vocab">🆕 New Vocab</option>';
+            battleFillVocabForms();
+            battleSyncVocabForm();
+        }
+
+        function battleFillVocabForms() {
+            const sel = document.getElementById('battle-vocab-form-select');
+            if (!sel || sel.options.length) return;
+            sel.innerHTML = FORM_LEVELS.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+        }
+
+        function battleSyncVocabForm() {
+            const topic = battleTopicValue();
+            const wrap = document.getElementById('battle-vocab-form-wrap');
+            if (wrap) wrap.classList.toggle('hidden', topic !== NEW_VOCAB);
+        }
+
+        function battleTopicValue() {
+            const sel = document.getElementById('battle-topic-select');
+            return sel ? sel.value : '__random__';
+        }
+
+        function battleVocabForm() {
+            const sel = document.getElementById('battle-vocab-form-select');
+            return normalizeForm(sel ? sel.value : '') || FORM_LEVELS[0].id;
+        }
+
+        function battleVocabToday() {
+            const sel = document.getElementById('battle-vocab-scope');
+            return !!(sel && sel.value === 'today');
+        }
+
+        function battleBuildVocabQuestions(room) {
+            const rnd = mulberry32((Number(room.seed) || 1) >>> 0);
+            let pool = room.vocab_words;
+            if (typeof pool === 'string') {
+                try { pool = JSON.parse(pool); } catch (e) { pool = []; }
+            }
+            pool = (Array.isArray(pool) ? pool : []).filter(w => w && String(w.en || '').trim()).map(w => ({ en: String(w.en).trim(), zh: String(w.zh || '').trim() }));
+            const arr = pool.slice();
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(rnd() * (i + 1));
+                const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+            }
+            const n = Math.min(Number(room.question_count) || arr.length, arr.length);
+            const label = 'New Vocab' + (room.vocab_form ? ' ' + room.vocab_form : '') + (room.vocab_today ? ' · today' : '');
+            return { topic: label, words: arr.slice(0, n) };
+        }
+
+        async function battleAttachVocab(room) {
+            const form = battleVocabForm();
+            const asked = battleQuestionCount();
+            const todayOnly = battleVocabToday();
+            const { data, error } = await sb.rpc('set_battle_vocab', { p_room_id: room.id, p_form: form, p_today_only: todayOnly });
+            if (error) {
+                try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
+                const m = error.message || '';
+                if (m.includes('NO_VOCAB_TODAY')) return battleSetError('No English New Vocab words were added today for ' + form + '. Use the full bank, or add the English first.');
+                if (m.includes('NO_VOCAB')) return battleSetError('New Vocab for ' + form + ' has no English words yet. Chinese-only cards stay in the bank until you add the English.');
+                if (isMissingSchema(m) || m.includes('BATTLE_SQL_MISSING')) return battleSetError('New Vocab battles need supabase/new_vocab.sql (re-run it after the battle SQL).');
+                return battleSetError(battleErrorMessage(error));
+            }
+            const updated = Array.isArray(data) ? data[0] : data;
+            battleAdoptRoom(updated || room);
+            if (updated && updated.question_count < asked) {
+                updateMascot('This room uses all ' + updated.question_count + ' ' + form + (todayOnly ? ' words added today.' : ' New Vocab words.'));
+            }
+            return true;
         }
 
         function battleStartPolling() {
@@ -2726,16 +3323,18 @@
         async function battleCreateRoom() {
             battleSetError('');
             if (!currentUser) return battleSetError('Please login first.');
-            if (!SHEET_NAMES.some(n => (categories[n] || []).length)) {
+            const topic = battleTopicValue();
+            if (topic !== NEW_VOCAB && !SHEET_NAMES.some(n => (categories[n] || []).length)) {
                 return battleSetError('Word bank is still loading — please wait a moment.');
             }
-            const sel = document.getElementById('battle-topic-select');
-            const topic = sel ? sel.value : '__random__';
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const { data, error } = await sb.rpc('create_battle', {
                 p_topic: topic, p_seed: seed, p_question_count: battleQuestionCount()
             });
             if (error) return battleSetError(battleErrorMessage(error));
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!room || !room.id) return battleSetError('Could not open that room.');
+            if (topic === NEW_VOCAB) return battleAttachVocab(room);
             battleAdoptRoom(data);
         }
 
@@ -2743,17 +3342,19 @@
             battleSetError('');
             if (!currentUser) return battleSetError('Please login first.');
             if (!isAdmin()) return battleSetError('Only the teacher account can open a class room.');
-            if (!SHEET_NAMES.some(n => (categories[n] || []).length)) {
+            const topic = battleTopicValue();
+            if (topic !== NEW_VOCAB && !SHEET_NAMES.some(n => (categories[n] || []).length)) {
                 return battleSetError('Word bank is still loading — please wait a moment.');
             }
-            const sel = document.getElementById('battle-topic-select');
-            const topic = sel ? sel.value : '__random__';
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const { data, error } = await sb.rpc('create_class_battle', {
                 p_topic: topic, p_seed: seed, p_max_players: 60,
                 p_question_count: battleQuestionCount()
             });
             if (error) return battleSetError(battleErrorMessage(error));
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!room || !room.id) return battleSetError('Could not open that room.');
+            if (topic === NEW_VOCAB) return battleAttachVocab(room);
             battleAdoptRoom(data);
         }
 
@@ -2852,7 +3453,9 @@
             if (!built.words.length) {
                 battleShowPanel('play');
                 document.getElementById('battle-prompt').innerText = '⚠️';
-                document.getElementById('battle-feedback').innerText = 'Word bank not loaded — refresh the page.';
+                document.getElementById('battle-feedback').innerText = battleRoom && battleRoom.topic === NEW_VOCAB
+                    ? 'This room has no New Vocab list. Open a new room after the words are saved.'
+                    : 'Word bank not loaded — refresh the page.';
                 return;
             }
             battleRoundSeed = battleRoom.seed;
@@ -2873,7 +3476,7 @@
             const w = battleWords[battleIdx];
             if (!w) return battleFinishLocal();
             document.getElementById('battle-progress').innerText = `Word ${battleIdx + 1} of ${battleWords.length}`;
-            document.getElementById('battle-prompt').innerText = w.zh;
+            document.getElementById('battle-prompt').innerText = (w.zh || '').trim() || 'English word';
             const fb = document.getElementById('battle-feedback');
             fb.innerText = '';
             fb.className = 'text-2xl font-bold h-10 mt-4';
@@ -3615,6 +4218,8 @@
         function changeView(viewId) {
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
+            const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
+            if (!keepVocabPoll) nvStopPoll();
             if (window.lastFinalView) {
                 window.lastFinalView.remove();
                 window.lastFinalView = null;
@@ -3626,8 +4231,13 @@
             
             if (viewId === 'hub-view') updateMascot("Awesome! What would you like to learn next?");
             if (viewId === 'home-view') updateMascot("Choose a topic to begin your dictation journey.");
-            if (viewId === 'sub-category-view') updateMascot(`Ready to practice ${currentTopic}? Pick an activity!`);
+            if (viewId === 'sub-category-view') {
+                updateMascot(currentTopic === NEW_VOCAB ? "New Vocab keeps every word. Added today is just this lesson." : `Ready to practice ${currentTopic}? Pick an activity!`);
+                if (currentTopic === NEW_VOCAB) nvEnter();
+                else nvHide();
+            }
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
+            if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); mountFormFilters(); loadLeaderboard(lbModeFilter); }

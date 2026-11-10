@@ -9,7 +9,7 @@
 -- This adds student_logins.form plus two RPCs:
 --   claim_own_form(p_form)     — student, fills NULL only
 --   set_student_form(email, f) — teacher, assigns or clears
--- Allowed ids (F4, F6, …) are defined by FORM_LEVELS in index.html.
+-- Allowed ids (F3, F4, F6, …) are defined by FORM_LEVELS in index.html.
 -- Null means Unassigned. Adding a form does not need another SQL change.
 -- ============================================================
 
@@ -24,7 +24,7 @@ alter table public.student_logins
     add column if not exists form text;
 
 comment on column public.student_logins.form is
-    'Year group id from FORM_LEVELS in index.html (F4, F6, …). Null = unassigned.';
+    'Year group id from FORM_LEVELS in index.html (F3, F4, F6, …). Null = unassigned.';
 
 -- Student: keep a form chosen on this browser, but never overwrite a value
 -- the teacher has already saved.

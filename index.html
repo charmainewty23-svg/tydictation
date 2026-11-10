@@ -628,6 +628,7 @@
                             </div>
                         </div>
                         <div id="battle-class-list" class="mt-8 space-y-2"></div>
+                        <div id="battle-class-breakdown" class="hidden mt-10 pt-8 border-t border-gray-100"></div>
                     </div>
 
                     <!-- Result -->
@@ -2145,6 +2146,9 @@
         let battleLastAnswer = '';
         let battleLastCorrect = null;
         let battleLiveColumns = true;   // false if battle_live.sql has not been run yet
+        let battleStatsEnabled = true;  // false if battle_stats.sql has not been run yet
+        let battleBreakdownLoadedFor = null;
+        let adminBattleRooms = [];
 
         function mulberry32(a) {
             return function () {
@@ -2433,6 +2437,7 @@
             const ok = battleNormalize(inp.value) === battleNormalize(w.en);
             battleLastAnswer = inp.value.trim().slice(0, 60);
             battleLastCorrect = ok;
+            battleRecordAnswer(battleIdx, w.en, battleLastAnswer, ok, elapsed);
             inp.disabled = true;
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             const fb = document.getElementById('battle-feedback');
@@ -2462,6 +2467,7 @@
             battleTotalMs += BATTLE_TIME_MS;
             battleLastAnswer = '';
             battleLastCorrect = false;
+            battleRecordAnswer(battleIdx, w.en, '', false, BATTLE_TIME_MS);
             const fb = document.getElementById('battle-feedback');
             fb.innerText = `⏰ ${w.en}`;
             fb.className = 'text-2xl font-bold h-10 mt-4 text-gray-400';
@@ -2512,6 +2518,88 @@
             const { error } = await sb.from('battle_players').update(payload)
                 .eq('room_id', battleRoom.id).eq('user_id', currentUser.id);
             if (error) console.warn('battle progress save failed:', error.message);
+        }
+
+        async function battleRecordAnswer(qIndex, word, answer, correct, ms) {
+            if (!battleStatsEnabled || !battleRoom || !currentUser) return;
+            const { error } = await sb.from('battle_answers').upsert({
+                room_id: battleRoom.id,
+                user_id: currentUser.id,
+                q_index: qIndex,
+                word: word,
+                answer: (answer || '').slice(0, 80),
+                correct: !!correct,
+                ms: ms || 0
+            }, { onConflict: 'room_id,user_id,q_index' });
+            if (error) {
+                if (/does not exist|PGRST20|42P01/i.test(error.message || '')) {
+                    battleStatsEnabled = false;
+                    console.warn('battle_answers missing — run supabase/battle_stats.sql');
+                } else {
+                    console.warn('answer save failed:', error.message);
+                }
+            }
+        }
+
+        function aggregateBattleAnswers(rows) {
+            const map = {};
+            (rows || []).forEach(r => {
+                const m = map[r.q_index] || (map[r.q_index] = { q: r.q_index, word: r.word, total: 0, correct: 0, wrongs: {} });
+                m.total++;
+                if (r.correct) {
+                    m.correct++;
+                } else {
+                    const a = (r.answer || '').trim().toLowerCase();
+                    if (a) m.wrongs[a] = (m.wrongs[a] || 0) + 1;
+                }
+            });
+            return Object.values(map)
+                .map(m => Object.assign({}, m, { accuracy: m.total ? Math.round((m.correct / m.total) * 100) : 0 }))
+                .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);
+        }
+
+        function renderAnswerStats(stats, container, questions) {
+            if (!stats || !stats.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-6">No per-question data yet.</p>';
+                return;
+            }
+            const hardest = stats[0];
+            const wrongTotals = {};
+            stats.forEach(s => Object.entries(s.wrongs).forEach(([w, c]) => { wrongTotals[w] = (wrongTotals[w] || 0) + c; }));
+            const worst = Object.entries(wrongTotals).sort((a, b) => b[1] - a[1])[0];
+
+            container.innerHTML = `
+                <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-700">📊 Question breakdown</h3>
+                        <p class="text-sm text-gray-400">Hardest first · only <b class="text-red-500">${hardest.accuracy}%</b> spelt
+                           <b class="text-gray-700">${escapeHtml(hardest.word)}</b> correctly</p>
+                    </div>
+                    ${worst ? `<span class="text-xs text-gray-500 self-center">Most common misspelling: <b class="text-red-500">${escapeHtml(worst[0])}</b> (${worst[1]}×)</span>` : ''}
+                </div>
+                <div class="space-y-2">
+                    ${stats.map(s => {
+                        const zh = (questions && questions[s.q] && questions[s.q].zh) || '';
+                        const wrongs = Object.entries(s.wrongs).sort((a, b) => b[1] - a[1]).slice(0, 3)
+                            .map(([w, c]) => `<span class="bg-red-50 text-red-500 text-xs px-2 py-0.5 rounded-full">${escapeHtml(w)}${c > 1 ? ' ×' + c : ''}</span>`).join('');
+                        const color = s.accuracy >= 70 ? 'bg-green-500' : s.accuracy >= 40 ? 'bg-amber-400' : 'bg-red-400';
+                        return `<div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
+                            <span class="text-gray-400 font-bold w-6">${s.q + 1}</span>
+                            <div class="min-w-[150px]">
+                                <div class="font-bold text-gray-700">${escapeHtml(s.word)}</div>
+                                <div class="text-xs text-gray-400">${escapeHtml(zh)}</div>
+                            </div>
+                            <div class="flex items-center gap-3 flex-1 min-w-[200px]">
+                                <div class="h-2 bg-gray-200 rounded-full flex-1 max-w-[220px] overflow-hidden">
+                                    <div class="h-2 ${color} rounded-full" style="width:${s.accuracy}%"></div>
+                                </div>
+                                <span class="text-xs font-bold text-gray-600 w-10">${s.accuracy}%</span>
+                                <span class="text-xs text-gray-500">${s.correct}/${s.total}</span>
+                            </div>
+                            <div class="flex gap-1 flex-wrap max-w-[220px]">${wrongs || '<span class="text-xs text-gray-300">no wrong answers</span>'}</div>
+                        </div>`;
+                    }).join('')}
+                </div>`;
         }
 
         async function battleFinishLocal() {
@@ -2711,6 +2799,42 @@
                     </div>`;
                 }).join('')
                 : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>';
+
+            // per-question accuracy, only once the round is finished
+            const bd = document.getElementById('battle-class-breakdown');
+            if (battleRoom.status === 'finished') {
+                if (battleBreakdownLoadedFor !== battleRoom.id) {
+                    battleBreakdownLoadedFor = battleRoom.id;
+                    bd.classList.remove('hidden');
+                    bd.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Loading question breakdown…</p>';
+                    loadClassBreakdown();
+                }
+            } else {
+                battleBreakdownLoadedFor = null;
+                bd.classList.add('hidden');
+                bd.innerHTML = '';
+            }
+        }
+
+        async function loadClassBreakdown() {
+            const bd = document.getElementById('battle-class-breakdown');
+            const room = battleRoom;
+            if (!room || !bd) return;
+
+            const { data, error } = await sb.from('battle_answers')
+                .select('q_index, word, correct, answer')
+                .eq('room_id', room.id);
+
+            if (!battleRoom || battleRoom.id !== room.id) return;
+
+            if (error) {
+                const missing = /does not exist|PGRST20|42P01/i.test(error.message || '');
+                bd.innerHTML = missing
+                    ? '<p class="text-amber-500 text-sm text-center py-4 font-bold">Run supabase/battle_stats.sql to unlock the question breakdown.</p>'
+                    : '<p class="text-red-400 text-sm text-center py-4">' + escapeHtml(error.message) + '</p>';
+                return;
+            }
+            renderAnswerStats(aggregateBattleAnswers(data), bd, battleBuildQuestions(room).words);
         }
 
         async function battleLeave() {
@@ -2733,7 +2857,7 @@
             const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
             const { data, error } = await sb.from('battle_rooms')
-                .select('code, topic, mode, status, created_at, started_at, finished_at, battle_players(nickname, email, score, correct, done)')
+                .select('id, code, topic, mode, status, seed, question_count, created_at, started_at, finished_at, battle_players(nickname, email, score, correct, done)')
                 .gte('created_at', since)
                 .order('created_at', { ascending: false })
                 .limit(60);
@@ -2748,6 +2872,7 @@
             }
 
             const rooms = data || [];
+            adminBattleRooms = rooms;
             const playing = rooms.filter(r => r.status === 'playing').length;
             const waiting = rooms.filter(r => r.status === 'waiting').length;
             const finished = rooms.filter(r => r.status === 'finished').length;
@@ -2794,19 +2919,52 @@
                                     <span class="text-indigo-600 font-bold">${p.score} pts · ${p.correct} correct${p.done ? ' ✔' : ''}</span>
                                </div>`).join('')
                             : '<span class="text-gray-400 text-sm">No players yet</span>';
-                        return `<div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-                            <div class="flex items-center gap-4">
-                                <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
-                                ${statusPill(r.status)}
-                                <span class="text-xs font-bold px-2 py-1 rounded-full ${r.mode === 'class' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}">${r.mode === 'class' ? 'CLASS' : '1v1'}</span>
-                                <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
+                        return `<div>
+                            <div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
+                                    ${statusPill(r.status)}
+                                    <span class="text-xs font-bold px-2 py-1 rounded-full ${r.mode === 'class' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}">${r.mode === 'class' ? 'CLASS' : '1v1'}</span>
+                                    <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
+                                </div>
+                                <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="toggleBattleBreakdown('${r.id}')" class="text-xs font-bold text-indigo-500 hover:text-indigo-700">📊 breakdown</button>
+                                    <span class="text-xs text-gray-400">${escapeHtml(hkDate(r.created_at))}</span>
+                                </div>
                             </div>
-                            <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>
-                            <span class="text-xs text-gray-400">${escapeHtml(hkDate(r.created_at))}</span>
+                            <div id="bd-${r.id}" class="hidden mt-2"></div>
                         </div>`;
                     }).join('')}
                 </div>
             `;
+        }
+
+        async function toggleBattleBreakdown(roomId) {
+            const el = document.getElementById('bd-' + roomId);
+            if (!el) return;
+
+            if (!el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+                return;
+            }
+            el.classList.remove('hidden');
+            el.className = 'mt-2 bg-white border border-gray-100 rounded-xl p-4';
+            el.innerHTML = '<p class="text-gray-400 text-sm text-center py-3">Loading question breakdown…</p>';
+
+            const room = (adminBattleRooms || []).find(r => r.id === roomId);
+            const { data, error } = await sb.from('battle_answers')
+                .select('q_index, word, correct, answer')
+                .eq('room_id', roomId);
+
+            if (error) {
+                const missing = /does not exist|PGRST20|42P01/i.test(error.message || '');
+                el.innerHTML = missing
+                    ? '<p class="text-amber-500 text-sm text-center py-3 font-bold">Run supabase/battle_stats.sql to unlock this.</p>'
+                    : '<p class="text-red-400 text-sm text-center py-3">' + escapeHtml(error.message) + '</p>';
+                return;
+            }
+            renderAnswerStats(aggregateBattleAnswers(data), el, room ? battleBuildQuestions(room).words : null);
         }
 
         function changeView(viewId) {

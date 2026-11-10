@@ -186,3 +186,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 老師 hover 個 `Q3` 徽章會見到該題中文（由 seed 即時算，唔使存題目）。
 - 如果未跑 9.4，前端會自動 fallback（唔會壞），只係冇進度／閒置資訊。
 
+### 9.5 每題正確率 — `supabase/battle_stats.sql`（要喺 9.4 之後跑）
+- 表：`battle_answers(room_id, user_id, q_index, word, answer, correct, ms)`，
+  `unique(room_id,user_id,q_index)` + client `upsert`，所以重試都唔會重複計。
+- RLS：學生只可以寫／讀**自己**嗰啲；老師（ADMIN_EMAIL）讀全部。
+- 完場後老師張 class 板會自動出「📊 Question breakdown」：按正確率**由低到高**排，
+  顯示每題英文／中文、正確率 bar、`對/總數`、最常見嘅錯誤拼法（最多 3 個）。
+- Admin Dashboard 每個房間有「📊 breakdown」掣，可以事後逐間房睇（唔使開住課室）。
+- 三個 SQL 要順序跑：`battle.sql` → `battle_class.sql` → `battle_live.sql` → `battle_stats.sql`。
+- 未跑 9.5 都唔會壞：前端偵測到表唔存在就自動停寫，畫面顯示提示。
+

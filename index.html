@@ -3217,7 +3217,7 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 1000, JUMP_V: -740,
+            GRAVITY: 750, JUMP_V: -645,
             MOVE_MAX: 280, MOVE_ACC: 2400, FRICTION: 6000,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.60,
             TILT_RANGE: 8, TILT_DEAD: 0.025,
@@ -3890,8 +3890,8 @@
             });
 
             // --- vertical ---
-            if (p.jet > 0) p.vy = -700;
-            else if (p.prop > 0) p.vy = -180;
+            if (p.jet > 0) p.vy = -610;
+            else if (p.prop > 0) p.vy = -155;
             else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
 
             const prevFeet = p.y;

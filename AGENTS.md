@@ -266,8 +266,10 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 
 生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
 越高綠台越少、陷阱越多、平台間距亦輕微收窄。
-節奏偏慢（`GRAVITY 1000`／`JUMP_V -740`，理論 ~185px/s，實測 ~125px/s），
-想快啲就同時加大 `GRAVITY` 同 `JUMP_V`（比例保持約 1.35:1 就唔會跳得太矮）。
+節奏偏慢（`GRAVITY 750`／`JUMP_V -645`）：跳高 **277px**、每次滯空 **1.72s**，
+實測爬升約 **105px/s**。想再慢／快而**保持跳高不變**：滯空乘 s，就
+`GRAVITY ÷ s²`、`JUMP_V ÷ s`。例如再慢 10%（s = 1.1）：`GRAVITY 620`、`JUMP_V -586`。
+（跳高 `h = v² / 2g`，所以兩個一齊亂改會跳唔到／跳過龍。）
 
 ### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
 彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
@@ -306,9 +308,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（280）／
-  `WJ.MOVE_ACC`（2400）／`WJ.FRICTION`（6000）。越慢越好玩就減 `JUMP_V`；
-  想跳高啲就減 `GRAVITY`；想「少啲滑」就加 `FRICTION`、想「滑多啲」就減。
+- 調手感改 `WJ.GRAVITY`（750）／`WJ.JUMP_V`（−645）／`WJ.MOVE_MAX`（280）／
+  `WJ.MOVE_ACC`（2400）／`WJ.FRICTION`（6000）。想「少啲滑」就加 `FRICTION`、
+  想「滑多啲」就減。想成個節奏慢啲又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`
+  （見 §10.3）；道具上升速度 `jet -610`／`prop -155` 要一齊按比例調。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.60）同
   `WJ.SPEED_RAMP_AT`（3200px）。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →

@@ -253,9 +253,11 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   **注意**：以前嘅 `MOVE_ACC` + `FRICTION × (1-|dir|)³` 模型已經刪走——
   摩擦力係常數、唔隨速度變，結果係「一過門檻就衝到頂速、門檻以下完全唔郁」，
   冇中間速，呢個就係「太快」嘅根源。
-- **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.60 + 0.40 × min(1, maxClimb/3200))`，
-  即係**每局開頭 145 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 2.7s 變 1.7s）。
-  想慢就減 `MOVE_MAX`／`SPEED_RAMP_FROM`（0.60）。
+- **速度隨高度遞增**：`WJ.speedCap()` = `MOVE_MAX × (0.45 + 0.55 × min(1, maxClimb/3200))`，
+  即係**每局開頭 108 px/s，爬到 3200px 就 240 px/s**（橫越 400px 由 3.7s 變 1.7s）。
+  實測（2026-11）開頭最多慢到 108 都唔會令平台「跳唔到」——因為垂直間距只有
+  84–112px，一跳 256px 高已經覆蓋到上面兩三排平台，橫向需求反而分散。
+  想慢就減 `MOVE_MAX`／`SPEED_RAMP_FROM`（0.45）；想開頭快返就加。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -322,8 +324,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
   道具上升速度 `jet -775`／`prop -195` 要一齊按比例調。
-- 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.60）同
-  `WJ.SPEED_RAMP_AT`（3200px）。
+- 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
+  `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
+  （240 × 0.45 = 108 px/s）。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →

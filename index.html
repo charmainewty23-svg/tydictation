@@ -2,7 +2,7 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>LearniTY - Vocabulary Cat Pet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -262,6 +262,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
         #wj-stage:fullscreen canvas,
         #wj-stage:-webkit-full-screen canvas,
@@ -272,6 +273,41 @@
             max-height: 100%;
             aspect-ratio: 2 / 3;
         }
+        /* The in-game full screen button must not depend on Tailwind utilities. */
+        #wj-fs-enter,
+        #wj-exit-fs {
+            position: absolute;
+            z-index: 25;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            font-family: Fredoka, system-ui, sans-serif;
+            cursor: pointer;
+        }
+        #wj-fs-enter {
+            top: 6px;
+            right: 6px;
+            padding: 4px 9px;
+            border: 1px solid #a7f3d0;
+            color: #047857;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        #wj-exit-fs {
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 10px;
+            border: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        #wj-stage:fullscreen #wj-fs-enter,
+        #wj-stage:-webkit-full-screen #wj-fs-enter,
+        body.wj-fs #wj-fs-enter {
+            display: none;
+        }
+
         /* Keep intro / game-over cards phone-width when the stage is huge. */
         #wj-stage:fullscreen #wj-overlay > div,
         #wj-stage:-webkit-full-screen #wj-overlay > div,
@@ -716,7 +752,7 @@
                         <div class="flex items-center gap-2 flex-wrap">
                             <select id="wj-topic" onchange="WJ.changeTopic(this.value)" class="p-2 px-3 rounded-xl border-2 border-emerald-100 bg-white font-bold text-gray-700 text-sm"></select>
                             <button id="wj-tilt-btn" onclick="WJ.enableTilt()" class="px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">📱 Tilt: off</button>
-                            <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⛶ Full screen</button>
+                            <button id="wj-fs-btn" onclick="WJ.toggleFullscreen()" class="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">⛶ 全屏</button>
                             <button id="wj-sound-btn" onclick="WJ.toggleSound()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">🔊 On</button>
                             <button onclick="WJ.togglePause()" class="px-3 py-2 bg-gray-50 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors">⏸ Pause</button>
                         </div>
@@ -724,9 +760,10 @@
                     <div id="wj-stage" class="relative mx-auto rounded-2xl overflow-hidden border-2 border-emerald-100" style="max-width:420px; aspect-ratio:2/3;">
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
-                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ Exit full screen</button>
+                        <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ 全屏</button>
+                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ 退出全屏</button>
                     </div>
-                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · ⛶ plays full screen</p>
+                    <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · 右上角 ⛶ 可切換全屏</p>
                 </div>
             </div>
 
@@ -3181,7 +3218,7 @@
         const WJ = {
             W: 400, H: 600,
             GRAVITY: 1000, JUMP_V: -740,
-            MOVE_MAX: 300, MOVE_ACC: 3200, FRICTION: 6000,
+            MOVE_MAX: 300,
             TILT_RANGE: 8, TILT_DEAD: 0.025,
             QUIZ_GAP_MIN: 520, QUIZ_GAP_MAX: 660,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -3287,9 +3324,15 @@
             WJ.genUpTo(-WJ.H - 220);
         };
 
-        WJ.start = function () {
+        WJ.start = function (withFs) {
             if (!WJ.canvas) WJ.mount();
-            WJ.enterFullscreen();
+            if (withFs === false) {
+                // Player chose windowed mode — don't force full screen later.
+                WJ.autoFs = false;
+                WJ.exitFullscreenSoft();
+            } else {
+                WJ.enterFullscreen();
+            }
             WJ.reset();
             WJ.hideOverlay();
             WJ.state = 'playing';
@@ -3323,8 +3366,10 @@
             const on = WJ.fsOn();
             const exit = document.getElementById('wj-exit-fs');
             if (exit) exit.classList.toggle('hidden', !on);
+            const enter = document.getElementById('wj-fs-enter');
+            if (enter) enter.classList.toggle('hidden', on);
             const btn = document.getElementById('wj-fs-btn');
-            if (btn) btn.innerText = on ? '⛶ Exit' : '⛶ Full screen';
+            if (btn) btn.innerText = on ? '⛶ 退出全屏' : '⛶ 全屏';
             requestAnimationFrame(() => {
                 if (!WJ.mounted) return;
                 WJ.resize();
@@ -3339,7 +3384,7 @@
 
         /* Ask the browser for real full screen. iOS Safari has no element full
            screen and some in-app browsers never settle the promise, so after
-           900ms without full screen we fall back to the CSS version. */
+           600ms without full screen we fall back to the CSS version. */
         WJ.fsPending = 0;
 
         WJ.requestStageFullscreen = function () {
@@ -3361,7 +3406,7 @@
                 giveUp();
                 return;
             }
-            setTimeout(giveUp, 900);
+            setTimeout(giveUp, 600);
         };
 
         WJ.toggleFullscreen = function () {
@@ -3460,9 +3505,10 @@
                         <p>🔥 Answer a few in a row for bonus points and a shield.</p>
                         <p>👆 <b>Tap anywhere else</b> to shoot at monsters and UFOs.</p>
                         <p>🧱 Brown breaks · white vanishes · yellow explodes · blue &amp; grey move.</p>
-                        <p>⛶ <b>Start</b> goes full screen — tap <b>✕ Exit full screen</b> at the bottom to come out.</p>
+                        <p>⛶ <b>全屏</b>：遊戲畫面右上角有 ⛶ 掣，隨時撳。全屏時底部有 <b>✕ 退出全屏</b>。</p>
                     </div>
-                    <button onclick="WJ.start()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Start climbing</button>
+                    <button onclick="WJ.start(true)" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">⛶ 全屏開始</button>
+                    <button onclick="WJ.start(false)" class="w-full mt-2 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">視窗模式開始</button>
                     <p class="text-xs text-gray-400 mt-3">Best ${best} · Desktop: ← → and Space to shoot</p>
                 </div>`, true);
         };
@@ -3811,21 +3857,12 @@
             } else {
                 WJ.tiltSmooth = 0;
             }
-            // Grip curve: a strong input gets full acceleration and no drag, a
-            // weak / released input gets more and more drag, so he stops dead
-            // instead of gliding across the screen.
-            const grip = Math.min(1, Math.abs(dir));
-            const drag = WJ.FRICTION * (1 - grip) * (1 - grip) * (1 - grip);
-            if (dir !== 0) {
-                p.vx += dir * WJ.MOVE_ACC * dt;
-                if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
-            }
-            const dv = drag * dt;
-            if (dv > 0) {
-                if (Math.abs(p.vx) <= dv) p.vx = 0;
-                else p.vx -= Math.sign(p.vx) * dv;
-            }
-            p.vx = WJ.clamp(p.vx, -WJ.MOVE_MAX, WJ.MOVE_MAX);
+            // Direct steering: the speed follows the input 1:1, with no
+            // momentum, so letting go stops him dead instead of sliding.
+            if (Math.abs(dir) < 0.05) dir = 0;
+            p.vx = WJ.clamp(dir, -1, 1) * WJ.MOVE_MAX;
+            if (Math.abs(p.vx) < 6) p.vx = 0;
+            if (Math.abs(dir) > 0.25) p.face = dir < 0 ? -1 : 1;
 
             ['prop', 'jet', 'shield', 'rainbow'].forEach(k => {
                 if (p[k] > 0) p[k] = Math.max(0, p[k] - dt);

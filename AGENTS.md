@@ -243,11 +243,13 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   `DeviceOrientationEvent.requestPermission`。開啟時以當時角度做零點，
   `TILT_RANGE = 8°` 就滿速、`TILT_DEAD = 0.025` 死區、再乘 1.25 增益同平滑，
   所以輕輕歪少少就郁。覺得太敏感／太鈍改 `WJ.TILT_RANGE`（細 = 敏感）。
-- **左右速度**：`MOVE_MAX 300`／`MOVE_ACC 3200`／`FRICTION 6000`。
-  用「grip curve」：`|dir|` 越細、阻力越大（`FRICTION × (1-|dir|)³`），
-  所以放手或者微微傾斜會即刻收步（實測由滿速停：50ms / 6px），
-  但大力傾斜仍然係全速加速（0→滿速 100ms）。
-  覺得仍然「太滑」就加 `FRICTION`（唔係加 `MOVE_MAX`）；覺得「太急停」就減 `FRICTION`。
+- **左右速度（無慣性）**：`p.vx = dir × MOVE_MAX`（`MOVE_MAX = 300`），
+  即係輸入幾多就即刻幾多速，放手 1 格（8ms）內變 0，**完全唔會滑**。
+  tilt 係 1:1：2° ≈ 75 px/s、4° ≈ 150、8° = 300。`|dir| < 0.05` 當 0，
+  `|vx| < 6` 直接歸零，避免殘餘 tilt 令角色慢慢漂。
+  以前有 `MOVE_ACC`／`FRICTION` 兩條加速／摩擦公式，已經刪走
+  （用戶反饋「太滑」×2，慣性點調都仲係滑，索性改直接控制）。
+  想快啲只改 `MOVE_MAX`；郁太快就減。
 - **鍵盤**：← → 或 A/D 移動，Space／↑／W 射擊，P／Esc 暫停。
 - 切去其他 tab（`visibilitychange`）會自動暫停。
 
@@ -304,9 +306,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 冇排行榜、冇上傳 —— 同 Word Battle 唔同，呢個純粹係課堂消遣。
 
 ### 10.9 改動提示
-- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（300）／
-  `WJ.MOVE_ACC`（3200）／`WJ.FRICTION`（6000）。越慢越好玩就減 `JUMP_V`；
-  想跳高啲就減 `GRAVITY`；想「唔滑」就加 `FRICTION`。
+- 調手感改 `WJ.GRAVITY`（1000）／`WJ.JUMP_V`（−740）／`WJ.MOVE_MAX`（300）。
+  越慢越好玩就減 `JUMP_V`；想跳高啲就減 `GRAVITY`。
+  左右係**直接控制**（`vx = dir × MOVE_MAX`），冇 `MOVE_ACC`／`FRICTION`，
+  所以天生唔會滑；想慢啲就減 `MOVE_MAX`。
 - 加新平台類型：`spawnPlatform()` 嘅 `table` 加權重 → `WJ.land()` 加行為 →
   `WJ.update()` 加移動 → `WJ.draw()` 嘅 `colors` 加顏色。
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →
@@ -317,13 +320,24 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
 
 ### 10.10 全屏幕
-- 兩個掣：工具列 `#wj-fs-btn`（⛶ Full screen／Exit）＋遊戲畫面底部 `#wj-exit-fs`。
-- `WJ.start()` 會自動試入全屏幕一次（`WJ.autoFs`，只喺 `WJ.mount()` 設 true，
-  即每次入 view 一次）——因為 `requestFullscreen()` 要**用戶手勢**，撳 Start 正好係手勢。
+- **三個掣**：工具列 `#wj-fs-btn`、畫面右上角 `#wj-fs-enter`（⛶ 全屏）、
+  全屏時底部中央 `#wj-exit-fs`（✕ 退出全屏）。三個都 call `WJ.toggleFullscreen()`。
+- 入場 overlay 有**兩個選擇**：`⛶ 全屏開始`（`WJ.start(true)`）同
+  `視窗模式開始`（`WJ.start(false)`，會熄 `autoFs` 唔再自動入全屏）。
+- `WJ.start()`（唔帶參數，例如 Play again）會試入全屏一次（`WJ.autoFs`，
+  只喺 `WJ.mount()` 設 true，即每次入 view 一次）——因為
+  `requestFullscreen()` 要**用戶手勢**，撳 Start 正好係手勢。
+- `#wj-fs-enter` / `#wj-exit-fs` 嘅位置同外觀寫死喺 CSS（唔靠 Tailwind class），
+  所以就算 Tailwind CDN 斷線都仲撳得到。
 - **原生**：`#wj-stage.requestFullscreen()`（連 `webkitRequestFullscreen`）。
 - **iPhone Safari 冇 element fullscreen**：fallback 落 `document.body.classList.add('wj-fs')`，
   CSS 將 `#wj-stage` 變 `position:fixed; inset:0; width:100vw; height:100dvh`，
-  canvas 保持 2:3 居中。呢個 fallback 冇得隱藏 Safari UI，但至少霸滿可用空間。
+  canvas 保持 2:3 居中，並用 `env(safe-area-inset-*)` 避開瀏海／Home 條
+  （meta viewport 已加 `viewport-fit=cover`）。呢個 fallback 冇得隱藏 Safari UI，
+  但至少霸滿可用空間——**iPhone 上永遠唔會有真全屏**，係 Apple 限制。
+- `WJ.requestStageFullscreen()`：叫完原生 API 之後 **600ms** 內如果
+  `WJ.fsOn()` 仲係 false（承諾唔 settle／被拒），就自動切 CSS fallback；
+  `WJ.fsPending` 做 token，避免退出之後又被舊 timer 拉返入去。
 - `fullscreenchange` / `webkitfullscreenchange` → `WJ.syncFsUi()`：更新掣字、
   顯示／隱藏 `#wj-exit-fs`、`WJ.resize()` + `WJ.draw()`。
 - `WJ.stop()`（離開 view）會 `WJ.exitFullscreenSoft()`，所以唔會困住喺全屏幕。

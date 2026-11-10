@@ -300,7 +300,7 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
 - 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -1224` 取代原本 `JUMP_V -1014`
   嘅反彈，`h = 1224² / (2 × 1610) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
-  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 369px`；每連續 5 題送護盾 8 秒。
+  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 465px`；每連續 5 題送護盾 8 秒。
   **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。

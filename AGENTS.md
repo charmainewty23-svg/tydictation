@@ -455,8 +455,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 ### 10.6b 重開（RE）
 
 - **兩個入口**：工具列 `🔁 Restart`；畫面底部中央 `↺ Restart`（`#wj-re-btn`）。
-  後者**喺全屏都用得到**（全屏時工具列收埋咗），全屏時會升到 `bottom: 38px`
-  避開 `✕ Exit full screen`。
+  後者**喺全屏都用得到**（全屏時工具列收埋咗）。`✕ Exit full screen` 喺右上角，
+  唔會同底部左右掣重疊。
 - `WJ.restart(force)`：`reset()` → `state='playing'` → 重開 RAF → toast `↺ New run`。
   **唔會碰全屏狀態**（唔會 `requestFullscreen`、唔會退出），所以喺全屏按完仍然全屏。
 - 誤觸保護：遊戲進行中而且分數 > 0，`WJ.restart()` 會 `confirm()` 問一次
@@ -513,7 +513,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.10 全屏幕
 - **三個掣**：工具列 `#wj-fs-btn`、畫面右上角 `#wj-fs-enter`（⛶ 全屏）、
-  全屏時底部中央 `#wj-exit-fs`（✕ 退出全屏）。三個都 call `WJ.toggleFullscreen()`。
+  全屏時右上角 `#wj-exit-fs`（✕ 退出全屏，唔放底部以免擋住左右移動）。三個都 call `WJ.toggleFullscreen()`。
+- **全屏左右移動（2026-11）**：全屏時 canvas 喺 `#wj-stage` 入面 letterbox（兩邊／上下有黑邊），
+  拇指成日撳中黑邊或者差少少出咗 pad。`WJ.pointerDir()` 會把黑邊同底部左右角落都當成方向掣；
+  事件聽喺 `#wj-stage`（唔只係 canvas）。唔可以喺 `pointerleave` 清 `holdDir`（pad 貼住 canvas 邊緣，移出 1px 就會停）。
+  CSS fallback（`body.wj-fs`）要給 `#wj-stage` `z-index: 9999`，避免頁面其他元素食咗 touch。
 - 入場 overlay 有**兩個選擇**：`⛶ 全屏開始`（`WJ.start(true)`）同
   `視窗模式開始`（`WJ.start(false)`，會熄 `autoFs` 唔再自動入全屏）。
 - `WJ.start()`（唔帶參數，例如 Play again）會試入全屏一次（`WJ.autoFs`，

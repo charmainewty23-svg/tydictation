@@ -5230,7 +5230,7 @@
             BOOST_VY: -788, BOOST_G: 668,
             MOVE_MAX: 240, STEER_RATE: 16, STEER_STOP: 18,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
-            SCORE_HEAT_AT: 8000, SCORE_HEAT_SPAN: 4000,
+            SCORE_HEAT_AT: 4500, SCORE_HEAT2_AT: 7000, SCORE_HEAT2_SPAN: 3000,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -5257,8 +5257,15 @@
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
         // difficulty() caps at 9000px climb (~900 height points). lateHeat
-        // starts a second ramp at 8000 score and reaches 1 at 12000.
-        WJ.lateHeat = () => WJ.clamp((WJ.score() - WJ.SCORE_HEAT_AT) / WJ.SCORE_HEAT_SPAN, 0, 1);
+        // then adds two score ramps: 4500–7000 rises to 0.5, 7000–10000 to 1.
+        WJ.lateHeat = function () {
+            const s = WJ.score();
+            if (s < WJ.SCORE_HEAT_AT) return 0;
+            if (s < WJ.SCORE_HEAT2_AT) {
+                return 0.5 * (s - WJ.SCORE_HEAT_AT) / (WJ.SCORE_HEAT2_AT - WJ.SCORE_HEAT_AT);
+            }
+            return WJ.clamp(0.5 + 0.5 * (s - WJ.SCORE_HEAT2_AT) / WJ.SCORE_HEAT2_SPAN, 0, 1);
+        };
 
         /* Horizontal top speed ramps from SPEED_RAMP_FROM * MOVE_MAX at the
            bottom of a run to MOVE_MAX once you have climbed a while. */
@@ -5349,6 +5356,7 @@
             WJ.passLabels = [];
             WJ.lastPassFx = null;
             WJ.heatAnnounced = false;
+            WJ.heat2Announced = false;
             (WJ.milestones || []).forEach(m => { m.passed = false; });
             WJ.platforms.push({
                 x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
@@ -5736,7 +5744,7 @@
         WJ.spawnQuizRow = function (y) {
             const d = WJ.difficulty();
             const h = WJ.lateHeat();
-            const count = h > 0.35 ? 4 : (d < 0.3 ? 2 : 3);
+            const count = h >= 0.5 ? 4 : (d < 0.3 ? 2 : 3);
             const pool = WJ.wordPool();
             if (!pool.length) return;
 
@@ -6510,6 +6518,10 @@
             if (!WJ.heatAnnounced && WJ.score() >= WJ.SCORE_HEAT_AT) {
                 WJ.heatAnnounced = true;
                 WJ.toast('⚡ Challenge up!', '#d97706');
+            }
+            if (!WJ.heat2Announced && WJ.score() >= WJ.SCORE_HEAT2_AT) {
+                WJ.heat2Announced = true;
+                WJ.toast('⚡ Extra challenge!', '#c2410c');
             }
             WJ.checkMilestones();
 

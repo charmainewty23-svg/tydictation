@@ -335,10 +335,10 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   所以傾斜角同速度係**成比例**：2° ≈ 7%、4° ≈ 20%、6° ≈ 38%、8° ≈ 60%、
   11° = 100%。覺得太敏感就加 `TILT_RANGE`，太鈍就減；想「細傾更慢」就加大
   `TILT_CURVE`（1.0 = 完全線性）。
-- **左右速度（按輸入比例）**：`MOVE_MAX 240`、`STEER_RATE 22`（加速）、
-  `STEER_STOP 30`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **133ms**
-  到 95%，放手**滑 2–8px**（開頭 ~4px、頂速 ~8px；用戶要「加強滑度」時由 58 減到 30，
-  減得越細越滑）。`|dir| < 0.04` 當 0；只有 `target = 0` 而且 `|vx| < 1.5`
+- **左右速度（按輸入比例）**：`MOVE_MAX 240`、`STEER_RATE 16`（加速）、
+  `STEER_STOP 18`（收步）。`p.vx` 直接追 `dir × speedCap()`，加速約 **190ms**
+  到 95%，放手**滑 6–13px**（開頭 ~6px、頂速 ~13px；2026-11 由 22／30 再調順，
+  `STEER_STOP` 減得越細越滑）。`|dir| < 0.04` 當 0；只有 `target = 0` 而且 `|vx| < 1.5`
   才歸零（否則慢速微調永遠起唔到步）。
   **注意**：以前嘅 `MOVE_ACC` + `FRICTION × (1-|dir|)³` 模型已經刪走——
   摩擦力係常數、唔隨速度變，結果係「一過門檻就衝到頂速、門檻以下完全唔郁」，
@@ -455,8 +455,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 ### 10.6b 重開（RE）
 
 - **兩個入口**：工具列 `🔁 Restart`；畫面底部中央 `↺ Restart`（`#wj-re-btn`）。
-  後者**喺全屏都用得到**（全屏時工具列收埋咗），全屏時會升到 `bottom: 38px`
-  避開 `✕ Exit full screen`。
+  後者**喺全屏都用得到**（全屏時工具列收埋咗）。`✕ Exit full screen` 喺右上角，
+  唔會同底部左右掣重疊。
 - `WJ.restart(force)`：`reset()` → `state='playing'` → 重開 RAF → toast `↺ New run`。
   **唔會碰全屏狀態**（唔會 `requestFullscreen`、唔會退出），所以喺全屏按完仍然全屏。
 - 誤觸保護：遊戲進行中而且分數 > 0，`WJ.restart()` 會 `confirm()` 問一次
@@ -483,7 +483,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.9 改動提示
 - 調手感改 `WJ.GRAVITY`（1030）／`WJ.JUMP_V`（−811）／`WJ.MOVE_MAX`（240）／
-  `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（30）／`WJ.TILT_RANGE`（11）／
+  `WJ.STEER_RATE`（16）／`WJ.STEER_STOP`（18）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
   道具上升速度 `JET_V -765`／`PROP_V -193` 同 `WORD_BOOST`（保持 465px）要一齊按比例調；
@@ -513,7 +513,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.10 全屏幕
 - **三個掣**：工具列 `#wj-fs-btn`、畫面右上角 `#wj-fs-enter`（⛶ 全屏）、
-  全屏時底部中央 `#wj-exit-fs`（✕ 退出全屏）。三個都 call `WJ.toggleFullscreen()`。
+  全屏時右上角 `#wj-exit-fs`（✕ 退出全屏，唔放底部以免擋住左右移動）。三個都 call `WJ.toggleFullscreen()`。
+- **全屏左右移動（2026-11）**：全屏時 canvas 喺 `#wj-stage` 入面 letterbox（兩邊／上下有黑邊），
+  拇指成日撳中黑邊或者差少少出咗 pad。`WJ.pointerDir()` 會把黑邊同底部左右角落都當成方向掣；
+  事件聽喺 `#wj-stage`（唔只係 canvas）。唔可以喺 `pointerleave` 清 `holdDir`（pad 貼住 canvas 邊緣，移出 1px 就會停）。
+  CSS fallback（`body.wj-fs`）要給 `#wj-stage` `z-index: 9999`，避免頁面其他元素食咗 touch。
 - 入場 overlay 有**兩個選擇**：`⛶ 全屏開始`（`WJ.start(true)`）同
   `視窗模式開始`（`WJ.start(false)`，會熄 `autoFs` 唔再自動入全屏）。
 - `WJ.start()`（唔帶參數，例如 Play again）會試入全屏一次（`WJ.autoFs`，

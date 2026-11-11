@@ -263,6 +263,8 @@
             align-items: center;
             justify-content: center;
             padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            z-index: 9999;
+            touch-action: none;
         }
         #wj-stage:fullscreen canvas,
         #wj-stage:-webkit-full-screen canvas,
@@ -293,9 +295,13 @@
             font-weight: 700;
         }
         #wj-exit-fs {
-            bottom: 8px;
-            left: 50%;
-            transform: translateX(-50%);
+            /* Top-right, same corner as the enter button — the bottom
+               of the screen is reserved for the left/right movement pads. */
+            top: 6px;
+            right: 6px;
+            bottom: auto;
+            left: auto;
+            transform: none;
             padding: 4px 10px;
             border: 1px solid #e5e7eb;
             color: #6b7280;
@@ -321,11 +327,12 @@
             cursor: pointer;
         }
         #wj-re-btn:active { background: #ecfdf5; color: #047857; }
-        /* Stack it above the exit-full-screen pill when both are shown. */
+        /* Exit-full-screen now sits top-right, so Restart can stay at the
+           bottom centre without covering the pads or fighting that pill. */
         #wj-stage:fullscreen #wj-re-btn,
         #wj-stage:-webkit-full-screen #wj-re-btn,
         body.wj-fs #wj-re-btn {
-            bottom: 38px;
+            bottom: 8px;
         }
         #wj-stage:fullscreen #wj-fs-enter,
         #wj-stage:-webkit-full-screen #wj-fs-enter,
@@ -826,7 +833,7 @@
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
                         <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ Full screen</button>
-                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-white/90 border border-gray-200 text-[11px] font-bold text-gray-500">✕ Exit full screen</button>
+                        <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden">✕ Exit full screen</button>
                         <button id="wj-re-btn" onclick="WJ.restart()" title="Restart this run" aria-label="Restart this run">↺ Restart</button>
                     </div>
                     <p class="text-center text-xs text-gray-400 mt-3">Hold the bottom pads (or tilt) to move · tap anywhere else to shoot · the ⛶ button (top right) toggles full screen</p>
@@ -5004,7 +5011,7 @@
             // Normal jumps (JUMP_V + GRAVITY, 1.58s / 319px) are untouched.
             WORD_BOOST_HANG: 1.35,
             BOOST_VY: -725, BOOST_G: 565,
-            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
+            MOVE_MAX: 240, STEER_RATE: 16, STEER_STOP: 18,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
@@ -5177,11 +5184,15 @@
             if (enter) enter.classList.toggle('hidden', on);
             const btn = document.getElementById('wj-fs-btn');
             if (btn) btn.innerText = on ? '⛶ Exit full screen' : '⛶ Full screen';
-            requestAnimationFrame(() => {
+            const relayout = () => {
                 if (!WJ.mounted) return;
                 WJ.resize();
                 WJ.draw();
-            });
+            };
+            requestAnimationFrame(relayout);
+            // Full-screen layout can settle a frame or two late; a second
+            // pass keeps pointer hit-testing aligned with the visible canvas.
+            setTimeout(relayout, 120);
         };
 
         WJ.fakeFullscreen = function (on) {
@@ -6211,7 +6222,7 @@
             }
             // Proportional steering: the speed follows the input, so half a
             // tilt is half speed and a full tilt (or a held pad) is top speed.
-            // It eases in over ~0.13s and stops within ~2px of letting go.
+            // Eases in over ~0.19s and glides about 6–13px after letting go.
             if (Math.abs(dir) < 0.04) dir = 0;
             const cap = WJ.speedCap();
             const target = dir * cap;
@@ -6906,44 +6917,70 @@
 
         /* ---------------- input ---------------- */
 
+        // Map a pointer to a steer direction. In full screen the canvas is
+        // letterboxed inside #wj-stage, so thumbs often land on the black
+        // bars or just outside a pad — those still count as left / right.
+        // 0 means "not a pad" (shoot only if the event is on the canvas).
+        WJ.pointerDir = function (clientX, clientY) {
+            const c = WJ.canvas;
+            if (!c) return 0;
+            const rect = c.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0 &&
+                clientX >= rect.left && clientX <= rect.right &&
+                clientY >= rect.top && clientY <= rect.bottom) {
+                const lx = (clientX - rect.left) * (WJ.W / rect.width);
+                const ly = (clientY - rect.top) * (WJ.H / rect.height);
+                const padY = WJ.H - 64;
+                if (Math.hypot(lx - 62, ly - padY) < 72) return -1;
+                if (Math.hypot(lx - (WJ.W - 62), ly - padY) < 72) return 1;
+                // Forgiving corner rectangles (full-screen thumbs sit low).
+                if (ly >= WJ.H - 140 && lx <= WJ.W * 0.38) return -1;
+                if (ly >= WJ.H - 140 && lx >= WJ.W * 0.62) return 1;
+                return 0;
+            }
+            if (clientX < rect.left) return -1;
+            if (clientX > rect.right) return 1;
+            if (rect.width && clientY > rect.bottom) {
+                const mid = (rect.left + rect.right) / 2;
+                if (clientX < mid - 20) return -1;
+                if (clientX > mid + 20) return 1;
+            }
+            return 0;
+        };
+
         WJ.bindInput = function () {
             if (WJ.bound) return;
             WJ.bound = true;
             const c = WJ.canvas;
             if (!c) { WJ.bound = false; return; }
+            // Listen on the stage so full-screen letterbox taps still steer.
+            const stage = document.getElementById('wj-stage') || c;
 
-            c.addEventListener('pointerdown', e => {
+            const onDown = e => {
                 if (WJ.state !== 'playing' || WJ.paused) return;
+                if (e.target && e.target.closest && e.target.closest('button, #wj-overlay')) return;
                 e.preventDefault();
-                const rect = c.getBoundingClientRect();
-                if (!rect.width) return;
-                const lx = (e.clientX - rect.left) * (WJ.W / rect.width);
-                const ly = (e.clientY - rect.top) * (WJ.H / rect.height);
-                const padY = WJ.H - 64;
-                const inLeft = Math.hypot(lx - 62, ly - padY) < 62;
-                const inRight = Math.hypot(lx - (WJ.W - 62), ly - padY) < 62;
-                if (inLeft || inRight) {
-                    WJ.holdDir = inLeft ? -1 : 1;
+                const dir = WJ.pointerDir(e.clientX, e.clientY);
+                if (dir) {
+                    WJ.holdDir = dir;
                     WJ.holdPointer = e.pointerId;
-                    try { c.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-                } else {
+                    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                } else if (e.target === c) {
                     WJ.shoot();
                 }
-            });
-            c.addEventListener('pointerup', e => {
+            };
+            const onUp = e => {
                 if (WJ.holdPointer === e.pointerId) {
                     WJ.holdDir = 0;
                     WJ.holdPointer = null;
                 }
-            });
-            c.addEventListener('pointercancel', e => {
-                if (WJ.holdPointer === e.pointerId) {
-                    WJ.holdDir = 0;
-                    WJ.holdPointer = null;
-                }
-            });
-            c.addEventListener('pointerleave', () => { WJ.holdDir = 0; WJ.holdPointer = null; });
-            c.addEventListener('contextmenu', e => e.preventDefault());
+            };
+            stage.addEventListener('pointerdown', onDown);
+            stage.addEventListener('pointerup', onUp);
+            stage.addEventListener('pointercancel', onUp);
+            // Do not clear holdDir on pointerleave: the pads sit on the
+            // canvas edge, and in full screen a 1px slip would stop steering.
+            stage.addEventListener('contextmenu', e => e.preventDefault());
 
             document.addEventListener('keydown', e => {
                 const view = document.getElementById('wordjump-view');
@@ -6954,12 +6991,12 @@
                 else if (k === 'ArrowRight' || k === 'd' || k === 'D') { WJ.keys.right = true; e.preventDefault(); }
                 else if (k === 'ArrowUp' || k === ' ' || k === 'w' || k === 'W') { WJ.shoot(); e.preventDefault(); }
                 else if (k === 'p' || k === 'P' || k === 'Escape') { WJ.togglePause(); }
-            });
+            }, true);
             document.addEventListener('keyup', e => {
                 const k = e.key;
                 if (k === 'ArrowLeft' || k === 'a' || k === 'A') WJ.keys.left = false;
                 if (k === 'ArrowRight' || k === 'd' || k === 'D') WJ.keys.right = false;
-            });
+            }, true);
 
             window.addEventListener('resize', () => { if (WJ.mounted) WJ.resize(); });
             document.addEventListener('fullscreenchange', WJ.syncFsUi);

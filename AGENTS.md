@@ -592,7 +592,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 **要喺 Supabase SQL Editor 跑一次**，唔會自動建表；重跑安全。唔使跟 battle 系列順序。
 
 - 表 `wj_scores`：每局一行（`user_id, email, nickname, topic, score, height, words`）。
-- View `wj_leaderboard`：**每人一行**（個人最佳）＋ `plays`（該學生總局數）。
+- View `wj_leaderboard`：**每人一行**（個人最佳；榜上顯示高度同中嘅生字量，唔顯示局數）。`plays` 欄仍然存在，但前端唔展示。
   用 `row_number() over (partition by user_id order by score desc, created_at asc)` 抽第一行，
   `security_invoker = true` 令 RLS 生效。
 - RLS：`select using (true)`（**全世界讀得到**，否則排行榜載入唔到）；
@@ -603,13 +603,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     都唔會上傳分數。
   - `WJ.loadLeaderboard()`：撈 `wj_leaderboard` 頭 7 名，畫入 game-over 卡嘅 `#wj-lb`；
     自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。訪客模式唔會撈榜，亦唔會 upload 分數。
-  - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、分、幾個字）。
+  - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、高度、中咗幾個字）。
   - Hub Leaderboard（`leaderboard-view`）有 All／Listening／Recitation／**Word Jump** 分頁。
-    Word Jump 分頁撈同一個 `wj_leaderboard` view，只顯示**個人最佳頭 10 名**（按最高分，同分先到先排）。
+    Word Jump 分頁撈同一個 `wj_leaderboard` view，只顯示**個人最佳頭 10 名**（按高度，同分再按中字量，再同分先到先排）。每行顯示高度同中咗嘅生字量，唔顯示玩咗幾多局，亦唔顯示分數。
     學生睇平坦名單；老師畫面按年級分組（冇 +/- 收起掣，同其他 Hub Leaderboard 分頁一樣）。
     訪客仍然入唔到呢頁。
   - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
-    學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾局、幾時玩、高度、字數）。
+    學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾時玩、高度、中字量；唔顯示局數）。
     `changeView('admin-view')` 會自動 call。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，Hub Leaderboard 嘅 Word Jump 分頁同 admin 卡顯示同一句提示，遊戲照玩。

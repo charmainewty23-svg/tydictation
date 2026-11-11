@@ -447,6 +447,10 @@
                 <button id="auth-btn" onclick="signOut()" class="px-4 py-2 bg-orange-100 text-orange-600 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">Logout</button>
             </div>
         </div>
+        <div id="preview-banner" class="hidden mb-6 px-4 py-3 rounded-2xl border-2 border-amber-200 bg-amber-50 flex items-center justify-between gap-3 flex-wrap" onclick="event.stopPropagation()">
+            <p id="preview-banner-text" class="font-bold text-amber-800 text-sm">You are previewing a student account.</p>
+            <button type="button" onclick="exitStudentPreview()" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">Exit preview</button>
+        </div>
 
         <header class="flex flex-col items-center mb-8 flex-shrink-0">
             <div class="max-w-md w-full flex flex-col items-center">
@@ -528,6 +532,21 @@
                 <div id="hub-leaderboard-entry" class="hub-card md:col-span-2" onclick="changeView('leaderboard-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
                     <div class="text-4xl">🏆</div>
                     <h2 class="text-xl font-bold text-gray-600">Leaderboard</h2>
+                </div>
+
+                <div id="hub-preview-entry" class="hub-card md:col-span-2 hidden" onclick="event.stopPropagation()" style="padding:1.5rem;flex-direction:column;gap:0.75rem;align-items:flex-start;border-color:#fbbf24;">
+                    <div class="flex items-center gap-4">
+                        <div class="text-4xl">👁</div>
+                        <div>
+                            <h2 class="text-xl font-bold text-amber-700">Preview student account</h2>
+                            <p class="text-gray-400 text-sm">See the site as an F3, F4 or F6 student. Exit any time from the banner.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="enterStudentPreview('F3')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F3</button>
+                        <button type="button" onclick="enterStudentPreview('F4')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F4</button>
+                        <button type="button" onclick="enterStudentPreview('F6')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F6</button>
+                    </div>
                 </div>
 
                 <div id="admin-hub-entry" class="hub-card md:col-span-2 hidden" onclick="changeView('admin-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#f59e0b;">
@@ -631,13 +650,15 @@
                             <h3 class="font-bold text-orange-700 text-lg">Word bank</h3>
                             <div id="nv-form-switch" class="flex gap-2 flex-wrap"></div>
                         </div>
-                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Press Confirm to add the word to this form's bank; it appears in the list below straight away. Use − to delete or clear a word.</p>
-                        <div class="flex items-stretch gap-2 mb-4 flex-wrap sm:flex-nowrap">
-                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                        <p class="text-sm text-gray-500 mb-3">English, Chinese, or both. After you type the English, the Chinese is filled from Cambridge Dictionary — you can edit it before Confirm. Words stay until you delete them. A word with only Chinese stays in the list, and joins spelling once you add the English. Press Confirm to add the word to this form's bank; it appears in the list below straight away. Use − to delete or clear a word.</p>
+                        <div class="flex items-stretch gap-2 mb-2 flex-wrap sm:flex-nowrap">
+                            <input id="nv-en" type="text" placeholder="English (optional, plaza / square)" autocomplete="off" onkeydown="nvComposerKey(event)" oninput="nvScheduleCambridge()" onblur="nvLookupCambridge()" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
+                            <button type="button" id="nv-lookup-btn" onclick="nvLookupCambridge(true)" title="Look up in Cambridge Dictionary" aria-label="Look up in Cambridge Dictionary" class="shrink-0 px-4 h-11 bg-white border-2 border-orange-200 text-orange-600 rounded-full font-bold text-sm leading-none flex items-center justify-center hover:bg-orange-50">Look up</button>
                             <input id="nv-zh" type="text" placeholder="中文 (needed for Recitation)" autocomplete="off" onkeydown="nvComposerKey(event)" class="flex-1 min-w-[8rem] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700">
                             <button type="button" id="nv-save-btn" onclick="nvSaveWord()" title="Confirm" aria-label="Confirm" class="shrink-0 px-5 h-11 bg-orange-500 text-white rounded-full font-bold text-sm leading-none flex items-center justify-center">Confirm</button>
                             <button type="button" id="nv-cancel-btn" onclick="nvCancelEdit()" title="Clear this row" aria-label="Clear this row" class="w-11 h-11 shrink-0 bg-white border-2 border-orange-100 text-gray-500 rounded-full font-bold text-2xl leading-none flex items-center justify-center">−</button>
                         </div>
+                        <div id="nv-cambridge" class="hidden mb-4 text-sm text-gray-500 font-bold leading-relaxed"></div>
                         <div id="nv-editor-list" class="space-y-2"></div>
                         <button type="button" id="nv-add-another" onclick="nvStartNewWord()" title="Add another word" aria-label="Add another word" class="mt-3 w-11 h-11 bg-orange-500 text-white rounded-full font-bold text-2xl leading-none flex items-center justify-center">+</button>
                     </div>
@@ -955,6 +976,15 @@
                 <button onclick="changeView('hub-view')" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Hub
                 </button>
+                <div id="admin-preview-box" class="cat-card p-6 mb-6">
+                    <h3 class="text-xl font-bold text-amber-700 mb-1">👁 Preview student account</h3>
+                    <p class="text-gray-400 text-sm mb-3">Try the site as an F3, F4 or F6 student. Your teacher tools stay hidden until you exit.</p>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="enterStudentPreview('F3')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F3</button>
+                        <button type="button" onclick="enterStudentPreview('F4')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F4</button>
+                        <button type="button" onclick="enterStudentPreview('F6')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F6</button>
+                    </div>
+                </div>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">📊 Admin Dashboard</h2>
                     <p class="text-gray-400 mb-4">Student usage overview — cumulative scores</p>
@@ -1079,7 +1109,10 @@
         let guestSession = false;
 
         function isGuestUser() { return !!guestSession; }
-        function isAdmin() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
+        function isTeacherAccount() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
+        const PREVIEW_FORM_KEY = 'learniTY_preview_form';
+        let previewStudentFormValue = '';
+        function isAdmin() { return isTeacherAccount() && !previewStudentForm(); }
         function isSignedIn() { return isGuestUser() || !!currentUser; }
         function canUseCloud() { return !isGuestUser() && !!currentUser; }
 
@@ -1167,6 +1200,70 @@
         function formLabel(id) {
             const hit = FORM_LEVELS.find(f => f.id === id);
             return hit ? hit.label : (id || 'Unassigned');
+        }
+
+        function previewStudentForm() {
+            return normalizeForm(previewStudentFormValue);
+        }
+        function readPreviewForm() {
+            try { return normalizeForm(sessionStorage.getItem(PREVIEW_FORM_KEY)); } catch (e) { return ''; }
+        }
+        function writePreviewForm(form) {
+            try {
+                if (form) sessionStorage.setItem(PREVIEW_FORM_KEY, form);
+                else sessionStorage.removeItem(PREVIEW_FORM_KEY);
+            } catch (e) {}
+        }
+        function paintPreviewBanner() {
+            const banner = document.getElementById('preview-banner');
+            const text = document.getElementById('preview-banner-text');
+            const form = previewStudentForm();
+            if (banner) banner.classList.toggle('hidden', !form);
+            if (text && form) text.textContent = 'You are previewing the ' + form + ' student account.';
+            const card = document.getElementById('hub-preview-entry');
+            if (card) card.classList.toggle('hidden', !isTeacherAccount() || !!form);
+        }
+        function applyStudentPreview(form, goHub) {
+            previewStudentFormValue = normalizeForm(form) || '';
+            writePreviewForm(previewStudentFormValue);
+            if (previewStudentFormValue) {
+                myFormValue = previewStudentFormValue;
+                myFormLoaded = true;
+                ownFormPersisted = true;
+            } else {
+                myFormValue = '';
+                myFormLoaded = false;
+                ownFormPersisted = false;
+            }
+            if (typeof adoptErrorBookUser === 'function') adoptErrorBookUser();
+            paintPreviewBanner();
+            updateAuthUI();
+            if (goHub) changeView('hub-view');
+        }
+        function enterStudentPreview(formId) {
+            const form = normalizeForm(formId);
+            if (!isTeacherAccount() || !form) return;
+            applyStudentPreview(form, true);
+            updateMascot('Previewing the ' + form + ' student account. Press Exit preview to return.');
+        }
+        function exitStudentPreview() {
+            applyStudentPreview('', true);
+            updateMascot('Back to the teacher account.');
+        }
+        function restoreStudentPreview() {
+            if (!isTeacherAccount()) {
+                previewStudentFormValue = '';
+                paintPreviewBanner();
+                return;
+            }
+            const saved = readPreviewForm();
+            previewStudentFormValue = saved;
+            if (saved) {
+                myFormValue = saved;
+                myFormLoaded = true;
+                ownFormPersisted = true;
+            }
+            paintPreviewBanner();
         }
 
         // Derive form (and class 班別) only from the student's displayed
@@ -1569,6 +1666,8 @@
 
         async function signOut() {
             endGuestSession();
+            previewStudentFormValue = '';
+            writePreviewForm('');
             if (currentUser) {
                 currentUser = null;
                 try { await sb.auth.signOut(); } catch (e) {}
@@ -1577,6 +1676,7 @@
             myFormValue = '';
             myFormLoaded = false;
             ownFormPersisted = false;
+            paintPreviewBanner();
             adoptErrorBookUser();
             updateAuthUI();
             showLogin();
@@ -1586,24 +1686,34 @@
             const btn = document.getElementById('auth-btn');
             const nickname = document.getElementById('auth-nickname');
             const adminBtn = document.getElementById('admin-hub-entry');
+            const previewCard = document.getElementById('hub-preview-entry');
             const lbCard = document.getElementById('hub-leaderboard-entry');
             const recCard = document.getElementById('hub-records-entry');
             if (isGuestUser()) {
                 if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
                 if (nickname) nickname.innerText = 'Guest';
                 if (adminBtn) adminBtn.classList.add('hidden');
+                if (previewCard) previewCard.classList.add('hidden');
                 if (lbCard) lbCard.classList.add('hidden');
                 if (recCard) recCard.classList.add('hidden');
+                paintPreviewBanner();
                 return;
             }
             if (lbCard) lbCard.classList.remove('hidden');
             if (recCard) recCard.classList.remove('hidden');
             if (currentUser) {
                 const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
+                const form = previewStudentForm();
                 if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
-                if (nickname) nickname.innerText = name;
+                if (nickname) nickname.innerText = form ? (form + ' preview') : name;
                 if (adminBtn) adminBtn.classList.toggle('hidden', !isAdmin());
+                if (previewCard) previewCard.classList.toggle('hidden', !isTeacherAccount() || !!form);
+            } else {
+                if (adminBtn) adminBtn.classList.add('hidden');
+                if (previewCard) previewCard.classList.add('hidden');
+                if (nickname) nickname.innerText = '';
             }
+            paintPreviewBanner();
         }
 
         function showApp() {
@@ -1637,7 +1747,7 @@
                 p_user_agent: navigator.userAgent
             });
             if (error) console.warn('Login record failed:', error.message);
-            await claimSavedForm(user);
+            if (!previewStudentForm()) await claimSavedForm(user);
         }
 
         let errorBook = [];
@@ -1656,6 +1766,7 @@
             } else if (session) {
                 endGuestSession();
                 currentUser = session.user;
+                restoreStudentPreview();
                 recordLogin(session.user);
                 updateAuthUI();
                 adoptErrorBookUser();
@@ -1860,6 +1971,7 @@
         }
 
         function errorBookStorageKey() {
+            if (previewStudentForm()) return 'error_book:preview:' + previewStudentForm();
             if (isGuestUser()) return 'error_book:guest-session';
             return canUseCloud() ? ('error_book:' + currentUser.id) : 'error_book:guest';
         }
@@ -1919,7 +2031,7 @@
             if (!en || errorBook.some(w => w.en === en)) return;
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
-            if (!canUseCloud()) return;
+            if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').upsert({
                 user_id: currentUser.id, en, zh, topic: currentTopic || ''
             }, { onConflict: 'user_id,en' }).then(({ error }) => {
@@ -1933,7 +2045,7 @@
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
-            if (!canUseCloud()) return;
+            if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
                 if (error) console.warn('Error book remove failed:', error.message);
             });
@@ -2072,6 +2184,7 @@
         }
 
         function ownDisplayedForm() {
+            if (previewStudentForm()) return previewStudentForm();
             if (!currentUser || isAdmin() || isGuestUser()) return '';
             const nick = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
             return parseDisplayNameFormClass(displayedLoginName(currentUser.email, nick)).form || '';
@@ -2090,6 +2203,12 @@
         }
 
         async function resolveOwnForm(force) {
+            if (previewStudentForm()) {
+                myFormValue = previewStudentForm();
+                myFormLoaded = true;
+                ownFormPersisted = true;
+                return myFormValue;
+            }
             if (isGuestUser() || !currentUser) { myFormValue = ''; myFormLoaded = true; ownFormPersisted = false; return ''; }
             if (isAdmin()) { myFormLoaded = true; return nvEditForm || FORM_LEVELS[0].id; }
             if (myFormLoaded && !force && ownFormPersisted) return myFormValue;
@@ -2278,10 +2397,127 @@
                 </div>`).join('');
         }
 
+        let nvCambridgeTimer = null;
+        let nvCambridgeSeq = 0;
+        let nvAutoZh = '';
+        let nvCambridgeWord = '';
+        let nvCambridgeMeanings = [];
+
+        function nvClearCambridge() {
+            if (nvCambridgeTimer) { clearTimeout(nvCambridgeTimer); nvCambridgeTimer = null; }
+            nvCambridgeSeq += 1;
+            nvAutoZh = '';
+            nvCambridgeWord = '';
+            nvCambridgeMeanings = [];
+            const box = document.getElementById('nv-cambridge');
+            if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+        }
+
+        function nvNormalizeLookupWord(raw) {
+            return String(raw || '').trim().replace(/\s+/g, ' ');
+        }
+
+        function nvCanLookup(word) {
+            return /^[A-Za-z][A-Za-z0-9 .'\-]{0,79}$/.test(word);
+        }
+
+        function nvDefaultZh(meanings) {
+            const texts = [];
+            const seen = new Set();
+            (meanings || []).forEach(m => {
+                const t = String(m && m.text || '').trim();
+                if (!t || seen.has(t)) return;
+                seen.add(t);
+                texts.push(t);
+            });
+            return texts.slice(0, 3).join('；');
+        }
+
+        function nvPaintCambridge(state, payload) {
+            const box = document.getElementById('nv-cambridge');
+            if (!box) return;
+            if (!state) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            box.classList.remove('hidden');
+            if (state === 'loading') {
+                box.innerHTML = 'Looking up Cambridge Dictionary…';
+                return;
+            }
+            if (state === 'error') {
+                box.innerHTML = 'Could not reach Cambridge Dictionary. Type the 中文 yourself.';
+                return;
+            }
+            if (state === 'empty') {
+                box.innerHTML = 'No Cambridge match — you can type the 中文 yourself.';
+                return;
+            }
+            const meanings = (payload && payload.meanings) || [];
+            nvCambridgeMeanings = meanings;
+            const chips = meanings.map((m, i) => {
+                const label = escapeHtml(m.text);
+                return '<button type="button" onclick="nvPickCambridge(' + i + ')" class="px-3 py-1 rounded-full bg-white border-2 border-orange-100 text-orange-700 text-sm font-bold hover:bg-orange-100">' + label + '</button>';
+            }).join(' ');
+            box.innerHTML = '<p class="mb-2">Cambridge Dictionary (you can edit the 中文):</p><div class="flex flex-wrap gap-2">' + chips + '</div>';
+        }
+
+        function nvPickCambridge(i) {
+            const item = nvCambridgeMeanings[i];
+            if (!item) return;
+            const zh = document.getElementById('nv-zh');
+            if (zh) zh.value = item.text;
+            nvAutoZh = item.text;
+        }
+
+        function nvScheduleCambridge() {
+            if (nvCambridgeTimer) clearTimeout(nvCambridgeTimer);
+            nvCambridgeTimer = setTimeout(function () { nvLookupCambridge(false); }, 600);
+        }
+
+        async function nvLookupCambridge(force) {
+            if (nvCambridgeTimer) { clearTimeout(nvCambridgeTimer); nvCambridgeTimer = null; }
+            if (!isAdmin()) return;
+            const enEl = document.getElementById('nv-en');
+            const word = nvNormalizeLookupWord(enEl && enEl.value);
+            if (!nvCanLookup(word)) {
+                if (force) nvPaintCambridge('empty');
+                else if (!word) nvPaintCambridge('');
+                return;
+            }
+            const zhEl = document.getElementById('nv-zh');
+            const currentZh = zhEl ? zhEl.value.trim() : '';
+            const canFill = !currentZh || currentZh === nvAutoZh;
+            if (!force && word === nvCambridgeWord && currentZh && currentZh === nvAutoZh) return;
+            const seq = ++nvCambridgeSeq;
+            nvPaintCambridge('loading');
+            try {
+                const res = await fetch('/api/cambridge?word=' + encodeURIComponent(word));
+                const data = await res.json().catch(function () { return {}; });
+                if (seq !== nvCambridgeSeq) return;
+                if (!res.ok) { nvPaintCambridge('error'); return; }
+                const meanings = Array.isArray(data.meanings) ? data.meanings : [];
+                nvCambridgeWord = word;
+                if (!data.found || !meanings.length) {
+                    nvPaintCambridge('empty');
+                    return;
+                }
+                nvPaintCambridge('found', { meanings: meanings });
+                if (zhEl && canFill) {
+                    const filled = nvDefaultZh(meanings);
+                    if (filled) {
+                        zhEl.value = filled;
+                        nvAutoZh = filled;
+                    }
+                }
+            } catch (e) {
+                if (seq !== nvCambridgeSeq) return;
+                nvPaintCambridge('error');
+            }
+        }
+
         function nvBeginEdit(id) {
             const row = nvRows.find(w => Number(w.id) === Number(id));
             if (!row) return;
             nvEditingId = row.id;
+            nvClearCambridge();
             const en = document.getElementById('nv-en');
             const zh = document.getElementById('nv-zh');
             if (en) en.value = row.en;
@@ -2335,6 +2571,7 @@
 
         function nvCancelEdit() {
             nvEditingId = null;
+            nvClearCambridge();
             const en = document.getElementById('nv-en');
             const zh = document.getElementById('nv-zh');
             if (en) en.value = '';
@@ -2626,16 +2863,16 @@
             const accuracy = Math.round((correctCount / total) * 100);
 
             // Save to local (session-only for guests, so a later visitor is not mixed in)
-            const historyStore = isGuestUser() ? sessionStorage : localStorage;
-            const historyKey = isGuestUser() ? 'dict_history_guest' : 'dict_history';
+            const historyStore = (isGuestUser() || previewStudentForm()) ? sessionStorage : localStorage;
+            const historyKey = previewStudentForm() ? ('dict_history:preview:' + previewStudentForm()) : (isGuestUser() ? 'dict_history_guest' : 'dict_history');
             const history = JSON.parse(historyStore.getItem(historyKey) || '[]');
             const record = { t: Date.now(), topic: currentTopic, mode: quizMode, score: quizScore, total: total, correct: correctCount, accuracy: accuracy };
             history.push(record);
             historyStore.setItem(historyKey, JSON.stringify(history));
 
-            // Sync to Supabase if a school account is signed in (never for guests)
+            // Sync to Supabase if a school account is signed in (never for guests or teacher preview)
             let cloudSynced = false;
-            if (canUseCloud()) {
+            if (canUseCloud() && !previewStudentForm()) {
                 sb.from("dictation_results").insert({
                     user_id: currentUser.id,
                     email: currentUser.email,
@@ -2665,7 +2902,7 @@
                 <h2 class="text-4xl font-bold text-orange-600 mb-2">Quiz Finished!</h2>
                 <p class="text-2xl text-gray-500 mb-4">You earned ${quizScore} points in ${currentTopic}.</p>
                 <p class="text-xl text-gray-400 mb-8">Accuracy: ${correctCount}/${total} (${accuracy}%)</p>
-                ${canUseCloud() ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : (isGuestUser() ? '<p class="text-sm text-gray-400 mb-4">Guest results stay in this visit only and are not added to any leaderboard.</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>')}
+                ${previewStudentForm() ? '<p class="text-sm text-amber-600 mb-4">Preview only — this score is not saved to the teacher account or leaderboard.</p>' : (canUseCloud() ? '<p class="text-sm text-green-500 mb-4">☁️ Synced to cloud</p>' : (isGuestUser() ? '<p class="text-sm text-gray-400 mb-4">Guest results stay in this visit only and are not added to any leaderboard.</p>' : '<p class="text-sm text-gray-400 mb-4">Login to sync results across devices</p>'))}
 
                 <div class="bg-orange-50 rounded-2xl p-6 mb-8 border-2 border-orange-100">
                     <h3 class="text-lg font-bold text-orange-600 mb-2">🏅 Best Score (${quizMode})</h3>
@@ -2695,7 +2932,7 @@
         }
 
         function saveGrammarToCloud(grammarType, score, total) {
-            if (!canUseCloud()) return;
+            if (!canUseCloud() || previewStudentForm()) return;
             sb.from("dictation_results").insert({
                 user_id: currentUser.id,
                 email: currentUser.email,
@@ -5110,6 +5347,9 @@
                 updateMascot('Leaderboards and rankings are not available in guest mode.');
                 viewId = 'hub-view';
             }
+            if (previewStudentForm() && viewId === 'admin-view') {
+                viewId = 'hub-view';
+            }
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
@@ -5595,6 +5835,7 @@
            determined student could fake one — keep this for classroom fun,
            not for assessment. */
         WJ.submitScore = function (score) {
+            if (previewStudentForm()) return;
             if (!canUseCloud() || typeof sb === 'undefined' || !sb) return;
             const topic = (WJ.topic && WJ.topic !== '__all__') ? WJ.topic : 'all';
             sb.from('wj_scores').insert({

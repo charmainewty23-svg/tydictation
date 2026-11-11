@@ -244,6 +244,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - `showApp()` 只喺由登入畫面第一次進入 app 先 `changeView('hub-view')`。
   token refresh 或者重複嘅 `SIGNED_IN` 唔會再把老師／學生從 New Vocab 或其他版面彈走。
 
+### 9.6c 老師 Preview student account（F3 / F4 / F6）
+- 老師 Hub 同 Admin Dashboard 有 **Preview student account**：揀 F3／F4／F6 就以該年級學生身分睇網站，唔使登出或開真實學生帳戶。
+- `isTeacherAccount()` 認老師 email；`isAdmin()` 喺預覽期間係 false，所以老師工具（New Vocab 編輯器、Admin Dashboard、開班際房、年級下拉）會收埋。
+- 預覽期間 `ownDisplayedForm()`／`resolveOwnForm()` 直接回傳揀咗嘅年級，當已分班學生（只睇嗰個年級 New Vocab），唔會呼叫 `my_form`／`claimSavedForm`，亦唔會改老師 email 嘅 `student_forms`。
+- 頂部橫幅顯示 "You are previewing the F3 student account."，撳 **Exit preview** 返老師帳戶。登出會清預覽。刷新分頁會用 `sessionStorage["learniTY_preview_form"]` 還原。
+- 預覽期間唔寫雲端成績：`dictation_results`、`wj_scores`、`error_book` upsert／delete、Grammar Quest scores。練習可以照做，分數只留喺呢次預覽（sessionStorage）。預覽中亦開唔到 Admin Dashboard。
+
 ### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
 
 年級**唔再**喺登入時叫學生揀。舊版只係把 `localStorage["student_form_level"]`
@@ -623,6 +630,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 - 入口：Dictation Master → **New Vocab**。老師帳戶喺呢度揀年級、加字、改字、刪字。
   英文、中文、或者兩個一齊都可以存；撳 Confirm 之後先寫入並即刻出現喺下面；兩格都空先唔畀存。
+- 老師喺英文格輸入（約 0.6 秒停頓或離開格）之後，前端會呼叫 `/api/cambridge?word=`（`api/cambridge.js`），
+  向 Cambridge Dictionary 英文–繁體中文詞典查意思，自動填入中文格。預設用頭幾個簡短釋義，以「；」分隔；
+  下面會列出其他意思做掣，撳一下就填入，之後仍然可以人手改。已有或老師改過嘅中文**唔會**被自動覆寫；
+  改現有字時要再查就撳 **Look up**。查唔到或 API 失敗都唔會阻擋 Confirm，老師可以自己打中文。
+  呢個 API 只喺 Vercel 部署之後先用得（本地開 `index.html` 冇 `/api`）。
 - 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。

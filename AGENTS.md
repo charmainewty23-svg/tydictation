@@ -177,6 +177,10 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - Admin 卡片「⚔️ Battles」→ `loadBattleAdmin()`，睇最近 24 小時房間同即時比數。
  **未成功連線嘅房唔顯示**：1v1 未有 guest（而且未開始）會被 `battleRoomPaired()` 濾走；
  class 房要至少有一個學生先出現。已開始／已完結、或者 1v1 兩個位都坐滿嘅房照出。
+- 房間列表預設只顯示最新 5 間，底下有「展開 Show all (N)」掣；撳開之後改為「收起 Collapse」。
+  5 間或以下唔出掣。展開狀態喺今次瀏覽記住（Refresh／重新 render 唔會重置）。
+  呢個係整條房間列表嘅長短開關，唔係按年級分組（房間可以跨級）。Word Jump Challenge
+  對戰紀錄唔喺 Admin Dashboard，仍然喺 Word Jump／Hub 嗰度睇。
 - 誠實聲明：分數由 client 寫入，可以造假；房間、代碼、加入資格係 server 端 RLS／RPC 管。
 - 舊房保留 **7 日**（`create_battle` 時順手清走更舊嘅）。
 

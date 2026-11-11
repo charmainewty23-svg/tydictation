@@ -5276,6 +5276,40 @@
             return (room.status === 'playing' || room.status === 'finished') && !!room.started_at;
         }
 
+
+        const ADMIN_BATTLES_PREVIEW = 5;
+        let adminBattlesExpanded = false;
+
+        function setAdminBattlesExpanded(open) {
+            adminBattlesExpanded = !!open;
+            applyAdminBattlesCollapse();
+        }
+
+        function applyAdminBattlesCollapse() {
+            const listEl = document.getElementById('battle-admin-container');
+            if (!listEl) return;
+            const items = listEl.querySelectorAll('[data-battle-admin-row]');
+            const total = items.length;
+            const canCollapse = total > ADMIN_BATTLES_PREVIEW;
+            items.forEach((el, i) => {
+                el.classList.toggle('hidden', canCollapse && !adminBattlesExpanded && i >= ADMIN_BATTLES_PREVIEW);
+            });
+            const btn = listEl.querySelector('[data-admin-battles-toggle]');
+            if (!btn) return;
+            if (!canCollapse) {
+                btn.classList.add('hidden');
+                return;
+            }
+            btn.classList.remove('hidden');
+            if (adminBattlesExpanded) {
+                btn.textContent = '收起 Collapse';
+                btn.setAttribute('aria-expanded', 'true');
+            } else {
+                btn.textContent = '展開 Show all (' + total + ')';
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
         async function loadBattleAdmin(forceForms) {
             if (!isAdmin()) return;
             if (forceForms) await ensureFormDirectory(true);
@@ -5360,7 +5394,7 @@
                                 ? groups.map(g => `<div class="mt-2 first:mt-0"><div class="text-[10px] font-bold uppercase tracking-wider ${g.id ? 'text-orange-500' : 'text-gray-400'} mb-1">${escapeHtml(g.label)}</div>${g.rows.map(playerLine).join('')}</div>`).join('')
                                 : ps.map(playerLine).join(''))
                             : '<span class="text-gray-400 text-sm">No players yet</span>';
-                        return `<div>
+                        return `<div data-battle-admin-row>
                             <div class="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
                                 <div class="flex items-center gap-4">
                                     <span class="text-2xl font-bold text-indigo-600 tracking-widest">${escapeHtml(r.code)}</span>
@@ -5379,7 +5413,11 @@
                         </div>`;
                     }).join('')}
                 </div>
+                <div class="text-center mt-4">
+                    <button type="button" data-admin-battles-toggle class="px-4 py-2 rounded-full font-bold text-sm bg-indigo-100 text-indigo-600 hover:bg-indigo-500 hover:text-white transition-colors" onclick="setAdminBattlesExpanded(!adminBattlesExpanded)"></button>
+                </div>
             `;
+            applyAdminBattlesCollapse();
         }
 
         async function toggleBattleBreakdown(roomId) {

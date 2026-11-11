@@ -370,6 +370,414 @@
             display: block;
         }
 
+        /* ---- Drive & Go! (grammar racing game) ---- */
+        body.dg-racing {
+            overflow: hidden;
+            overscroll-behavior: none;
+            background: #0b1020;
+        }
+        #drive-and-go-view.dg-live {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            display: block !important;
+            width: 100vw;
+            height: 100dvh;
+            padding: 0;
+            margin: 0;
+        }
+        .dg-stage {
+            position: relative;
+            width: 100%;
+            height: min(78dvh, 880px);
+            min-height: 540px;
+            background: #0b1020;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #drive-and-go-view.dg-live .dg-stage {
+            height: 100dvh;
+            min-height: 0;
+            max-height: none;
+            border-radius: 0;
+        }
+        #dg-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .dg-hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: max(8px, env(safe-area-inset-top)) 8px 0;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .dg-question-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 3px solid #fed7aa;
+            border-radius: 16px;
+            padding: 7px 10px 8px;
+            box-shadow: 0 4px 0 rgba(249, 115, 22, 0.35);
+            pointer-events: none;
+        }
+        .dg-q-label {
+            text-align: center;
+            font-size: 9px;
+            line-height: 1.1;
+            letter-spacing: 0.12em;
+            font-weight: 700;
+            color: #f97316;
+            text-transform: uppercase;
+        }
+        .dg-question-text {
+            text-align: center;
+            font-weight: 700;
+            color: #1f2937;
+            font-size: clamp(17px, 4.2vw, 29px);
+            line-height: 1.16;
+            margin-top: 2px;
+            transition: font-size 0.2s ease;
+        }
+        .dg-question-text.dg-shrunk {
+            font-size: clamp(13px, 3vw, 20px);
+            opacity: 0.85;
+        }
+        .dg-options {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            margin-top: 5px;
+        }
+        .dg-option-chip {
+            flex: 1 1 0;
+            min-width: 0;
+            border-radius: 9px;
+            padding: 3px 5px 4px;
+            background: #fff7ed;
+            border: 2px solid #fed7aa;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: clamp(11px, 2.9vw, 17px);
+            font-weight: 700;
+            color: #7c2d12;
+        }
+        .dg-option-chip b {
+            display: block;
+            font-size: 8px;
+            line-height: 1.1;
+            letter-spacing: 0.08em;
+            color: #fb923c;
+        }
+        .dg-option-chip.dg-good { background: #dcfce7; border-color: #22c55e; color: #14532d; }
+        .dg-option-chip.dg-bad { background: #fee2e2; border-color: #ef4444; color: #7f1d1d; }
+        .dg-stats {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 5px;
+        }
+        .dg-stat {
+            background: rgba(15, 23, 42, 0.82);
+            color: #fff;
+            border-radius: 999px;
+            padding: 3px 9px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .dg-stat.hidden { display: none; }
+        .dg-toast {
+            position: absolute;
+            left: 50%;
+            bottom: calc(138px + env(safe-area-inset-bottom));
+            transform: translate(-50%, 8px);
+            z-index: 24;
+            background: rgba(15, 23, 42, 0.92);
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-weight: 700;
+            font-size: clamp(12px, 3vw, 16px);
+            text-align: center;
+            max-width: calc(100% - 32px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .dg-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+        .dg-pause-btn {
+            position: absolute;
+            left: 10px;
+            bottom: calc(82px + env(safe-area-inset-bottom));
+            z-index: 25;
+            width: 50px;
+            height: 50px;
+            border-radius: 999px;
+            border: 2px solid rgba(255, 255, 255, 0.45);
+            background: rgba(15, 23, 42, 0.72);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .dg-item-btn {
+            position: absolute;
+            right: 10px;
+            bottom: calc(78px + env(safe-area-inset-bottom));
+            z-index: 25;
+            width: 82px;
+            height: 82px;
+            border-radius: 999px;
+            border: 3px solid #fbbf24;
+            background: radial-gradient(circle at 30% 25%, #fff7d6, #f59e0b);
+            color: #7c2d12;
+            box-shadow: 0 5px 0 #b45309;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            touch-action: manipulation;
+        }
+        .dg-item-btn span { font-size: 30px; }
+        .dg-item-btn small { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; margin-top: 2px; }
+        .dg-item-btn.empty { opacity: 0.62; border-color: #cbd5e1; box-shadow: 0 5px 0 #64748b; background: #e2e8f0; }
+        .dg-item-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #b45309; }
+        .dg-controls {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 20;
+            padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            pointer-events: none;
+        }
+        .dg-controls button {
+            pointer-events: auto;
+            border: 2px solid #fed7aa;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.94);
+            color: #9a3412;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: clamp(12px, 3.4vw, 16px);
+            font-weight: 700;
+            padding: 12px 4px;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        .dg-controls button:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+            background: #ffedd5;
+        }
+        .dg-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 40;
+            background: rgba(15, 23, 42, 0.82);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow: auto;
+        }
+        .dg-overlay.hidden { display: none; }
+        .dg-panel {
+            background: #fff;
+            border: 4px solid #fed7aa;
+            border-radius: 22px;
+            padding: 20px;
+            width: 100%;
+            max-width: 460px;
+            max-height: 92%;
+            overflow: auto;
+            box-shadow: 0 12px 0 rgba(0, 0, 0, 0.25);
+        }
+        .dg-result-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+            text-align: left;
+        }
+        .dg-result-grid > div {
+            background: #fff7ed;
+            border: 2px solid #fed7aa;
+            border-radius: 12px;
+            padding: 7px 10px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .dg-result-grid span { color: #9a3412; font-size: 12px; font-weight: 700; }
+        .dg-result-grid b { color: #1f2937; }
+        .dg-standings { display: flex; flex-direction: column; gap: 5px; }
+        .dg-standing {
+            display: grid;
+            grid-template-columns: 34px 1fr auto auto;
+            align-items: center;
+            gap: 7px;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 6px 9px;
+            text-align: left;
+        }
+        .dg-standing.me { background: #fefce8; border-color: #fbbf24; }
+        .dg-medal { font-weight: 700; text-align: center; }
+        .dg-who { font-weight: 700; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dg-points { font-weight: 700; color: #c2410c; font-size: 13px; }
+        .dg-dist { font-size: 11px; color: #64748b; font-weight: 700; }
+
+        /* Pre-race menus (inside the existing padded grammar detail card) */
+        .dg-step-dots { display: flex; justify-content: center; gap: 7px; margin-bottom: 14px; }
+        .dg-step-dots span {
+            width: 28px; height: 7px; border-radius: 999px; background: #ffedd5;
+        }
+        .dg-step-dots span.active { background: #f97316; }
+        .dg-step-dots span.done { background: #22c55e; }
+        .dg-choice {
+            background: #fff;
+            border: 3px solid #ffedd5;
+            border-radius: 18px;
+            padding: 16px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+            font-family: Fredoka, system-ui, sans-serif;
+            text-align: center;
+        }
+        .dg-choice:hover { transform: translateY(-3px); border-color: #fdba74; box-shadow: 0 6px 0 #ffedd5; }
+        .dg-choice.active { border-color: #f97316; background: #fff7ed; box-shadow: 0 6px 0 #fed7aa; }
+        .dg-choice-emoji { font-size: 34px; line-height: 1.1; }
+        .dg-choice-title { font-size: 18px; font-weight: 700; color: #166534; }
+        .dg-choice-sub { font-size: 12px; font-weight: 700; color: #78716c; line-height: 1.35; }
+        .dg-chip {
+            border: 2px solid #ffedd5;
+            background: #fff;
+            color: #57534e;
+            border-radius: 999px;
+            padding: 7px 13px;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .dg-chip.active { background: #f97316; border-color: #ea580c; color: #fff; }
+        .dg-preview-wrap {
+            max-width: 300px;
+            margin: 0 auto 14px;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 3px solid #ffedd5;
+            background: #dbeafe;
+        }
+        #dg-cat-preview { display: block; width: 100%; height: 190px; }
+        .dg-menu-panel {
+            background: #fff7ed;
+            border: 2px solid #ffedd5;
+            border-radius: 18px;
+            padding: 16px;
+        }
+        .dg-menu-button {
+            border: 2px solid #ffedd5;
+            background: #fff;
+            color: #9a3412;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .dg-menu-button:hover { background: #fff7ed; }
+        .dg-menu-button:disabled { opacity: 0.5; cursor: default; }
+        .dg-note {
+            border-radius: 14px;
+            padding: 9px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.45;
+            background: #eff6ff;
+            border: 2px solid #bfdbfe;
+            color: #1d4ed8;
+            margin-bottom: 12px;
+        }
+        .dg-note.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .dg-note.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+        .dg-note.hidden { display: none; }
+        .dg-mp-box { background: #fff; border: 2px solid #ffedd5; border-radius: 16px; padding: 14px; }
+        .dg-code-input {
+            flex: 1;
+            min-width: 0;
+            border: 3px solid #ffedd5;
+            border-radius: 12px;
+            padding: 9px 10px;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            text-align: center;
+            color: #7c2d12;
+            outline: none;
+        }
+        .dg-code-input:focus { border-color: #f97316; }
+        .dg-room-code-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #fff;
+            border: 3px dashed #fdba74;
+            border-radius: 16px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+        }
+        .dg-room-code-wrap span { font-size: 12px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.1em; }
+        .dg-room-code-wrap b { font-size: 34px; letter-spacing: 0.2em; color: #ea580c; line-height: 1; }
+        .dg-lobby-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 8px;
+        }
+        .dg-lobby-player {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 2px solid #ffedd5;
+            border-radius: 14px;
+            padding: 6px 9px;
+            min-width: 0;
+        }
+        .dg-lobby-player.me { border-color: #fb923c; background: #fff7ed; }
+        .dg-lobby-avatar { flex: 0 0 auto; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; }
+
         /* Keep intro / game-over cards phone-width when the stage is huge. */
         #wj-stage:fullscreen #wj-overlay > div,
         #wj-stage:-webkit-full-screen #wj-overlay > div,
@@ -644,6 +1052,39 @@
                 </button>
                 <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Let's revise!</h2>
                 <div id="tense-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6"></div>
+            </div>
+
+            <!-- Drive & Go! race view: fixed full-screen while racing. -->
+            <div id="drive-and-go-view" class="view hidden w-full">
+                <div id="dg-stage" class="dg-stage">
+                    <canvas id="dg-canvas" aria-label="Drive and Go race track"></canvas>
+                    <div class="dg-hud">
+                        <div class="dg-question-card">
+                            <div class="dg-q-label">Drive into the correct gate</div>
+                            <div id="dg-question-text" class="dg-question-text">Get ready…</div>
+                            <div id="dg-options" class="dg-options"></div>
+                        </div>
+                        <div class="dg-stats">
+                            <span id="dg-stat-score" class="dg-stat">⭐ 0</span>
+                            <span id="dg-stat-combo" class="dg-stat">🔥 x0</span>
+                            <span id="dg-stat-speed" class="dg-stat">0 km/h</span>
+                            <span id="dg-stat-pos" class="dg-stat">1st</span>
+                            <span id="dg-stat-time" class="dg-stat hidden">3:00</span>
+                        </div>
+                    </div>
+                    <div id="dg-toast" class="dg-toast"></div>
+                    <button id="dg-pause-btn" type="button" class="dg-pause-btn" onclick="DG.togglePause()" aria-label="Pause">⏸</button>
+                    <button id="dg-item-btn" type="button" class="dg-item-btn empty" onclick="DG.useItem()" aria-label="Use item">
+                        <span id="dg-item-emoji">—</span>
+                        <small id="dg-item-name">ITEM</small>
+                    </button>
+                    <div class="dg-controls" id="dg-controls">
+                        <button type="button" onclick="DG.setLane(0)" aria-label="Steer left">LEFT</button>
+                        <button type="button" onclick="DG.setLane(1)" aria-label="Steer to the centre lane">CENTER</button>
+                        <button type="button" onclick="DG.setLane(2)" aria-label="Steer right">RIGHT</button>
+                    </div>
+                    <div id="dg-overlay" class="dg-overlay hidden"></div>
+                </div>
             </div>
 
             <!-- Dictation Master Views -->
@@ -1119,6 +1560,8 @@
     <script src="js/new-vocab.js"></script>
     <script src="js/grammar-quest.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
+    <script src="js/grammar/drive-and-go-race.js"></script>
+    <script src="js/grammar/drive-and-go-multiplayer.js"></script>
     <script src="js/leaderboard.js"></script>
     <script src="js/admin.js"></script>
     <script src="js/word-battle.js"></script>

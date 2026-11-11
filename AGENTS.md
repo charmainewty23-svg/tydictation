@@ -41,7 +41,7 @@
 ### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
 
 原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
-markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 9 個
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 11 個
 **classic** `<script src>` **同步**載入，次序唔可以改：
 
 | # | 檔案 | 內容 |
@@ -50,11 +50,13 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
-| 5 | `js/grammar/drive-and-go.js` | 淨係 `showDriveAndGo()` 外殼（Tenses 頁 `Drive & Go!` 卡）：喺 `#grammar-detail-view` 顯示 “The game will be added soon.”；Mario Kart 式遊戲留待下一版 |
-| 6 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard` |
-| 7 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
-| 8 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
-| 9 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
+| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程：AV／PV／Mixed 題庫（Google Sheet 頁 `tenses`／`Passives`）、貓仔造型、Tilt／Swipe／按鈕、單人／多人（2–5）選擇、道具解鎖規則 |
+| 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、單人 endless（localStorage 最高分）、五種道具使用 |
+| 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；先到終點贏，否則 3 分鐘限時以最高分定勝負。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`；單人唔使呢份 SQL |
+| 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard` |
+| 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
+| 10 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
+| 11 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 
 規則：
 - **唔可以**用 ES module（`type="module"`／`import`／`export`），亦**唔可以**加 `defer`／`async`：
@@ -78,7 +80,8 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
 | `grammar-revision-view` | Tenses 2 卡：let's revise!／Drive & Go! |
 | `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
-| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情、`Drive & Go!` 外殼都用呢個） |
+| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情同 Drive & Go! 開賽選單都用呢個） |
+| `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、LEFT／CENTER／RIGHT） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
 | `error-book-view` | 學生錯題簿 |
@@ -91,10 +94,19 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - `grammar-revision-view` 只有 2 張卡：`let's revise!`（開 `grammar-tense-list-view`）同
   `Drive & Go!`（`showDriveAndGo()`）。9 個時態（`tenseData`，包括 `future perfect tense`）喺
   `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
-- `Drive & Go!` 暫時只係外殼：`js/grammar/drive-and-go.js` 嘅 `showDriveAndGo()` 會喺
-  `#grammar-detail-view` 顯示 “The game will be added soon.”，Back 返 `grammar-revision-view`，
-  亦會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。Mario Kart 式遊戲（track／kart／題目／計分）
-  同 `saveGrammarToCloud` 留待之後嘅 PR，而家**唔會**寫雲端分數。
+- `Drive & Go!` 係 Mario Kart 式文法賽車：`showDriveAndGo()` 喺 `#grammar-detail-view`
+  行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、單人或多人），然後入 `#drive-and-go-view`
+  比賽。Back 返 `grammar-revision-view`，並會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。
+- 題庫用現有 Google Sheet（`SPREADSHEET_ID`）gviz CSV：AV 讀頁名剛好係 `tenses`，PV 讀
+  `Passives`（複數；唔好用錯 `passive`），Mixed 兩頁一齊洗牌。只由題庫出題，唔好發明題目。
+  答案可接受 ` / ` 分隔嘅寫法，亦會把 typographic apostrophe 當普通 `'`。每題三條答案門
+  （正確 + 兩個同 section 嘅 distractor）。正確：Nitro +40 km/h、加分、combo、按規則派道具
+  （香蕉／連對 6 題無敵星／落後先有紅龜殼／challenging 題雷電／連對 3 題蘑菇）。錯誤：
+  1.5 秒 spin-out、減速、扣分、combo 斷，單人唔會因此出局。
+- 單人係 endless，最高分同最佳距離存 localStorage；呢版**唔會** hook `saveGrammarToCloud`。
+  多人要 2–5 個已登入玩家，短碼開房／入房；先到終點贏，否則 3 分鐘到以最高分定勝負。
+  多人要老師喺 live Supabase 專案自行貼跑 `supabase/drive_and_go.sql`；單人唔使呢份 SQL。
+  Guest 可以玩單人，唔可以開多人房。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

@@ -8,6 +8,7 @@ const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 // The app JavaScript now lives in js/ files; Word Jump is js/word-jump.js.
 const wordJump = fs.readFileSync(path.join(__dirname, '../js/word-jump.js'), 'utf8');
 const APP_SCRIPTS = ['shared', 'dictation', 'new-vocab', 'grammar-quest', 'grammar/drive-and-go',
+    'grammar/drive-and-go-race', 'grammar/drive-and-go-multiplayer',
     'leaderboard', 'admin', 'word-battle', 'word-jump'];
 
 function mulberry32(a) {

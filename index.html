@@ -5011,7 +5011,7 @@
             // Normal jumps (JUMP_V + GRAVITY, 1.58s / 319px) are untouched.
             WORD_BOOST_HANG: 1.35,
             BOOST_VY: -725, BOOST_G: 565,
-            MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
+            MOVE_MAX: 240, STEER_RATE: 16, STEER_STOP: 18,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
@@ -6222,7 +6222,7 @@
             }
             // Proportional steering: the speed follows the input, so half a
             // tilt is half speed and a full tilt (or a held pad) is top speed.
-            // It eases in over ~0.13s and stops within ~2px of letting go.
+            // Eases in over ~0.19s and glides about 6–13px after letting go.
             if (Math.abs(dir) < 0.04) dir = 0;
             const cap = WJ.speedCap();
             const target = dir * cap;

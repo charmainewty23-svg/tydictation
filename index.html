@@ -576,7 +576,7 @@
                     </div>
                     <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-revision-view')">
                         <div class="text-5xl mb-4">🔄</div>
-                        <div class="font-bold text-center leading-tight">Revision (Tenses)</div>
+                        <div class="font-bold text-center leading-tight">Tenses</div>
                     </div>
                 </div>
             </div>
@@ -625,7 +625,28 @@
                 <button onclick="changeView('grammar-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Grammar
                 </button>
-                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Tense Revision</h2>
+                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Tenses</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-tense-list-view')">
+                        <div class="text-5xl mb-4">📖</div>
+                        <div class="font-bold text-center leading-tight">let's revise!</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-200" onclick="showTenseQuiz('AV')">
+                        <div class="text-5xl mb-4">✏️</div>
+                        <div class="font-bold text-center leading-tight">tenses quiz(AV)</div>
+                    </div>
+                    <div class="category-box shadow-sm border-green-200" onclick="showTenseQuiz('PV')">
+                        <div class="text-5xl mb-4">📝</div>
+                        <div class="font-bold text-center leading-tight">tenses(PV)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="grammar-tense-list-view" class="view hidden w-full">
+                <button onclick="changeView('grammar-revision-view')" class="mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Tenses
+                </button>
+                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Let's revise!</h2>
                 <div id="tense-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6"></div>
             </div>
 
@@ -1803,7 +1824,17 @@
             "past continuous": { emoji: "🕰️", usage: "Action in progress at a specific point in the past.", structure: { positive: { rule: "S + was/were + Ving", example: "He was studying when you called." }, negative: { rule: "S + was/were + not + Ving", example: "He was not playing games." }, question: { rule: "Was/Were + S + Ving?", example: "Was he studying?" }, passive: { rule: "S + was/were + being + V3", example: "The test was being studied for." } } },
             "future continuous": { emoji: "🔮", usage: "Actions that will be in progress in the future.", structure: { positive: { rule: "S + will be + Ving", example: "Tomorrow at 5, I will be flying." }, negative: { rule: "S + will not be + Ving", example: "I will not be sleeping." }, question: { rule: "Will + S + be + Ving?", example: "Will you be flying?" }, passive: { rule: "Rarely used", example: "N/A" } } },
             "present perfect tense": { emoji: "✅", usage: "Past actions with current relevance or continuing state.", structure: { positive: { rule: "S + have/has + V3", example: "I have seen that movie." }, negative: { rule: "S + have/has + not + V3", example: "I have not seen it yet." }, question: { rule: "Have/Has + S + V3?", example: "Have you seen it?" }, passive: { rule: "S + have/has + been + V3", example: "That movie has been seen." } } },
-            "past perfect": { emoji: "🏰", usage: "Action completed before another past action.", structure: { positive: { rule: "S + had + V3", example: "She had left before I arrived." }, negative: { rule: "S + had + not + V3", example: "She had not finished yet." }, question: { rule: "Had + S + V3?", example: "Had she left her keys?" }, passive: { rule: "S + had + been + V3", example: "The keys had been left." } } }
+            "past perfect": { emoji: "🏰", usage: "Action completed before another past action.", structure: { positive: { rule: "S + had + V3", example: "She had left before I arrived." }, negative: { rule: "S + had + not + V3", example: "She had not finished yet." }, question: { rule: "Had + S + V3?", example: "Had she left her keys?" }, passive: { rule: "S + had + been + V3", example: "The keys had been left." } } },
+            "future perfect tense": {
+                emoji: "⏳",
+                usage: "An action that will be completed before a specific time or another action in the future.",
+                structure: {
+                    positive: { rule: "S + will have + V3", example: "By 8 p.m., she will have finished her homework." },
+                    negative: { rule: "S + will not have + V3", example: "She will not have finished her homework by 8 p.m." },
+                    question: { rule: "Will + S + have + V3?", example: "Will she have finished her homework by 8 p.m.?" },
+                    passive: { rule: "S + will have been + V3", example: "The homework will have been finished by 8 p.m." }
+                }
+            }
         };
 
         const structureData = {
@@ -3023,6 +3054,11 @@
         }
 
         // Grammar rendering
+        // Tense quizzes are shells for now — the teacher will supply the questions.
+        // Drop items into these arrays later; keep the empty state as the placeholder.
+        let tenseQuizAV = [];
+        let tenseQuizPV = [];
+
         function renderTenseGrid() {
             const grid = document.getElementById('tense-grid');
             if(!grid) return;
@@ -3040,7 +3076,7 @@
         function showTenseDetail(key) {
             const data = tenseData[key];
             const content = document.getElementById('grammar-detail-content');
-            document.getElementById('detail-back-btn').onclick = () => changeView('grammar-revision-view');
+            document.getElementById('detail-back-btn').onclick = () => changeView('grammar-tense-list-view');
             content.innerHTML = `
                 <div class="text-center mb-10"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600 capitalize">${key}</h2></div>
                 <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Usage</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.usage}</p></div>
@@ -3058,7 +3094,23 @@
             changeView('grammar-detail-view');
         }
 
-        let ifClauseTab = 'revision';
+        function showTenseQuiz(kind) {
+            const isAV = kind === 'AV';
+            const title = isAV ? 'tenses quiz(AV)' : 'tenses(PV)';
+            const subtitle = isAV ? 'Active Voice tenses quiz' : 'Passive Voice tenses quiz';
+            const items = isAV ? tenseQuizAV : tenseQuizPV;
+            const content = document.getElementById('grammar-detail-content');
+            document.getElementById('detail-back-btn').onclick = () => changeView('grammar-revision-view');
+            content.innerHTML = `
+                <div class="text-center mb-10"><div class="text-8xl mb-4">${isAV ? '✏️' : '📝'}</div><h2 class="text-4xl font-bold text-green-600">${title}</h2><p class="text-gray-500 font-bold mt-3">${subtitle}</p></div>
+                ${items.length
+                    ? '<div id="tense-quiz-content" class="space-y-6"></div>'
+                    : '<div class="text-center bg-green-50 border-2 border-dashed border-green-200 rounded-2xl p-10"><p class="text-xl font-bold text-green-700">Questions will be added soon.</p></div>'}
+            `;
+            // Questions will be rendered into #tense-quiz-content once the arrays are filled.
+            changeView('grammar-detail-view');
+            recordGuestUsage('Grammar Quest', title);
+        }
 
         function showStructureDetail(key) {
             const data = structureData[key];
@@ -5490,6 +5542,7 @@
                 else nvHide();
             }
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
+            if (viewId === 'grammar-tense-list-view') { updateMascot("Pick a tense to revise!"); renderTenseGrid(); }
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }

@@ -41,10 +41,11 @@
 | view id | 內容 |
 |---|---|
 | `hub-view` | Grammar／Dictation 兩張入口卡 |
-| `grammar-view` | Sentence Structures／Revision 入口 |
+| `grammar-view` | Sentence Structures／Tenses 入口 |
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
-| `grammar-revision-view` | 時態格（`renderTenseGrid`，`showTenseDetail`） |
-| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填） |
+| `grammar-revision-view` | Tenses 3 卡：let's revise!／tenses quiz(AV)／tenses(PV) |
+| `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
+| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情、tenses quiz(AV)／tenses(PV) 外殼都用呢個） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
 | `error-book-view` | 學生錯題簿 |
@@ -52,6 +53,12 @@
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
+
+### Grammar Quest tenses
+- `grammar-revision-view` 只係 3 張卡；9 個時態（`tenseData`，包括 `future perfect tense`）喺
+  `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
+- `tenses quiz(AV)`／`tenses(PV)` 暫時只係外殼：`tenseQuizAV`／`tenseQuizPV` 係空陣列，
+  `showTenseQuiz('AV'|'PV')` 會顯示 "Questions will be added soon."；未加題目之前**唔會**寫雲端分數。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

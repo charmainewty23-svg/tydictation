@@ -1,10 +1,14 @@
-// No network, credentials, dependencies or database writes. Exercise the actual inline code.
+// No network, credentials, dependencies or database writes. Exercise the actual Word Jump Challenge code in js/word-jump.js.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+// The app JavaScript now lives in js/ files; Word Jump + Challenge is js/word-jump.js.
+const wordJump = fs.readFileSync(path.join(__dirname, '../js/word-jump.js'), 'utf8');
+const APP_SCRIPTS = ['shared', 'dictation', 'new-vocab', 'grammar-quest', 'grammar/tenses-quiz',
+    'leaderboard', 'admin', 'word-battle', 'word-jump'];
 
 function setup(extra = {}) {
     let now = 0, timer = 0;
@@ -64,9 +68,9 @@ function setup(extra = {}) {
         clearInterval(id) { intervals.delete(id); },
         console
     });
-    const start = html.indexOf('        const WJC = {');
-    const end = html.indexOf('        /* ---------------- live birds', start);
-    vm.runInContext(html.slice(start, end) + '\nthis.WJC = WJC;', context);
+    const start = wordJump.indexOf('        const WJC = {');
+    const end = wordJump.indexOf('        /* ---------------- live birds', start);
+    vm.runInContext(wordJump.slice(start, end) + '\nthis.WJC = WJC;', context);
     const { WJC } = context;
     box.WJC = WJC;
     WJC.room = extra.room || { id: 'room', status: 'playing', started_at: 'match1' };
@@ -105,8 +109,9 @@ function tryFinish({ players, now = Date.now(), staleMs = 10000, duel = 'last_st
     return { status: 'playing' };
 }
 
-test('all production inline scripts parse', () => {
+test('all production scripts parse', () => {
     for (const [, code] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(code);
+    for (const name of APP_SCRIPTS) new vm.Script(fs.readFileSync(path.join(__dirname, '../js', name + '.js'), 'utf8'));
 });
 
 test('3 players, 2 fallen: remaining client freezes mid-jump and shows the end screen', () => {

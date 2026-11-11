@@ -8,8 +8,9 @@
 
 ## 1. 專案一句話＋部署鏈
 
-- 單檔靜態英文學習站：Grammar Quest（句型＋時態）＋ Dictation Master（聽寫：Listening / Recitation / Revision）。
-- 全站得一個源檔：`index.html`（~754 行：Tailwind CDN＋Fredoka＋內聯 SVG＋內聯 `<script>`）。
+- 靜態英文學習站：Grammar Quest（句型＋時態）＋ Dictation Master（聽寫：Listening / Recitation / Revision）。
+- 原始碼分兩層：`index.html`（全部 markup／CSS／內聯 SVG，~1130 行）＋ `js/` 入面嘅功能 JS
+  （2026-11 由原本一個大 inline `<script>` 拆出嚟，見 §3.1）。冇 build step，直接開檔都用得。
 - 部署：push `main` → Vercel（`tydictation.vercel.app`）自動重 deploy。**唔好**引入 build step、後端 server、環境變數以外的秘密。
 
 ## 2. 題庫 Google Sheet（已內建雲端題庫）
@@ -36,6 +37,38 @@
   **New Vocab 唔係 Sheet tab**，老師喺網站度改，見 §11。
 
 ## 3. 檔案地圖
+
+### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
+
+原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 9 個
+**classic** `<script src>` **同步**載入，次序唔可以改：
+
+| # | 檔案 | 內容 |
+|---|---|---|
+| 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
+| 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
+| 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
+| 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
+| 5 | `js/grammar/tenses-quiz.js` | 淨係 tenses quiz 外殼：`tenseQuizAV`／`tenseQuizPV`（空陣列）＋`showTenseQuiz`，仍然顯示 “Questions will be added soon.” |
+| 6 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard` |
+| 7 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
+| 8 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
+| 9 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
+
+規則：
+- **唔可以**用 ES module（`type="module"`／`import`／`export`），亦**唔可以**加 `defer`／`async`：
+  HTML 嘅 `onclick="..."` 直接 call 呢啲 global。所有檔案共用同一個 global scope，
+  所以跨檔呼叫（例如 `changeView` 叫 `battleEnter`／`nvEnter`／`WJ.stop`）照舊得，
+  因為嗰啲只會喺載入完成後（user 互動／`window.onload`）才執行。
+- 同一時間只可以有一個檔案宣告同一個名（`node --check` 唔會捉，重複 `const` 會令頁面白畫面）。
+- `sb.auth.onAuthStateChange` 嘅登記包喺 `registerAuthListener()`，喺 `DOMContentLoaded` 才 call：
+  Supabase 有機會喺第二個 `<script>` 未執行前就送第一個 auth event，咁就會 call 到未定義嘅
+  feature function。改動呢段要保留呢個 defer 行為。
+- `window.onload` 仍然喺 `js/shared.js`，負責 `loadAllCategoriesFromSheet()`／`loadIfClauseData()`／`loadPCData()`。
+- 加新功能：開新 `js/xxx.js`，喺 `index.html` 底部按依賴次序加 tag（新檔通常擺 `word-jump.js` 之前），
+  再喺上面個表加一行。
+- 測試：`tests/wj-*.test.cjs` 直接讀 `js/word-jump.js`（以前讀 `index.html` 個 inline script）。
 
 ### Views（`changeView(viewId)` 切換，全部 `.view` 預設 hidden）
 | view id | 內容 |
@@ -86,7 +119,7 @@ Google Sheet（17 tabs）
 **限學校域名**（非學校帳戶自動登出）＋**成績唔擺 Sheet**（學生分數擺公開 Sheet 有私隱問題；
 GAS＋Sheet 方案喺其他專案已退役：quota＋維護成本高）。
 
-### Phase 1 — 本地成績（零後端，淨改 index.html）
+### Phase 1 — 本地成績（零後端，改 `js/dictation.js` 嘅 `finishQuiz()`）
 - 喺 `finishQuiz()` 加：append `localStorage["dict_history"]`
   一筆 `{t, topic, mode, score, total}`。
 - 完成畫面下加「最佳成績／歷來記錄」＋正確率（每題對錯要喺 `checkAnswer` 順手記低）。
@@ -350,8 +383,8 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
 
 入口：Hub 嘅「🦘 Word Jump」卡，或者 `battle-view` 頂部嘅同一張卡 → `openWordJump(...)` → `wordjump-view`。返回會返去撳入嚟嗰一頁（Hub 或 Word Battle）。
-純前端、單機、**唔需要 Supabase／SQL**，全部邏輯喺 `index.html` 一個
-`const WJ = { … }` 物件（喺 `window.onload` 之前），HTML 係 `#wordjump-view`。
+純前端、單機、**唔需要 Supabase／SQL**，全部邏輯喺 `js/word-jump.js` 一個
+`const WJ = { … }` 物件（`openWordJump` 同 `WJC` 都喺同一個檔），HTML 係 `#wordjump-view`。
 
 ### 10.1 結構
 | 位置 | 內容 |

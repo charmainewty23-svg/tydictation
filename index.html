@@ -957,11 +957,12 @@
                 </button>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">🏆 Leaderboard</h2>
-                    <p class="text-gray-400 mb-4">Cumulative scores — practice more to rank higher!</p>
-                    <div class="flex gap-3 mb-6">
+                    <p id="leaderboard-blurb" class="text-gray-400 mb-4">Cumulative scores — practice more to rank higher!</p>
+                    <div class="flex flex-wrap gap-3 mb-6">
                         <button onclick="loadLeaderboard('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white lb-mode-btn">All</button>
                         <button onclick="loadLeaderboard('listening')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Listening</button>
                         <button onclick="loadLeaderboard('recitation')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Recitation</button>
+                        <button onclick="loadLeaderboard('wordjump')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Word Jump</button>
                     </div>
                     <div id="leaderboard-container">
                         <div class="flex flex-col items-center py-10">
@@ -3503,14 +3504,34 @@
             return (row && (row.nickname || ((row.email || '').split('@')[0]))) || 'student';
         }
 
+        function setLeaderboardBlurb() {
+            const blurb = document.getElementById('leaderboard-blurb');
+            if (!blurb) return;
+            blurb.textContent = lbModeFilter === 'wordjump'
+                ? 'Personal bests — top 10 by highest score.'
+                : 'Cumulative scores — practice more to rank higher!';
+        }
+
         async function loadLeaderboard(mode) {
             if (isGuestUser()) return;
             lbModeFilter = mode || 'all';
             paintChoiceButtons('.lb-mode-btn', lbModeFilter);
+            setLeaderboardBlurb();
             const container = document.getElementById('leaderboard-container');
             if (!container) return;
             container.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-orange-400 font-bold">Loading...</p></div>';
             if (isAdmin()) await ensureFormDirectory();
+            if (lbModeFilter === 'wordjump') {
+                const { data, error } = await sb.from('wj_leaderboard')
+                    .select('user_id,nickname,email,score,height,words,plays,created_at')
+                    .order('score', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(10);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
             let query = sb.from("dictation_results").select("email, nickname, score, total, topic, mode, created_at");
             if (lbModeFilter !== 'all') query = query.eq("mode", lbModeFilter);
             const { data, error } = await query.order("created_at", { ascending: false }).limit(1000);
@@ -3519,10 +3540,41 @@
             renderLeaderboard();
         }
 
+        function renderWordJumpLeaderboard(container) {
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">Word Jump leaderboard not available. Run <code class="text-orange-600">supabase/wj_scores.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            if (!lbRows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            ${formAssignControl(r.email, r.nickname)}
+                            <span class="text-gray-400 text-sm mx-2">${r.plays} game${r.plays === 1 ? '' : 's'}</span>
+                            <span class="font-bold text-orange-600 text-lg">${r.score} pts</span>
+                        </div>`;
+            if (!isAdmin()) {
+                container.innerHTML = `<div class="space-y-3">${lbRows.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>' });
+        }
+
         function renderLeaderboard() {
             if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
             if (!container || !lbRows) return;
+            if (lbModeFilter === 'wordjump') {
+                renderWordJumpLeaderboard(container);
+                return;
+            }
             if (lbRowsError || !lbRows.length) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No records yet.</p>';
                 return;

@@ -229,11 +229,20 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   重新整理或者關咗分頁都得。
 - 真係要退出先用等候室／老師 waiting 畫面嘅 **Leave room**／**Close room**（會確認），
   或者完場畫面嘅 Back to Hub。
+- Lobby 另有 **⏩ Join mid-game**：遲到嘅學生用同一個 4 位代碼，可以加入已經開始、
+  但未完場嘅房（班際最常用；1v1 只喺對手位仍然空先得）。新加入由第 1 題開始。
+  老師班際進行中畫面會提示 "Late students can still join with this code"。
 - SQL：更新 `join_battle`，已經係成員／主持就可以再用代碼入返進行中或完場嘅房；
-  若只係早走被標成 `done`、但 `progress` 未做完，會清走 `done`。另加
-  `rejoin_battle(p_room_id, p_code)`。未跑呢份 SQL 都唔會壞：只要學生只係返咗 Hub
-  （冇撳 Leave room），前端可以直接讀返房間。如果之前已經 `leave_battle` 咗一場進行中嘅
-  battle，就要跑呢份 SQL 先可以再入。可重複跑。
+  若只係早走被標成 `done`、但 `progress` 未做完，會清走 `done`。未入過房嘅學生
+  喺 `waiting` 或 `playing` 都可以加入（房滿或已 `finished` 除外）。另加
+  `rejoin_battle(p_room_id, p_code)`。函數 body 用 `$join$` / `$rejoin$` 分隔，
+  避免 SQL editor 把 `if` 當成普通 SQL（舊版 `$$` 可能報 `syntax error at or near "if"`）。
+  未跑呢份 SQL 都唔會壞：只要學生只係返咗 Hub（冇撳 Leave room），前端可以直接讀返房間。
+  如果之前已經 `leave_battle` 咗，或者要中途新加入，就要跑最新呢份 SQL。可重複跑。
+
+### 9.6b 加字時唔好被彈返 Hub
+- `showApp()` 只喺由登入畫面第一次進入 app 先 `changeView('hub-view')`。
+  token refresh 或者重複嘅 `SIGNED_IN` 唔會再把老師／學生從 New Vocab 或其他版面彈走。
 
 ### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
 

@@ -1,15 +1,23 @@
--- Word Battle: let a student or the teacher rejoin a room they already belong to,
--- even after the battle has started. Safe to re-run.
+-- Word Battle: rejoin a room you already belong to, and allow late
+-- students to join a class (or 1v1) battle that has already started.
+-- Safe to re-run.
+--
+-- If a previous paste failed with: syntax error at or near "if"
+-- that was the untagged $$ quotes confusing the SQL editor. This
+-- file uses tagged $join$ / $rejoin$ quotes instead.
+--
 -- Run after supabase/battle_question_count.sql (and the earlier battle series).
 -- Live project: mggnwzirjmibreimrwiq
 
--- ---------- join_battle: existing members can come back ----------
+drop function if exists public.rejoin_battle(uuid, text);
+
+-- ---------- join_battle: members can come back; new players can join mid-game ----------
 create or replace function public.join_battle(p_code text)
 returns setof public.battle_rooms
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $join$
 declare
     v_room  public.battle_rooms;
     v_count int;
@@ -54,7 +62,12 @@ begin
         return;
     end if;
 
-    if v_room.status <> 'waiting' then
+    -- Brand-new player
+    if v_room.status = 'finished' then
+        raise exception 'ROOM_FINISHED';
+    end if;
+
+    if v_room.status <> 'waiting' and v_room.status <> 'playing' then
         raise exception 'ROOM_ALREADY_STARTED';
     end if;
 
@@ -81,6 +94,7 @@ begin
         return;
     end if;
 
+    -- 1v1: late join is allowed only if the guest seat is still empty
     if v_room.guest_id is not null and v_room.guest_id <> auth.uid() then
         raise exception 'ROOM_FULL';
     end if;
@@ -102,7 +116,7 @@ begin
 
     return next v_room;
 end;
-$$;
+$join$;
 
 -- ---------- rejoin by saved room id (or code) ----------
 create or replace function public.rejoin_battle(p_room_id uuid default null, p_code text default null)
@@ -110,7 +124,7 @@ returns setof public.battle_rooms
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $rejoin$
 declare
     v_room public.battle_rooms;
 begin
@@ -132,7 +146,7 @@ begin
         for update;
     end if;
 
-    if not found then
+    if v_room.id is null then
         raise exception 'ROOM_NOT_FOUND';
     end if;
 
@@ -158,7 +172,7 @@ begin
 
     return next v_room;
 end;
-$$;
+$rejoin$;
 
 revoke all on function public.join_battle(text) from anon;
 revoke all on function public.rejoin_battle(uuid, text) from anon;

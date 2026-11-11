@@ -767,7 +767,9 @@
                                 <h3 class="font-bold text-orange-700 text-lg mb-4">Join a room</h3>
                                 <label class="text-sm text-gray-500 font-bold">Room code</label>
                                 <input id="battle-code-input" maxlength="4" placeholder="A7K2" autocomplete="off" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-center text-2xl tracking-widest uppercase">
-                                <button onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
+                                <button type="button" onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
+                                <button type="button" onclick="battleJoinRoom()" class="w-full mt-3 py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-50 transition-colors">⏩ Join mid-game</button>
+                                <p class="text-xs text-gray-400 mt-2">Arrived late? Enter the code and press Join mid-game. You start from question 1 of a battle that is already in progress.</p>
                             </div>
                         </div>
                         <div id="battle-class-entry" class="hidden mt-6 bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-100">
@@ -1605,9 +1607,15 @@
         }
 
         function showApp() {
-            document.getElementById('login-view').style.display = 'none';
-            document.getElementById('app').classList.add('logged-in');
-            changeView('hub-view');
+            const app = document.getElementById('app');
+            const login = document.getElementById('login-view');
+            const alreadyOpen = !!(app && app.classList.contains('logged-in') && login && login.style.display === 'none');
+            if (login) login.style.display = 'none';
+            if (app) app.classList.add('logged-in');
+            // Token refresh / repeated SIGNED_IN events used to bounce the
+            // current panel back to the Hub, so the teacher had to click in again
+            // while adding New Vocab words (and students lost their place too).
+            if (!alreadyOpen) changeView('hub-view');
         }
 
         function showLogin() {
@@ -3861,11 +3869,12 @@
         function battleErrorMessage(error) {
             const m = (error && error.message) || 'Something went wrong.';
             if (m.includes('ROOM_NOT_FOUND')) return 'No room with that code (or it has expired).';
-            if (m.includes('ROOM_FULL')) return 'That room already has two players.';
-            if (m.includes('ROOM_ALREADY_STARTED')) return 'That battle has already started. If you were already in it, use Rejoin, or ask your teacher to run supabase/battle_rejoin.sql.';
+            if (m.includes('ROOM_FULL')) return 'That room is full.';
+            if (m.includes('ROOM_FINISHED')) return 'That battle has already finished.';
+            if (m.includes('ROOM_ALREADY_STARTED')) return 'That battle has already started. If you arrived late, ask your teacher to run the latest supabase/battle_rejoin.sql, then use Join mid-game. If you were already in the room, use Rejoin.';
             if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
             if (m.includes('CANNOT_START')) return 'Cannot start yet — wait for your opponent.';
-            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room. Use Rejoin only for a battle you already joined.';
+            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room. Use Rejoin only for a battle you already joined, or Join mid-game to enter a class battle in progress.';
             if (m.includes('NOT_TEACHER')) return 'Only the teacher account can open a class room.';
             if (m.includes('CANNOT_END')) return 'Cannot end that battle.';
             if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle SQL is missing — run supabase/battle_question_count.sql (or the files in supabase/ in order).';
@@ -4680,6 +4689,9 @@
             }
             if (!hasLive && battleRoom.status === 'playing') {
                 statusText += '   ·   ⚠️ run supabase/battle_live.sql for live progress';
+            }
+            if (battleRoom.status === 'playing') {
+                statusText += '  ·  Late students can still join with this code';
             }
             document.getElementById('battle-class-status').innerText = statusText;
 

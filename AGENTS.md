@@ -220,6 +220,30 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
 
+### 9.6a 不小心彈出後重回 — `supabase/battle_rejoin.sql`（要喺 9.6 之後跑）
+- 以前「← Back to Hub」會即刻 `leave_battle`：未開始就退出／刪房，已開始嘅 1v1
+  會直接完場，班際會把該學生標成 `done`，之後再用代碼加入會收到 `ROOM_ALREADY_STARTED`。
+- 而家頂部 **Back to Hub** 只係離開畫面，**唔會**退出房間；進度寫入
+  `localStorage["learniTY_battle_resume"]`（跟 user id，7 日過期）。
+  Hub 嘅 Word Battle 卡同 lobby 會出 **🔄 Rejoin** 掣，撳完由上次嘅題目繼續（計時重新 20 秒）。
+  重新整理或者關咗分頁都得。
+- 真係要退出先用等候室／老師 waiting 畫面嘅 **Leave room**／**Close room**（會確認），
+  或者完場畫面嘅 Back to Hub。
+- Lobby 另有 **⏩ Join mid-game**：遲到嘅學生用同一個 4 位代碼，可以加入已經開始、
+  但未完場嘅房（班際最常用；1v1 只喺對手位仍然空先得）。新加入由第 1 題開始。
+  老師班際進行中畫面會提示 "Late students can still join with this code"。
+- SQL：更新 `join_battle`，已經係成員／主持就可以再用代碼入返進行中或完場嘅房；
+  若只係早走被標成 `done`、但 `progress` 未做完，會清走 `done`。未入過房嘅學生
+  喺 `waiting` 或 `playing` 都可以加入（房滿或已 `finished` 除外）。另加
+  `rejoin_battle(p_room_id, p_code)`。函數 body 用 `$join$` / `$rejoin$` 分隔，
+  避免 SQL editor 把 `if` 當成普通 SQL（舊版 `$$` 可能報 `syntax error at or near "if"`）。
+  未跑呢份 SQL 都唔會壞：只要學生只係返咗 Hub（冇撳 Leave room），前端可以直接讀返房間。
+  如果之前已經 `leave_battle` 咗，或者要中途新加入，就要跑最新呢份 SQL。可重複跑。
+
+### 9.6b 加字時唔好被彈返 Hub
+- `showApp()` 只喺由登入畫面第一次進入 app 先 `changeView('hub-view')`。
+  token refresh 或者重複嘅 `SIGNED_IN` 唔會再把老師／學生從 New Vocab 或其他版面彈走。
+
 ### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
 
 年級**唔再**喺登入時叫學生揀。舊版只係把 `localStorage["student_form_level"]`
@@ -614,5 +638,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

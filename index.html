@@ -511,12 +511,13 @@
                     </div>
                 </div>
 
-                <div class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
+                <div id="hub-battle-entry" class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
                     <div class="text-4xl">⚔️</div>
-                    <div>
+                    <div class="flex-1">
                         <h2 class="text-xl font-bold text-blue-600">Word Battle</h2>
-                        <p class="text-gray-400 text-sm">1 v 1 — create a room or join with a code.</p>
+                        <p id="hub-battle-sub" class="text-gray-400 text-sm">1 v 1 — create a room or join with a code.</p>
                     </div>
+                    <button id="hub-battle-rejoin" type="button" onclick="event.stopPropagation(); battleRejoin();" class="hidden px-5 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-600 transition-colors">🔄 Rejoin</button>
                 </div>
 
                 <div id="hub-records-entry" class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
@@ -707,7 +708,7 @@
 
             <!-- Word Battle View -->
             <div id="battle-view" class="view hidden w-full">
-                <button onclick="battleLeave()" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
+                <button onclick="battleBackToHub()" class="mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Hub
                 </button>
                 <div class="cat-card p-8 md:p-10">
@@ -728,6 +729,13 @@
 
                     <!-- Lobby -->
                     <div id="battle-lobby">
+                        <div id="battle-rejoin-banner" class="hidden mb-6 bg-blue-50 rounded-2xl p-5 border-2 border-blue-100 flex items-center justify-between gap-4 flex-wrap">
+                            <div>
+                                <p class="font-bold text-blue-700 text-lg">You left a battle in progress</p>
+                                <p class="text-sm text-gray-500">Room <span id="battle-rejoin-code" class="font-bold tracking-widest">----</span> is still open. Jump back in from where you left off.</p>
+                            </div>
+                            <button type="button" onclick="battleRejoin()" class="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-600 transition-colors">🔄 Rejoin room</button>
+                        </div>
                         <div id="battle-count-row" class="flex items-center gap-3 mb-6 flex-wrap">
                             <label class="text-sm text-gray-500 font-bold">Questions per battle</label>
                             <select id="battle-count-select" onchange="localStorage.setItem('battle_qcount', this.value)" class="p-2 px-4 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">
@@ -759,7 +767,9 @@
                                 <h3 class="font-bold text-orange-700 text-lg mb-4">Join a room</h3>
                                 <label class="text-sm text-gray-500 font-bold">Room code</label>
                                 <input id="battle-code-input" maxlength="4" placeholder="A7K2" autocomplete="off" class="w-full mt-2 mb-4 p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-center text-2xl tracking-widest uppercase">
-                                <button onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
+                                <button type="button" onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
+                                <button type="button" onclick="battleJoinRoom()" class="w-full mt-3 py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-50 transition-colors">⏩ Join mid-game</button>
+                                <p class="text-xs text-gray-400 mt-2">Arrived late? Enter the code and press Join mid-game. You start from question 1 of a battle that is already in progress.</p>
                             </div>
                         </div>
                         <div id="battle-class-entry" class="hidden mt-6 bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-100">
@@ -786,6 +796,7 @@
                         </div>
                         <button id="battle-start-btn" onclick="battleStart()" class="hidden mt-10 px-10 py-3 bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">Start Battle</button>
                         <p id="battle-wait-msg" class="text-gray-400 mt-6"></p>
+                        <button type="button" onclick="battleLeaveRoom()" class="mt-8 px-6 py-2 text-sm font-bold text-gray-400 hover:text-red-500 transition-colors">Leave room</button>
                     </div>
 
                     <!-- Play -->
@@ -821,6 +832,7 @@
                             <div class="mt-6 flex justify-center gap-3 flex-wrap">
                                 <button id="battle-class-start" onclick="battleStartClass()" class="hidden px-8 py-3 bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">Start Battle</button>
                                 <button id="battle-class-end" onclick="battleEndClass()" class="hidden px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">End Battle</button>
+                                <button id="battle-class-leave" type="button" onclick="battleLeaveRoom()" class="hidden px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Close room</button>
                             </div>
                         </div>
                         <div id="battle-class-list" class="mt-4 space-y-2"></div>
@@ -1595,9 +1607,15 @@
         }
 
         function showApp() {
-            document.getElementById('login-view').style.display = 'none';
-            document.getElementById('app').classList.add('logged-in');
-            changeView('hub-view');
+            const app = document.getElementById('app');
+            const login = document.getElementById('login-view');
+            const alreadyOpen = !!(app && app.classList.contains('logged-in') && login && login.style.display === 'none');
+            if (login) login.style.display = 'none';
+            if (app) app.classList.add('logged-in');
+            // Token refresh / repeated SIGNED_IN events used to bounce the
+            // current panel back to the Hub, so the teacher had to click in again
+            // while adding New Vocab words (and students lost their place too).
+            if (!alreadyOpen) changeView('hub-view');
         }
 
         function showLogin() {
@@ -3750,6 +3768,69 @@
         let battleStatsEnabled = true;  // false if battle_stats.sql has not been run yet
         let battleBreakdownLoadedFor = null;
         let adminBattleRooms = [];
+        const BATTLE_RESUME_KEY = 'learniTY_battle_resume';
+
+        function battleReadResume() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(BATTLE_RESUME_KEY) || 'null');
+                if (!raw || !raw.roomId) return null;
+                if (currentUser && raw.userId && raw.userId !== currentUser.id) return null;
+                if (raw.savedAt && Date.now() - raw.savedAt > 7 * 24 * 3600 * 1000) {
+                    localStorage.removeItem(BATTLE_RESUME_KEY);
+                    return null;
+                }
+                return raw;
+            } catch (e) { return null; }
+        }
+
+        function battleClearResume() {
+            try { localStorage.removeItem(BATTLE_RESUME_KEY); } catch (e) {}
+            battleRenderRejoin();
+        }
+
+        function battleSaveResume() {
+            if (!battleRoom || !currentUser || !battleRoom.id) return;
+            if (battleRoom.status === 'finished') { battleClearResume(); return; }
+            try {
+                localStorage.setItem(BATTLE_RESUME_KEY, JSON.stringify({
+                    userId: currentUser.id,
+                    roomId: battleRoom.id,
+                    code: battleRoom.code,
+                    seed: battleRoom.seed,
+                    status: battleRoom.status,
+                    idx: battleIdx,
+                    score: battleScore,
+                    correct: battleCorrect,
+                    totalMs: battleTotalMs,
+                    done: battleDoneLocal,
+                    savedAt: Date.now()
+                }));
+            } catch (e) {}
+            battleRenderRejoin();
+        }
+
+        function battleRenderRejoin() {
+            const saved = battleReadResume();
+            const battleView = document.getElementById('battle-view');
+            const onBattle = !!(battleView && !battleView.classList.contains('hidden'));
+            const inThatRoom = !!(saved && battleRoom && battleRoom.id === saved.roomId && onBattle);
+            const show = !!(saved && saved.code && !inThatRoom);
+            const banner = document.getElementById('battle-rejoin-banner');
+            const codeEl = document.getElementById('battle-rejoin-code');
+            const hubBtn = document.getElementById('hub-battle-rejoin');
+            const hubSub = document.getElementById('hub-battle-sub');
+            if (banner) banner.classList.toggle('hidden', !show);
+            if (codeEl && saved) codeEl.innerText = saved.code;
+            if (hubBtn) {
+                hubBtn.classList.toggle('hidden', !show);
+                if (show) hubBtn.innerText = '🔄 Rejoin ' + saved.code;
+            }
+            if (hubSub) {
+                hubSub.innerText = show
+                    ? ('Room ' + saved.code + ' is still open — rejoin to continue.')
+                    : '1 v 1 — create a room or join with a code.';
+            }
+        }
 
         function mulberry32(a) {
             return function () {
@@ -3788,11 +3869,12 @@
         function battleErrorMessage(error) {
             const m = (error && error.message) || 'Something went wrong.';
             if (m.includes('ROOM_NOT_FOUND')) return 'No room with that code (or it has expired).';
-            if (m.includes('ROOM_FULL')) return 'That room already has two players.';
-            if (m.includes('ROOM_ALREADY_STARTED')) return 'That battle has already started.';
+            if (m.includes('ROOM_FULL')) return 'That room is full.';
+            if (m.includes('ROOM_FINISHED')) return 'That battle has already finished.';
+            if (m.includes('ROOM_ALREADY_STARTED')) return 'That battle has already started. If you arrived late, ask your teacher to run the latest supabase/battle_rejoin.sql, then use Join mid-game. If you were already in the room, use Rejoin.';
             if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
             if (m.includes('CANNOT_START')) return 'Cannot start yet — wait for your opponent.';
-            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room.';
+            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room. Use Rejoin only for a battle you already joined, or Join mid-game to enter a class battle in progress.';
             if (m.includes('NOT_TEACHER')) return 'Only the teacher account can open a class room.';
             if (m.includes('CANNOT_END')) return 'Cannot end that battle.';
             if (/does not exist|Could not find|PGRST20|42P01/i.test(m)) return 'Battle SQL is missing — run supabase/battle_question_count.sql (or the files in supabase/ in order).';
@@ -3980,6 +4062,7 @@
             if (actions) actions.classList.remove('hidden');
             const countRow = document.getElementById('battle-count-row');
             if (countRow) countRow.classList.remove('hidden');
+            battleRenderRejoin();
             if (battleRoom) {
                 battlePoll();
                 battleStartPolling();
@@ -4070,6 +4153,7 @@
             battleRoundSeed = null;
             battleDoneLocal = false;
             battlePlayers = [];
+            battleSaveResume();
             battleStartPolling();
             battlePoll();
         }
@@ -4081,11 +4165,14 @@
             if (error || !room) {
                 battleRoom = null;
                 battleStopPolling();
+                battleClearResume();
                 battleShowPanel('lobby');
                 battleSetError('The room was closed.');
                 return;
             }
             battleRoom = room;
+            if (room.status === 'finished') battleClearResume();
+            else battleSaveResume();
             const { data: players } = await sb.from('battle_players')
                 .select('*').eq('room_id', room.id);
             battlePlayers = players || [];
@@ -4162,8 +4249,41 @@
             battleLastAnswer = '';
             battleLastCorrect = null;
             document.getElementById('battle-topic-label').innerText = 'Topic: ' + built.topic;
+            battleRestoreProgress();
+            if (battleDoneLocal) {
+                battleUpdateScoreboard();
+                return;
+            }
             battleShowQuestion();
             battleSubmitProgress(false);
+        }
+
+        function battleRestoreProgress() {
+            const me = (battlePlayers || []).find(p => currentUser && p.user_id === currentUser.id);
+            const saved = battleReadResume();
+            const same = !!(saved && battleRoom && saved.roomId === battleRoom.id && String(saved.seed) === String(battleRoom.seed));
+            let idx = 0, score = 0, correct = 0, totalMs = 0, done = false;
+            if (me) {
+                done = !!me.done;
+                idx = (typeof me.progress === 'number') ? me.progress : 0;
+                score = me.score || 0;
+                correct = me.correct || 0;
+                totalMs = me.total_ms || 0;
+            }
+            if (same && !done) {
+                if ((saved.idx || 0) > idx) {
+                    idx = saved.idx || 0;
+                    score = saved.score || 0;
+                    correct = saved.correct || 0;
+                    totalMs = saved.totalMs || 0;
+                    done = !!saved.done;
+                }
+            }
+            battleIdx = Math.max(0, Math.min(idx, battleWords.length));
+            battleScore = score;
+            battleCorrect = correct;
+            battleTotalMs = totalMs;
+            battleDoneLocal = done || battleIdx >= battleWords.length;
         }
 
         function battleShowQuestion() {
@@ -4268,6 +4388,7 @@
             if (!currentUser || !battleRoom) return;
             // a late "still playing" save must not overwrite the final done flag
             if (!done && battleDoneLocal) return;
+            battleSaveResume();
 
             const base = {
                 score: battleScore,
@@ -4569,10 +4690,15 @@
             if (!hasLive && battleRoom.status === 'playing') {
                 statusText += '   ·   ⚠️ run supabase/battle_live.sql for live progress';
             }
+            if (battleRoom.status === 'playing') {
+                statusText += '  ·  Late students can still join with this code';
+            }
             document.getElementById('battle-class-status').innerText = statusText;
 
             document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && everyone.length > 0));
             document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
+            const classLeave = document.getElementById('battle-class-leave');
+            if (classLeave) classLeave.classList.toggle('hidden', battleRoom.status !== 'waiting');
 
             const playerCard = (p, i) => {
                     const qNow = p.done ? total : (typeof p.progress === 'number' ? Math.min(total, p.progress + 1) : null);
@@ -4656,8 +4782,64 @@
             renderGroupedAnswerStats(data, players, bd, battleBuildQuestions(room).words);
         }
 
+        async function battleBackToHub() {
+            if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
+            if (battleRoom && (battleRoom.status === 'waiting' || battleRoom.status === 'playing')) {
+                battleSaveResume();
+                battleStopPolling();
+                changeView('hub-view');
+                battleRenderRejoin();
+                return;
+            }
+            return battleLeave();
+        }
+
+        async function battleLeaveRoom() {
+            if (!battleRoom) return;
+            const isHost = currentUser && battleRoom.host_id === currentUser.id;
+            const waiting = battleRoom.status === 'waiting';
+            const msg = waiting
+                ? (isHost ? 'Close this room? Students will not be able to join it.' : 'Leave this room?')
+                : 'Leave this battle?';
+            if (!window.confirm(msg)) return;
+            return battleLeave();
+        }
+
+        async function battleRejoin() {
+            battleSetError('');
+            if (isGuestUser()) return battleSetError('Guests cannot join a Word Battle room. Sign in with your school Google account to play.');
+            if (!currentUser) return battleSetError('Please login first.');
+            const saved = battleReadResume();
+            if (!saved || !saved.roomId) return battleSetError('No battle to rejoin.');
+            changeView('battle-view');
+            let room = null;
+            const byId = await sb.from('battle_rooms').select('*').eq('id', saved.roomId).maybeSingle();
+            if (!byId.error && byId.data) room = byId.data;
+            if (!room) {
+                const rpc = await sb.rpc('rejoin_battle', { p_room_id: saved.roomId });
+                if (!rpc.error) room = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+                else if (!/could not find|does not exist|PGRST202|42883/i.test(rpc.error.message || '')) {
+                    // RPC exists but refused — show that error unless we can still try the code.
+                    if (!/ROOM_NOT_FOUND|NOT_A_MEMBER/i.test(rpc.error.message || '') || !saved.code) {
+                        return battleSetError(battleErrorMessage(rpc.error));
+                    }
+                }
+            }
+            if (!room && saved.code) {
+                const joined = await sb.rpc('join_battle', { p_code: saved.code });
+                if (joined.error) return battleSetError(battleErrorMessage(joined.error));
+                room = Array.isArray(joined.data) ? joined.data[0] : joined.data;
+            }
+            if (!room || !room.id) {
+                battleClearResume();
+                return battleSetError('That room is no longer open.');
+            }
+            battleAdoptRoom(room);
+        }
+
         async function battleLeave() {
             battleStopPolling();
+            if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             if (battleRoom && currentUser) {
                 try { await sb.rpc('leave_battle', { p_room_id: battleRoom.id }); } catch (e) { }
             }
@@ -4666,6 +4848,7 @@
             battleRoundSeed = null;
             battleDoneLocal = false;
             battleWords = [];
+            battleClearResume();
             changeView('hub-view');
         }
 
@@ -4940,7 +5123,10 @@
             if(target) target.classList.remove('hidden');
             window.scrollTo(0,0);
             
-            if (viewId === 'hub-view') updateMascot("Awesome! What would you like to learn next?");
+            if (viewId === 'hub-view') {
+                updateMascot("Awesome! What would you like to learn next?");
+                battleRenderRejoin();
+            }
             if (viewId === 'home-view') {
                 updateMascot("Choose a topic to begin your dictation journey.");
                 if (sheetCategoriesReady) renderCategories();

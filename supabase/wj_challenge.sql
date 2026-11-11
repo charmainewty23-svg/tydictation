@@ -765,3 +765,335 @@ revoke all on function public.wj_challenge_try_finish(uuid) from anon, authentic
 -- select routine_name from information_schema.routines
 --  where routine_schema = 'public' and routine_name like '%wj_challenge%'
 --  order by 1;
+
+-- ---------- Public match history (7 days) + lifetime challenge wins ----------
+-- Re-run this WHOLE file in the live project's SQL editor. No cron extension
+-- required: expired rows are invisible immediately and deleted on each finish.
+-- Snapshots intentionally have no room/user FK: deleting an old room must not
+-- erase a recent result, and deleting history must not erase lifetime tallies.
+begin;
+
+create schema if not exists wjc_private;
+revoke all on schema wjc_private from public, anon, authenticated;
+
+alter table public.wj_challenge_rooms
+    add column if not exists match_number bigint not null default 0;
+
+create table if not exists public.wj_challenge_matches (
+    id uuid primary key default gen_random_uuid(),
+    room_id uuid not null,
+    match_number bigint not null,
+    room_code text not null,
+    topic text not null,
+    duel_type text not null,
+    target_score int,
+    started_at timestamptz,
+    finished_at timestamptz not null,
+    winner_id uuid,
+    winner_name text not null,
+    result_reason text,
+    players jsonb not null,
+    unique (room_id, match_number)
+);
+create index if not exists wj_challenge_matches_finished_idx
+    on public.wj_challenge_matches (finished_at desc);
+
+create table if not exists public.wj_challenge_wins (
+    user_id uuid primary key,
+    display_name text not null,
+    wins bigint not null default 0 check (wins >= 0),
+    matches bigint not null default 0 check (matches >= wins),
+    last_win_at timestamptz
+);
+create index if not exists wj_challenge_wins_rank_idx
+    on public.wj_challenge_wins (wins desc, last_win_at asc nulls last, matches asc, user_id);
+
+alter table public.wj_challenge_matches enable row level security;
+alter table public.wj_challenge_wins enable row level security;
+revoke all on public.wj_challenge_matches, public.wj_challenge_wins from public, anon, authenticated;
+grant select on public.wj_challenge_matches, public.wj_challenge_wins to authenticated;
+drop policy if exists "wj challenge recent matches read" on public.wj_challenge_matches;
+create policy "wj challenge recent matches read" on public.wj_challenge_matches
+    for select to authenticated using (finished_at > now() - interval '7 days');
+drop policy if exists "wj challenge wins read" on public.wj_challenge_wins;
+create policy "wj challenge wins read" on public.wj_challenge_wins
+    for select to authenticated using (true);
+
+-- A durable room-local counter separates rematches even if start times collide.
+create or replace function wjc_private.number_match()
+returns trigger
+language plpgsql
+set search_path = ''
+as $wjc$
+begin
+    if new.status = 'playing' and old.status = 'waiting' then
+        new.match_number := old.match_number + 1;
+    end if;
+    return new;
+end;
+$wjc$;
+drop trigger if exists wj_challenge_number_match on public.wj_challenge_rooms;
+create trigger wj_challenge_number_match before update of status on public.wj_challenge_rooms
+    for each row execute function wjc_private.number_match();
+
+-- Runs in the SAME transaction as finish. If snapshot/tally fails, finish rolls
+-- back too. Only the insert winner may increment tallies (ON CONFLICT guard).
+create or replace function wjc_private.record_match()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $wjc$
+declare
+    v_inserted uuid;
+    v_players jsonb;
+    v_winner_name text;
+    v_player jsonb;
+begin
+    if old.status <> 'playing' or new.status <> 'finished' then
+        return new;
+    end if;
+
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'user_id', p.user_id,
+        'name', coalesce(nullif(p.nickname, ''), 'Player'),
+        'color', p.color, 'score', p.score, 'height', p.height,
+        'fallen', p.fallen, 'left_at', p.left_at
+    ) order by p.score desc, p.height desc, p.user_id), '[]'::jsonb)
+    into v_players from public.wj_challenge_players p where p.room_id = new.id;
+    select coalesce(nullif(p.nickname, ''), 'Player') into v_winner_name
+    from public.wj_challenge_players p where p.room_id = new.id and p.user_id = new.winner_id;
+
+    insert into public.wj_challenge_matches (
+        room_id, match_number, room_code, topic, duel_type, target_score,
+        started_at, finished_at, winner_id, winner_name, result_reason, players
+    ) values (
+        new.id, new.match_number, new.code, new.topic,
+        coalesce(new.duel_type, 'last_standing'), new.target_score,
+        new.started_at, coalesce(new.finished_at, now()), new.winner_id,
+        coalesce(v_winner_name, 'No winner'), new.result_reason, v_players
+    ) on conflict (room_id, match_number) do nothing returning id into v_inserted;
+
+    if v_inserted is not null then
+        -- Stable ordering also prevents concurrent multi-player upsert deadlocks.
+        for v_player in select value from jsonb_array_elements(v_players) order by value->>'user_id'
+        loop
+            insert into public.wj_challenge_wins (user_id, display_name, wins, matches, last_win_at)
+            values (
+                (v_player->>'user_id')::uuid, v_player->>'name',
+                case when (v_player->>'user_id')::uuid = new.winner_id then 1 else 0 end,
+                1,
+                case when (v_player->>'user_id')::uuid = new.winner_id then new.finished_at else null end
+            ) on conflict (user_id) do update set
+                display_name = excluded.display_name,
+                wins = public.wj_challenge_wins.wins + excluded.wins,
+                matches = public.wj_challenge_wins.matches + 1,
+                last_win_at = case when excluded.wins = 1
+                    then greatest(public.wj_challenge_wins.last_win_at, excluded.last_win_at)
+                    else public.wj_challenge_wins.last_win_at end;
+        end loop;
+    end if;
+    delete from public.wj_challenge_matches where finished_at <= now() - interval '7 days';
+    return new;
+end;
+$wjc$;
+revoke all on function wjc_private.number_match(), wjc_private.record_match() from public, anon, authenticated;
+drop trigger if exists wj_challenge_record_match on public.wj_challenge_rooms;
+create trigger wj_challenge_record_match after update of status on public.wj_challenge_rooms
+    for each row execute function wjc_private.record_match();
+
+-- Serialize presence/leave/finish against start/rematch. Late heartbeats must
+-- not change the final scoreboard or write an old score into a new lobby.
+create or replace function public.wj_challenge_try_finish(p_room_id uuid)
+returns public.wj_challenge_rooms
+language plpgsql
+as $wjc$
+declare
+    v_room    public.wj_challenge_rooms;
+    v_alive   int;
+    v_out     int;
+    v_total   int;
+    v_winner  uuid;
+    v_reason  text;
+begin
+    select * into v_room from public.wj_challenge_rooms where id = p_room_id for update;
+    if not found or v_room.status <> 'playing' then
+        return v_room;
+    end if;
+
+    select
+        count(*) filter (where fallen = false and left_at is null),
+        count(*) filter (where fallen = true or left_at is not null),
+        count(*)
+      into v_alive, v_out, v_total
+      from public.wj_challenge_players
+     where room_id = p_room_id;
+
+    if v_total < 2 then
+        return v_room;
+    end if;
+
+    if v_room.duel_type = 'target_score' then
+        select user_id into v_winner
+          from public.wj_challenge_players
+         where room_id = p_room_id
+           and reached_at is not null
+         order by reached_at asc, score desc, height desc
+         limit 1;
+
+        if v_winner is not null then
+            v_reason := 'target';
+        elsif v_alive = 0 then
+            select user_id into v_winner
+              from public.wj_challenge_players
+             where room_id = p_room_id
+             order by score desc, height desc, last_seen asc
+             limit 1;
+            v_reason := 'closest';
+        end if;
+    else
+        -- last_standing (default)
+        if v_out >= 1 and v_alive <= 1 then
+            if v_alive = 1 then
+                select user_id into v_winner
+                  from public.wj_challenge_players
+                 where room_id = p_room_id
+                   and fallen = false
+                   and left_at is null
+                 limit 1;
+                v_reason := 'last_standing';
+            else
+                select user_id into v_winner
+                  from public.wj_challenge_players
+                 where room_id = p_room_id
+                 order by score desc, height desc, last_seen asc
+                 limit 1;
+                v_reason := 'highest';
+            end if;
+        end if;
+    end if;
+
+    if v_reason is null then
+        return v_room;
+    end if;
+
+    update public.wj_challenge_rooms
+       set status = 'finished',
+           finished_at = coalesce(finished_at, now()),
+           winner_id = v_winner,
+           result_reason = v_reason
+     where id = p_room_id
+    returning * into v_room;
+
+    return v_room;
+end;
+$wjc$;
+
+create or replace function public.leave_wj_challenge(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $wjc$
+declare
+    v_room public.wj_challenge_rooms;
+begin
+    if auth.uid() is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+
+    select * into v_room from public.wj_challenge_rooms where id = p_room_id for update;
+    if not found then
+        return;
+    end if;
+
+    if v_room.status = 'waiting' then
+        if v_room.host_id = auth.uid() then
+            delete from public.wj_challenge_rooms where id = p_room_id;
+        else
+            delete from public.wj_challenge_players
+             where room_id = p_room_id and user_id = auth.uid();
+        end if;
+        return;
+    end if;
+
+    update public.wj_challenge_players
+       set left_at = now(), last_seen = now()
+     where room_id = p_room_id and user_id = auth.uid();
+
+    if v_room.status = 'playing' then
+        perform public.wj_challenge_try_finish(p_room_id);
+    end if;
+end;
+$wjc$;
+
+create or replace function public.heartbeat_wj_challenge(
+    p_room_id uuid,
+    p_score int,
+    p_height int,
+    p_x double precision,
+    p_y double precision,
+    p_face int,
+    p_fallen boolean default false
+)
+returns setof public.wj_challenge_rooms
+language plpgsql
+security definer
+set search_path = public
+as $wjc$
+declare
+    v_room public.wj_challenge_rooms;
+    v_score int;
+    v_height int;
+begin
+    if auth.uid() is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+    if not public.is_wj_challenge_member(p_room_id) then
+        raise exception 'NOT_A_MEMBER';
+    end if;
+
+    select * into v_room from public.wj_challenge_rooms where id = p_room_id for update;
+    if not found then
+        raise exception 'ROOM_NOT_FOUND';
+    end if;
+
+    if v_room.status <> 'playing' then
+        return next v_room;
+        return;
+    end if;
+
+    v_score := greatest(0, coalesce(p_score, 0));
+    v_height := greatest(0, coalesce(p_height, 0));
+
+    update public.wj_challenge_players
+       set score = v_score,
+           height = v_height,
+           x = coalesce(p_x, x),
+           y = coalesce(p_y, y),
+           face = case when coalesce(p_face, 1) < 0 then -1 else 1 end,
+           fallen = fallen or coalesce(p_fallen, false),
+           reached_at = case
+               when reached_at is not null then reached_at
+               when v_room.duel_type = 'target_score'
+                    and v_score >= coalesce(v_room.target_score, 3000)
+               then now()
+               else null
+           end,
+           last_seen = now()
+     where room_id = p_room_id and user_id = auth.uid();
+
+    if v_room.status = 'playing' then
+        v_room := public.wj_challenge_try_finish(p_room_id);
+    end if;
+
+    return next v_room;
+end;
+$wjc$;
+
+delete from public.wj_challenge_matches where finished_at <= now() - interval '7 days';
+commit;
+
+-- No backfill: older rematches were overwritten and cannot be reconstructed.
+-- Verify: select * from public.wj_challenge_wins order by wins desc;
+--         select * from public.wj_challenge_matches order by finished_at desc;

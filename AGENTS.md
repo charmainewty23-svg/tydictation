@@ -637,6 +637,29 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **冇朋友系統**，所以唔會有「過朋友先播特別音效」。通過本身亦冇加新音效。
 - 重開（`WJ.reset`）會清通過狀態，下一局可以再過同一批線。載入失敗就當冇線，遊戲照玩。
 
+### 10.13 Challenge friends：公開紀錄＋累計勝場（`supabase/wj_challenge.sql`）
+
+- Challenge friends 開房／加入／中途加入／Rejoin，選鳥色，同場共享 seed；host 選
+  Last one standing 或 First to target。Challenge 成績**唔會**寫 `wj_scores`，Solo 榜不變。
+- Word Jump 選模式、Challenge lobby、賽後結果有 **Match history / Challenge wins**。
+  全部學校登入用戶可睇所有人最近 7 日比賽（每次載入 30 局，可 Load more），
+  顯示房號、模式／目標、勝者、每人鳥色／分數／高度、距今時間。現有 presence 無 words 欄，唔估字數。
+- Hub Leaderboard 加 **WJ Challenge wins**；兩個勝場榜都係公開頭 50 名，累計所有
+  勝場，同分先按較早 `last_win_at`、再較少 `matches`、再 `user_id` 排。只列有勝場嘅玩家。
+- 新表 `wj_challenge_matches`：完成當刻 immutable JSON snapshot，無 email、無 room/user FK，
+  房間清理／rematch 唔會改舊結果；`(room_id, match_number)` unique。房間 `match_number`
+  每次 waiting → playing 加 1（`wjc_private.number_match()` trigger）。
+- `wjc_private.record_match()` 只喺 playing → finished 嘅同一個 transaction 插 snapshot，
+  插入成功先更新 `wj_challenge_wins` 每人 matches、勝者 wins／last_win_at。無 browser insert，
+  亦無新增公開寫入 RPC；新 helper 放 private schema，revoke PUBLIC／anon／authenticated execute。
+- 完成／離開／heartbeat 會鎖房行，避免同時 finish 重複計、rematch 同舊 heartbeat 互相覆蓋；
+  已完局 heartbeat 唔再改 final scoreboard。前端比分仍由玩家傳入，唔係防作弊系統。
+- RLS 只畀 authenticated SELECT。紀錄一過 7 日即不可讀；實體 expired rows 喺每次完局
+  或重跑 SQL 時刪除（無 cron，閒置期間可能仍存 DB），**累計 wins／matches 永不跟住刪**。
+- Guests 唔可睇兩個紀錄／榜，teacher preview 只讀，唔寫／開房。未有新表時 UI 提示重跑 SQL。
+- 老師要喺 live project `mggnwzirjmibreimrwiq` **重跑整份** `supabase/wj_challenge.sql`，可重複跑。
+  無舊局 backfill：以前 rematch 已覆寫嘅紀錄無法重建；新功能由安裝後完成嘅比賽開始計。
+
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
 每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。

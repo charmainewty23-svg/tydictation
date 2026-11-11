@@ -5583,6 +5583,9 @@
             MOVE_MAX: 240, STEER_RATE: 16, STEER_STOP: 18,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             SCORE_HEAT_AT: 4500, SCORE_HEAT2_AT: 7000, SCORE_HEAT2_SPAN: 3000,
+            // Third heat starts at 10000: modest speed-up only. lateHeat()
+            // still caps at 1 so density / traps / platform width stay put.
+            SCORE_HEAT3_AT: 10000, HEAT3_SPEED_BONUS: 0.12, HEAT3_TWIN_CHANCE: 0.28,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -5626,12 +5629,21 @@
             }
             return WJ.clamp(0.5 + 0.5 * (s - WJ.SCORE_HEAT2_AT) / WJ.SCORE_HEAT2_SPAN, 0, 1);
         };
+        // Height-based in Challenge so every player shares the same course;
+        // Solo still follows the live score (height + word bonuses).
+        WJ.heat3At = function (y) {
+            if (!WJ.challenge) return WJ.lateHeat3();
+            const s = Math.max(0, Math.floor(Math.max(0, -(y == null ? WJ.topY : y)) / 10));
+            return s >= WJ.SCORE_HEAT3_AT ? 1 : 0;
+        };
         WJ.openingAt = function (y) {
             if (WJ.challenge) return Math.max(0, -(y == null ? WJ.topY : y)) < 1500;
             return WJ.maxClimb < 1500;
         };
         // difficulty() caps at 9000px climb (~900 height points). lateHeat
         // then adds two score ramps: 4500–7000 rises to 0.5, 7000–10000 to 1.
+        // A third heat at 10000 is tracked separately (lateHeat3) so the
+        // density curve stays capped while movement and enemies speed up.
         WJ.lateHeat = function () {
             const s = WJ.score();
             if (s < WJ.SCORE_HEAT_AT) return 0;
@@ -5640,12 +5652,23 @@
             }
             return WJ.clamp(0.5 + 0.5 * (s - WJ.SCORE_HEAT2_AT) / WJ.SCORE_HEAT2_SPAN, 0, 1);
         };
+        WJ.lateHeat3 = function () {
+            return WJ.score() >= WJ.SCORE_HEAT3_AT ? 1 : 0;
+        };
 
         /* Horizontal top speed ramps from SPEED_RAMP_FROM * MOVE_MAX at the
-           bottom of a run to MOVE_MAX once you have climbed a while. */
+           bottom of a run to MOVE_MAX once you have climbed a while.
+           After 10000, speedMulAt adds a modest extra (HEAT3_SPEED_BONUS). */
+        WJ.speedMulAt = function (climb) {
+            const h3 = WJ.challenge
+                ? (Math.floor(Math.max(0, climb || 0) / 10) >= WJ.SCORE_HEAT3_AT ? 1 : 0)
+                : WJ.lateHeat3();
+            return 1 + WJ.HEAT3_SPEED_BONUS * h3;
+        };
         WJ.speedCap = function () {
             const t = WJ.clamp(WJ.maxClimb / WJ.SPEED_RAMP_AT, 0, 1);
-            return WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+            const base = WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+            return base * WJ.speedMulAt(WJ.challenge ? WJ.maxClimb : 0);
         };
 
         WJ.beep = function (freq, dur, type, vol) {
@@ -5731,6 +5754,7 @@
             WJ.lastPassFx = null;
             WJ.heatAnnounced = false;
             WJ.heat2Announced = false;
+            WJ.heat3Announced = false;
             (WJ.milestones || []).forEach(m => { m.passed = false; });
             WJ.platforms.push({
                 x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
@@ -6102,6 +6126,16 @@
 
         /* ---------------- words & topics ---------------- */
 
+        WJ.BACKUP_WORDS = [
+            ['tiger', '老虎', 'animals'], ['rocket', '火箭', 'space'], ['garden', '花園', 'nature'],
+            ['planet', '行星', 'space'], ['pencil', '鉛筆', 'objects'], ['orange', '橙', 'colours'],
+            ['silver', '銀色', 'colours'], ['bridge', '橋', 'places'], ['forest', '森林', 'nature'],
+            ['winter', '冬天', 'nature'], ['travel', '旅行', 'travel'], ['dragon', '龍', 'animals'],
+            ['market', '市場', 'places'], ['yellow', '黃色', 'colours'], ['castle', '城堡', 'places'],
+            ['rabbit', '兔子', 'animals'], ['island', '島嶼', 'nature'], ['office', '辦公室', 'places'],
+            ['camera', '相機', 'objects'], ['pocket', '口袋', 'objects']
+        ];
+
         WJ.wordPool = function () {
             const names = (!WJ.topic || WJ.topic === '__all__') ? SHEET_NAMES : [WJ.topic];
             const seen = {};
@@ -6112,18 +6146,74 @@
                 const key = raw.toLowerCase();
                 if (seen[key]) return;
                 seen[key] = 1;
-                list.push({ en: key, zh: w.zh || '' });
+                list.push({ en: key, zh: w.zh || '', topic: n });
             }));
             if (list.length < 15) {
-                [['tiger', '老虎'], ['rocket', '火箭'], ['garden', '花園'], ['planet', '行星'], ['pencil', '鉛筆'],
-                 ['orange', '橙'], ['silver', '銀色'], ['bridge', '橋'], ['forest', '森林'], ['winter', '冬天'],
-                 ['travel', '旅行'], ['dragon', '龍'], ['market', '市場'], ['yellow', '黃色'], ['castle', '城堡'],
-                 ['rabbit', '兔子'], ['island', '島嶼'], ['office', '辦公室'], ['camera', '相機'], ['pocket', '口袋']]
-                    .forEach(p => {
-                        if (!seen[p[0]]) { seen[p[0]] = 1; list.push({ en: p[0], zh: p[1] }); }
-                    });
+                WJ.BACKUP_WORDS.forEach(p => {
+                    if (!seen[p[0]]) { seen[p[0]] = 1; list.push({ en: p[0], zh: p[1], topic: p[2] }); }
+                });
             }
             return list;
+        };
+
+        WJ.commonPrefixLen = function (a, b) {
+            const x = String(a || '').toLowerCase(), y = String(b || '').toLowerCase();
+            let i = 0;
+            while (i < x.length && i < y.length && x[i] === y[i]) i++;
+            return i;
+        };
+        /* Same topic is the main “similar meaning” proxy. Length, a shared
+           English stem/prefix, and a shared Chinese character are tie-breaks. */
+        WJ.distractorScore = function (cand, target) {
+            let s = 0;
+            if (cand.topic && target.topic && cand.topic === target.topic) s += 100;
+            const lenDiff = Math.abs(String(cand.en || '').length - String(target.en || '').length);
+            if (lenDiff === 0) s += 15;
+            else if (lenDiff === 1) s += 10;
+            else if (lenDiff === 2) s += 5;
+            const pref = WJ.commonPrefixLen(cand.en, target.en);
+            if (pref >= 3) s += 20;
+            else if (pref >= 2) s += 8;
+            const cz = String(cand.zh || ''), tz = String(target.zh || '');
+            if (cz && tz) {
+                for (let i = 0; i < cz.length; i++) {
+                    const ch = cz[i];
+                    if (ch && tz.indexOf(ch) !== -1) { s += 12; break; }
+                }
+            }
+            return s;
+        };
+        WJ.pickDistractors = function (target, pool, need, similar) {
+            const used = {};
+            used[String(target.en || '').toLowerCase()] = 1;
+            const cands = (pool || []).filter(w => w && w.en && !used[String(w.en).toLowerCase()]);
+            const out = [];
+            const take = list => {
+                for (let i = 0; i < list.length; i++) {
+                    const w = list[i];
+                    const key = String(w.en).toLowerCase();
+                    if (used[key]) continue;
+                    used[key] = 1;
+                    out.push({ en: key, zh: w.zh || '', topic: w.topic || '', ok: false });
+                    if (out.length >= need) return true;
+                }
+                return false;
+            };
+            if (similar) {
+                const scored = cands.map(w => ({ w, s: WJ.distractorScore(w, target) }));
+                scored.sort((a, b) => b.s - a.s);
+                const sameTopic = scored.filter(x => x.s >= 100).map(x => x.w);
+                const close = scored.filter(x => x.s > 0 && x.s < 100).map(x => x.w);
+                if (take(sameTopic)) return out;
+                if (take(close)) return out;
+            }
+            const rest = cands.filter(w => !used[String(w.en).toLowerCase()]);
+            for (let i = rest.length - 1; i > 0; i--) {
+                const j = Math.floor(WJ.nextRand() * (i + 1));
+                const t = rest[i]; rest[i] = rest[j]; rest[j] = t;
+            }
+            take(rest);
+            return out;
         };
 
         /* The question is always the nearest unanswered word row at or above
@@ -6140,23 +6230,16 @@
         };
 
         WJ.spawnQuizRow = function (y) {
-            const d = WJ.difficulty();
-            const h = WJ.lateHeat();
+            const d = WJ.difficultyAt(y);
+            const h = WJ.heatAt(y);
             const count = h >= 0.5 ? 4 : (d < 0.3 ? 2 : 3);
             const pool = WJ.wordPool();
             if (!pool.length) return;
 
             const target = WJ.pick(pool);
-            const used = {};
-            used[target.en] = 1;
-            const options = [{ en: target.en, zh: target.zh || '', ok: true }];
-            let guard = 0;
-            while (options.length < count && guard++ < 200) {
-                const cand = WJ.pick(pool);
-                if (used[cand.en]) continue;
-                used[cand.en] = 1;
-                options.push({ en: cand.en, zh: cand.zh || '', ok: false });
-            }
+            const similar = WJ.heat3At(y) >= 1;
+            const options = [{ en: target.en, zh: target.zh || '', topic: target.topic || '', ok: true }]
+                .concat(WJ.pickDistractors(target, pool, count - 1, similar));
             for (let i = options.length - 1; i > 0; i--) {
                 const j = Math.floor(WJ.nextRand() * (i + 1));
                 const t = options[i]; options[i] = options[j]; options[j] = t;
@@ -6181,6 +6264,7 @@
                 x += w + gap;
             });
             WJ.quizRows.push(row);
+            WJ.cullMonstersNearQuiz(y);
             // A right answer and a wrong answer bounce off different tiles,
             // so the pads above the row have to be reachable from every tile.
             WJ.commitLayer(tiles, true);
@@ -6270,7 +6354,8 @@
         };
         WJ.speedAt = function (climb) {
             const t = WJ.clamp(climb / WJ.SPEED_RAMP_AT, 0, 1);
-            return WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+            const base = WJ.MOVE_MAX * (WJ.SPEED_RAMP_FROM + (1 - WJ.SPEED_RAMP_FROM) * t);
+            return base * WJ.speedMulAt(climb);
         };
         WJ.airtimeForGap = function (gap) {
             const v = Math.abs(WJ.JUMP_V), g = WJ.GRAVITY;
@@ -6392,6 +6477,62 @@
             return pool[Math.floor(WJ.nextRand() * pool.length)];
         };
 
+        /* After 7000 (lateHeat >= 0.5) shields only come from a 5-word streak,
+           so shield gadgets stop appearing. Before 7000 the old mix stays. */
+        WJ.gadgetKindsAt = function (y) {
+            const kinds = ['spring', 'spring', 'propeller', 'jetpack', 'shoes'];
+            if (WJ.heatAt(y) < 0.5) kinds.push('shield');
+            return kinds;
+        };
+        WJ.nearQuizRow = function (y) {
+            const clear = 90;
+            for (const r of WJ.quizRows || []) {
+                if (Math.abs(r.y - y) < clear) return true;
+            }
+            if (WJ.nextQuizY != null && Math.abs(WJ.nextQuizY - y) < clear) return true;
+            return false;
+        };
+        WJ.cullMonstersNearQuiz = function (quizY) {
+            const clear = 90;
+            WJ.monsters = (WJ.monsters || []).filter(m =>
+                Math.abs(m.y - quizY) >= clear && Math.abs((m.y + 36) - quizY) >= clear);
+        };
+        WJ.placeMonster = function (x, y, range) {
+            WJ.monsters.push({
+                x, y: y - 36, baseX: x,
+                range: range != null ? range : WJ.rand(24, 50),
+                dir: WJ.nextRand() < 0.5 ? -1 : 1,
+                speed: WJ.rand(20, 40) * (1 + 0.3 * WJ.heatAt(y)),
+                r: 19, dead: false
+            });
+        };
+        /* After 10000, occasionally place two monsters at the same altitude,
+           far enough apart that the player can still pass between them.
+           Never on a quiz-tile row, and never when the gap would close. */
+        WJ.trySpawnMonsters = function (pl, y) {
+            if (y >= -1500) return 0;
+            if (WJ.nearQuizRow(y) || WJ.nearQuizRow(y - 36)) return 0;
+            const d = WJ.difficultyAt(y);
+            const h = WJ.heatAt(y);
+            if (!(WJ.nextRand() < 0.05 + 0.07 * d + 0.06 * h)) return 0;
+            const h3 = WJ.heat3At(y);
+            const body = 19, pass = 70, range = 26;
+            const minSep = pass + 2 * range + 2 * body;
+            if (h3 && WJ.nextRand() < WJ.HEAT3_TWIN_CHANCE) {
+                const left = 50 + body, right = WJ.W - 50 - body;
+                if (right - left >= minSep) {
+                    const span = right - left - minSep;
+                    const x1 = left + WJ.nextRand() * Math.max(0, span * 0.35);
+                    const x2 = x1 + minSep + WJ.nextRand() * Math.max(0, right - (x1 + minSep));
+                    WJ.placeMonster(x1, y, range);
+                    WJ.placeMonster(x2, y, range);
+                    return 2;
+                }
+            }
+            WJ.placeMonster(pl.x + pl.w / 2, y, WJ.rand(24, 50));
+            return 1;
+        };
+
         WJ.makePlatform = function (x, y, w, type, amp) {
             const d = WJ.difficultyAt(y);
             const h = WJ.heatAt(y);
@@ -6406,20 +6547,17 @@
             WJ.platforms.push(pl);
             if (type !== 'brown' && type !== 'white' && y < -700 && WJ.nextRand() < 0.09) {
                 pl.gadget = {
-                    kind: WJ.pick(['spring', 'spring', 'propeller', 'jetpack', 'shoes', 'shield']),
+                    kind: WJ.pick(WJ.gadgetKindsAt(y)),
                     used: false
                 };
             }
-            if (y < -1500 && WJ.nextRand() < 0.05 + 0.07 * d + 0.06 * h) {
-                WJ.monsters.push({
-                    x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
-                    range: WJ.rand(24, 50), dir: WJ.nextRand() < 0.5 ? -1 : 1,
-                    speed: WJ.rand(20, 40) * (1 + 0.3 * h), r: 19, dead: false
-                });
-            }
+            WJ.trySpawnMonsters(pl, y);
             if (y < -2400 && WJ.nextRand() < 0.022 + 0.018 * h) {
+                const ux = WJ.rand(60, WJ.W - 60);
                 WJ.ufos.push({
-                    x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
+                    x: ux, y: y - WJ.rand(60, 110), baseX: ux,
+                    range: WJ.rand(28, 55), dir: WJ.nextRand() < 0.5 ? -1 : 1,
+                    speed: WJ.rand(16, 28), bobRate: 2,
                     r: 26, dead: false, beam: false, bob: WJ.nextRand() * 6.28
                 });
             }
@@ -6446,7 +6584,7 @@
                 // stays on the original curve so questions cannot be skipped
                 // and remain reachable (always ≤ maxGap).
                 const heat = WJ.afterQuiz ? 0 : WJ.heatAt(WJ.topY);
-                const step = Math.min(WJ.maxGap(), base * (1 - WJ.difficulty() * 0.1 + 0.12 * heat));
+                const step = Math.min(WJ.maxGap(), base * (1 - WJ.difficultyAt(WJ.topY) * 0.1 + 0.12 * heat));
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
                     // 115px under the row: high enough that the row is a
@@ -6921,7 +7059,14 @@
             }
             if (!WJ.heat2Announced && WJ.score() >= WJ.SCORE_HEAT2_AT) {
                 WJ.heat2Announced = true;
-                WJ.toast('⚡ Extra challenge!', '#c2410c');
+                WJ.toast('⚡ Extra challenge! Shields now need a 5-word streak.', '#c2410c');
+            }
+            const heat3Now = WJ.challenge
+                ? Math.floor(Math.max(0, WJ.maxClimb) / 10) >= WJ.SCORE_HEAT3_AT
+                : WJ.score() >= WJ.SCORE_HEAT3_AT;
+            if (!WJ.heat3Announced && heat3Now) {
+                WJ.heat3Announced = true;
+                WJ.toast('⚡ Speed up! Similar meanings and occasional twin monsters.', '#b45309');
             }
             WJ.checkMilestones();
 
@@ -6930,11 +7075,12 @@
             // --- platforms ---
             for (const pl of WJ.platforms) {
                 if (pl.dead) continue;
+                const heat3Mul = WJ.speedMulAt(WJ.challenge ? Math.max(0, -(pl.baseY != null ? pl.baseY : pl.y)) : 0);
                 if (pl.type === 'blue') {
-                    pl.phase += pl.speed * dt;
+                    pl.phase += pl.speed * heat3Mul * dt;
                     pl.x = WJ.clamp(pl.baseX + Math.sin(pl.phase) * pl.amp, 4, WJ.W - pl.w - 4);
                 } else if (pl.type === 'gray') {
-                    pl.phase += pl.speed * dt;
+                    pl.phase += pl.speed * heat3Mul * dt;
                     pl.y = pl.baseY + Math.sin(pl.phase) * pl.amp;
                 } else if (pl.type === 'yellow' && pl.fuse > 0) {
                     pl.fuse -= dt;
@@ -6984,7 +7130,8 @@
             // --- monsters ---
             for (const m of WJ.monsters) {
                 if (m.dead) continue;
-                m.x += m.dir * m.speed * dt;
+                const mMul = WJ.speedMulAt(WJ.challenge ? Math.max(0, -(m.y + 36)) : 0);
+                m.x += m.dir * m.speed * mMul * dt;
                 if (m.x < m.baseX - m.range) { m.x = m.baseX - m.range; m.dir = 1; }
                 if (m.x > m.baseX + m.range) { m.x = m.baseX + m.range; m.dir = -1; }
 
@@ -7017,7 +7164,14 @@
             // --- UFOs ---
             for (const u of WJ.ufos) {
                 if (u.dead) continue;
-                u.bob += dt * 2;
+                const uMul = WJ.speedMulAt(WJ.challenge ? Math.max(0, -u.y) : 0);
+                u.bob += dt * (u.bobRate || 2) * uMul;
+                if (uMul > 1 && u.range) {
+                    if (u.baseX == null) u.baseX = u.x;
+                    u.x += (u.dir || 1) * (u.speed || 22) * uMul * dt;
+                    if (u.x < u.baseX - u.range) { u.x = u.baseX - u.range; u.dir = 1; }
+                    if (u.x > u.baseX + u.range) { u.x = u.baseX + u.range; u.dir = -1; }
+                }
                 const px = p.x, py = p.y - p.h / 2;
                 const dx = u.x - px, dy = u.y - py;
                 u.beam = false;

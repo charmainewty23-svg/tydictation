@@ -400,10 +400,16 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 生成難度隨高度上升（`WJ.difficulty() = clamp(maxClimb/9000, 0, 1)`），
 越高綠台越少、陷阱越多、平台間距亦輕微收窄。
 `difficulty()` 喺爬高 9000px（大約 900 分嘅高度分）已經封頂；分數到 **4500**
-之後再開挑戰：`WJ.lateHeat()` 喺 4500–7000 由 0 升到 0.5，7000–10000 再升到 1。
+之後再開挑戰：`WJ.lateHeat()` 喺 4500–7000 由 0 升到 0.5，7000–10000 再升到 1，之後密度曲線封頂。
 熱度上升時綠台再少、陷阱更多、平台稍窄、普通間距稍闊（唔超過 `maxGap`）、
-移動台同怪物稍快。7000 分後（`lateHeat >= 0.5`）字磚改 4 個選項。第一次過 4500 分會出 toast
-「⚡ Challenge up!」，過 7000 分再出「⚡ Extra challenge!」。4500 分以下（除咗跳躍稍快）手感不變；
+移動台同怪物稍快。7000 分後（`lateHeat >= 0.5`）字磚改 4 個選項，護盾亦只可以由連續答對獲得（見 §10.4／§10.6）。
+**10000 分後第三段熱度**（`WJ.lateHeat3()`／`WJ.heat3At()`，`SCORE_HEAT3_AT = 10000`）
+唔再收窄平台或加陷阱，只係將橫移、移動台、怪物同 UFO 速度再加快約 **12%**
+（`HEAT3_SPEED_BONUS = 0.12`）。Solo 跟直播分數（高度分 + 答題獎勵）；Challenge 跟平台高度
+（`floor(climb/10)`），咁大家先共享同一條路。`WJ.speedAt`／`WJ.horizBudget` 會用加快後嘅速度計橫向預算，
+所以平台仍然一定跳到（`maxGap` 唔變，因為跳高同滯空冇改）。第一次過 4500 分會出 toast
+「⚡ Challenge up!」，過 7000 分再出「⚡ Extra challenge! Shields now need a 5-word streak.」，
+過 10000 分出「⚡ Speed up! Similar meanings and occasional twin monsters.」。4500 分以下（除咗跳躍稍快）手感不變；
 開首 0–2000 都用呢個稍快嘅跳躍（滯空 1.45s）。
 
 **三個「跳唔到」修正（2026-11，用戶連續三次反映）：**
@@ -451,23 +457,36 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
 ### 10.4 道具（平台上方圓形徽章，踩中該平台即觸發）
 彈簧 ×1.9 跳力 · 竹蜻蜓慢速上升 2.6 秒 · 火箭背包 1.5 秒高速 ·
 彈簧鞋 6 次 ×1.42 跳力 · 護盾 8 秒（擋一次怪物／UFO，黑洞同跌落擋唔到）。
+7000 分前（`heatAt < 0.5`）護盾可以作為平台道具出現，亦可以靠連續答對 5 題獲得。
+**7000 分後不再生成護盾道具**（`WJ.gadgetKindsAt` 會從 spring／propeller／jetpack／shoes 抽，唔再抽 `shield`）；
+之後唯一獲得護盾嘅方法係連續答對 5 題（仍然送 8 秒）。
 
 ### 10.5 敵人
 - **怪物**：紫色，平台上方左右巡邏。碰到 = game over；可射爆、踩頭踩扁（+30 分），
-  彩虹模式撞到會直接消滅。
+  彩虹模式撞到會直接消滅。10000 分後（`heat3At`）巡邏速度加快約 12%。
+  另外會**偶爾**喺同一高度放兩隻怪物（`HEAT3_TWIN_CHANCE = 0.28`，唔係每層都有）。
+  兩隻會左右分開，巡邏範圍之間至少留約 70px 通道，玩家可以從中間或兩側通過。
+  **唔會**放喺字磚排或者距離字磚 90px 之內（`nearQuizRow`／`cullMonstersNearQuiz`），亦唔會令平台跳唔到。
 - **UFO**：下方有吸力光束，入咗光束會被拉向它；可射爆（+40 分）。
+  10000 分後浮動加快，並開始小範圍左右移動。
 - **黑洞**：160px 內有引力，中心 28px 內必死，護盾擋唔到。
 
 ### 10.6 題目：睇中文，跳上正確英文
 - 每隔 `QUIZ_GAP`（`380–500`，經 `min(nextQuizY, topY-115)` 修正後實測**每 ~510px**）
   有一排**紫色字磚**（`spawnQuizRow`），一排 2 個
-  （難度 <0.3）或 3 個（之後）；7000 分後 `lateHeat >= 0.5` 時改 4 個：
-  1 個正確答案 + 1–3 個同題庫抽出嚟嘅干擾項。
+  （難度 <0.3）或 3 個（之後）；7000 分後 `heatAt >= 0.5` 時改 4 個：
+  1 個正確答案 + 1–3 個干擾項。7000 分前干擾項由題庫隨機抽；
+  **10000 分後**（`heat3At`）改抽**相近意思**：同一 topic／category 優先
+  （`WJ.wordPool()` 會標 `topic`；20 個內建後備字都有 animals／space／nature 等小組），
+  再用相近字長、共享詞幹／前綴、或中文有相同字做加分，永遠唔會複製正確答案。
+  同類唔夠就退回相近字，再唔夠先隨機。Challenge 用 `difficultyAt`／`heatAt`／`heat3At(y)`
+  跟平台高度出題，唔跟個別玩家嘅獎勵分，咁先公平。
 - HUD 頂部白卡顯示**中文**（`row.zh`）＋「JUMP ON THE RIGHT WORD」；
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
 - 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -1064` 取代原本 `JUMP_V -882`
   嘅反彈，`h = 1064² / (2 × 1217) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
-  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 465px`；每連續 5 題送護盾 8 秒。
+  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 465px`；每連續 5 題送護盾 8 秒
+  （7000 分後呢個係唯一獲得護盾嘅方法，見 §10.4）。
   **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
@@ -539,7 +558,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `rand(68, 90)`／`rand(76, 102)`；平台闊度喺 `spawnPlatform` 嘅
   `opening ? rand(74, 104) : rand(62, 90)`（4500 分後開始收窄，7000 分後更窄，見上）；綠台比例係 `table` 嘅
   `['green', 58 - 14 * d - 12 * h]`。
-- 分數挑戰改 `WJ.SCORE_HEAT_AT`（4500）、`WJ.SCORE_HEAT2_AT`（7000）同 `WJ.SCORE_HEAT2_SPAN`（3000，即 10000 分滿）。
+- 分數挑戰改 `WJ.SCORE_HEAT_AT`（4500）、`WJ.SCORE_HEAT2_AT`（7000）同 `WJ.SCORE_HEAT2_SPAN`（3000，即 10000 分密度封頂）。
+  10000 分後速度／相近干擾項／雙怪改 `WJ.SCORE_HEAT3_AT`（10000）同 `WJ.HEAT3_SPEED_BONUS`（0.12）、`WJ.HEAT3_TWIN_CHANCE`（0.28）。
+  改完速度要確認 `speedAt`／`horizBudget` 用新速度，平台仍然 ≤ `maxGap`。
 - 題目有幾密：`WJ.QUIZ_GAP_MIN/MAX`（380／500）。實際排距會多 ~70px
   （因為字磚要擺喺平台上方 115px），所以**唔好直接當成排距**。
 - 平台橫向距離係 `WJ.horizBudget(gap, climb)`（跟**呢一跳**嘅垂直距離計滯空，

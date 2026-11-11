@@ -658,7 +658,27 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   亦無新增公開寫入 RPC；新 helper 放 private schema，revoke PUBLIC／anon／authenticated execute。
 - 完成／離開／heartbeat 會鎖房行，避免同時 finish 重複計、rematch 同舊 heartbeat 互相覆蓋；
   已完局 heartbeat 唔再改 final scoreboard。前端比分仍由玩家傳入，唔係防作弊系統。
-- 對戰對手鳥嘅即時位置：每位玩家用 `WJC.pushPose()` 約每 160ms 寫自己嘅 `x/y/vx/vy`（唔鎖房行），`heartbeat_wj_challenge` 約每 400ms 仍然負責分數／高度／fallen／勝負。玩緊時玩家列表約每 250ms poll 一次。對方鳥唔會每下 snapshot 即刻閃去新座標：`WJC.adoptSnapshots()` 將位置＋速度入 buffer，`WJC.sampleGhost()` 以約 120ms 延遲插值；未有下一點時用重力推算。左右穿牆用最短路徑，避免橫飛過成個畫面。Shared seed、中途加入／Rejoin、顏色、勝負同「Challenge 唔寫 Solo 榜」規則不變。未跑 `supabase/wj_challenge_sync.sql`（或重跑已包含呢部份嘅 `wj_challenge.sql`）時，前端會自動退回只傳 x/y，仍然做插值，只係跳勢冇真實 vy 咁準。
+- 對戰對手鳥即時位置（smooth2）：`WJC.startTransport()` 用 supabase-js v2 Realtime Broadcast，
+  topic `wjc:<room UUID>`、`self:false`。每 80ms 傳 sender monotonic timestamp／session／seq、
+  world x/y、vx/vy、實際 gravity（普通／boost／jet／prop／pause），落台／踩怪即傳 jump impulse。
+  `receivePose()` 只接受目前 DB 房間成員及當局 started_at，拒絕舊 seq／舊 session／非有限數值。
+  最低 arrival offset 校正兩部機唔同時鐘，180–320ms adaptive buffer 依 sender time 播放，
+  缺包短暫 dead-reckon 後漸停；恢復時 blend-correct，唔直接 snap。世界座標每幀減本地 camY。
+  左右穿邊 period 必須係 **WJ.W + 34**（本地 player 由 -17 ↔ W+17），唔係 WJ.W。
+  Canvas 畫鳥，冇 per-frame DOM recreation。離開／完局／換房清 channel 及 timer；rematch 換 match key。
+- DB heartbeat 仍然每約 400ms 計分／高度／fallen／勝負，玩家／房間 read 改約 800ms，
+  同時只可一組 read，離開後舊 response 唔可重啟房間。Broadcast 連上就停獨立 DB pose writes；
+  斷線時約 400ms 寫 pose fallback，DB snapshots 唔可覆蓋最近收到嘅 Broadcast，重複位置唔當新幀。
+  **今次唔需要新 SQL**，冇 vx/vy 欄嘅舊 DB 亦可以完整 Broadcast，同時保留 x/y fallback。
+  `supabase/wj_challenge_sync.sql` 只係可選嘅 DB fallback 速度欄，唔係新 transport 嘅必要條件。
+- Realtime 用 public topic（毋須新 SQL／Realtime publication）；只傳 visual pose + user UUID，
+  冇 names/emails／答案／分數／token。Room UUID 不是授權：知道 UUID 嘅人仍可訂閱／偽造 visual pose，
+  呢個唔係防作弊系統；比分同勝負仍只經原有 RLS／RPC。若 project 禁用 public channels，
+  會退回較慢 DB 同步。日後要 private Broadcast 必須另設 Realtime authorization RLS（先問老師）。
+- 測試：`node --test tests/wj-challenge-smooth.test.cjs`（直接抽取 production inline JS，
+  sender-clock offset／jitter／掉包／亂序／bounce／boost／pause／穿邊／DB fallback／channel cleanup）。
+  無真實雙帳戶測試時唔好聲稱已實測兩部手機；老師需喺 preview 用兩個帳戶確認手感。
+
 - RLS 只畀 authenticated SELECT。紀錄一過 7 日即不可讀；實體 expired rows 喺每次完局
   或重跑 SQL 時刪除（無 cron，閒置期間可能仍存 DB），**累計 wins／matches 永不跟住刪**。
 - Guests 唔可睇兩個紀錄／榜，teacher preview 只讀，唔寫／開房。未有新表時 UI 提示重跑 SQL。

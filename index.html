@@ -7865,6 +7865,9 @@
                 { id: 'slate',  fill: '#cbd5e1', stroke: '#334155', label: 'Slate' }
             ],
             TARGETS: [2000, 3000, 5000, 8000],
+            MAX_PLAYERS: 4,
+            STALE_MS: 10000,
+            FINISH_POLL_MS: 400,
             RESUME_KEY: 'learniTY_wj_challenge_resume',
             INTERP_MS: 180,
             POSE_MS: 80,
@@ -7921,7 +7924,7 @@
                 return 'Challenge rooms need supabase/wj_challenge.sql — ask your teacher to run it in the SQL editor.';
             }
             if (m.includes('ROOM_NOT_FOUND')) return 'No room with that code (or it has expired).';
-            if (m.includes('ROOM_FULL')) return 'That room is full.';
+            if (m.includes('ROOM_FULL')) return 'Room is full (4/4).';
             if (m.includes('ROOM_FINISHED')) return 'That challenge has already finished.';
             if (m.includes('ROOM_ALREADY_STARTED')) return 'That challenge has already started. If you were already in the room, use Rejoin. Arriving late? Use Join mid-game.';
             if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
@@ -8120,6 +8123,7 @@
 
         WJC.onLeaveView = function () {
             WJC.closeRecords();
+            WJC.clearFallenWatch();
             WJC.stopPolling();
             WJC.stopTransport();
             WJC.epoch = (WJC.epoch || 0) + 1;
@@ -8147,9 +8151,130 @@
         WJC.applyRoom = function (room) {
             if (!room || !room.id) return;
             const prev = WJC.room || {};
+            // A late poll must not revive a finished match.
+            if (prev.id === room.id && prev.status === 'finished' && room.status !== 'finished'
+                && prev.started_at && room.started_at && prev.started_at === room.started_at) {
+                return;
+            }
             WJC.room = Object.assign({}, prev, room);
             if (WJC.room.status !== 'finished') WJC.saveResume();
             else WJC.clearResume();
+        };
+
+        WJC.isOut = function (p) {
+            if (!p) return true;
+            if (p.fallen || p.left_at) return true;
+            if (p.last_seen) {
+                const t = Date.parse(p.last_seen);
+                if (Number.isFinite(t) && Date.now() - t > (WJC.STALE_MS || 10000)) return true;
+            }
+            return false;
+        };
+
+        WJC.seatCount = function (rows) {
+            const seen = {};
+            (rows || WJC.players || []).forEach(p => { if (p && p.user_id) seen[p.user_id] = true; });
+            return Object.keys(seen).length;
+        };
+
+        // Mirrors join_wj_challenge: a 5th distinct player is rejected;
+        // an existing member may rejoin even when the room is at 4/4.
+        WJC.canJoinAs = function (userId, rows, max) {
+            const id = userId || WJC.meId();
+            const list = rows || WJC.players || [];
+            if (list.some(p => p.user_id === id)) return true;
+            return WJC.seatCount(list) < (max || WJC.MAX_PLAYERS || 4);
+        };
+
+        WJC.pollMs = function () {
+            if (!WJC.room) return 1500;
+            if (WJC.room.status === 'finished') return 2000;
+            if (WJC.room.status !== 'playing') return 1500;
+            if ((WJC.players || []).some(WJC.isOut)) return WJC.FINISH_POLL_MS || 400;
+            return WJC.PLAY_POLL_MS;
+        };
+
+        WJC.resultsSig = function () {
+            const r = WJC.room || {};
+            const board = (WJC.players || []).map(p => [p.user_id, p.score, p.height, p.fallen].join(':')).join('|');
+            return [r.id, r.winner_id, r.result_reason, r.finished_at, board].join('/');
+        };
+
+        WJC.clearFallenWatch = function () {
+            if (WJC.fallenWatch) { clearInterval(WJC.fallenWatch); WJC.fallenWatch = null; }
+        };
+
+        WJC.ensureFallenWatch = function () {
+            if (WJC.fallenWatch) return;
+            WJC.fallenWatch = setInterval(function () {
+                if (!WJC.room || WJC.room.status === 'finished' || !WJC.localFallen) {
+                    WJC.clearFallenWatch();
+                    if (WJC.room && WJC.room.status === 'finished') WJC.endMatch();
+                    return;
+                }
+                WJC.pushNow(true);
+                WJC.poll();
+            }, 500);
+        };
+
+        WJC.broadcastFinished = function () {
+            if (!WJC.room || WJC.room.status !== 'finished') return;
+            const key = WJC.room.id + ':' + (WJC.room.finished_at || WJC.room.started_at || '');
+            if (WJC.didBroadcastFinish === key) return;
+            WJC.didBroadcastFinish = key;
+            const channel = WJC.poseChannel;
+            if (!channel || !WJC.broadcastReady) return;
+            channel.send({
+                type: 'broadcast',
+                event: 'finished',
+                payload: {
+                    id: WJC.room.id,
+                    status: 'finished',
+                    winner_id: WJC.room.winner_id,
+                    result_reason: WJC.room.result_reason,
+                    started_at: WJC.room.started_at,
+                    finished_at: WJC.room.finished_at
+                }
+            }).catch(() => {});
+        };
+
+        // Stop the local climb immediately — including mid-jump — and show the
+        // end screen to every client, including the last player still standing.
+        WJC.endMatch = function (room) {
+            if (room) WJC.applyRoom(room);
+            if (!WJC.room || WJC.room.status !== 'finished') return;
+            WJC.clearFallenWatch();
+            WJ.challenge = true;
+            WJ.running = false;
+            WJ.paused = true;
+            if (WJ.player) { WJ.player.vx = 0; WJ.player.boostHang = false; }
+            if (WJ.raf) cancelAnimationFrame(WJ.raf);
+            WJ.raf = 0;
+            WJ.state = 'over';
+            const same = WJC.overlayMode === 'results' && WJC._resultsSig === WJC.resultsSig();
+            if (!same) WJC.broadcastFinished();
+            WJC.stopTransport();
+            if (!same) WJC.showResults();
+            WJC.startPolling(2000);
+            WJC.syncTopicLock();
+        };
+
+        WJC.onFinishedEvent = function (room) {
+            if (!room || !WJC.room) return;
+            if (room.id && room.id !== WJC.room.id) return;
+            if (room.status && room.status !== 'finished') return;
+            if (room.started_at && WJC.room.started_at && room.started_at !== WJC.room.started_at) return;
+            WJC.applyRoom(Object.assign({}, room, { status: 'finished', id: room.id || WJC.room.id }));
+            WJC.endMatch();
+            WJC.poll();
+        };
+
+        WJC.maybeClaimWin = function () {
+            if (!WJC.room || WJC.room.status !== 'playing' || WJC.localFallen) return;
+            const rows = WJC.players || [];
+            if (rows.length < 2) return;
+            const out = rows.filter(WJC.isOut);
+            if (out.length >= 1 && rows.length - out.length <= 1) WJC.pushNow(false);
         };
 
         async function wjcRpc(name, args) {
@@ -8186,6 +8311,10 @@
                 }
                 WJC.applyRoom(roomRes.data);
                 WJC.players = playersRes.data || [];
+                if (WJC.room && WJC.room.status === 'finished') {
+                    WJC.endMatch();
+                    return;
+                }
                 if (WJC.room && WJC.room.status === 'playing') WJC.adoptSnapshots(WJC.players);
                 else WJC.ghosts = {};
                 WJC.reactToState();
@@ -8199,6 +8328,7 @@
         WJC.reactToState = function () {
             if (!WJC.room) return;
             const st = WJC.room.status;
+            if (st === 'finished') { WJC.endMatch(); return; }
             if (st !== 'playing') WJC.stopTransport();
             if (st === 'waiting') {
                 if (WJ.challenge && (WJ.state === 'playing' || WJ.state === 'over')) {
@@ -8233,19 +8363,10 @@
                 } else if (WJC.localFallen && WJC.overlayMode !== 'results') {
                     WJC.showFallenOverlay();
                 }
+                WJC.maybeClaimWin();
                 WJC.startTransport();
-                WJC.startPolling(WJC.PLAY_POLL_MS);
+                WJC.startPolling(WJC.pollMs());
                 WJC.syncTopicLock();
-            } else if (st === 'finished') {
-                WJ.challenge = true;
-                if (WJ.state === 'playing') {
-                    WJ.running = false;
-                    if (WJ.raf) cancelAnimationFrame(WJ.raf);
-                    WJ.raf = 0;
-                    WJ.state = 'over';
-                }
-                WJC.showResults();
-                WJC.startPolling(2000);
             }
         };
 
@@ -8305,7 +8426,7 @@
             WJ.setOverlay(`
                 <div class="w-full py-1 text-left">
                     <h3 class="text-xl font-bold text-emerald-600 text-center mb-1">Challenge friends</h3>
-                    <p class="text-gray-500 text-xs text-center mb-3">Open a room or join with a 4-character code. Mid-game join and Rejoin work like Word Battle.</p>
+                    <p class="text-gray-500 text-xs text-center mb-3">Open a room or join with a 4-character code. Up to 4 players. Mid-game join and Rejoin work like Word Battle.</p>
                     ${reason ? `<p class="text-xs text-amber-700 font-bold mb-3 text-center">${escapeHtml(reason)}</p>` : ''}
                     <div class="${reason ? 'opacity-60 pointer-events-none' : ''}">
                         <p class="text-xs font-bold text-gray-500 mb-1">Create room</p>
@@ -8406,7 +8527,8 @@
                     <button type="button" onclick="WJC.copyCode()" class="px-3 py-1 bg-gray-100 rounded-full font-bold text-gray-600 text-xs">📋 Copy code</button>
                     <p class="text-[11px] text-gray-400 mt-2">Pick a bird colour so everyone can tell you apart.</p>
                     <div class="mt-2">${WJC.colorButtons(me ? me.color : 'lime', true)}</div>
-                    <div class="mt-3 text-left">${present.map(WJC.playerLine).join('') || '<p class="text-xs text-gray-400">No players yet.</p>'}</div>
+                    <p class="text-xs font-bold text-gray-500 mt-3 text-left">Players ${present.length}/${WJC.MAX_PLAYERS || 4}</p>
+                    <div class="mt-1 text-left">${present.map(WJC.playerLine).join('') || '<p class="text-xs text-gray-400">No players yet.</p>'}</div>
                     ${setup}
                     ${startBtn}
                     <p id="wjc-error" class="text-red-400 font-bold text-center text-xs mt-2">${escapeHtml(WJC.error || '')}</p>
@@ -8454,6 +8576,7 @@
         WJC.showResults = function () {
             if (!WJC.room) return;
             WJC.overlayMode = 'results';
+            WJC._resultsSig = WJC.resultsSig();
             const winner = (WJC.players || []).find(p => p.user_id === WJC.room.winner_id);
             const winName = winner ? (winner.nickname || (winner.email || '').split('@')[0]) : 'No one';
             const mineWin = currentUser && WJC.room.winner_id === currentUser.id;
@@ -8617,6 +8740,9 @@
         };
 
         WJC.resetLocal = function () {
+            WJC.clearFallenWatch();
+            WJC.pendingFallen = false;
+            WJC.queuedHeartbeat = null;
             WJC.stopPolling();
             WJC.stopTransport();
             WJC.epoch = (WJC.epoch || 0) + 1;
@@ -8718,9 +8844,12 @@
         WJC.onLocalFallen = function (reason, score) {
             WJC.localFallen = true;
             WJ.beep(150, 0.4, 'sawtooth', 0.06);
-            WJC.pushNow(true).then(() => {
+            WJC.ensureFallenWatch();
+            Promise.resolve(WJC.pushNow(true)).then(() => {
+                if (WJC.room && WJC.room.status === 'finished') WJC.endMatch();
+                else WJC.showFallenOverlay(reason || 'You fell too far!');
+            }).catch(() => {
                 WJC.showFallenOverlay(reason || 'You fell too far!');
-                if (WJC.room && WJC.room.status === 'finished') WJC.showResults();
             });
             WJ.draw();
         };
@@ -8779,37 +8908,48 @@
         };
 
         WJC.pushNow = async function (fallen) {
-            if (!WJC.room || !currentUser || WJC.pushing) return;
+            if (!WJC.room || !currentUser) return;
             if (previewStudentForm() || isGuestUser()) return;
+            if (fallen) WJC.pendingFallen = true;
             if (WJC.room.status !== 'playing' && WJC.room.status !== 'finished') return;
+            if (WJC.pushing) {
+                WJC.queuedHeartbeat = { fallen: !!(fallen || WJC.pendingFallen) };
+                return;
+            }
+            const sendFallen = !!(fallen || WJC.pendingFallen);
             const roomId = WJC.room.id, startedAt = WJC.room.started_at, epoch = WJC.epoch;
             WJC.pushing = true;
             WJC.lastPush = Date.now();
             try {
                 let room;
                 try {
-                    room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(fallen, WJC.hbVel !== false));
+                    room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(sendFallen, WJC.hbVel !== false));
                     if (WJC.hbVel == null) WJC.hbVel = true;
                 } catch (e) {
                     const m = (e && e.message) || '';
                     if (WJC.hbVel !== false && /could not find the function|PGRST202|42883/i.test(m)) {
                         WJC.hbVel = false;
-                        room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(fallen, false));
+                        room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(sendFallen, false));
                     } else {
                         throw e;
                     }
                 }
                 if (!WJC.room || WJC.room.id !== roomId || WJC.room.started_at !== startedAt || WJC.epoch !== epoch) {
-                    WJC.pushing = false; return;
+                    return;
                 }
+                if (sendFallen) WJC.pendingFallen = false;
                 if (room) WJC.applyRoom(room);
-                if (room && room.status === 'finished' && WJC.overlayMode !== 'results') {
-                    WJC.poll();
-                }
+                if (room && room.status === 'finished') WJC.endMatch(room);
             } catch (e) {
                 if (!WJC.sqlMissing) console.warn('WJ challenge heartbeat:', e.message || e);
+            } finally {
+                WJC.pushing = false;
+                if (WJC.queuedHeartbeat && WJC.room && WJC.room.id === roomId && WJC.epoch === epoch) {
+                    const q = WJC.queuedHeartbeat;
+                    WJC.queuedHeartbeat = null;
+                    await WJC.pushNow(q.fallen);
+                }
             }
-            WJC.pushing = false;
         };
 
 
@@ -8893,9 +9033,22 @@
                     config: { broadcast: { self: false, ack: false } }
                 });
                 WJC.poseChannel = channel;
-                channel.on('broadcast', { event: 'pose' }, ({ payload }) => {
-                    if (WJC.poseChannel === channel) WJC.receivePose(payload);
-                }).subscribe(status => {
+                channel
+                    .on('broadcast', { event: 'pose' }, ({ payload }) => {
+                        if (WJC.poseChannel === channel) WJC.receivePose(payload);
+                    })
+                    .on('broadcast', { event: 'finished' }, ({ payload }) => {
+                        if (WJC.poseChannel === channel) WJC.onFinishedEvent(payload);
+                    })
+                    .on('postgres_changes', {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'wj_challenge_rooms',
+                        filter: 'id=eq.' + WJC.room.id
+                    }, payload => {
+                        if (WJC.poseChannel === channel) WJC.onFinishedEvent(payload && payload.new);
+                    })
+                    .subscribe(status => {
                     if (WJC.poseChannel !== channel) return;
                     WJC.broadcastReady = status === 'SUBSCRIBED';
                     if (WJC.broadcastReady) WJC.pushPose();

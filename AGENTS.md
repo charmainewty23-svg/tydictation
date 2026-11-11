@@ -599,17 +599,22 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `insert with check (auth.uid() = user_id)`（只可以寫自己）。
 - 前端：
   - `WJ.gameOver()` → `WJ.submitScore(score)`：登入咗就 fire-and-forget insert，
-    失敗只 `console.warn`，唔會阻住遊戲結束畫面。
+    失敗只 `console.warn`，唔會阻住遊戲結束畫面。訪客同老師 student-account preview
+    都唔會上傳分數。
   - `WJ.loadLeaderboard()`：撈 `wj_leaderboard` 頭 7 名，畫入 game-over 卡嘅 `#wj-lb`；
     自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。訪客模式唔會撈榜，亦唔會 upload 分數。
   - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、分、幾個字）。
+  - Hub Leaderboard（`leaderboard-view`）有 All／Listening／Recitation／**Word Jump** 分頁。
+    Word Jump 分頁撈同一個 `wj_leaderboard` view，只顯示**個人最佳頭 10 名**（按最高分，同分先到先排）。
+    學生睇平坦名單；老師畫面按年級分組（冇 +/- 收起掣，同其他 Hub Leaderboard 分頁一樣）。
+    訪客仍然入唔到呢頁。
   - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
     學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾局、幾時玩、高度、字數）。
     `changeView('admin-view')` 會自動 call。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
-  `wj_scores.sql`）」，admin 卡顯示同一句提示，遊戲照玩。
-- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；admin 用 `.limit(1000)`，
-  先至每個 form 嘅學生都會出現。老師畫面按年級分組，每組內自行排名次。
+  `wj_scores.sql`）」，Hub Leaderboard 嘅 Word Jump 分頁同 admin 卡顯示同一句提示，遊戲照玩。
+- 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；Hub Leaderboard Word Jump 分頁 `.limit(10)`；
+  admin 用 `.limit(1000)`，先至每個 form 嘅學生都會出現。老師畫面按年級分組，每組內自行排名次。
 - 誠實聲明：分數由 client 寫入，**可以造假**；同 Word Battle 一樣只適合課堂激勵。
 
 ### 10.12 同學高度線（milestone markers）

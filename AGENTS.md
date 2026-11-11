@@ -596,9 +596,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 **要喺 Supabase SQL Editor 跑一次**，唔會自動建表；重跑安全。唔使跟 battle 系列順序。
 
 - 表 `wj_scores`：每局一行（`user_id, email, nickname, topic, score, height, words`）。
-- View `wj_leaderboard`：**每人一行**（個人最佳；榜上顯示高度同中嘅生字量，唔顯示局數）。`plays` 欄仍然存在，但前端唔展示。
-  用 `row_number() over (partition by user_id order by score desc, created_at asc)` 抽第一行，
-  `security_invoker = true` 令 RLS 生效。
+- View `wj_leaderboard`：**每人一行**（個人最佳單局；榜上顯示嗰局嘅分數同命中生字量，唔顯示局數，亦唔再用高度做榜上數字）。`plays` 欄仍然存在，但前端唔展示。
+  用 `row_number() over (partition by user_id order by score desc, words desc, created_at asc)` 抽第一行，
+  `security_invoker = true` 令 RLS 生效。若老師已跑過舊版 view，要重跑 `supabase/wj_scores.sql` 先會用「同分再比中字量」嚟揀個人最佳嗰行。
 - RLS：`select using (true)`（**全世界讀得到**，否則排行榜載入唔到）；
   `insert with check (auth.uid() = user_id)`（只可以寫自己）。
 - 前端：
@@ -607,13 +607,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     都唔會上傳分數。
   - `WJ.loadLeaderboard()`：撈 `wj_leaderboard` 頭 7 名，畫入 game-over 卡嘅 `#wj-lb`；
     自己嗰行會 highlight ＋ 標「(你)」。未登入會加一句「今局唔會上榜」。訪客模式唔會撈榜，亦唔會 upload 分數。
-  - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、高度、中咗幾個字）。
+  - `WJ.rankRow()`：一行嘅 HTML（🥇🥈🥉 / 名次、名、個人最佳分數、中咗幾個字）。
   - Hub Leaderboard（`leaderboard-view`）有 All／Listening／Recitation／**Word Jump** 分頁。
-    Word Jump 分頁撈同一個 `wj_leaderboard` view，只顯示**個人最佳頭 10 名**（按高度，同分再按中字量，再同分先到先排）。每行顯示高度同中咗嘅生字量，唔顯示玩咗幾多局，亦唔顯示分數。
+    Word Jump 分頁撈同一個 `wj_leaderboard` view，只顯示**個人最佳頭 10 名**（按最佳分數，同分再按中字量，再同分先到先排）。每行顯示分數同中咗嘅生字量，唔顯示玩咗幾多局，亦唔再用高度做榜上數字。文案：「Personal bests — top 10 by best score and words collected.」
     學生睇平坦名單；老師畫面按年級分組（冇 +/- 收起掣，同其他 Hub Leaderboard 分頁一樣）。
     訪客仍然入唔到呢頁。
   - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
-    學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾時玩、高度、中字量；唔顯示局數）。
+    學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾時玩、最佳分數、中字量；唔顯示局數）。
     `changeView('admin-view')` 會自動 call。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，Hub Leaderboard 嘅 Word Jump 分頁同 admin 卡顯示同一句提示，遊戲照玩。
@@ -658,11 +658,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   亦無新增公開寫入 RPC；新 helper 放 private schema，revoke PUBLIC／anon／authenticated execute。
 - 完成／離開／heartbeat 會鎖房行，避免同時 finish 重複計、rematch 同舊 heartbeat 互相覆蓋；
   已完局 heartbeat 唔再改 final scoreboard。前端比分仍由玩家傳入，唔係防作弊系統。
+- 對戰對手鳥嘅即時位置：每位玩家用 `WJC.pushPose()` 約每 160ms 寫自己嘅 `x/y/vx/vy`（唔鎖房行），`heartbeat_wj_challenge` 約每 400ms 仍然負責分數／高度／fallen／勝負。玩緊時玩家列表約每 250ms poll 一次。對方鳥唔會每下 snapshot 即刻閃去新座標：`WJC.adoptSnapshots()` 將位置＋速度入 buffer，`WJC.sampleGhost()` 以約 120ms 延遲插值；未有下一點時用重力推算。左右穿牆用最短路徑，避免橫飛過成個畫面。Shared seed、中途加入／Rejoin、顏色、勝負同「Challenge 唔寫 Solo 榜」規則不變。未跑 `supabase/wj_challenge_sync.sql`（或重跑已包含呢部份嘅 `wj_challenge.sql`）時，前端會自動退回只傳 x/y，仍然做插值，只係跳勢冇真實 vy 咁準。
 - RLS 只畀 authenticated SELECT。紀錄一過 7 日即不可讀；實體 expired rows 喺每次完局
   或重跑 SQL 時刪除（無 cron，閒置期間可能仍存 DB），**累計 wins／matches 永不跟住刪**。
 - Guests 唔可睇兩個紀錄／榜，teacher preview 只讀，唔寫／開房。未有新表時 UI 提示重跑 SQL。
 - 老師要喺 live project `mggnwzirjmibreimrwiq` **重跑整份** `supabase/wj_challenge.sql`，可重複跑。
   無舊局 backfill：以前 rematch 已覆寫嘅紀錄無法重建；新功能由安裝後完成嘅比賽開始計。
+  若已經跑過呢份檔，之後只想加對手鳥同步用嘅 `vx`／`vy`，跑短嘅 `supabase/wj_challenge_sync.sql` 就夠，唔使再貼成份。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

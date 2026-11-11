@@ -5217,18 +5217,20 @@
            ========================================================== */
         const WJ = {
             W: 400, H: 600,
-            GRAVITY: 1030, JUMP_V: -811, WORD_BOOST: -979,
-            JET_V: -765, PROP_V: -193,
+            GRAVITY: 1217, JUMP_V: -882, WORD_BOOST: -1064,
+            JET_V: -832, PROP_V: -210,
+            // Regular jump hang was shortened ×0.92 (1.58s → 1.45s) with
+            // height kept at 319px: GRAVITY ÷ 0.92², JUMP_V ÷ 0.92.
             // The correct-word launch keeps the same 465px height as the raw
             // WORD_BOOST, but its hang time is stretched ×WORD_BOOST_HANG so
             // students have longer to read the next Chinese prompt.
             // vy ÷ s and gravity ÷ s² keep the height identical:
-            // -979/1.35 ≈ -725, 1030/1.35² ≈ 565 → 725²/(2·565) ≈ 465px.
-            // Normal jumps (JUMP_V + GRAVITY, 1.58s / 319px) are untouched.
+            // -1064/1.35 ≈ -788, 1217/1.35² ≈ 668 → 788²/(2·668) ≈ 465px.
             WORD_BOOST_HANG: 1.35,
-            BOOST_VY: -725, BOOST_G: 565,
+            BOOST_VY: -788, BOOST_G: 668,
             MOVE_MAX: 240, STEER_RATE: 16, STEER_STOP: 18,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
+            SCORE_HEAT_AT: 8000, SCORE_HEAT_SPAN: 4000,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
             QUIZ_GAP_MIN: 380, QUIZ_GAP_MAX: 500,
             mounted: false, running: false, paused: false, state: 'intro',
@@ -5254,6 +5256,9 @@
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
+        // difficulty() caps at 9000px climb (~900 height points). lateHeat
+        // starts a second ramp at 8000 score and reaches 1 at 12000.
+        WJ.lateHeat = () => WJ.clamp((WJ.score() - WJ.SCORE_HEAT_AT) / WJ.SCORE_HEAT_SPAN, 0, 1);
 
         /* Horizontal top speed ramps from SPEED_RAMP_FROM * MOVE_MAX at the
            bottom of a run to MOVE_MAX once you have climbed a while. */
@@ -5343,6 +5348,7 @@
             WJ.passFlash = 0;
             WJ.passLabels = [];
             WJ.lastPassFx = null;
+            WJ.heatAnnounced = false;
             (WJ.milestones || []).forEach(m => { m.passed = false; });
             WJ.platforms.push({
                 x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green',
@@ -5729,7 +5735,8 @@
 
         WJ.spawnQuizRow = function (y) {
             const d = WJ.difficulty();
-            const count = d < 0.3 ? 2 : 3;
+            const h = WJ.lateHeat();
+            const count = h > 0.35 ? 4 : (d < 0.3 ? 2 : 3);
             const pool = WJ.wordPool();
             if (!pool.length) return;
 
@@ -5840,7 +5847,7 @@
 
         /* A jump only spends its full airtime if the next pad is all the way
            back at the height you left. A pad 250px up is met on the way down
-           much sooner, so the sideways distance is shorter than speed * 1.58s.
+           much sooner, so the sideways distance is shorter than speed * 1.45s.
            REACH_FACTOR keeps a margin for reversing leftover speed and for the
            fixed 1/120 step. */
         WJ.REACH_FACTOR = 0.8;
@@ -5919,13 +5926,14 @@
 
         WJ.pickType = function () {
             const d = WJ.difficulty();
+            const h = WJ.lateHeat();
             const table = [
-                ['green', 58 - 14 * d],
+                ['green', 58 - 14 * d - 12 * h],
                 ['blue', 14],
                 ['gray', 12],
-                ['brown', 9 + 5 * d],
-                ['yellow', 8 + 4 * d],
-                ['white', 6 + 3 * d]
+                ['brown', 9 + 5 * d + 6 * h],
+                ['yellow', 8 + 4 * d + 5 * h],
+                ['white', 6 + 3 * d + 4 * h]
             ];
             let total = 0;
             table.forEach(t => { total += t[1]; });
@@ -5979,12 +5987,13 @@
 
         WJ.makePlatform = function (x, y, w, type, amp) {
             const d = WJ.difficulty();
+            const h = WJ.lateHeat();
             const pl = {
                 x, y, w, h: 13, type,
                 baseX: x, baseY: y,
                 phase: Math.random() * Math.PI * 2,
                 amp: amp || 0,
-                speed: WJ.rand(0.5, 1.1),
+                speed: WJ.rand(0.5, 1.1) * (1 + 0.35 * h),
                 dead: false, fuse: 0, gadget: null
             };
             WJ.platforms.push(pl);
@@ -5994,20 +6003,20 @@
                     used: false
                 };
             }
-            if (y < -1500 && Math.random() < 0.05 + 0.07 * d) {
+            if (y < -1500 && Math.random() < 0.05 + 0.07 * d + 0.06 * h) {
                 WJ.monsters.push({
                     x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
                     range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
-                    speed: WJ.rand(20, 40), r: 19, dead: false
+                    speed: WJ.rand(20, 40) * (1 + 0.3 * h), r: 19, dead: false
                 });
             }
-            if (y < -2400 && Math.random() < 0.022) {
+            if (y < -2400 && Math.random() < 0.022 + 0.018 * h) {
                 WJ.ufos.push({
                     x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
                     r: 26, dead: false, beam: false, bob: Math.random() * 6.28
                 });
             }
-            if (y < -3000 && d > 0.25 && Math.random() < 0.02) {
+            if (y < -3000 && d > 0.25 && Math.random() < 0.02 + 0.02 * h) {
                 WJ.holes.push({
                     x: WJ.rand(70, WJ.W - 70), y: y - WJ.rand(80, 160),
                     r: 28, dead: false
@@ -6026,7 +6035,11 @@
                 const base = WJ.afterQuiz ? WJ.rand(240, 275)
                           : opening ? WJ.rand(68, 90)
                           : WJ.rand(76, 102);
-                const step = base * (1 - WJ.difficulty() * 0.1);
+                // lateHeat may widen ordinary gaps; the tall after-quiz gap
+                // stays on the original curve so questions cannot be skipped
+                // and remain reachable (always ≤ maxGap).
+                const heat = WJ.afterQuiz ? 0 : WJ.lateHeat();
+                const step = Math.min(WJ.maxGap(), base * (1 - WJ.difficulty() * 0.1 + 0.12 * heat));
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
                     // 115px under the row: high enough that the row is a
@@ -6066,7 +6079,8 @@
                 WJ.commitLayer([{ x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green', baseX: WJ.W / 2 - 46, baseY: 0, amp: 0 }], true);
             }
             const opening = WJ.maxClimb < 1500;
-            const w0 = opening ? WJ.rand(74, 104) : WJ.rand(62, 90);
+            const shrink = opening ? 0 : 10 * WJ.lateHeat();
+            const w0 = opening ? WJ.rand(74, 104) : WJ.rand(Math.max(50, 62 - shrink), Math.max(54, 90 - shrink));
             let goals = WJ.goalAnchors(y);
             let lowY = -1e9, gap = 0;
             goals.forEach(a => {
@@ -6493,6 +6507,10 @@
 
             if (p.y - WJ.camY < WJ.H * 0.42) WJ.camY = p.y - WJ.H * 0.42;
             WJ.maxClimb = Math.max(WJ.maxClimb, -p.y);
+            if (!WJ.heatAnnounced && WJ.score() >= WJ.SCORE_HEAT_AT) {
+                WJ.heatAnnounced = true;
+                WJ.toast('⚡ Challenge up!', '#d97706');
+            }
             WJ.checkMilestones();
 
             WJ.genUpTo(WJ.camY - WJ.H * 0.6);

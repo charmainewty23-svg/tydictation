@@ -275,6 +275,14 @@
             max-height: 100%;
             aspect-ratio: 2 / 3;
         }
+        .wj-color-dot {
+            width: 28px; height: 28px; border-radius: 999px;
+            border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+            cursor: pointer; padding: 0;
+        }
+        .wj-color-dot[aria-pressed="true"] { border-color: #0f766e; box-shadow: 0 0 0 2px #99f6e4; }
+        .wj-color-dot:disabled { cursor: default; opacity: 0.7; }
+
         /* The in-game full screen button must not depend on Tailwind utilities. */
         #wj-fs-enter,
         #wj-exit-fs {
@@ -509,10 +517,11 @@
 
                 <div id="hub-wordjump-entry" class="hub-card md:col-span-2" onclick="openWordJump('hub-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#6ee7b7;">
                     <div class="text-4xl">🦘</div>
-                    <div>
+                    <div class="flex-1">
                         <h2 class="text-xl font-bold text-emerald-600">Word Jump</h2>
-                        <p class="text-gray-400 text-sm">Solo practice climb — read the Chinese, land on the English word.</p>
+                        <p id="hub-wj-sub" class="text-gray-400 text-sm">Solo climb or Challenge friends — read the Chinese, land on the English word.</p>
                     </div>
+                    <button id="hub-wj-rejoin" type="button" onclick="event.stopPropagation(); WJC.rejoin();" class="hidden px-5 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">🔄 Rejoin</button>
                 </div>
 
                 <div id="hub-battle-entry" class="hub-card md:col-span-2" onclick="changeView('battle-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#93c5fd;">
@@ -741,9 +750,9 @@
                         <div>
                             <h3 class="font-bold text-emerald-700 text-lg">
                                 🦘 Word Jump
-                                <span class="text-[10px] align-middle ml-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full">SOLO</span>
+                                <span class="text-[10px] align-middle ml-1 bg-emerald-500 text-white px-2 py-0.5 rounded-full">SOLO / CHALLENGE</span>
                             </h3>
-                            <p class="text-gray-500 text-sm">Doodle-Jump style endless climb — read the Chinese, land on the matching English word, blast monsters.</p>
+                            <p class="text-gray-500 text-sm">Doodle-Jump style climb — play Solo, or Challenge friends in a live room.</p>
                         </div>
                         <button onclick="openWordJump('battle-view')" class="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-colors">Play Word Jump</button>
                     </div>
@@ -963,6 +972,7 @@
                         <button onclick="loadLeaderboard('listening')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Listening</button>
                         <button onclick="loadLeaderboard('recitation')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Recitation</button>
                         <button onclick="loadLeaderboard('wordjump')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Word Jump</button>
+                        <button onclick="loadLeaderboard('wjchallenge')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">WJ Challenge wins</button>
                     </div>
                     <div id="leaderboard-container">
                         <div class="flex flex-col items-center py-10">
@@ -3509,7 +3519,9 @@
             if (!blurb) return;
             blurb.textContent = lbModeFilter === 'wordjump'
                 ? 'Personal bests — top 10 by height and words collected.'
-                : 'Cumulative scores — practice more to rank higher!';
+                : lbModeFilter === 'wjchallenge'
+                    ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
+                    : 'Cumulative scores — practice more to rank higher!';
         }
 
         async function loadLeaderboard(mode) {
@@ -3520,6 +3532,12 @@
             const container = document.getElementById('leaderboard-container');
             if (!container) return;
             container.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-orange-400 font-bold">Loading...</p></div>';
+            if (lbModeFilter === 'wjchallenge') {
+                const { data, error } = await WJC.fetchWins();
+                if (lbModeFilter !== 'wjchallenge' || isGuestUser() || !currentUser) return;
+                container.innerHTML = error ? WJC.reportError(error) : WJC.winsHtml(data);
+                return;
+            }
             if (isAdmin()) await ensureFormDirectory();
             if (lbModeFilter === 'wordjump') {
                 const { data, error } = await sb.from('wj_leaderboard')
@@ -3571,7 +3589,7 @@
         function renderLeaderboard() {
             if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
-            if (!container || !lbRows) return;
+            if (!container || !lbRows || lbModeFilter === 'wjchallenge') return;
             if (lbModeFilter === 'wordjump') {
                 renderWordJumpLeaderboard(container);
                 return;
@@ -5406,6 +5424,7 @@
             }
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
+            if (viewId !== 'wordjump-view' && typeof WJC !== 'undefined') WJC.onLeaveView();
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
             if (!keepVocabPoll) nvStopPoll();
             if (window.lastFinalView) {
@@ -5420,6 +5439,7 @@
             if (viewId === 'hub-view') {
                 updateMascot("Awesome! What would you like to learn next?");
                 battleRenderRejoin();
+                if (typeof WJC !== 'undefined') WJC.renderRejoin();
             }
             if (viewId === 'home-view') {
                 updateMascot("Choose a topic to begin your dictation journey.");
@@ -5545,11 +5565,33 @@
             CHEERS: ['wow!', 'superb!', 'bravo!'], cheerIndex: 0
         };
 
-        WJ.rand = (a, b) => a + Math.random() * (b - a);
-        WJ.pick = arr => arr[Math.floor(Math.random() * arr.length)];
+        WJ.nextRand = function () { return WJ.rng ? WJ.rng() : Math.random(); };
+        WJ.rand = (a, b) => a + WJ.nextRand() * (b - a);
+        WJ.pick = arr => arr[Math.floor(WJ.nextRand() * arr.length)];
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
+        // Challenge rooms share a course: difficulty / heat at a platform
+        // must follow that platform's height, not the local player's score
+        // (bonuses would otherwise desync the seed). Solo keeps the original
+        // live-score behaviour below.
+        WJ.difficultyAt = function (y) {
+            if (WJ.challenge) return WJ.clamp(Math.max(0, -(y == null ? WJ.topY : y)) / 9000, 0, 1);
+            return WJ.difficulty();
+        };
+        WJ.heatAt = function (y) {
+            if (!WJ.challenge) return WJ.lateHeat();
+            const s = Math.max(0, Math.floor(Math.max(0, -(y == null ? WJ.topY : y)) / 10));
+            if (s < WJ.SCORE_HEAT_AT) return 0;
+            if (s < WJ.SCORE_HEAT2_AT) {
+                return 0.5 * (s - WJ.SCORE_HEAT_AT) / (WJ.SCORE_HEAT2_AT - WJ.SCORE_HEAT_AT);
+            }
+            return WJ.clamp(0.5 + 0.5 * (s - WJ.SCORE_HEAT2_AT) / WJ.SCORE_HEAT2_SPAN, 0, 1);
+        };
+        WJ.openingAt = function (y) {
+            if (WJ.challenge) return Math.max(0, -(y == null ? WJ.topY : y)) < 1500;
+            return WJ.maxClimb < 1500;
+        };
         // difficulty() caps at 9000px climb (~900 height points). lateHeat
         // then adds two score ramps: 4500–7000 rises to 0.5, 7000–10000 to 1.
         WJ.lateHeat = function () {
@@ -5611,7 +5653,7 @@
             if (!WJ.platforms.length) WJ.reset();
             WJ.populateTopics();
             WJ.setTopicDefault();
-            WJ.showIntro();
+            WJ.showEntry();
             WJ.loadMilestones();
             WJ.draw();
         };
@@ -5809,8 +5851,21 @@
         };
 
         WJ.quit = function () {
+            if (typeof WJC !== 'undefined' && WJC.room) {
+                WJC.quitFromGame();
+                return;
+            }
             WJ.stop();
             changeView(WJ.backView || 'hub-view');
+        };
+
+        WJ.showEntry = function () {
+            if (typeof WJC !== 'undefined' && WJC.room) {
+                WJC.showRoom();
+                return;
+            }
+            if (typeof WJC !== 'undefined') WJC.showModeSelect();
+            else WJ.showIntro();
         };
 
         WJ.togglePause = function () {
@@ -5861,6 +5916,10 @@
            already deliberate. */
         WJ.restart = function (force) {
             if (!WJ.canvas) { WJ.mount(); return; }
+            if (WJ.challenge) {
+                WJ.toast('Restart is off in a challenge.', '#0f766e');
+                return;
+            }
             if (!force && WJ.state === 'playing' && !WJ.paused && WJ.score() > 0) {
                 if (!window.confirm('Restart this run? Your score will be lost.')) return;
             }
@@ -5903,6 +5962,7 @@
            determined student could fake one — keep this for classroom fun,
            not for assessment. */
         WJ.submitScore = function (score) {
+            if (WJ.challenge) return;   // challenge results stay in the room; the solo board is solo-only
             if (previewStudentForm()) return;
             if (!canUseCloud() || typeof sb === 'undefined' || !sb) return;
             const topic = (WJ.topic && WJ.topic !== '__all__') ? WJ.topic : 'all';
@@ -5970,6 +6030,10 @@
             WJ.raf = 0;
             WJ.state = 'over';
             const score = WJ.score();
+            if (WJ.challenge && typeof WJC !== 'undefined') {
+                WJC.onLocalFallen(reason, score);
+                return;
+            }
             const store = isGuestUser() ? sessionStorage : localStorage;
             const prev = Number(store.getItem('wj_best') || 0);
             const isBest = score > prev;
@@ -6056,7 +6120,7 @@
                 options.push({ en: cand.en, zh: cand.zh || '', ok: false });
             }
             for (let i = options.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
+                const j = Math.floor(WJ.nextRand() * (i + 1));
                 const t = options[i]; options[i] = options[j]; options[j] = t;
             }
 
@@ -6141,6 +6205,7 @@
         };
 
         WJ.changeTopic = function (v) {
+            if (WJ.challenge) return;
             WJ.topic = v || '__all__';
             // Skip the question he is already climbing towards; the next row
             // that spawns will come from the new topic.
@@ -6228,9 +6293,9 @@
             return out.length ? out : [{ x: WJ.W / 2 - 46, y: 0, w: 92, ampX: 0, ampY: 0 }];
         };
 
-        WJ.pickType = function () {
-            const d = WJ.difficulty();
-            const h = WJ.lateHeat();
+        WJ.pickType = function (y) {
+            const d = WJ.difficultyAt(y);
+            const h = WJ.heatAt(y);
             const table = [
                 ['green', 58 - 14 * d - 12 * h],
                 ['blue', 14],
@@ -6241,7 +6306,7 @@
             ];
             let total = 0;
             table.forEach(t => { total += t[1]; });
-            let r = Math.random() * total, type = 'green';
+            let r = WJ.nextRand() * total, type = 'green';
             for (let i = 0; i < table.length; i++) {
                 r -= table[i][1];
                 if (r <= 0) { type = table[i][0]; break; }
@@ -6286,41 +6351,41 @@
                 if (!wrap) straight.push(c);
             }
             const pool = straight.length ? straight : slots;
-            return pool[Math.floor(Math.random() * pool.length)];
+            return pool[Math.floor(WJ.nextRand() * pool.length)];
         };
 
         WJ.makePlatform = function (x, y, w, type, amp) {
-            const d = WJ.difficulty();
-            const h = WJ.lateHeat();
+            const d = WJ.difficultyAt(y);
+            const h = WJ.heatAt(y);
             const pl = {
                 x, y, w, h: 13, type,
                 baseX: x, baseY: y,
-                phase: Math.random() * Math.PI * 2,
+                phase: WJ.nextRand() * Math.PI * 2,
                 amp: amp || 0,
                 speed: WJ.rand(0.5, 1.1) * (1 + 0.35 * h),
                 dead: false, fuse: 0, gadget: null
             };
             WJ.platforms.push(pl);
-            if (type !== 'brown' && type !== 'white' && y < -700 && Math.random() < 0.09) {
+            if (type !== 'brown' && type !== 'white' && y < -700 && WJ.nextRand() < 0.09) {
                 pl.gadget = {
                     kind: WJ.pick(['spring', 'spring', 'propeller', 'jetpack', 'shoes', 'shield']),
                     used: false
                 };
             }
-            if (y < -1500 && Math.random() < 0.05 + 0.07 * d + 0.06 * h) {
+            if (y < -1500 && WJ.nextRand() < 0.05 + 0.07 * d + 0.06 * h) {
                 WJ.monsters.push({
                     x: pl.x + pl.w / 2, y: y - 36, baseX: pl.x + pl.w / 2,
-                    range: WJ.rand(24, 50), dir: Math.random() < 0.5 ? -1 : 1,
+                    range: WJ.rand(24, 50), dir: WJ.nextRand() < 0.5 ? -1 : 1,
                     speed: WJ.rand(20, 40) * (1 + 0.3 * h), r: 19, dead: false
                 });
             }
-            if (y < -2400 && Math.random() < 0.022 + 0.018 * h) {
+            if (y < -2400 && WJ.nextRand() < 0.022 + 0.018 * h) {
                 WJ.ufos.push({
                     x: WJ.rand(60, WJ.W - 60), y: y - WJ.rand(60, 110),
-                    r: 26, dead: false, beam: false, bob: Math.random() * 6.28
+                    r: 26, dead: false, beam: false, bob: WJ.nextRand() * 6.28
                 });
             }
-            if (y < -3000 && d > 0.25 && Math.random() < 0.02 + 0.02 * h) {
+            if (y < -3000 && d > 0.25 && WJ.nextRand() < 0.02 + 0.02 * h) {
                 WJ.holes.push({
                     x: WJ.rand(70, WJ.W - 70), y: y - WJ.rand(80, 160),
                     r: 28, dead: false
@@ -6335,14 +6400,14 @@
                 // The tall gap above a word row is what stops a jump from the
                 // pad underneath sailing over the question. Step sizes below
                 // are the existing density tuning.
-                const opening = WJ.maxClimb < 1500 && !WJ.afterQuiz;
+                const opening = WJ.openingAt(WJ.topY) && !WJ.afterQuiz;
                 const base = WJ.afterQuiz ? WJ.rand(240, 275)
                           : opening ? WJ.rand(68, 90)
                           : WJ.rand(76, 102);
                 // lateHeat may widen ordinary gaps; the tall after-quiz gap
                 // stays on the original curve so questions cannot be skipped
                 // and remain reachable (always ≤ maxGap).
-                const heat = WJ.afterQuiz ? 0 : WJ.lateHeat();
+                const heat = WJ.afterQuiz ? 0 : WJ.heatAt(WJ.topY);
                 const step = Math.min(WJ.maxGap(), base * (1 - WJ.difficulty() * 0.1 + 0.12 * heat));
                 const nextY = WJ.topY - step;
                 if (nextY <= WJ.nextQuizY) {
@@ -6382,8 +6447,8 @@
             if (!WJ.anchors || !WJ.anchors.length) {
                 WJ.commitLayer([{ x: WJ.W / 2 - 46, y: 0, w: 92, h: 13, type: 'green', baseX: WJ.W / 2 - 46, baseY: 0, amp: 0 }], true);
             }
-            const opening = WJ.maxClimb < 1500;
-            const shrink = opening ? 0 : 10 * WJ.lateHeat();
+            const opening = WJ.openingAt(y);
+            const shrink = opening ? 0 : 10 * WJ.heatAt(y);
             const w0 = opening ? WJ.rand(74, 104) : WJ.rand(Math.max(50, 62 - shrink), Math.max(54, 90 - shrink));
             let goals = WJ.goalAnchors(y);
             let lowY = -1e9, gap = 0;
@@ -6400,7 +6465,7 @@
                     goals = WJ.goalAnchors(y);
                 }
             }
-            let type = WJ.pickType();
+            let type = WJ.pickType(y);
             // A long rise (the band above a word row, or a jump that skips a
             // broken pad) is a still green. Moving or breaking pads on a short
             // airtime are what opened the unreachable holes.
@@ -7016,6 +7081,7 @@
                 }
             }
             WJ.draw();
+            if (typeof WJC !== 'undefined' && WJC.active) WJC.tick();
             if (WJ.running) WJ.raf = requestAnimationFrame(WJ.frame);
         };
 
@@ -7241,6 +7307,7 @@
             ctx.globalAlpha = 1;
 
             WJ.drawMilestoneLabels(ctx);
+            if (typeof WJC !== 'undefined' && WJC.active) WJC.drawRivals(ctx);
             WJ.drawPlayer(ctx);
             WJ.drawPads(ctx);
             WJ.drawPassLabels(ctx);
@@ -7406,6 +7473,20 @@
                 ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
                 ctx.fillStyle = '#ea580c';
                 ctx.fillText('🔥 x' + WJ.streak, 16, 66);
+            }
+            if (typeof WJC !== 'undefined' && WJC.active) {
+                const rows = (WJC.players || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+                let hy = WJ.streak > 1 ? 82 : 68;
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 9px Fredoka, system-ui, sans-serif';
+                rows.slice(0, 6).forEach(row => {
+                    const pal = WJC.colorOf(row.color);
+                    const mine = currentUser && row.user_id === currentUser.id;
+                    const nm = (row.nickname || 'player').slice(0, 8);
+                    ctx.fillStyle = pal.stroke;
+                    ctx.fillText((mine ? '• ' : '') + nm + ' ' + (row.score || 0) + (row.fallen ? ' out' : ''), 16, hy);
+                    hy += 12;
+                });
             }
 
             // question card (Chinese prompt), top-centre
@@ -7725,6 +7806,1021 @@
             if (WJ.tiltZero === null) WJ.tiltZero = roll;
             WJ.tiltValue = WJ.clamp((roll - WJ.tiltZero) / WJ.TILT_RANGE, -1, 1);
         };
+
+        /* ==========================================================
+           Word Jump Challenge friends — rooms, colours, live birds
+           Solo Word Jump is unchanged. Challenge scores are not
+           written to wj_scores / wj_leaderboard.
+           ========================================================== */
+        const WJC = {
+            COLORS: [
+                { id: 'lime',   fill: '#dff26b', stroke: '#55771a', label: 'Lime' },
+                { id: 'sky',    fill: '#7dd3fc', stroke: '#0369a1', label: 'Sky' },
+                { id: 'coral',  fill: '#fda4af', stroke: '#be123c', label: 'Coral' },
+                { id: 'violet', fill: '#c4b5fd', stroke: '#6d28d9', label: 'Violet' },
+                { id: 'amber',  fill: '#fcd34d', stroke: '#b45309', label: 'Amber' },
+                { id: 'rose',   fill: '#f9a8d4', stroke: '#be185d', label: 'Rose' },
+                { id: 'teal',   fill: '#5eead4', stroke: '#0f766e', label: 'Teal' },
+                { id: 'slate',  fill: '#cbd5e1', stroke: '#334155', label: 'Slate' }
+            ],
+            TARGETS: [2000, 3000, 5000, 8000],
+            RESUME_KEY: 'learniTY_wj_challenge_resume',
+            room: null,
+            players: [],
+            pollId: null,
+            lastPush: 0,
+            lastSync: 0,
+            pushing: false,
+            sqlMissing: false,
+            startedKey: '',
+            restoredKey: '',
+            localFallen: false,
+            overlayMode: '',
+            error: ''
+        };
+        Object.defineProperty(WJC, 'active', {
+            get: function () { return !!(WJ.challenge && WJC.room && WJC.room.status === 'playing'); }
+        });
+
+        WJC.colorOf = function (id) {
+            return WJC.COLORS.find(c => c.id === id) || WJC.COLORS[0];
+        };
+
+        WJC.meId = function () { return currentUser ? currentUser.id : null; };
+
+        WJC.meRow = function () {
+            const id = WJC.meId();
+            return (WJC.players || []).find(p => p.user_id === id) || null;
+        };
+
+        WJC.isHost = function () {
+            return !!(currentUser && WJC.room && WJC.room.host_id === currentUser.id);
+        };
+
+        WJC.cloudBlockedReason = function () {
+            if (previewStudentForm()) return 'Preview only — rooms and scores are not written under the teacher account.';
+            if (isGuestUser()) return 'Guests can play Solo. Sign in with your school Google account to Challenge friends.';
+            if (!currentUser) return 'Please login with your school account first.';
+            return '';
+        };
+
+        WJC.errorMessage = function (error) {
+            const m = (error && error.message) || 'Something went wrong.';
+            if (/does not exist|Could not find|PGRST20|42P01|42883/i.test(m)) {
+                WJC.sqlMissing = true;
+                return 'Challenge rooms need supabase/wj_challenge.sql — ask your teacher to run it in the SQL editor.';
+            }
+            if (m.includes('ROOM_NOT_FOUND')) return 'No room with that code (or it has expired).';
+            if (m.includes('ROOM_FULL')) return 'That room is full.';
+            if (m.includes('ROOM_FINISHED')) return 'That challenge has already finished.';
+            if (m.includes('ROOM_ALREADY_STARTED')) return 'That challenge has already started. If you were already in the room, use Rejoin. Arriving late? Use Join mid-game.';
+            if (m.includes('NOT_AUTHENTICATED')) return 'Please login with your school account first.';
+            if (m.includes('NOT_A_MEMBER')) return 'You are not in that room. Use Rejoin only for a challenge you already joined, or Join mid-game to enter one in progress.';
+            if (m.includes('NOT_HOST')) return 'Only the host can do that.';
+            if (m.includes('NEED_TWO_PLAYERS')) return 'Need at least 2 players in the room to start.';
+            if (m.includes('DUEL_TYPE_REQUIRED')) return 'Pick how you will duel before starting.';
+            if (m.includes('CANNOT_START') || m.includes('CANNOT_SETUP')) return 'Cannot change that room now.';
+            if (m.includes('BAD_DUEL_TYPE') || m.includes('BAD_COLOR')) return 'That option is not available.';
+            return m;
+        };
+
+        WJC.setError = function (msg) {
+            WJC.error = msg || '';
+            const el = document.getElementById('wjc-error');
+            if (el) el.innerText = WJC.error;
+        };
+
+        WJC.syncTopicLock = function () {
+            const sel = document.getElementById('wj-topic');
+            if (!sel) return;
+            sel.disabled = !!WJ.challenge;
+            sel.classList.toggle('opacity-70', !!WJ.challenge);
+        };
+
+        /* ---------------- public, read-only challenge records ---------------- */
+
+        WJC.reportError = function (error) {
+            console.warn('Challenge records unavailable:', error && error.message);
+            return '<p class="text-sm text-gray-500 py-6">Challenge records unavailable. Ask your teacher to re-run the whole <code>supabase/wj_challenge.sql</code>.</p>';
+        };
+
+        WJC.fetchWins = function () {
+            return sb.from('wj_challenge_wins').select('user_id,display_name,wins,matches,last_win_at')
+                .gt('wins', 0).order('wins', { ascending: false })
+                .order('last_win_at', { ascending: true, nullsFirst: false })
+                .order('matches', { ascending: true }).order('user_id', { ascending: true }).limit(50);
+        };
+
+        WJC.winsHtml = function (rows) {
+            if (!rows || !rows.length) return '<p class="text-sm text-gray-400 py-6">No Challenge wins yet.</p>';
+            return '<p class="text-xs text-gray-400 mb-3">Top 50 · All-time wins. Ties: earlier last win, then fewer matches.</p><div class="space-y-2">' + rows.map((r, i) => `
+                <div class="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-left">
+                    <span class="font-bold text-emerald-600 w-7">${['🥇', '🥈', '🥉'][i] || (i + 1)}</span>
+                    <span class="flex-1 min-w-0 break-words text-sm font-bold text-gray-700">${escapeHtml(r.display_name || 'Player')}${currentUser && r.user_id === currentUser.id ? ' (you)' : ''}</span>
+                    <span class="text-right text-sm font-bold text-emerald-700">${Number(r.wins) || 0} wins<br><span class="text-[10px] font-normal text-gray-400">${Number(r.matches) || 0} matches</span></span>
+                </div>`).join('') + '</div>';
+        };
+
+        WJC.historyHtml = function (rows) {
+            return rows.map(r => {
+                const players = Array.isArray(r.players) ? r.players : [];
+                const stamp = new Date(r.finished_at).toLocaleString('en-GB', { timeZone: 'Asia/Tokyo' }) + ' JST';
+                return `<article class="bg-gray-50 rounded-xl p-3 mb-3 text-left">
+                    <div class="flex justify-between gap-2 text-xs text-gray-400 mb-1"><b>Room ${escapeHtml(r.room_code)}</b><span title="${escapeHtml(stamp)}">${escapeHtml(timeAgo(r.finished_at))}</span></div>
+                    <p class="text-xs font-bold text-sky-700">${escapeHtml(WJC.duelLabel(r))}</p>
+                    <p class="text-sm font-bold text-emerald-700 my-1">🏆 ${escapeHtml(r.winner_name || 'No winner')}</p>
+                    <p class="text-[10px] text-gray-400 mb-2">${escapeHtml(({target: 'Target reached', closest: 'Closest to target', last_standing: 'Last one standing', highest: 'Everyone out — highest score'})[r.result_reason] || 'Finished')}</p>
+                    ${players.map(player => {
+                        const color = WJC.colorOf(player.color);
+                        return `<div class="flex items-center gap-2 py-1 text-xs">
+                            <span class="shrink-0 rounded-full w-3 h-3 border border-black/10" title="${color.label} bird" style="background:${color.fill}"></span>
+                            <span class="flex-1 min-w-0 break-words font-bold text-gray-600">${escapeHtml(player.name || 'Player')}${player.user_id === r.winner_id ? ' 🏆' : ''}</span>
+                            <span class="text-right text-gray-500 shrink-0">${Number(player.score) || 0} pts · ${Number(player.height) || 0} px${player.words == null ? '' : ' · ' + (Number(player.words) || 0) + ' words'}</span>
+                        </div>`;
+                    }).join('')}
+                </article>`;
+            }).join('');
+        };
+
+        WJC.closeRecords = function () {
+            const panel = document.getElementById('wjc-records');
+            if (panel) panel.remove();
+            WJC._recordsRequest = (WJC._recordsRequest || 0) + 1;
+        };
+
+        WJC.openRecords = function (mode) {
+            if (isGuestUser() || !currentUser) return;
+            WJC.closeRecords();
+            const panel = document.createElement('section');
+            panel.id = 'wjc-records';
+            panel.className = 'absolute inset-0 bg-white p-4 overflow-y-auto text-left';
+            panel.style.zIndex = '60';
+            panel.setAttribute('role', 'dialog');
+            panel.setAttribute('aria-label', 'Public Challenge records');
+            panel.innerHTML = `<div class="flex items-center justify-between gap-2 mb-3"><h3 class="font-bold text-emerald-700">Challenge records</h3><button type="button" onclick="WJC.closeRecords()" class="px-3 py-2 rounded-xl bg-gray-100 font-bold text-sm">← Back</button></div>
+                <div class="flex gap-2 mb-3"><button type="button" onclick="WJC.loadRecords('history')" class="flex-1 py-2 rounded-xl bg-sky-100 text-sky-700 font-bold text-xs">Match history</button><button type="button" onclick="WJC.loadRecords('wins')" class="flex-1 py-2 rounded-xl bg-emerald-100 text-emerald-700 font-bold text-xs">Challenge wins</button></div>
+                <div id="wjc-records-body" aria-live="polite"></div>`;
+            document.getElementById('wj-stage').appendChild(panel);
+            WJC.loadRecords(mode === 'wins' ? 'wins' : 'history');
+        };
+
+        WJC.loadRecords = async function (mode, more) {
+            if (isGuestUser() || !currentUser) return WJC.closeRecords();
+            const body = document.getElementById('wjc-records-body');
+            if (!body) return;
+            const request = WJC._recordsRequest = (WJC._recordsRequest || 0) + 1;
+            if (!more) { WJC._historyRows = []; WJC._historySince = new Date(Date.now() - 7 * 86400000).toISOString(); }
+            body.innerHTML = '<p class="text-sm text-gray-400 py-6">Loading…</p>';
+            try {
+                if (mode === 'wins') {
+                    const { data, error } = await WJC.fetchWins();
+                    if (request !== WJC._recordsRequest) return;
+                    body.innerHTML = error ? WJC.reportError(error) : WJC.winsHtml(data);
+                } else {
+                    let query = sb.from('wj_challenge_matches')
+                        .select('id,room_code,duel_type,target_score,winner_id,winner_name,result_reason,finished_at,players')
+                        .gt('finished_at', WJC._historySince)
+                        .order('finished_at', { ascending: false }).order('id', { ascending: false });
+                    // Keyset pagination avoids duplicate/skipped rows if another match finishes.
+                    const last = more && WJC._historyRows[WJC._historyRows.length - 1];
+                    if (last) query = query.or(`finished_at.lt.${last.finished_at},and(finished_at.eq.${last.finished_at},id.lt.${last.id})`);
+                    const { data, error } = await query.limit(30);
+                    if (request !== WJC._recordsRequest) return;
+                    if (error) { body.innerHTML = WJC.reportError(error); return; }
+                    WJC._historyRows = WJC._historyRows.concat(data || []);
+                    body.innerHTML = '<p class="text-xs text-gray-400 mb-3">All players · Last 7 days · Newest first</p>' +
+                        (WJC.historyHtml(WJC._historyRows) || '<p class="text-sm text-gray-400 py-6">No matches in the last 7 days.</p>') +
+                        (data && data.length === 30 ? '<button type="button" onclick="WJC.loadRecords(\'history\', true)" class="w-full py-2 bg-gray-100 rounded-xl font-bold text-sm">Load more</button>' : '');
+                }
+            } catch (error) {
+                if (request === WJC._recordsRequest) body.innerHTML = WJC.reportError(error);
+            }
+        };
+
+        WJC.recordsButtons = function () {
+            if (isGuestUser() || !currentUser) return '';
+            return `<div class="flex gap-2 mt-3"><button type="button" onclick="WJC.openRecords('history')" class="flex-1 py-2 bg-sky-50 text-sky-700 rounded-xl font-bold text-xs">Match history</button><button type="button" onclick="WJC.openRecords('wins')" class="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-xs">Challenge wins</button></div>`;
+        };
+
+        /* ---------------- resume ---------------- */
+
+        WJC.readResume = function () {
+            try {
+                const raw = JSON.parse(localStorage.getItem(WJC.RESUME_KEY) || 'null');
+                if (!raw || !raw.roomId) return null;
+                if (currentUser && raw.userId && raw.userId !== currentUser.id) return null;
+                if (raw.savedAt && Date.now() - raw.savedAt > 7 * 24 * 3600 * 1000) {
+                    localStorage.removeItem(WJC.RESUME_KEY);
+                    return null;
+                }
+                return raw;
+            } catch (e) { return null; }
+        };
+
+        WJC.clearResume = function () {
+            try { localStorage.removeItem(WJC.RESUME_KEY); } catch (e) {}
+            WJC.renderRejoin();
+        };
+
+        WJC.saveResume = function () {
+            if (!WJC.room || !currentUser || !WJC.room.id) return;
+            if (WJC.room.status === 'finished') { WJC.clearResume(); return; }
+            try {
+                localStorage.setItem(WJC.RESUME_KEY, JSON.stringify({
+                    userId: currentUser.id,
+                    roomId: WJC.room.id,
+                    code: WJC.room.code,
+                    seed: WJC.room.seed,
+                    status: WJC.room.status,
+                    savedAt: Date.now()
+                }));
+            } catch (e) {}
+            WJC.renderRejoin();
+        };
+
+        WJC.renderRejoin = function () {
+            const saved = WJC.readResume();
+            const view = document.getElementById('wordjump-view');
+            const onWj = !!(view && !view.classList.contains('hidden'));
+            const inThatRoom = !!(saved && WJC.room && WJC.room.id === saved.roomId && onWj);
+            const show = !!(saved && saved.code && !inThatRoom);
+            const hubBtn = document.getElementById('hub-wj-rejoin');
+            const hubSub = document.getElementById('hub-wj-sub');
+            if (hubBtn) {
+                hubBtn.classList.toggle('hidden', !show);
+                if (show) hubBtn.innerText = '🔄 Rejoin ' + saved.code;
+            }
+            if (hubSub) {
+                hubSub.innerText = show
+                    ? ('Room ' + saved.code + ' is still open — rejoin to continue the challenge.')
+                    : 'Solo climb or Challenge friends — read the Chinese, land on the English word.';
+            }
+        };
+
+        /* ---------------- polling ---------------- */
+
+        WJC.startPolling = function (ms) {
+            WJC.stopPolling();
+            WJC.pollId = setInterval(WJC.poll, ms || 1500);
+        };
+
+        WJC.stopPolling = function () {
+            if (WJC.pollId) { clearInterval(WJC.pollId); WJC.pollId = null; }
+        };
+
+        WJC.onLeaveView = function () {
+            WJC.closeRecords();
+            WJC.stopPolling();
+            if (WJC.room && WJC.room.status === 'playing' && currentUser && !previewStudentForm() && !isGuestUser()) {
+                try { sb.rpc('leave_wj_challenge', { p_room_id: WJC.room.id }); } catch (e) {}
+            }
+            WJC.saveResume();
+        };
+
+        WJC.adoptRoom = function (data, opts) {
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!room || !room.id) return WJC.setError('Could not open that room.');
+            WJC.room = room;
+            WJC.error = '';
+            WJC.sqlMissing = false;
+            if (!(opts && opts.keepFallen)) WJC.localFallen = false;
+            WJC.saveResume();
+            WJC.startPolling(room.status === 'playing' ? 700 : 1500);
+            WJC.poll();
+        };
+
+        WJC.applyRoom = function (room) {
+            if (!room || !room.id) return;
+            const prev = WJC.room || {};
+            WJC.room = Object.assign({}, prev, room);
+            if (WJC.room.status !== 'finished') WJC.saveResume();
+            else WJC.clearResume();
+        };
+
+        async function wjcRpc(name, args) {
+            const { data, error } = await sb.rpc(name, args);
+            if (error) throw error;
+            return Array.isArray(data) ? data[0] : data;
+        }
+
+        WJC.poll = async function () {
+            if (!WJC.room || !WJC.room.id) return;
+            if (previewStudentForm() || isGuestUser() || !currentUser) return;
+            try {
+                const [roomRes, playersRes] = await Promise.all([
+                    sb.from('wj_challenge_rooms').select('*').eq('id', WJC.room.id).maybeSingle(),
+                    sb.from('wj_challenge_players').select('*').eq('room_id', WJC.room.id)
+                ]);
+                if (roomRes.error) {
+                    WJC.setError(WJC.errorMessage(roomRes.error));
+                    return;
+                }
+                if (playersRes.error) {
+                    WJC.setError(WJC.errorMessage(playersRes.error));
+                    return;
+                }
+                if (!roomRes.data) {
+                    WJC.resetLocal();
+                    WJC.showModeSelect();
+                    WJC.setError('That room is no longer open.');
+                    return;
+                }
+                WJC.applyRoom(roomRes.data);
+                WJC.players = playersRes.data || [];
+                WJC.reactToState();
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.reactToState = function () {
+            if (!WJC.room) return;
+            const st = WJC.room.status;
+            if (st === 'waiting') {
+                if (WJ.challenge && (WJ.state === 'playing' || WJ.state === 'over')) {
+                    WJ.challenge = false;
+                    WJ.rng = null;
+                    WJ.running = false;
+                    if (WJ.raf) cancelAnimationFrame(WJ.raf);
+                    WJ.raf = 0;
+                    WJ.state = 'intro';
+                }
+                WJC.startedKey = '';
+                WJC.restoredKey = '';
+                WJC.localFallen = false;
+                WJC.syncTopicLock();
+                WJC.paintWaiting();
+                WJC.startPolling(1500);
+            } else if (st === 'playing') {
+                const key = WJC.room.id + ':' + (WJC.room.started_at || '');
+                const me = WJC.meRow();
+                if (me && me.fallen) WJC.localFallen = true;
+                if (WJC.startedKey !== key) {
+                    WJC.startedKey = key;
+                    const resume = me && (me.height > 40 || me.score > 0 || (me.y || 0) < -40) && !me.fallen;
+                    if (resume && WJC.restoredKey !== key) {
+                        WJC.restoredKey = key;
+                        WJC.beginMatch({ restore: me });
+                    } else if (!me || !me.fallen) {
+                        WJC.beginMatch({ restore: null });
+                    } else {
+                        WJC.showFallenOverlay('You are out of this climb.');
+                    }
+                } else if (WJC.localFallen && WJC.overlayMode !== 'results') {
+                    WJC.showFallenOverlay();
+                }
+                WJC.startPolling(700);
+                WJC.syncTopicLock();
+            } else if (st === 'finished') {
+                WJ.challenge = true;
+                if (WJ.state === 'playing') {
+                    WJ.running = false;
+                    if (WJ.raf) cancelAnimationFrame(WJ.raf);
+                    WJ.raf = 0;
+                    WJ.state = 'over';
+                }
+                WJC.showResults();
+                WJC.startPolling(2000);
+            }
+        };
+
+        /* ---------------- UI ---------------- */
+
+        WJC.showModeSelect = function () {
+            WJ.challenge = false;
+            WJ.rng = null;
+            WJC.syncTopicLock();
+            WJC.renderRejoin();
+            const blocked = WJC.cloudBlockedReason();
+            const saved = WJC.readResume();
+            const rejoin = (saved && saved.code)
+                ? `<div class="mb-3 bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-left">
+                        <p class="font-bold text-emerald-700 text-sm">You left a challenge in progress</p>
+                        <p class="text-xs text-gray-500 mb-2">Room <span class="font-bold tracking-widest">${escapeHtml(saved.code)}</span> is still open.</p>
+                        <button type="button" onclick="WJC.rejoin()" class="w-full py-2 bg-emerald-500 text-white rounded-xl font-bold text-sm">🔄 Rejoin</button>
+                   </div>`
+                : '';
+            WJ.setOverlay(`
+                <div class="w-full py-2">
+                    <div class="text-5xl mb-1">🦘</div>
+                    <h3 class="text-2xl font-bold text-emerald-600 mb-1">Word Jump</h3>
+                    <p class="text-gray-500 text-sm mb-4">Choose how you want to play.</p>
+                    ${rejoin}
+                    <button type="button" onclick="WJC.chooseSolo()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Solo</button>
+                    <button type="button" onclick="WJC.chooseChallenge()" class="w-full mt-2 py-3 bg-sky-500 text-white rounded-xl font-bold text-lg hover:bg-sky-600 transition-colors">Challenge friends</button>
+                    ${WJC.recordsButtons()}
+                    ${blocked ? `<p class="text-xs text-amber-700 font-bold mt-3">${escapeHtml(blocked)}</p>` : '<p class="text-xs text-gray-400 mt-3">Challenge friends: open or join a room, pick a bird colour, then choose how to duel.</p>'}
+                </div>`, true);
+            WJC.overlayMode = 'mode';
+        };
+
+        WJC.chooseSolo = function () {
+            WJ.challenge = false;
+            WJ.rng = null;
+            WJC.syncTopicLock();
+            WJ.showIntro();
+        };
+
+        WJC.chooseChallenge = function () {
+            const blocked = WJC.cloudBlockedReason();
+            if (blocked) {
+                WJC.showLobby(blocked);
+                return;
+            }
+            WJC.showLobby('');
+        };
+
+        WJC.showLobby = function (blocked) {
+            WJC.overlayMode = 'lobby';
+            const reason = blocked || WJC.cloudBlockedReason();
+            const saved = WJC.readResume();
+            const rejoin = (saved && saved.code)
+                ? `<button type="button" onclick="WJC.rejoin()" class="w-full mt-2 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm">🔄 Rejoin ${escapeHtml(saved.code)}</button>`
+                : '';
+            WJ.setOverlay(`
+                <div class="w-full py-1 text-left">
+                    <h3 class="text-xl font-bold text-emerald-600 text-center mb-1">Challenge friends</h3>
+                    <p class="text-gray-500 text-xs text-center mb-3">Open a room or join with a 4-character code. Mid-game join and Rejoin work like Word Battle.</p>
+                    ${reason ? `<p class="text-xs text-amber-700 font-bold mb-3 text-center">${escapeHtml(reason)}</p>` : ''}
+                    <div class="${reason ? 'opacity-60 pointer-events-none' : ''}">
+                        <p class="text-xs font-bold text-gray-500 mb-1">Create room</p>
+                        <p class="text-[11px] text-gray-400 mb-2">Uses the topic selected above. Everyone shares the same course.</p>
+                        <button type="button" onclick="WJC.createRoom()" class="w-full py-2.5 bg-emerald-500 text-white rounded-xl font-bold">Create room</button>
+                        <p class="text-xs font-bold text-gray-500 mt-3 mb-1">Join a room</p>
+                        <input id="wjc-code-input" maxlength="4" placeholder="A7K2" autocomplete="off"
+                            class="w-full mb-2 p-2 rounded-xl border-2 border-emerald-100 bg-white font-bold text-center text-xl tracking-widest uppercase">
+                        <button type="button" onclick="WJC.joinRoom(false)" class="w-full py-2.5 bg-sky-500 text-white rounded-xl font-bold">Join</button>
+                        <button type="button" onclick="WJC.joinRoom(true)" class="w-full mt-2 py-2 bg-white border-2 border-sky-200 text-sky-700 rounded-xl font-bold text-sm">Join mid-game</button>
+                        ${rejoin}
+                    </div>
+                    ${WJC.recordsButtons()}
+                    <p id="wjc-error" class="text-red-400 font-bold text-center text-xs mt-3">${escapeHtml(WJC.error || '')}</p>
+                    <button type="button" onclick="WJC.showModeSelect()" class="w-full mt-2 py-2 text-sm font-bold text-gray-400">← Back</button>
+                </div>`, true);
+            const input = document.getElementById('wjc-code-input');
+            if (input) {
+                input.addEventListener('input', function (e) {
+                    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                });
+                input.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') { e.preventDefault(); WJC.joinRoom(false); }
+                });
+            }
+        };
+
+        WJC.duelLabel = function (room) {
+            if (!room || !room.duel_type) return 'Not set yet';
+            if (room.duel_type === 'target_score') return 'First to ' + (room.target_score || 3000);
+            return 'Last one standing';
+        };
+
+        WJC.colorButtons = function (selected, enabled) {
+            return '<div class="flex justify-center gap-1.5 flex-wrap">' + WJC.COLORS.map(c => {
+                const on = c.id === selected;
+                return `<button type="button" class="wj-color-dot" title="${c.label}" aria-label="${c.label}" aria-pressed="${on ? 'true' : 'false'}"
+                    style="background:${c.fill}" ${enabled ? `onclick="WJC.pickColor('${c.id}')"` : 'disabled'}></button>`;
+            }).join('') + '</div>';
+        };
+
+        WJC.playerLine = function (p) {
+            const c = WJC.colorOf(p.color);
+            const mine = currentUser && p.user_id === currentUser.id;
+            const host = WJC.room && p.user_id === WJC.room.host_id;
+            const away = !!p.left_at;
+            const name = p.nickname || (p.email || '').split('@')[0] || 'player';
+            return `<div class="flex items-center gap-2 py-1 ${mine ? 'bg-emerald-50 rounded-lg px-1' : ''}">
+                <span class="inline-block w-3.5 h-3.5 rounded-full border border-black/10" style="background:${c.fill}"></span>
+                <span class="flex-1 truncate text-xs font-bold ${away ? 'text-gray-400' : 'text-gray-700'}">${escapeHtml(name)}${mine ? ' (you)' : ''}${host ? ' · host' : ''}${away ? ' · away' : ''}</span>
+            </div>`;
+        };
+
+        WJC.waitingSig = function () {
+            const present = (WJC.players || []).map(p => [p.user_id, p.color, p.left_at, p.nickname].join(':')).join('|');
+            const r = WJC.room || {};
+            return [r.id, r.status, r.duel_type, r.target_score, r.code, present, WJC.error || ''].join('/');
+        };
+
+        WJC.paintWaiting = function () {
+            if (!WJC.room) return WJC.showLobby('');
+            if (WJC.room.status !== 'waiting') return;
+            const sig = WJC.waitingSig();
+            if (WJC.overlayMode === 'waiting' && WJC._waitingSig === sig && document.getElementById('wjc-error')) return;
+            WJC._waitingSig = sig;
+            WJC.overlayMode = 'waiting';
+            const me = WJC.meRow();
+            const present = (WJC.players || []).filter(p => !p.left_at);
+            const host = WJC.isHost();
+            const duel = WJC.room.duel_type || '';
+            const target = WJC.room.target_score || 3000;
+            const ready = present.length >= 2 && !!duel;
+            const targetChoices = WJC.TARGETS.map(n =>
+                `<option value="${n}" ${n === target ? 'selected' : ''}>${n}</option>`
+            ).join('');
+            const setup = host ? `
+                <div class="mt-3 text-left bg-white rounded-xl border border-emerald-100 p-3">
+                    <p class="text-xs font-bold text-gray-500 mb-2">How to duel</p>
+                    <label class="flex items-start gap-2 text-sm text-gray-700 mb-1">
+                        <input type="radio" name="wjc-duel" value="last_standing" ${duel === 'last_standing' ? 'checked' : ''} onchange="WJC.saveSetup()">
+                        <span><b>Last one standing</b> — first to fall loses; last bird still climbing wins.</span>
+                    </label>
+                    <label class="flex items-start gap-2 text-sm text-gray-700">
+                        <input type="radio" name="wjc-duel" value="target_score" ${duel === 'target_score' ? 'checked' : ''} onchange="WJC.saveSetup()">
+                        <span><b>First to a target score</b></span>
+                    </label>
+                    <select id="wjc-target" onchange="WJC.saveSetup()" class="mt-2 w-full p-2 rounded-xl border-2 border-emerald-100 bg-white font-bold text-sm ${duel === 'target_score' ? '' : 'hidden'}">${targetChoices}</select>
+                </div>`
+                : `<p class="text-xs text-gray-500 mt-3">Duel: <b>${escapeHtml(WJC.duelLabel(WJC.room))}</b>${duel ? '' : ' — waiting for the host to choose.'}</p>`;
+            const startBtn = host
+                ? `<button type="button" onclick="WJC.startMatch()" class="w-full mt-3 py-3 rounded-xl font-bold ${ready ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-200 text-gray-400'}" ${ready ? '' : 'disabled'}>Start</button>
+                   <p class="text-[11px] text-gray-400 mt-1 text-center">${ready ? 'Everyone will share the same platforms and words.' : 'Need at least 2 players and a duel type.'}</p>`
+                : `<p class="text-xs text-gray-400 mt-3 text-center">Waiting for the host to start.</p>`;
+            WJ.setOverlay(`
+                <div class="w-full py-1">
+                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Room code</p>
+                    <div class="text-4xl font-bold text-emerald-600 tracking-[0.25em] my-1">${escapeHtml(WJC.room.code || '----')}</div>
+                    <button type="button" onclick="WJC.copyCode()" class="px-3 py-1 bg-gray-100 rounded-full font-bold text-gray-600 text-xs">📋 Copy code</button>
+                    <p class="text-[11px] text-gray-400 mt-2">Pick a bird colour so everyone can tell you apart.</p>
+                    <div class="mt-2">${WJC.colorButtons(me ? me.color : 'lime', true)}</div>
+                    <div class="mt-3 text-left">${present.map(WJC.playerLine).join('') || '<p class="text-xs text-gray-400">No players yet.</p>'}</div>
+                    ${setup}
+                    ${startBtn}
+                    <p id="wjc-error" class="text-red-400 font-bold text-center text-xs mt-2">${escapeHtml(WJC.error || '')}</p>
+                    <button type="button" onclick="WJC.leaveRoom()" class="mt-2 px-4 py-1 text-xs font-bold text-gray-400 hover:text-red-500">Leave room</button>
+                </div>`, true);
+        };
+
+        WJC.showRoom = function () {
+            if (!WJC.room) return WJC.showModeSelect();
+            WJC.startPolling(WJC.room.status === 'playing' ? 700 : 1500);
+            WJC.poll();
+        };
+
+        WJC.scoreboardHtml = function () {
+            const rows = (WJC.players || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0) || (b.height || 0) - (a.height || 0));
+            return rows.map(p => {
+                const c = WJC.colorOf(p.color);
+                const mine = currentUser && p.user_id === currentUser.id;
+                const name = p.nickname || (p.email || '').split('@')[0] || 'player';
+                const tag = p.fallen ? 'out' : (p.left_at ? 'away' : (p.reached_at ? 'target!' : ''));
+                return `<div class="flex items-center gap-2 py-0.5">
+                    <span class="inline-block w-3 h-3 rounded-full" style="background:${c.fill}"></span>
+                    <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${escapeHtml(name)}</span>
+                    <span class="text-xs font-bold text-indigo-600">${p.score || 0}</span>
+                    <span class="w-8 text-right text-[10px] text-gray-400">${tag}</span>
+                </div>`;
+            }).join('');
+        };
+
+        WJC.showFallenOverlay = function (reason) {
+            if (WJC.room && WJC.room.status === 'finished') return WJC.showResults();
+            WJC.overlayMode = 'fallen';
+            const msg = reason || 'You fell! Watching the others…';
+            WJ.setOverlay(`
+                <div class="w-full py-2">
+                    <div class="text-4xl mb-1">💥</div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-1">You are out</h3>
+                    <p class="text-gray-400 text-sm mb-3">${escapeHtml(msg)}</p>
+                    <div class="text-left border-t border-gray-100 pt-2 mb-3">${WJC.scoreboardHtml()}</div>
+                    <p class="text-xs text-gray-400 mb-2">The climb continues until the duel is decided.</p>
+                    <button type="button" onclick="WJC.leaveRoom()" class="w-full py-2 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Leave room</button>
+                </div>`, true);
+        };
+
+        WJC.showResults = function () {
+            if (!WJC.room) return;
+            WJC.overlayMode = 'results';
+            const winner = (WJC.players || []).find(p => p.user_id === WJC.room.winner_id);
+            const winName = winner ? (winner.nickname || (winner.email || '').split('@')[0]) : 'No one';
+            const mineWin = currentUser && WJC.room.winner_id === currentUser.id;
+            const reason = WJC.room.result_reason;
+            let blurb = 'Challenge over.';
+            if (reason === 'target') blurb = winName + ' was first to the target score.';
+            else if (reason === 'closest') blurb = 'No one reached the target. Closest: ' + winName + '.';
+            else if (reason === 'last_standing') blurb = winName + ' was the last one standing.';
+            else if (reason === 'highest') blurb = 'Everyone fell. Highest climb: ' + winName + '.';
+            const rematch = WJC.isHost()
+                ? `<button type="button" onclick="WJC.rematch()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold">Rematch (back to lobby)</button>`
+                : `<p class="text-xs text-gray-400 mb-2">Waiting for the host to start a rematch.</p>`;
+            WJ.setOverlay(`
+                <div class="w-full py-2">
+                    <div class="text-4xl mb-1">${mineWin ? '🏆' : '🎉'}</div>
+                    <h3 class="text-xl font-bold text-gray-700 mb-1">${mineWin ? 'You win!' : escapeHtml(winName) + ' wins'}</h3>
+                    <p class="text-gray-500 text-sm mb-3">${escapeHtml(blurb)}</p>
+                    <p class="text-[11px] text-gray-400 mb-2">Challenge scores are not added to the Solo Word Jump leaderboard.</p>
+                    <div class="text-left border-t border-gray-100 pt-2 mb-4">${WJC.scoreboardHtml()}</div>
+                    ${rematch}
+                    ${WJC.recordsButtons()}
+                    <button type="button" onclick="WJC.leaveRoom()" class="w-full mt-2 py-2 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Back to Hub</button>
+                    <p id="wjc-error" class="text-red-400 font-bold text-center text-xs mt-2">${escapeHtml(WJC.error || '')}</p>
+                </div>`, true);
+            WJC.syncTopicLock();
+        };
+
+        /* ---------------- actions ---------------- */
+
+        WJC.createRoom = async function () {
+            WJC.setError('');
+            const blocked = WJC.cloudBlockedReason();
+            if (blocked) return WJC.setError(blocked);
+            const topic = (document.getElementById('wj-topic') || {}).value || WJ.topic || '__all__';
+            const seed = Math.floor(Math.random() * 2000000000) + 1;
+            try {
+                const room = await wjcRpc('create_wj_challenge', { p_topic: topic, p_seed: seed });
+                WJC.adoptRoom(room);
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.joinRoom = async function () {
+            WJC.setError('');
+            const blocked = WJC.cloudBlockedReason();
+            if (blocked) return WJC.setError(blocked);
+            const input = document.getElementById('wjc-code-input');
+            const code = (input ? input.value : '').trim().toUpperCase();
+            if (code.length !== 4) return WJC.setError('Enter the 4-character room code.');
+            try {
+                const room = await wjcRpc('join_wj_challenge', { p_code: code });
+                WJC.adoptRoom(room);
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.rejoin = async function () {
+            WJC.setError('');
+            const blocked = WJC.cloudBlockedReason();
+            if (blocked) {
+                openWordJump('hub-view');
+                WJC.showLobby(blocked);
+                return WJC.setError(blocked);
+            }
+            const saved = WJC.readResume();
+            if (!saved || !saved.roomId) return WJC.setError('No challenge to rejoin.');
+            if (typeof WJ !== 'undefined') WJ.backView = 'hub-view';
+            changeView('wordjump-view');
+            try {
+                let room = null;
+                try {
+                    room = await wjcRpc('rejoin_wj_challenge', { p_room_id: saved.roomId });
+                } catch (e) {
+                    const m = (e && e.message) || '';
+                    if (!/ROOM_NOT_FOUND|NOT_A_MEMBER/i.test(m) && saved.code) throw e;
+                    if (saved.code) room = await wjcRpc('join_wj_challenge', { p_code: saved.code });
+                    else throw e;
+                }
+                if (!room && saved.code) room = await wjcRpc('join_wj_challenge', { p_code: saved.code });
+                if (!room || !room.id) {
+                    WJC.clearResume();
+                    return WJC.setError('That room is no longer open.');
+                }
+                WJC.adoptRoom(room);
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+                WJC.showLobby('');
+            }
+        };
+
+        WJC.pickColor = async function (color) {
+            if (!WJC.room) return;
+            const blocked = WJC.cloudBlockedReason();
+            if (blocked) return WJC.setError(blocked);
+            try {
+                await wjcRpc('set_wj_challenge_color', { p_room_id: WJC.room.id, p_color: color });
+                const me = WJC.meRow();
+                if (me) me.color = color;
+                if (WJC.room.status === 'waiting') WJC.paintWaiting();
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.saveSetup = async function () {
+            if (!WJC.isHost() || !WJC.room) return;
+            const picked = document.querySelector('input[name="wjc-duel"]:checked');
+            const type = picked ? picked.value : '';
+            if (!type) return;
+            const sel = document.getElementById('wjc-target');
+            const target = sel ? parseInt(sel.value, 10) : (WJC.room.target_score || 3000);
+            try {
+                const room = await wjcRpc('set_wj_challenge_setup', {
+                    p_room_id: WJC.room.id,
+                    p_duel_type: type,
+                    p_target_score: target
+                });
+                WJC.applyRoom(room);
+                WJC.paintWaiting();
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.startMatch = async function () {
+            WJC.setError('');
+            if (!WJC.isHost() || !WJC.room) return;
+            try {
+                const room = await wjcRpc('start_wj_challenge', { p_room_id: WJC.room.id });
+                WJC.applyRoom(room);
+                WJC.reactToState();
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.rematch = async function () {
+            WJC.setError('');
+            if (!WJC.isHost() || !WJC.room) return;
+            try {
+                const seed = Math.floor(Math.random() * 2000000000) + 1;
+                const room = await wjcRpc('rematch_wj_challenge', { p_room_id: WJC.room.id, p_seed: seed });
+                WJC.startedKey = '';
+                WJC.restoredKey = '';
+                WJC.localFallen = false;
+                WJC.adoptRoom(room);
+            } catch (e) {
+                WJC.setError(WJC.errorMessage(e));
+            }
+        };
+
+        WJC.copyCode = function () {
+            const code = WJC.room && WJC.room.code;
+            if (!code) return;
+            const done = () => WJ.toast && WJ.toast('Copied ' + code, '#0f766e');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code).then(done).catch(() => {});
+            }
+        };
+
+        WJC.resetLocal = function () {
+            WJC.stopPolling();
+            WJC.room = null;
+            WJC.players = [];
+            WJC.startedKey = '';
+            WJC.restoredKey = '';
+            WJC.localFallen = false;
+            WJ.challenge = false;
+            WJ.rng = null;
+            WJC.syncTopicLock();
+            WJC.clearResume();
+        };
+
+        WJC.leaveRoom = async function (skipConfirm) {
+            if (WJC.room && currentUser && !previewStudentForm() && !isGuestUser()) {
+                const playing = WJC.room.status === 'playing';
+                const waitingHost = WJC.room.status === 'waiting' && WJC.isHost();
+                const msg = waitingHost
+                    ? 'Close this room? Friends will not be able to join it.'
+                    : (playing ? 'Leave this challenge? You will drop out of the climb (you can Rejoin if the room is still open).' : 'Leave this room?');
+                if (!skipConfirm && !window.confirm(msg)) return;
+                try { await sb.rpc('leave_wj_challenge', { p_room_id: WJC.room.id }); } catch (e) {}
+            }
+            WJC.resetLocal();
+            WJ.stop();
+            changeView(WJ.backView || 'hub-view');
+        };
+
+        WJC.quitFromGame = function () {
+            if (!WJC.room) {
+                WJ.stop();
+                changeView(WJ.backView || 'hub-view');
+                return;
+            }
+            if (WJC.room.status === 'playing' && WJ.state === 'playing') {
+                if (!window.confirm('Leave this challenge? You will drop out of the climb (you can Rejoin if the room is still open).')) return;
+            }
+            WJC.leaveRoom(true);
+        };
+
+        /* ---------------- match start / live sync ---------------- */
+
+        WJC.beginMatch = function (opts) {
+            const room = WJC.room;
+            if (!room) return;
+            WJ.challenge = true;
+            WJ.rng = mulberry32((Number(room.seed) || 1) >>> 0);
+            WJ.topic = room.topic || '__all__';
+            const sel = document.getElementById('wj-topic');
+            if (sel && Array.from(sel.options || []).some(o => o.value === WJ.topic)) sel.value = WJ.topic;
+            WJC.syncTopicLock();
+            WJC.localFallen = false;
+            WJC.overlayMode = '';
+            if (!WJ.canvas) WJ.mount();
+            WJ.armTiltOnStart();
+            if (WJ.autoFs !== false) WJ.enterFullscreen();
+            const me = opts && opts.restore;
+            if (me) WJC.restoreClimb(me);
+            else {
+                WJ.reset();
+            }
+            WJ.hideOverlay();
+            WJ.state = 'playing';
+            WJ.paused = false;
+            WJ.running = true;
+            WJ.lastTs = 0; WJ.acc = 0;
+            cancelAnimationFrame(WJ.raf);
+            WJ.raf = requestAnimationFrame(WJ.frame);
+            WJC.lastPush = 0;
+            WJC.pushNow(false);
+        };
+
+        WJC.restoreClimb = function (me) {
+            WJ.reset();
+            const y = Number(me.y);
+            const x = Number(me.x);
+            if (WJ.player) {
+                if (Number.isFinite(x)) WJ.player.x = WJ.clamp(x, WJ.player.w / 2, WJ.W - WJ.player.w / 2);
+                if (Number.isFinite(y)) WJ.player.y = y;
+                WJ.player.face = (me.face || 1) < 0 ? -1 : 1;
+                WJ.player.vy = 0; WJ.player.vx = 0;
+            }
+            WJ.maxClimb = Math.max(Number(me.height) || 0, Number.isFinite(y) ? Math.max(0, -y) : 0);
+            const score = Number(me.score) || 0;
+            WJ.bonus = Math.max(0, score - Math.floor(WJ.maxClimb / 10));
+            WJ.camY = (WJ.player ? WJ.player.y : 0) - WJ.H * 0.65;
+            WJ.genUpTo(WJ.camY - WJ.H * 0.6);
+            const cut = (WJ.player ? WJ.player.y : 0) - 20;
+            WJ.quizRows.forEach(r => { if (r.y >= cut) r.resolved = true; });
+        };
+
+        WJC.onLocalFallen = function (reason, score) {
+            WJC.localFallen = true;
+            WJ.beep(150, 0.4, 'sawtooth', 0.06);
+            WJC.pushNow(true).then(() => {
+                WJC.showFallenOverlay(reason || 'You fell too far!');
+                if (WJC.room && WJC.room.status === 'finished') WJC.showResults();
+            });
+            WJ.draw();
+        };
+
+        WJC.tick = function () {
+            if (!WJC.room || WJC.room.status !== 'playing') return;
+            if (WJC.room.duel_type === 'target_score' && !WJC.localFallen && WJ.state === 'playing') {
+                const target = Number(WJC.room.target_score) || 3000;
+                if (WJ.score() >= target) {
+                    WJC.onReachedTarget();
+                    return;
+                }
+            }
+            const now = Date.now();
+            if (now - WJC.lastPush > 380) WJC.pushNow(WJC.localFallen || WJ.state === 'over');
+        };
+
+        WJC.onReachedTarget = function () {
+            if (WJC.localFallen || WJ.state === 'over') return;
+            WJ.running = false;
+            if (WJ.raf) cancelAnimationFrame(WJ.raf);
+            WJ.raf = 0;
+            WJ.state = 'over';
+            WJC.pushNow(false).then(() => {
+                if (WJC.room && WJC.room.status === 'finished') WJC.showResults();
+                else {
+                    WJ.setOverlay(`
+                        <div class="w-full py-2">
+                            <div class="text-4xl mb-1">🎯</div>
+                            <h3 class="text-xl font-bold text-emerald-600 mb-1">Target reached!</h3>
+                            <p class="text-gray-500 text-sm mb-3">You hit ${WJ.score()}. Waiting for the room to confirm the winner…</p>
+                            <div class="text-left border-t border-gray-100 pt-2">${WJC.scoreboardHtml()}</div>
+                        </div>`, true);
+                    WJC.overlayMode = 'target';
+                }
+            });
+        };
+
+        WJC.pushNow = async function (fallen) {
+            if (!WJC.room || !currentUser || WJC.pushing) return;
+            if (previewStudentForm() || isGuestUser()) return;
+            if (WJC.room.status !== 'playing' && WJC.room.status !== 'finished') return;
+            WJC.pushing = true;
+            WJC.lastPush = Date.now();
+            const p = WJ.player;
+            try {
+                const room = await wjcRpc('heartbeat_wj_challenge', {
+                    p_room_id: WJC.room.id,
+                    p_score: WJ.score(),
+                    p_height: Math.round(WJ.maxClimb || 0),
+                    p_x: p ? p.x : 200,
+                    p_y: p ? p.y : 0,
+                    p_face: p ? p.face : 1,
+                    p_fallen: !!fallen
+                });
+                if (room) WJC.applyRoom(room);
+                if (room && room.status === 'finished' && WJC.overlayMode !== 'results') {
+                    WJC.poll();
+                }
+            } catch (e) {
+                if (!WJC.sqlMissing) console.warn('WJ challenge heartbeat:', e.message || e);
+            }
+            WJC.pushing = false;
+        };
+
+        /* ---------------- live birds ---------------- */
+
+        WJC.drawRivals = function (ctx) {
+            const myId = WJC.meId();
+            (WJC.players || []).forEach(p => {
+                if (!p || p.user_id === myId) return;
+                WJC.drawRivalBird(ctx, p);
+            });
+        };
+
+        WJC.drawRivalBird = function (ctx, row) {
+            const pal = WJC.colorOf(row.color);
+            const name = row.nickname || (row.email || '').split('@')[0] || 'friend';
+            const fallen = !!row.fallen || !!row.left_at;
+            const x = Number(row.x); const y = Number(row.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                WJC.drawHeightMarker(ctx, pal, name, Number(row.height) || 0, fallen);
+                return;
+            }
+            const sy = y - WJ.camY;
+            if (sy < 18 || sy > WJ.H - 18) {
+                WJC.drawHeightMarker(ctx, pal, name, Number.isFinite(y) ? Math.max(0, -y) : (Number(row.height) || 0), fallen, sy < 18);
+                return;
+            }
+            if (fallen) return;
+            const face = (row.face || 1) < 0 ? -1 : 1;
+            const w = 34, h = 40;
+            ctx.save();
+            ctx.globalAlpha = 0.88;
+            WJ.roundRect(ctx, x - w / 2, sy - h, w, h, 13);
+            ctx.fillStyle = pal.fill;
+            ctx.strokeStyle = pal.stroke;
+            ctx.lineWidth = 3;
+            ctx.fill();
+            ctx.stroke();
+            const eyeY = sy - h * 0.66;
+            [-6, 6].forEach(dx => {
+                ctx.beginPath();
+                ctx.arc(x + dx, eyeY, 4.8, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = pal.stroke;
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(x + dx + face * 1.6, eyeY + 0.6, 2.1, 0, Math.PI * 2);
+                ctx.fillStyle = '#1f2937';
+                ctx.fill();
+            });
+            const nx = x + face * (w / 2 - 1), ny = sy - h * 0.42;
+            ctx.beginPath();
+            ctx.moveTo(nx, ny - 6);
+            ctx.lineTo(nx + face * 13, ny - 3);
+            ctx.lineTo(nx + face * 13, ny + 4);
+            ctx.lineTo(nx, ny + 6);
+            ctx.closePath();
+            ctx.fillStyle = pal.fill;
+            ctx.fill();
+            ctx.strokeStyle = pal.stroke;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = pal.stroke;
+            [-7, 7].forEach(dx => {
+                ctx.beginPath();
+                ctx.ellipse(x + dx, sy - 1, 5, 3.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+            ctx.font = 'bold 10px Fredoka, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = pal.stroke;
+            ctx.fillText(name, x, sy - h - 4);
+            ctx.restore();
+        };
+
+        WJC.drawHeightMarker = function (ctx, pal, name, height, fallen, atTop) {
+            const y = atTop === false ? WJ.H - 86 : 78;
+            const x = WJ.W - 8;
+            ctx.save();
+            ctx.globalAlpha = fallen ? 0.45 : 0.92;
+            WJ.roundRect(ctx, x - 92, y - 14, 88, 22, 8);
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.fill();
+            ctx.strokeStyle = pal.stroke;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x - 80, y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = pal.fill;
+            ctx.fill();
+            ctx.strokeStyle = pal.stroke;
+            ctx.stroke();
+            ctx.font = 'bold 9px Fredoka, system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = pal.stroke;
+            const tag = fallen ? 'out' : (atTop === false ? '↓ ' : '↑ ') + Math.round(height || 0);
+            ctx.fillText(String(name).slice(0, 8) + ' ' + tag, x - 70, y, 62);
+            ctx.restore();
+        };
+
+        window.addEventListener('pagehide', function () {
+            if (WJC.room && WJC.room.status === 'playing' && currentUser && !previewStudentForm() && !isGuestUser()) {
+                try { sb.rpc('leave_wj_challenge', { p_room_id: WJC.room.id }); } catch (e) {}
+            }
+        });
+
 
         window.onload = () => {
             loadAllCategoriesFromSheet();

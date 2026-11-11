@@ -1,10 +1,14 @@
-// No network, credentials, dependencies or database writes. Exercise the actual inline Word Jump code.
+// No network, credentials, dependencies or database writes. Exercise the actual Word Jump code in js/word-jump.js.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+// The app JavaScript now lives in js/ files; Word Jump is js/word-jump.js.
+const wordJump = fs.readFileSync(path.join(__dirname, '../js/word-jump.js'), 'utf8');
+const APP_SCRIPTS = ['shared', 'dictation', 'new-vocab', 'grammar-quest', 'grammar/tenses-quiz',
+    'leaderboard', 'admin', 'word-battle', 'word-jump'];
 
 function mulberry32(a) {
     return function () {
@@ -43,15 +47,16 @@ function loadWJ() {
         Math, Date, Number, String, Array, Object, parseInt, isFinite
     });
     context.window = context;
-    const start = html.indexOf('        const WJ = {');
-    const end = html.indexOf('        /* ==========================================================\n           Word Jump Challenge friends', start);
+    const start = wordJump.indexOf('        const WJ = {');
+    const end = wordJump.indexOf('        /* ==========================================================\n           Word Jump Challenge friends', start);
     assert.ok(start > 0 && end > start, 'could not slice WJ block');
-    vm.runInContext(html.slice(start, end) + '\nthis.WJ = WJ;', context);
+    vm.runInContext(wordJump.slice(start, end) + '\nthis.WJ = WJ;', context);
     return context.WJ;
 }
 
-test('all production inline scripts parse', () => {
+test('all production scripts parse', () => {
     for (const [, code] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(code);
+    for (const name of APP_SCRIPTS) new vm.Script(fs.readFileSync(path.join(__dirname, '../js', name + '.js'), 'utf8'));
 });
 
 test('similar-meaning distractors prefer the same topic and never copy the answer', () => {
@@ -156,7 +161,7 @@ test('shield gadgets stop after 7000; streak grant is unchanged', () => {
     assert.ok(WJ.gadgetKindsAt(-60000).includes('shield'), 'challenge at 6000 height still has shield gadgets');
     assert.equal(WJ.gadgetKindsAt(-70000).includes('shield'), false);
 
-    const src = html;
+    const src = wordJump;
     assert.match(src, /if \(WJ\.streak > 0 && WJ\.streak % 5 === 0\)/);
     assert.match(src, /WJ\.player\.shield = Math\.max\(WJ\.player\.shield, 8\)/);
 });

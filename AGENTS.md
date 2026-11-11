@@ -50,7 +50,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
-| 5 | `js/grammar/tenses-quiz.js` | 淨係 tenses quiz 外殼：`tenseQuizAV`／`tenseQuizPV`（空陣列）＋`showTenseQuiz`，仍然顯示 “Questions will be added soon.” |
+| 5 | `js/grammar/drive-and-go.js` | 淨係 `showDriveAndGo()` 外殼（Tenses 頁 `Drive & Go!` 卡）：喺 `#grammar-detail-view` 顯示 “The game will be added soon.”；Mario Kart 式遊戲留待下一版 |
 | 6 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard` |
 | 7 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
 | 8 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
@@ -76,9 +76,9 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `hub-view` | Grammar／Dictation 兩張入口卡 |
 | `grammar-view` | Sentence Structures／Tenses 入口 |
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
-| `grammar-revision-view` | Tenses 3 卡：let's revise!／tenses quiz(AV)／tenses(PV) |
+| `grammar-revision-view` | Tenses 2 卡：let's revise!／Drive & Go! |
 | `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
-| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情、tenses quiz(AV)／tenses(PV) 外殼都用呢個） |
+| `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情、`Drive & Go!` 外殼都用呢個） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
 | `error-book-view` | 學生錯題簿 |
@@ -88,10 +88,13 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
 
 ### Grammar Quest tenses
-- `grammar-revision-view` 只係 3 張卡；9 個時態（`tenseData`，包括 `future perfect tense`）喺
+- `grammar-revision-view` 只有 2 張卡：`let's revise!`（開 `grammar-tense-list-view`）同
+  `Drive & Go!`（`showDriveAndGo()`）。9 個時態（`tenseData`，包括 `future perfect tense`）喺
   `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
-- `tenses quiz(AV)`／`tenses(PV)` 暫時只係外殼：`tenseQuizAV`／`tenseQuizPV` 係空陣列，
-  `showTenseQuiz('AV'|'PV')` 會顯示 "Questions will be added soon."；未加題目之前**唔會**寫雲端分數。
+- `Drive & Go!` 暫時只係外殼：`js/grammar/drive-and-go.js` 嘅 `showDriveAndGo()` 會喺
+  `#grammar-detail-view` 顯示 “The game will be added soon.”，Back 返 `grammar-revision-view`，
+  亦會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。Mario Kart 式遊戲（track／kart／題目／計分）
+  同 `saveGrammarToCloud` 留待之後嘅 PR，而家**唔會**寫雲端分數。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

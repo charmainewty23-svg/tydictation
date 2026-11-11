@@ -30,7 +30,7 @@ create table if not exists public.wj_challenge_rooms (
     duel_type      text
                    check (duel_type is null or duel_type in ('last_standing', 'target_score')),
     target_score   int not null default 3000,
-    max_players    int not null default 8,
+    max_players    int not null default 4,
     started_at     timestamptz,
     finished_at    timestamptz,
     winner_id      uuid,
@@ -71,7 +71,7 @@ alter table public.wj_challenge_rooms   add column if not exists host_id        
 alter table public.wj_challenge_rooms   add column if not exists status         text not null default 'waiting';
 alter table public.wj_challenge_rooms   add column if not exists duel_type      text;
 alter table public.wj_challenge_rooms   add column if not exists target_score   int not null default 3000;
-alter table public.wj_challenge_rooms   add column if not exists max_players    int not null default 8;
+alter table public.wj_challenge_rooms   add column if not exists max_players    int not null default 4;
 alter table public.wj_challenge_rooms   add column if not exists started_at     timestamptz;
 alter table public.wj_challenge_rooms   add column if not exists finished_at    timestamptz;
 alter table public.wj_challenge_rooms   add column if not exists winner_id      uuid;
@@ -88,6 +88,20 @@ alter table public.wj_challenge_players add column if not exists fallen         
 alter table public.wj_challenge_players add column if not exists reached_at     timestamptz;
 alter table public.wj_challenge_players add column if not exists left_at        timestamptz;
 alter table public.wj_challenge_players add column if not exists last_seen      timestamptz not null default now();
+
+-- Cap every room at 4 distinct players. add-column default above does not
+-- change an already-created column, so this block is required on re-run.
+alter table public.wj_challenge_rooms
+    alter column max_players set default 4;
+update public.wj_challenge_rooms
+   set max_players = 4
+ where max_players is distinct from 4;
+alter table public.wj_challenge_rooms
+    drop constraint if exists wj_challenge_rooms_max_players_chk;
+alter table public.wj_challenge_rooms
+    add constraint wj_challenge_rooms_max_players_chk
+    check (max_players = 4);
+
 
 -- ---------- membership helper (security definer: no RLS recursion) ----------
 
@@ -227,14 +241,24 @@ declare
     v_winner  uuid;
     v_reason  text;
 begin
-    select * into v_room from public.wj_challenge_rooms where id = p_room_id;
+    select * into v_room from public.wj_challenge_rooms where id = p_room_id for update;
     if not found or v_room.status <> 'playing' then
         return v_room;
     end if;
 
+    -- Fallen, left, or silent for 10s (disconnected) count as out so the last
+    -- climber — or a last-opponent disconnect — finishes the match.
     select
-        count(*) filter (where fallen = false and left_at is null),
-        count(*) filter (where fallen = true or left_at is not null),
+        count(*) filter (
+            where fallen = false
+              and left_at is null
+              and last_seen > now() - interval '10 seconds'
+        ),
+        count(*) filter (
+            where fallen = true
+               or left_at is not null
+               or last_seen <= now() - interval '10 seconds'
+        ),
         count(*)
       into v_alive, v_out, v_total
       from public.wj_challenge_players
@@ -271,6 +295,7 @@ begin
                  where room_id = p_room_id
                    and fallen = false
                    and left_at is null
+                   and last_seen > now() - interval '10 seconds'
                  limit 1;
                 v_reason := 'last_standing';
             else
@@ -395,11 +420,13 @@ begin
         raise exception 'ROOM_ALREADY_STARTED';
     end if;
 
+    -- Distinct members, including anyone who already left mid-game, occupy a
+    -- slot. Rejoin of an existing member returns earlier and bypasses this cap.
     select count(*) into v_count
     from public.wj_challenge_players
-    where room_id = v_room.id and left_at is null;
+    where room_id = v_room.id;
 
-    if v_count >= coalesce(v_room.max_players, 8) then
+    if v_count >= 4 then
         raise exception 'ROOM_FULL';
     end if;
 
@@ -925,9 +952,19 @@ begin
         return v_room;
     end if;
 
+    -- Fallen, left, or silent for 10s (disconnected) count as out so the last
+    -- climber — or a last-opponent disconnect — finishes the match.
     select
-        count(*) filter (where fallen = false and left_at is null),
-        count(*) filter (where fallen = true or left_at is not null),
+        count(*) filter (
+            where fallen = false
+              and left_at is null
+              and last_seen > now() - interval '10 seconds'
+        ),
+        count(*) filter (
+            where fallen = true
+               or left_at is not null
+               or last_seen <= now() - interval '10 seconds'
+        ),
         count(*)
       into v_alive, v_out, v_total
       from public.wj_challenge_players
@@ -964,6 +1001,7 @@ begin
                  where room_id = p_room_id
                    and fallen = false
                    and left_at is null
+                   and last_seen > now() - interval '10 seconds'
                  limit 1;
                 v_reason := 'last_standing';
             else
@@ -1111,3 +1149,20 @@ commit;
 -- No backfill: older rematches were overwritten and cannot be reconstructed.
 -- Verify: select * from public.wj_challenge_wins order by wins desc;
 --         select * from public.wj_challenge_matches order by finished_at desc;
+
+-- Winner clients subscribe to room UPDATEs (end screen must not depend only
+-- on the winner's own heartbeat). Members already have SELECT RLS.
+-- Same block lives in supabase/wj_challenge_end_cap.sql for a smaller re-run.
+do $wjc$
+begin
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+       and not exists (
+           select 1 from pg_publication_tables
+            where pubname = 'supabase_realtime'
+              and schemaname = 'public'
+              and tablename = 'wj_challenge_rooms'
+       ) then
+        execute 'alter publication supabase_realtime add table public.wj_challenge_rooms';
+    end if;
+end;
+$wjc$;

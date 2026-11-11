@@ -679,12 +679,34 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   sender-clock offset／jitter／掉包／亂序／bounce／boost／pause／穿邊／DB fallback／channel cleanup）。
   無真實雙帳戶測試時唔好聲稱已實測兩部手機；老師需喺 preview 用兩個帳戶確認手感。
 
+- **最多 4 人 + 贏家完局畫面（`supabase/wj_challenge_end_cap.sql`）**
+  - 每間 Challenge 房最多 **4 個不同玩家**。Create／Join／Join mid-game 拒絕第 5 個新玩家（`ROOM_FULL`）；
+    已係該房成員嘅 Rejoin 即使 4/4 仍然可以。名額計晒 players 表所有列（包括中途 leave 嘅人），
+    唔好讓第 5 個人補位。Lobby 寫明最多 4 人；waiting 房顯示 `Players n/4`；滿房訊息 `Room is full (4/4).`。
+    8 隻鳥色仍可揀（4 人方便分色），但名額只有 4。`max_players` 欄 default／現有房間都改成 4，並加 check constraint。
+  - 真人試過 3 人局：兩個跌咗，贏家繼續跳、冇完局畫面。原因：跌倒嗰下如果已經有 heartbeat 在途，
+    `pushNow(true)` 會直接 return（舊碼係 async，`.then` 仍然跑，但 `p_fallen=true` 從未送出）；
+    `WJ.gameOver` 又停咗 game loop，之後再冇 heartbeat。伺服器仍當跌倒嘅人 alive，
+    `try_finish` 唔會完局，贏家只靠自己嘅 800ms poll／heartbeat，永遠等唔到 `status=finished`。
+  - 修正：`pushNow` 會 queue 再送 `p_fallen`；跌倒後有 500ms watch 重試直到寫入或完局。
+    房間一變成 finished，**每個連住嘅客戶端（包括贏家、仲在跳）即刻停 loop 並顯示現有結束畫面**，
+    唔好等贏家自己跌。通知來自：同一 `wjc:<room>` channel 嘅 Broadcast `finished`、
+    `wj_challenge_rooms` 嘅 Realtime `postgres_changes` UPDATE、以及 poll（有人出局就改約 400ms）。
+    贏家喺 poll 見到只剩自己都會再 heartbeat 一次觸發 `try_finish`。遲到嘅 poll 唔可以將已完局房間寫回 playing。
+  - 對手 Leave 本來就會 `try_finish`；而家 **10 秒冇 heartbeat** 亦當出局（斷線），只剩一人就完局。
+    仍然寫 immutable match row 同累計勝場；Challenge 分唔入 Solo 榜。
+  - 老師若已經跑過 `wj_challenge.sql`，而家貼短嘅 `supabase/wj_challenge_end_cap.sql` 就夠，可重複跑，
+    唔會清房／清勝場。未裝過 Challenge 就跑更新咗嘅整份 `wj_challenge.sql`（已包含呢個 delta）。
+  - 測試：`node --test tests/wj-challenge-end-cap.test.cjs`（3 人 2 跌 → 贏家完局畫面；第 5 人被拒；
+    成員 Rejoin 4/4 仍可；跌倒 heartbeat 會 queue）。
+
 - RLS 只畀 authenticated SELECT。紀錄一過 7 日即不可讀；實體 expired rows 喺每次完局
   或重跑 SQL 時刪除（無 cron，閒置期間可能仍存 DB），**累計 wins／matches 永不跟住刪**。
 - Guests 唔可睇兩個紀錄／榜，teacher preview 只讀，唔寫／開房。未有新表時 UI 提示重跑 SQL。
 - 老師要喺 live project `mggnwzirjmibreimrwiq` **重跑整份** `supabase/wj_challenge.sql`，可重複跑。
   無舊局 backfill：以前 rematch 已覆寫嘅紀錄無法重建；新功能由安裝後完成嘅比賽開始計。
   若已經跑過呢份檔，之後只想加對手鳥同步用嘅 `vx`／`vy`，跑短嘅 `supabase/wj_challenge_sync.sql` 就夠，唔使再貼成份。
+  若已經跑過呢份檔，而家要最多 4 人同贏家完局畫面，跑短嘅 `supabase/wj_challenge_end_cap.sql` 就夠。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

@@ -955,6 +955,22 @@
                 <div class="cat-card p-8 mt-6">
                     <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
+                            <h2 class="text-3xl font-bold text-cyan-600 mb-2">🕵️ Guest logins</h2>
+                            <p class="text-gray-400 mb-6">Password guest sign-ins and what they used (teacher only)</p>
+                        </div>
+                        <button onclick="loadGuestAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-colors">↻ Refresh</button>
+                    </div>
+                    <div id="guest-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div id="guest-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-cyan-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
                             <h2 class="text-3xl font-bold text-indigo-600 mb-2">⚔️ Battles</h2>
                             <p class="text-gray-400 mb-6">Connected rooms from the last 24 hours (duel + class)</p>
                         </div>
@@ -1025,7 +1041,61 @@
             try { sessionStorage.setItem(GUEST_SESSION_KEY, '1'); } catch (e) {}
         }
         function clearGuestSessionFlag() {
-            try { sessionStorage.removeItem(GUEST_SESSION_KEY); } catch (e) {}
+            try {
+                sessionStorage.removeItem(GUEST_SESSION_KEY);
+                // The usage session key belongs to the finished guest session;
+                // a new password sign-in starts a fresh one anyway.
+                sessionStorage.removeItem(GUEST_SESSION_KEY_ID);
+            } catch (e) {}
+        }
+
+        // --- Guest tracking (teacher dashboard only) ---
+        // Guests are never written to student_logins, scores or leaderboards.
+        // A random session key (sessionStorage, one per guest tab) links the
+        // login row and the usage rows for that tab together in guest_logins /
+        // guest_usage, which only the teacher can read.
+        const GUEST_SESSION_KEY_ID = 'learniTY_guest_session_key';
+
+        function guestSessionKey(fresh) {
+            try {
+                let key = fresh ? null : sessionStorage.getItem(GUEST_SESSION_KEY_ID);
+                if (!key) {
+                    key = 'g-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+                    sessionStorage.setItem(GUEST_SESSION_KEY_ID, key);
+                }
+                return key;
+            } catch (e) {
+                return 'g-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            }
+        }
+
+        // One row per successful password entry. Called only from
+        // signInAsGuest — a refresh that restores the session from
+        // sessionStorage goes through startGuestSession() without this.
+        function recordGuestLogin() {
+            try {
+                sb.rpc('record_guest_login', {
+                    p_session_key: guestSessionKey(true),
+                    p_user_agent: navigator.userAgent
+                }).then(({ error }) => {
+                    if (error) console.warn('Guest login record failed:', error.message);
+                });
+            } catch (e) { /* tracking is optional — never block the game */ }
+        }
+
+        // Fire-and-forget usage row. Safe to call even if
+        // supabase/guest_tracking.sql has not been run yet.
+        function recordGuestUsage(feature, detail) {
+            if (!guestSession) return;
+            try {
+                sb.rpc('record_guest_usage', {
+                    p_session_key: guestSessionKey(false),
+                    p_feature: feature || '',
+                    p_detail: detail || null
+                }).then(({ error }) => {
+                    if (error) console.warn('Guest usage record failed:', error.message);
+                });
+            } catch (e) { /* tracking is optional — never block the game */ }
         }
 
         // Year groups. Add a form here (id must be F + the year, e.g. F5) and
@@ -1413,9 +1483,12 @@
             clearGuestSessionFlag();
         }
 
-        function startGuestSession() {
+        function startGuestSession(fresh) {
             guestSession = true;
             writeGuestSessionFlag();
+            // Only a fresh password sign-in counts as a login; restoring the
+            // session from sessionStorage (page refresh) does not.
+            if (fresh) recordGuestLogin();
             loginRecorded = true;
             myFormValue = '';
             myFormLoaded = true;
@@ -1442,7 +1515,7 @@
             }
             if (input) input.value = '';
             if (err) { err.classList.add('hidden'); err.innerText = ''; }
-            startGuestSession();
+            startGuestSession(true);
         }
 
         async function signOut() {
@@ -1813,6 +1886,7 @@
 
         function openErrorBook() {
             quizSource = 'errorbook';
+            recordGuestUsage('Error Book');
             changeView('error-book-view');
         }
 
@@ -2039,6 +2113,7 @@
         function nvEnter() {
             const panel = document.getElementById('nv-panel');
             if (panel) panel.classList.remove('hidden');
+            recordGuestUsage('New Vocab');
             const editor = document.getElementById('nv-editor');
             if (editor) editor.classList.toggle('hidden', !isAdmin());
             if (isAdmin()) nvEnsureFormSwitch();
@@ -2337,6 +2412,8 @@
             quizIdx = 0;
             quizScore = 0;
             quizResults = [];
+            recordGuestUsage(mode === 'listening' ? 'Dictation: Listening' : 'Dictation: Recitation',
+                quizSource === 'errorbook' ? 'Error Book' : (currentTopic || ''));
             
             // UI Setup for Mode
             document.getElementById('quiz-title-display').innerText = mode === 'listening' ? 'Listening Challenge' : 'Recitation Master';
@@ -2633,6 +2710,7 @@
                 </div>
             `;
             changeView('word-list-view');
+            recordGuestUsage('Dictation: Revision', catName || '');
             wordListBack = catName === ERROR_BOOK ? 'errorbook' : 'topic';
         }
 
@@ -2681,6 +2759,9 @@
 
         function showStructureDetail(key) {
             const data = structureData[key];
+            if (key === 'conditionals' || key === 'participle_clauses') {
+                recordGuestUsage('Grammar Quest', key === 'conditionals' ? 'Conditionals' : 'Participle Clauses');
+            }
             const content = document.getElementById('grammar-detail-content');
             document.getElementById('detail-back-btn').onclick = () => changeView('sentence-structures-view');
 
@@ -3477,6 +3558,89 @@
                     `).join('')}
                 </div>
             `, { collapsible: true, scope: 'login-admin' });
+        }
+
+        // --- Admin: guest (password 0203) logins + usage ---
+        // Guests never appear in student_logins, scores or leaderboards; these
+        // tables (supabase/guest_tracking.sql) are readable by the teacher only.
+        async function loadGuestAdmin() {
+            if (!isAdmin()) return;
+            const statsEl = document.getElementById('guest-admin-stats');
+            const listEl = document.getElementById('guest-admin-container');
+            if (!statsEl || !listEl) return;
+
+            const [loginsRes, usageRes] = await Promise.all([
+                sb.from('guest_logins')
+                    .select('id, logged_in_at, user_agent, session_key', { count: 'exact' })
+                    .order('logged_in_at', { ascending: false })
+                    .limit(500),
+                sb.from('guest_usage')
+                    .select('id, session_key, feature, detail, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(60)
+            ]);
+            adminCache.guest = {
+                logins: loginsRes.data || [],
+                loginsCount: loginsRes.count,
+                loginsError: loginsRes.error || null,
+                usage: usageRes.data || [],
+                usageError: usageRes.error || null
+            };
+            renderGuestAdmin();
+        }
+
+        function renderGuestAdmin() {
+            const statsEl = document.getElementById('guest-admin-stats');
+            const listEl = document.getElementById('guest-admin-container');
+            if (!statsEl || !listEl || !adminCache.guest) return;
+            const pack = adminCache.guest;
+            const firstError = pack.loginsError || pack.usageError;
+            if (firstError) {
+                statsEl.innerHTML = '';
+                const missing = isMissingSchema(firstError.message);
+                listEl.innerHTML = missing
+                    ? '<p class="text-amber-500 text-center py-10 font-bold">Guest tracking is not set up yet.<br><span class="text-sm font-normal">Run <code>supabase/guest_tracking.sql</code> in the Supabase SQL Editor.</span></p>'
+                    : '<p class="text-red-400 text-center py-10">Cannot load guest records: ' + escapeHtml(firstError.message) + '</p>';
+                return;
+            }
+            const logs = pack.logins;
+            const total = (pack.loginsCount != null) ? pack.loginsCount : logs.length;
+            const todayKey = hkDayKey(new Date().toISOString());
+            const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+            const loggedToday = logs.filter(l => l.logged_in_at && hkDayKey(l.logged_in_at) === todayKey).length;
+            const loggedThisWeek = logs.filter(l => l.logged_in_at && new Date(l.logged_in_at).getTime() >= sevenDaysAgo).length;
+            statsEl.innerHTML = `
+                <div class="bg-cyan-50 rounded-2xl p-5 text-center border-2 border-cyan-100">
+                    <div class="text-3xl font-bold text-cyan-600">${total}</div>
+                    <div class="text-sm text-gray-500 font-bold">Guest Logins</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">${loggedToday}</div>
+                    <div class="text-sm text-gray-500 font-bold">Today</div>
+                </div>
+                <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
+                    <div class="text-3xl font-bold text-purple-600">${loggedThisWeek}</div>
+                    <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
+                </div>
+            `;
+            const usage = pack.usage;
+            if (!usage.length) {
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No guest usage recorded yet.</p>';
+                return;
+            }
+            listEl.innerHTML = `
+                <div class="space-y-3">
+                    ${usage.map(u => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 flex-wrap gap-3">
+                            <div class="flex items-center gap-3 flex-1 min-w-[200px]">
+                                <span class="font-bold text-gray-700">${escapeHtml(u.feature || '')}</span>
+                                ${u.detail ? '<span class="text-gray-400 text-sm">' + escapeHtml(u.detail) + '</span>' : ''}
+                            </div>
+                            <span class="font-bold text-cyan-600 text-xs" title="${escapeHtml(hkDate(u.created_at))}">${escapeHtml(timeAgo(u.created_at))}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         }
 
         function updateMascot(text) {
@@ -4763,6 +4927,7 @@
                     loadAdminDashboard();
                     loadGrammarAdmin('all');
                     loadLoginAdmin();
+                    loadGuestAdmin();
                     loadBattleAdmin();
                     loadWordJumpAdmin();
                 });
@@ -4831,6 +4996,14 @@
             W: 400, H: 600,
             GRAVITY: 1030, JUMP_V: -811, WORD_BOOST: -979,
             JET_V: -765, PROP_V: -193,
+            // The correct-word launch keeps the same 465px height as the raw
+            // WORD_BOOST, but its hang time is stretched ×WORD_BOOST_HANG so
+            // students have longer to read the next Chinese prompt.
+            // vy ÷ s and gravity ÷ s² keep the height identical:
+            // -979/1.35 ≈ -725, 1030/1.35² ≈ 565 → 725²/(2·565) ≈ 465px.
+            // Normal jumps (JUMP_V + GRAVITY, 1.58s / 319px) are untouched.
+            WORD_BOOST_HANG: 1.35,
+            BOOST_VY: -725, BOOST_G: 565,
             MOVE_MAX: 240, STEER_RATE: 22, STEER_STOP: 30,
             SPEED_RAMP_AT: 3200, SPEED_RAMP_FROM: 0.45,
             TILT_RANGE: 11, TILT_DEAD: 0.025, TILT_CURVE: 1.6,
@@ -4929,7 +5102,7 @@
             WJ.shots = []; WJ.particles = []; WJ.toasts = [];
             WJ.player = {
                 x: WJ.W / 2, y: 0, vx: 0, vy: 0, w: 34, h: 40, face: 1,
-                prop: 0, jet: 0, shoes: 0, shield: 0, rainbow: 0
+                prop: 0, jet: 0, shoes: 0, shield: 0, rainbow: 0, boostHang: false
             };
             WJ.camY = -WJ.H + 120;
             WJ.topY = 0;
@@ -4959,6 +5132,7 @@
 
         WJ.start = function (withFs) {
             if (!WJ.canvas) WJ.mount();
+            recordGuestUsage('Word Jump', (!WJ.topic || WJ.topic === '__all__') ? 'All topics' : WJ.topic);
             if (withFs === false) {
                 // Player chose windowed mode — don't force full screen later.
                 WJ.autoFs = false;
@@ -5233,6 +5407,7 @@
         WJ.gameOver = function (reason) {
             if (WJ.state === 'over') return;
             WJ.running = false;
+            if (WJ.player) WJ.player.boostHang = false;
             if (WJ.raf) cancelAnimationFrame(WJ.raf);
             WJ.raf = 0;
             WJ.state = 'over';
@@ -5730,6 +5905,8 @@
             const p = WJ.player;
             p.y = pl.y;
             p.vx *= 0.98;
+            // A landing ends any slower-hang (word-boost) launch still in the air.
+            p.boostHang = false;
             if (pl.type === 'brown') {
                 pl.dead = true;
                 WJ.burst(pl.x + pl.w / 2, pl.y, '#a16207', 14);
@@ -5747,11 +5924,14 @@
                 v = WJ.applyGadget(pl.gadget.kind, v);
             }
             p.vy = v;
-            // A correct word match overrides the normal bounce with a much
-            // bigger launch, so answering well literally climbs higher.
+            // A correct word match replaces the normal bounce with a launch
+            // that is 465px high but hangs ×1.35 longer, so the next prompt is
+            // easier to read in time. The reduced gravity in WJ.update only
+            // applies while p.boostHang is set (cleared on the next landing).
             if (WJ.boostPending) {
                 WJ.boostPending = false;
-                p.vy = Math.min(p.vy, WJ.WORD_BOOST);
+                p.boostHang = true;
+                p.vy = WJ.BOOST_VY;
                 WJ.beep(660, 0.08, 'square', 0.04);
             }
             WJ.beep(520, 0.05, 'sine', 0.03);
@@ -6049,7 +6229,12 @@
             // --- vertical ---
             if (p.jet > 0) p.vy = WJ.JET_V;
             else if (p.prop > 0) p.vy = WJ.PROP_V;
-            else p.vy = Math.min(p.vy + WJ.GRAVITY * dt, 1500);
+            else {
+                // A word-boost launch (p.boostHang) falls under reduced gravity
+                // so its 465px flight takes ×1.35 longer. Cleared on landing.
+                const g = p.boostHang ? WJ.BOOST_G : WJ.GRAVITY;
+                p.vy = Math.min(p.vy + g * dt, 1500);
+            }
 
             const prevFeet = p.y;
             p.x += p.vx * dt;

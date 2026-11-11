@@ -280,6 +280,29 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 訪客**唔可以**睇任何排行榜／其他人成績：Hub 嘅 Leaderboard、My Records、老師 dashboard 入口會隱藏，`changeView` 亦會擋住 `leaderboard-view`、`admin-view`、`my-records-view`。Word Jump game-over 唔顯示 Top 7，亦唔畫同學高度線、唔上傳分數。呢個密碼寫喺前端靜態檔，睇到網頁原始碼就睇到；只係課堂用嘅簡易閘，唔係真正帳號系統。
 
+#### 訪客追蹤（`supabase/guest_tracking.sql`，2026-11 加）
+
+要喺 SQL Editor 跑一次，唔會自動建表；重跑安全。**只係**畀老師喺 Admin Dashboard 睇訪客用量，訪客本身照舊唔會出現喺 `student_logins`、成績表或者任何排行榜。
+
+- 表 `guest_logins`（每次成功輸入密碼一行：`logged_in_at`、`user_agent`、`session_key`）。
+  所以「login 次數」＝輸入密碼嘅次數（唔似學生 `login_count` 有 12 小時去重）。
+  刷新分頁（sessionStorage restore）**唔算**一次登入。
+- 表 `guest_usage`（`session_key`、`feature`、`detail`、`created_at`）：訪客開始有意義嘅活動就記一筆，
+  fire-and-forget。Frontend `recordGuestUsage()` 已蓋 Word Jump（detail＝topic）、
+  Dictation: Listening／Recitation（detail＝topic 或 Error Book）、Dictation: Revision、
+  New Vocab、Error Book、Grammar Quest（detail＝Conditionals／Participle Clauses）。
+- `session_key` 係瀏覽器喺成功輸入密碼時生成嘅隨機 id，存 `sessionStorage`
+  （`learniTY_guest_session_key`），用嚟將 usage 掛返嗰次 login。Logout 會清走。
+- RLS：兩張表都只可以 `ADMIN_EMAIL`（`auth.jwt() ->> 'email'`）SELECT；anon／學生讀唔到。
+  寫入只經 security definer RPC `record_guest_login(p_session_key, p_user_agent)` 同
+  `record_guest_usage(p_session_key, p_feature, p_detail)`（會截長度、空 key／feature 直接 return），
+  已 `revoke` anon／public 對表嘅直接 insert/update/delete。
+- Admin Dashboard 新卡「🕵️ Guest logins」→ `loadGuestAdmin()`：總登入數、今日（HK 時間）、
+  最近 7 日，下面係最近 usage（feature、detail、相對時間、hover 顯示 HK 時間）。
+  未跑 SQL 嘅話張卡會顯示提示，唔會整壞 dashboard 其他部分。
+- 訪客資料**唔會**出現喺學生排行榜、My Records、Word Jump Top 7 或者 `student_logins` 年級分組；
+  訪客亦開唔到 admin view（`GUEST_BLOCKED_VIEWS`＋`isAdmin()`）。
+
 ---
 
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
@@ -406,6 +429,19 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
   喺 `land()` 入面 apply，唔可以喺 `answerRow()` 直接改 `p.vy`（會被覆蓋）。
   想彈得更高／矮就改 `WJ.WORD_BOOST`（-979 ≈ 465px；-1120 ≈ 609px；-800 ≈ 311px）。
+  **改 `WORD_BOOST` 時要連 `WJ.BOOST_VY`／`WJ.BOOST_G` 一齊改**（見下）。
+- **Boost 滯空 ×1.35（2026-11）**：老師反映答對之後反應時間太短，睇唔切下一條問題。
+  所以答對嗰下嘅發射會用**慢滯空版**：`WJ.BOOST_VY = -725`（= -979 ÷ 1.35）取代
+  `p.vy`，同時設 `p.boostHang = true`；`WJ.update()` 嘅垂直積分見到
+  `p.boostHang` 就用 `WJ.BOOST_G = 565`（= 1030 ÷ 1.35²）而唔係 `WJ.GRAVITY`。
+  高度不變：`725² / (2 × 565) ≈ 465px`，但滯空 ×1.35（`2v/g = 2×725/565 ≈ 2.57s`，
+  原本 1.9s），學生有更多時間揀下一個字。
+  普通跳（`JUMP_V -811`／`GRAVITY 1030`，1.58s／319px）**完全唔受影響**。
+  `p.boostHang` 會喺**下一次 `land()`**、`WJ.gameOver()` 清走；`WJ.reset()` 重建 player 所以 RE／重開都會清。
+  jet／prop 期間照舊直接設定 `p.vy`，唔會用 BOOST_G。想再慢啲就加大
+  `WJ.WORD_BOOST_HANG`（1.35→1.5 時 BOOST_VY ≈ -653、BOOST_G ≈ 458），**兩個數都要按
+  `WORD_BOOST ÷ s` 同 `GRAVITY ÷ s²` 重算**，否則彈高會變。冇 jet／prop 嘅情況下
+  boost 直接 `p.vy = WJ.BOOST_VY`（唔係 `Math.min`——-725 比 -811 弱，min 會食咗個 boost）。
 - 踩錯：toast ❌ 顯示正確答案、連對清零（**唔會懲罰分數／唔會死**），
   正確嗰塊會變綠比玩家睇。Toast 畫喺 `WJ.H - 140`（畫面底部、方向 pad 之上）——
   以前畫喺 `y = 96`，啱啱好蓋住上面嗰排字磚。
@@ -450,7 +486,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `WJ.STEER_RATE`（22）／`WJ.STEER_STOP`（30）／`WJ.TILT_RANGE`（11）／
   `WJ.TILT_CURVE`（1.6）。想「收步更快」就加 `STEER_STOP`、想「滑多啲」就減。
   想改滯空又保持跳高：`GRAVITY ÷ s²`、`JUMP_V ÷ s`（見 §10.3）；
-  道具上升速度 `JET_V -765`／`PROP_V -193` 同 `WORD_BOOST`（保持 465px）要一齊按比例調。
+  道具上升速度 `JET_V -765`／`PROP_V -193` 同 `WORD_BOOST`（保持 465px）要一齊按比例調；
+  改 `WORD_BOOST` 之後記得重算 `WJ.BOOST_VY = WORD_BOOST ÷ WORD_BOOST_HANG` 同
+  `WJ.BOOST_G = GRAVITY ÷ WORD_BOOST_HANG²`（§10.6 boost 滯空）。
 - 想調「開頭慢、後來快」嘅節奏改 `WJ.SPEED_RAMP_FROM`（0.45）同
   `WJ.SPEED_RAMP_AT`（3200px）。開頭速度 = `MOVE_MAX × SPEED_RAMP_FROM`
   （240 × 0.45 = 108 px/s）。
@@ -564,5 +602,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql`。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

@@ -3518,7 +3518,7 @@
             const blurb = document.getElementById('leaderboard-blurb');
             if (!blurb) return;
             blurb.textContent = lbModeFilter === 'wordjump'
-                ? 'Personal bests — top 10 by height and words collected.'
+                ? 'Personal bests — top 10 by best score and words collected.'
                 : lbModeFilter === 'wjchallenge'
                     ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
                     : 'Cumulative scores — practice more to rank higher!';
@@ -3542,7 +3542,7 @@
             if (lbModeFilter === 'wordjump') {
                 const { data, error } = await sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays,created_at')
-                    .order('height', { ascending: false })
+                    .order('score', { ascending: false })
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(10);
@@ -3574,8 +3574,8 @@
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
                             <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
                             ${formAssignControl(r.email, r.nickname)}
-                            <span class="text-gray-400 text-sm mx-2">${Number(r.height) || 0} px</span>
-                            <span class="font-bold text-orange-600 text-lg">${Number(r.words) || 0} words</span>
+                            <span class="text-gray-400 text-sm mx-2">${Number(r.words) || 0} words</span>
+                            <span class="font-bold text-orange-600 text-lg">${Number(r.score) || 0} pts</span>
                         </div>`;
             if (!isAdmin()) {
                 container.innerHTML = `<div class="space-y-3">${lbRows.map(rowHtml).join('')}</div>`;
@@ -5190,7 +5190,7 @@
             const [boardRes, totalsRes, todayRes, stampRes] = await Promise.all([
                 sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays,created_at')
-                    .order('height', { ascending: false })
+                    .order('score', { ascending: false })
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(1000),
@@ -5259,7 +5259,7 @@
                         <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">last ${timeAgo(r.created_at)}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-sm font-bold text-indigo-600">${Number(r.height) || 0} px</p>
+                        <p class="text-sm font-bold text-indigo-600">${Number(r.score) || 0} pts</p>
                         <p class="text-[10px] text-gray-400">${Number(r.words) || 0} words</p>
                     </div>
                 </div>`;
@@ -6024,7 +6024,7 @@
             return `<div class="flex items-center gap-2 py-1 ${mine ? 'rounded-lg bg-emerald-50 px-1' : ''}">
                 <span class="w-6 text-center text-sm">${medal}</span>
                 <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${escapeHtml(name)}${mine ? ' (you)' : ''}</span>
-                <span class="text-xs font-bold text-indigo-600">${row.height || 0} px</span>
+                <span class="text-xs font-bold text-indigo-600">${row.score || 0} pts</span>
                 <span class="w-14 text-right text-[10px] text-gray-400">${row.words || 0} words</span>
             </div>`;
         };
@@ -6041,7 +6041,7 @@
             try {
                 const { data, error } = await sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays')
-                    .order('height', { ascending: false })
+                    .order('score', { ascending: false })
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(7);
@@ -7863,12 +7863,21 @@
             ],
             TARGETS: [2000, 3000, 5000, 8000],
             RESUME_KEY: 'learniTY_wj_challenge_resume',
+            INTERP_MS: 120,
+            POSE_MS: 160,
+            HEARTBEAT_MS: 400,
+            PLAY_POLL_MS: 250,
             room: null,
             players: [],
             pollId: null,
             lastPush: 0,
+            lastPose: 0,
             lastSync: 0,
             pushing: false,
+            posing: false,
+            hbVel: null,
+            velWire: null,
+            ghosts: {},
             sqlMissing: false,
             startedKey: '',
             restoredKey: '',
@@ -8123,7 +8132,7 @@
             WJC.sqlMissing = false;
             if (!(opts && opts.keepFallen)) WJC.localFallen = false;
             WJC.saveResume();
-            WJC.startPolling(room.status === 'playing' ? 700 : 1500);
+            WJC.startPolling(room.status === 'playing' ? WJC.PLAY_POLL_MS : 1500);
             WJC.poll();
         };
 
@@ -8165,6 +8174,8 @@
                 }
                 WJC.applyRoom(roomRes.data);
                 WJC.players = playersRes.data || [];
+                if (WJC.room && WJC.room.status === 'playing') WJC.adoptSnapshots(WJC.players);
+                else WJC.ghosts = {};
                 WJC.reactToState();
             } catch (e) {
                 WJC.setError(WJC.errorMessage(e));
@@ -8207,7 +8218,7 @@
                 } else if (WJC.localFallen && WJC.overlayMode !== 'results') {
                     WJC.showFallenOverlay();
                 }
-                WJC.startPolling(700);
+                WJC.startPolling(WJC.PLAY_POLL_MS);
                 WJC.syncTopicLock();
             } else if (st === 'finished') {
                 WJ.challenge = true;
@@ -8389,7 +8400,7 @@
 
         WJC.showRoom = function () {
             if (!WJC.room) return WJC.showModeSelect();
-            WJC.startPolling(WJC.room.status === 'playing' ? 700 : 1500);
+            WJC.startPolling(WJC.room.status === 'playing' ? WJC.PLAY_POLL_MS : 1500);
             WJC.poll();
         };
 
@@ -8593,6 +8604,7 @@
             WJC.stopPolling();
             WJC.room = null;
             WJC.players = [];
+            WJC.ghosts = {};
             WJC.startedKey = '';
             WJC.restoredKey = '';
             WJC.localFallen = false;
@@ -8657,7 +8669,10 @@
             WJ.lastTs = 0; WJ.acc = 0;
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
+            WJC.ghosts = {};
             WJC.lastPush = 0;
+            WJC.lastPose = 0;
+            WJC.pushPose();
             WJC.pushNow(false);
         };
 
@@ -8700,7 +8715,8 @@
                 }
             }
             const now = Date.now();
-            if (now - WJC.lastPush > 380) WJC.pushNow(WJC.localFallen || WJ.state === 'over');
+            if (now - (WJC.lastPose || 0) > WJC.POSE_MS) WJC.pushPose();
+            if (now - WJC.lastPush > WJC.HEARTBEAT_MS) WJC.pushNow(WJC.localFallen || WJ.state === 'over');
         };
 
         WJC.onReachedTarget = function () {
@@ -8724,23 +8740,44 @@
             });
         };
 
+        WJC.heartbeatArgs = function (fallen, withVel) {
+            const p = WJ.player;
+            const args = {
+                p_room_id: WJC.room.id,
+                p_score: WJ.score(),
+                p_height: Math.round(WJ.maxClimb || 0),
+                p_x: p ? p.x : 200,
+                p_y: p ? p.y : 0,
+                p_face: p ? p.face : 1,
+                p_fallen: !!fallen
+            };
+            if (withVel) {
+                args.p_vx = p ? (Number(p.vx) || 0) : 0;
+                args.p_vy = p ? (Number(p.vy) || 0) : 0;
+            }
+            return args;
+        };
+
         WJC.pushNow = async function (fallen) {
             if (!WJC.room || !currentUser || WJC.pushing) return;
             if (previewStudentForm() || isGuestUser()) return;
             if (WJC.room.status !== 'playing' && WJC.room.status !== 'finished') return;
             WJC.pushing = true;
             WJC.lastPush = Date.now();
-            const p = WJ.player;
             try {
-                const room = await wjcRpc('heartbeat_wj_challenge', {
-                    p_room_id: WJC.room.id,
-                    p_score: WJ.score(),
-                    p_height: Math.round(WJ.maxClimb || 0),
-                    p_x: p ? p.x : 200,
-                    p_y: p ? p.y : 0,
-                    p_face: p ? p.face : 1,
-                    p_fallen: !!fallen
-                });
+                let room;
+                try {
+                    room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(fallen, WJC.hbVel !== false));
+                    if (WJC.hbVel == null) WJC.hbVel = true;
+                } catch (e) {
+                    const m = (e && e.message) || '';
+                    if (WJC.hbVel !== false && /could not find the function|PGRST202|42883/i.test(m)) {
+                        WJC.hbVel = false;
+                        room = await wjcRpc('heartbeat_wj_challenge', WJC.heartbeatArgs(fallen, false));
+                    } else {
+                        throw e;
+                    }
+                }
                 if (room) WJC.applyRoom(room);
                 if (room && room.status === 'finished' && WJC.overlayMode !== 'results') {
                     WJC.poll();
@@ -8751,13 +8788,142 @@
             WJC.pushing = false;
         };
 
+
+        WJC.wrapDx = function (dx) {
+            const w = WJ.W;
+            if (dx > w / 2) return dx - w;
+            if (dx < -w / 2) return dx + w;
+            return dx;
+        };
+
+        WJC.wrapX = function (x) {
+            const w = WJ.W, half = 17;
+            if (x < -half) return x + w;
+            if (x > w + half) return x - w;
+            return x;
+        };
+
+        /* Lightweight x/y/vx/vy write that does not lock the room row.
+           Heartbeat still carries score, height, fallen and win checks. */
+        WJC.pushPose = async function () {
+            if (!WJC.room || !currentUser || WJC.posing) return;
+            if (previewStudentForm() || isGuestUser()) return;
+            if (!WJC.room.id || WJC.room.status !== 'playing') return;
+            const p = WJ.player;
+            if (!p) return;
+            WJC.posing = true;
+            WJC.lastPose = Date.now();
+            const base = { x: p.x, y: p.y, face: p.face || 1 };
+            const withVel = WJC.velWire !== false;
+            const patch = withVel
+                ? Object.assign({}, base, { vx: Number(p.vx) || 0, vy: Number(p.vy) || 0 })
+                : base;
+            try {
+                const { error } = await sb.from('wj_challenge_players')
+                    .update(patch)
+                    .eq('room_id', WJC.room.id)
+                    .eq('user_id', currentUser.id);
+                if (error) {
+                    const m = (error.message || '');
+                    if (withVel && /vx|vy|column|schema cache|PGRST204/i.test(m)) {
+                        WJC.velWire = false;
+                        await sb.from('wj_challenge_players')
+                            .update(base)
+                            .eq('room_id', WJC.room.id)
+                            .eq('user_id', currentUser.id);
+                    } else if (!/Could not find|does not exist|PGRST20|42P01/i.test(m)) {
+                        console.warn('WJ challenge pose:', m);
+                    }
+                } else if (withVel && WJC.velWire == null) {
+                    WJC.velWire = true;
+                }
+            } catch (e) {
+                /* pose is best-effort; heartbeat still carries a fallback snapshot */
+            }
+            WJC.posing = false;
+        };
+
+        WJC.adoptSnapshots = function (rows) {
+            const now = performance.now();
+            const myId = WJC.meId();
+            const seen = {};
+            (rows || []).forEach(row => {
+                if (!row || row.user_id === myId) return;
+                seen[row.user_id] = true;
+                const x = Number(row.x), y = Number(row.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                let vx = Number(row.vx), vy = Number(row.vy);
+                const hasVel = row.vx != null && row.vy != null && Number.isFinite(vx) && Number.isFinite(vy);
+                let g = WJC.ghosts[row.user_id];
+                if (!g) {
+                    g = WJC.ghosts[row.user_id] = {
+                        snaps: [],
+                        x: x, y: y, vx: 0, vy: 0,
+                        face: (row.face || 1) < 0 ? -1 : 1
+                    };
+                }
+                const last = g.snaps[g.snaps.length - 1];
+                if (last && Math.abs(last.x - x) < 0.4 && Math.abs(last.y - y) < 0.4 && now - last.t < 40) return;
+                if (!hasVel) {
+                    if (last) {
+                        const dt = Math.max(0.05, (now - last.t) / 1000);
+                        vx = WJC.wrapDx(x - last.x) / dt;
+                        vy = (y - last.y) / dt;
+                    } else {
+                        vx = 0; vy = 0;
+                    }
+                }
+                // A rematch / start resets the bird to the ground. Ignore leftover vy.
+                if ((Number(row.height) || 0) < 8 && Math.abs(y) < 12) { vx = 0; vy = 0; }
+                const face = (row.face || 1) < 0 ? -1 : 1;
+                g.snaps.push({ t: now, x: x, y: y, vx: vx, vy: vy, face: face });
+                if (g.snaps.length > 6) g.snaps.splice(0, g.snaps.length - 6);
+                g.face = face;
+            });
+            Object.keys(WJC.ghosts).forEach(id => { if (!seen[id]) delete WJC.ghosts[id]; });
+        };
+
+        WJC.sampleGhost = function (g, now) {
+            const snaps = g.snaps;
+            if (!snaps || !snaps.length) return { x: g.x, y: g.y, face: g.face };
+            const renderAt = now - WJC.INTERP_MS;
+            let i = snaps.length - 1;
+            while (i > 0 && snaps[i].t > renderAt) i--;
+            const a = snaps[i];
+            const b = snaps[i + 1];
+            if (b && b.t > a.t) {
+                const span = (b.t - a.t) / 1000;
+                let t = (renderAt - a.t) / (b.t - a.t);
+                t = Math.max(0, Math.min(1, t));
+                const dt = t * span;
+                // Follow a gravity arc from the earlier snapshot, then ease
+                // onto the next one so the bird lands where the wire said.
+                const predY = a.y + a.vy * dt + 0.5 * WJ.GRAVITY * dt * dt;
+                const endPred = a.y + a.vy * span + 0.5 * WJ.GRAVITY * span * span;
+                return {
+                    x: WJC.wrapX(a.x + WJC.wrapDx(b.x - a.x) * t),
+                    y: predY + (b.y - endPred) * t,
+                    face: t < 0.5 ? a.face : b.face
+                };
+            }
+            const dt = Math.max(0, Math.min(0.35, (renderAt - a.t) / 1000));
+            return {
+                x: WJC.wrapX(a.x + a.vx * dt),
+                y: a.y + a.vy * dt + 0.5 * WJ.GRAVITY * dt * dt,
+                face: a.face
+            };
+        };
+
         /* ---------------- live birds ---------------- */
 
         WJC.drawRivals = function (ctx) {
             const myId = WJC.meId();
+            const now = performance.now();
             (WJC.players || []).forEach(p => {
                 if (!p || p.user_id === myId) return;
-                WJC.drawRivalBird(ctx, p);
+                const g = WJC.ghosts[p.user_id];
+                const pose = g ? WJC.sampleGhost(g, now) : null;
+                WJC.drawRivalBird(ctx, pose ? Object.assign({}, p, pose) : p);
             });
         };
 

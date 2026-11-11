@@ -4,7 +4,7 @@
 --   https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new
 -- Safe to re-run.
 --
--- Live presence (x/y/score/height/colour) is updated by each member on
+-- Live presence (x/y/vx/vy/score/height/colour) is updated by each member on
 -- their own row. Room create / join / start / leave / finish go through
 -- security-definer RPCs. Guests and teacher-preview sessions must not
 -- call these from the browser.
@@ -48,6 +48,8 @@ create table if not exists public.wj_challenge_players (
     height      int not null default 0,
     x           double precision not null default 200,
     y           double precision not null default 0,
+    vx          double precision not null default 0,
+    vy          double precision not null default 0,
     face        int not null default 1,
     fallen      boolean not null default false,
     reached_at  timestamptz,
@@ -79,6 +81,8 @@ alter table public.wj_challenge_players add column if not exists score          
 alter table public.wj_challenge_players add column if not exists height         int not null default 0;
 alter table public.wj_challenge_players add column if not exists x              double precision not null default 200;
 alter table public.wj_challenge_players add column if not exists y              double precision not null default 0;
+alter table public.wj_challenge_players add column if not exists vx             double precision not null default 0;
+alter table public.wj_challenge_players add column if not exists vy             double precision not null default 0;
 alter table public.wj_challenge_players add column if not exists face           int not null default 1;
 alter table public.wj_challenge_players add column if not exists fallen         boolean not null default false;
 alter table public.wj_challenge_players add column if not exists reached_at     timestamptz;
@@ -601,7 +605,7 @@ begin
     end if;
 
     update public.wj_challenge_players
-       set score = 0, height = 0, x = 200, y = 0, face = 1,
+       set score = 0, height = 0, x = 200, y = 0, vx = 0, vy = 0, face = 1,
            fallen = false, reached_at = null, left_at = null,
            last_seen = now()
      where room_id = p_room_id;
@@ -713,7 +717,7 @@ begin
     end if;
 
     update public.wj_challenge_players
-       set score = 0, height = 0, x = 200, y = 0, face = 1,
+       set score = 0, height = 0, x = 200, y = 0, vx = 0, vy = 0, face = 1,
            fallen = false, reached_at = null, left_at = null,
            last_seen = now()
      where room_id = p_room_id;
@@ -1027,6 +1031,9 @@ begin
 end;
 $wjc$;
 
+drop function if exists public.heartbeat_wj_challenge(uuid, int, int, double precision, double precision, int, boolean);
+drop function if exists public.heartbeat_wj_challenge(uuid, int, int, double precision, double precision, int, boolean, double precision, double precision);
+
 create or replace function public.heartbeat_wj_challenge(
     p_room_id uuid,
     p_score int,
@@ -1034,7 +1041,9 @@ create or replace function public.heartbeat_wj_challenge(
     p_x double precision,
     p_y double precision,
     p_face int,
-    p_fallen boolean default false
+    p_fallen boolean default false,
+    p_vx double precision default null,
+    p_vy double precision default null
 )
 returns setof public.wj_challenge_rooms
 language plpgsql
@@ -1071,6 +1080,8 @@ begin
            height = v_height,
            x = coalesce(p_x, x),
            y = coalesce(p_y, y),
+           vx = coalesce(p_vx, vx),
+           vy = coalesce(p_vy, vy),
            face = case when coalesce(p_face, 1) < 0 then -1 else 1 end,
            fallen = fallen or coalesce(p_fallen, false),
            reached_at = case
@@ -1090,6 +1101,9 @@ begin
     return next v_room;
 end;
 $wjc$;
+
+revoke all on function public.heartbeat_wj_challenge(uuid, int, int, double precision, double precision, int, boolean, double precision, double precision) from anon;
+grant execute on function public.heartbeat_wj_challenge(uuid, int, int, double precision, double precision, int, boolean, double precision, double precision) to authenticated;
 
 delete from public.wj_challenge_matches where finished_at <= now() - interval '7 days';
 commit;

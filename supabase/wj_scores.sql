@@ -42,9 +42,11 @@ grant select on public.wj_scores to anon, authenticated;
 grant insert on public.wj_scores to authenticated;
 
 -- ------------------------------------------------------------
--- One row per student: their personal best, plus how many games
--- they have played in total. The game-over screen asks for the
+-- One row per student: their personal-best single game (highest score,
+-- then most words collected, then earlier created_at), plus how many
+-- games they have played in total. The game-over screen asks for the
 -- top 7 of this view; the teacher dashboard asks for all of it.
+-- The Hub board ranks and displays score + words from this best run.
 -- ------------------------------------------------------------
 drop view if exists public.wj_leaderboard;
 
@@ -67,7 +69,7 @@ from (
         count(*) over (partition by s.user_id) as plays,
         row_number() over (
             partition by s.user_id
-            order by s.score desc, s.created_at asc
+            order by s.score desc, s.words desc, s.created_at asc
         ) as rn
     from public.wj_scores s
 ) ranked
@@ -77,4 +79,4 @@ grant select on public.wj_leaderboard to anon, authenticated;
 
 -- Check it worked:
 -- select nickname, score, height, words, plays from public.wj_leaderboard
--- order by score desc limit 7;
+-- order by score desc, words desc, created_at asc limit 7;

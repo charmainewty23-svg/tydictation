@@ -6603,6 +6603,7 @@
                 p.vy = WJ.BOOST_VY;
                 WJ.beep(660, 0.08, 'square', 0.04);
             }
+            if (WJ.challenge) WJC.pushPose(true);
             WJ.beep(520, 0.05, 'sine', 0.03);
         };
 
@@ -6998,6 +6999,7 @@
                     } else if (p.vy > 220 && p.y < m.y + 6) {
                         m.dead = true;
                         p.vy = WJ.JUMP_V * 1.05;
+                        if (WJ.challenge) WJC.pushPose(true);
                         WJ.bonus += 30;
                         WJ.burst(m.x, m.y, '#c084fc', 16);
                         WJ.beep(700, 0.12, 'square', 0.05);
@@ -7007,6 +7009,7 @@
                         m.dead = true;
                         WJ.burst(m.x, m.y, '#c084fc', 14);
                         p.vy = WJ.JUMP_V * 0.8;
+                        if (WJ.challenge) WJC.pushPose(true);
                     }
                 }
             }
@@ -7863,10 +7866,10 @@
             ],
             TARGETS: [2000, 3000, 5000, 8000],
             RESUME_KEY: 'learniTY_wj_challenge_resume',
-            INTERP_MS: 120,
-            POSE_MS: 160,
+            INTERP_MS: 180,
+            POSE_MS: 80,
             HEARTBEAT_MS: 400,
-            PLAY_POLL_MS: 250,
+            PLAY_POLL_MS: 800,
             room: null,
             players: [],
             pollId: null,
@@ -8118,6 +8121,9 @@
         WJC.onLeaveView = function () {
             WJC.closeRecords();
             WJC.stopPolling();
+            WJC.stopTransport();
+            WJC.epoch = (WJC.epoch || 0) + 1;
+            WJC.polling = null;
             if (WJC.room && WJC.room.status === 'playing' && currentUser && !previewStudentForm() && !isGuestUser()) {
                 try { sb.rpc('leave_wj_challenge', { p_room_id: WJC.room.id }); } catch (e) {}
             }
@@ -8127,6 +8133,8 @@
         WJC.adoptRoom = function (data, opts) {
             const room = Array.isArray(data) ? data[0] : data;
             if (!room || !room.id) return WJC.setError('Could not open that room.');
+            WJC.epoch = (WJC.epoch || 0) + 1;
+            WJC.polling = null;
             WJC.room = room;
             WJC.error = '';
             WJC.sqlMissing = false;
@@ -8153,11 +8161,15 @@
         WJC.poll = async function () {
             if (!WJC.room || !WJC.room.id) return;
             if (previewStudentForm() || isGuestUser() || !currentUser) return;
+            if (WJC.polling) return;
+            const roomId = WJC.room.id, roomRef = WJC.room;
+            WJC.polling = roomRef;
             try {
                 const [roomRes, playersRes] = await Promise.all([
                     sb.from('wj_challenge_rooms').select('*').eq('id', WJC.room.id).maybeSingle(),
                     sb.from('wj_challenge_players').select('*').eq('room_id', WJC.room.id)
                 ]);
+                if (!WJC.room || WJC.room.id !== roomId || WJC.polling !== roomRef) return;
                 if (roomRes.error) {
                     WJC.setError(WJC.errorMessage(roomRes.error));
                     return;
@@ -8178,13 +8190,16 @@
                 else WJC.ghosts = {};
                 WJC.reactToState();
             } catch (e) {
-                WJC.setError(WJC.errorMessage(e));
+                if (WJC.room && WJC.room.id === roomId) WJC.setError(WJC.errorMessage(e));
+            } finally {
+                if (WJC.polling === roomRef) WJC.polling = null;
             }
         };
 
         WJC.reactToState = function () {
             if (!WJC.room) return;
             const st = WJC.room.status;
+            if (st !== 'playing') WJC.stopTransport();
             if (st === 'waiting') {
                 if (WJ.challenge && (WJ.state === 'playing' || WJ.state === 'over')) {
                     WJ.challenge = false;
@@ -8218,6 +8233,7 @@
                 } else if (WJC.localFallen && WJC.overlayMode !== 'results') {
                     WJC.showFallenOverlay();
                 }
+                WJC.startTransport();
                 WJC.startPolling(WJC.PLAY_POLL_MS);
                 WJC.syncTopicLock();
             } else if (st === 'finished') {
@@ -8602,6 +8618,9 @@
 
         WJC.resetLocal = function () {
             WJC.stopPolling();
+            WJC.stopTransport();
+            WJC.epoch = (WJC.epoch || 0) + 1;
+            WJC.polling = null;
             WJC.room = null;
             WJC.players = [];
             WJC.ghosts = {};
@@ -8672,6 +8691,7 @@
             WJC.ghosts = {};
             WJC.lastPush = 0;
             WJC.lastPose = 0;
+            WJC.startTransport();
             WJC.pushPose();
             WJC.pushNow(false);
         };
@@ -8762,6 +8782,7 @@
             if (!WJC.room || !currentUser || WJC.pushing) return;
             if (previewStudentForm() || isGuestUser()) return;
             if (WJC.room.status !== 'playing' && WJC.room.status !== 'finished') return;
+            const roomId = WJC.room.id, startedAt = WJC.room.started_at, epoch = WJC.epoch;
             WJC.pushing = true;
             WJC.lastPush = Date.now();
             try {
@@ -8778,6 +8799,9 @@
                         throw e;
                     }
                 }
+                if (!WJC.room || WJC.room.id !== roomId || WJC.room.started_at !== startedAt || WJC.epoch !== epoch) {
+                    WJC.pushing = false; return;
+                }
                 if (room) WJC.applyRoom(room);
                 if (room && room.status === 'finished' && WJC.overlayMode !== 'results') {
                     WJC.poll();
@@ -8790,29 +8814,28 @@
 
 
         WJC.wrapDx = function (dx) {
-            const w = WJ.W;
+            const w = WJ.W + 34; // local player wraps at -17 / W+17, not at 0 / W
             if (dx > w / 2) return dx - w;
             if (dx < -w / 2) return dx + w;
             return dx;
         };
 
         WJC.wrapX = function (x) {
-            const w = WJ.W, half = 17;
-            if (x < -half) return x + w;
-            if (x > w + half) return x - w;
-            return x;
+            const half = 17, period = WJ.W + 2 * half;
+            return ((x + half) % period + period) % period - half;
         };
 
         /* Lightweight x/y/vx/vy write that does not lock the room row.
            Heartbeat still carries score, height, fallen and win checks. */
-        WJC.pushPose = async function () {
+        WJC.pushDbPose = async function () {
             if (!WJC.room || !currentUser || WJC.posing) return;
             if (previewStudentForm() || isGuestUser()) return;
             if (!WJC.room.id || WJC.room.status !== 'playing') return;
             const p = WJ.player;
             if (!p) return;
+            if (Date.now() - (WJC.lastDbPose || 0) < 400) return;
             WJC.posing = true;
-            WJC.lastPose = Date.now();
+            WJC.lastDbPose = Date.now();
             const base = { x: p.x, y: p.y, face: p.face || 1 };
             const withVel = WJC.velWire !== false;
             const patch = withVel
@@ -8843,75 +8866,171 @@
             WJC.posing = false;
         };
 
+        // Broadcast is visual-only. DB membership, scores, fallen and winner stay authoritative.
+        // Public UUID topic: never broadcast names/emails, answers, scores or auth tokens.
+        WJC.stopTransport = function () {
+            const channel = WJC.poseChannel;
+            WJC.poseChannel = null;
+            WJC.broadcastReady = false;
+            WJC.transportKey = '';
+            if (WJC.poseTimer) clearInterval(WJC.poseTimer);
+            WJC.poseTimer = null;
+            if (channel) sb.removeChannel(channel).catch(() => {});
+        };
+
+        WJC.startTransport = function () {
+            if (!WJC.room || WJC.room.status !== 'playing' || WJC.cloudBlockedReason()) return;
+            const key = WJC.room.id + ':' + WJC.room.started_at;
+            if (WJC.transportKey === key) return;
+            WJC.stopTransport();
+            WJC.transportKey = key;
+            WJC.poseSession = crypto.randomUUID();
+            WJC.poseSeq = 0;
+            WJC.ghosts = {};
+            WJC.poseTimer = setInterval(() => WJC.pushPose(), WJC.POSE_MS);
+            try {
+                const channel = sb.channel('wjc:' + WJC.room.id, {
+                    config: { broadcast: { self: false, ack: false } }
+                });
+                WJC.poseChannel = channel;
+                channel.on('broadcast', { event: 'pose' }, ({ payload }) => {
+                    if (WJC.poseChannel === channel) WJC.receivePose(payload);
+                }).subscribe(status => {
+                    if (WJC.poseChannel !== channel) return;
+                    WJC.broadcastReady = status === 'SUBSCRIBED';
+                    if (WJC.broadcastReady) WJC.pushPose();
+                });
+            } catch (e) {
+                WJC.broadcastReady = false; // DB path still works if websocket is unavailable.
+            }
+        };
+
+        WJC.pushPose = function (jump) {
+            if (!WJC.room || WJC.room.status !== 'playing' || !WJ.challenge ||
+                !WJ.player || WJC.cloudBlockedReason()) return;
+            WJC.lastPose = Date.now();
+            const p = WJ.player, moving = WJ.state === 'playing' && !WJ.paused && !WJC.localFallen;
+            const payload = {
+                match: WJC.transportKey, user: WJC.meId(), session: WJC.poseSession,
+                seq: ++WJC.poseSeq, t: performance.now(), x: p.x, y: p.y,
+                vx: moving ? p.vx : 0, vy: moving ? p.vy : 0, face: p.face || 1,
+                gravity: !moving || p.jet > 0 || p.prop > 0 ? 0 : (p.boostHang ? WJ.BOOST_G : WJ.GRAVITY),
+                jump: jump === true
+            };
+            const channel = WJC.poseChannel;
+            if (channel && WJC.broadcastReady) {
+                // Never queue stale poses or use send()'s HTTP fallback before SUBSCRIBED.
+                channel.send({ type: 'broadcast', event: 'pose', payload }).then(result => {
+                    if (result !== 'ok' && WJC.poseChannel === channel) WJC.broadcastReady = false;
+                }).catch(() => { if (WJC.poseChannel === channel) WJC.broadcastReady = false; });
+            } else WJC.pushDbPose();
+        };
+
+        WJC.receivePose = function (p) {
+            if (!p || p.match !== WJC.transportKey || p.user === WJC.meId() ||
+                !WJC.players.some(row => row.user_id === p.user && !row.left_at) ||
+                typeof p.session !== 'string' || p.session.length > 64 ||
+                !Number.isSafeInteger(p.seq) || p.seq < 1 ||
+                !['t', 'x', 'y', 'vx', 'vy', 'gravity'].every(k => Number.isFinite(p[k])) ||
+                Math.abs(p.x) > WJ.W + 40 || Math.abs(p.y) > 1e8 ||
+                Math.abs(p.vx) > 3000 || Math.abs(p.vy) > 4000 || p.gravity < 0 || p.gravity > 2000) return;
+            let g = WJC.ghosts[p.user];
+            if (!g) g = WJC.ghosts[p.user] = { snaps: [], retired: [] };
+            if (g.session !== p.session) {
+                if (g.retired.includes(p.session)) return;
+                if (g.session) g.retired.push(g.session);
+                g.retired = g.retired.slice(-8);
+                g.session = p.session; g.seq = 0; g.snaps = []; g.offsets = [];
+                g.renderAt = null; g.lastSenderT = null; // Keep displayed position for blend-correction on rejoin.
+            }
+            if (p.seq <= g.seq || (g.lastSenderT != null && p.t <= g.lastSenderT)) return;
+            if (g.source === 'db') { g.snaps = []; g.renderAt = null; }
+            g.source = 'broadcast';
+            g.lastSenderT = p.t;
+            const now = performance.now();
+            g.seq = p.seq;
+            g.lastBroadcast = now;
+            g.offsets.push(now - p.t);
+            if (g.offsets.length > 40) g.offsets.shift();
+            // Minimum one-way arrival offset cancels different device clocks. The spread
+            // measures network jitter without interpreting late packets as slower physics.
+            g.offset = Math.min(...g.offsets);
+            const jitter = Math.max(...g.offsets) - g.offset;
+            g.delay = Math.min(320, WJC.INTERP_MS + jitter);
+            g.snaps.push({ ...p, face: p.face < 0 ? -1 : 1 });
+            if (g.snaps.length > 40) g.snaps.shift();
+        };
+
         WJC.adoptSnapshots = function (rows) {
             const now = performance.now();
-            const myId = WJC.meId();
-            const seen = {};
             (rows || []).forEach(row => {
-                if (!row || row.user_id === myId) return;
-                seen[row.user_id] = true;
+                if (row.user_id === WJC.meId()) return;
+                let g = WJC.ghosts[row.user_id];
+                // Never let a late DB read overwrite the fast broadcast stream.
+                if (g && now - g.lastBroadcast < 1200) return;
                 const x = Number(row.x), y = Number(row.y);
                 if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-                let vx = Number(row.vx), vy = Number(row.vy);
-                const hasVel = row.vx != null && row.vy != null && Number.isFinite(vx) && Number.isFinite(vy);
-                let g = WJC.ghosts[row.user_id];
-                if (!g) {
-                    g = WJC.ghosts[row.user_id] = {
-                        snaps: [],
-                        x: x, y: y, vx: 0, vy: 0,
-                        face: (row.face || 1) < 0 ? -1 : 1
-                    };
+                if (!g) g = WJC.ghosts[row.user_id] = { snaps: [], retired: [] };
+                if (g.source !== 'db') {
+                    g.snaps = []; g.renderAt = null; g.source = 'db';
                 }
                 const last = g.snaps[g.snaps.length - 1];
-                if (last && Math.abs(last.x - x) < 0.4 && Math.abs(last.y - y) < 0.4 && now - last.t < 40) return;
-                if (!hasVel) {
-                    if (last) {
-                        const dt = Math.max(0.05, (now - last.t) / 1000);
-                        vx = WJC.wrapDx(x - last.x) / dt;
-                        vy = (y - last.y) / dt;
-                    } else {
-                        vx = 0; vy = 0;
-                    }
-                }
-                // A rematch / start resets the bird to the ground. Ignore leftover vy.
-                if ((Number(row.height) || 0) < 8 && Math.abs(y) < 12) { vx = 0; vy = 0; }
-                const face = (row.face || 1) < 0 ? -1 : 1;
-                g.snaps.push({ t: now, x: x, y: y, vx: vx, vy: vy, face: face });
-                if (g.snaps.length > 6) g.snaps.splice(0, g.snaps.length - 6);
-                g.face = face;
+                // Unchanged poll responses are NOT fresh positions (old code replayed them).
+                if (last && last.x === x && last.y === y) return;
+                const dt = last ? Math.max(0.1, (now - last.t) / 1000) : 1;
+                const vx = row.vx == null ? (last ? WJC.wrapDx(x - last.x) / dt : 0) : Number(row.vx);
+                const vy = row.vy == null ? (last ? (y - last.y) / dt : 0) : Number(row.vy);
+                g.offset = 0; g.delay = 500;
+                g.snaps.push({ t: now, x, y, vx: vx || 0, vy: vy || 0, gravity: WJ.GRAVITY, face: row.face || 1 });
+                if (g.snaps.length > 12) g.snaps.shift();
             });
-            Object.keys(WJC.ghosts).forEach(id => { if (!seen[id]) delete WJC.ghosts[id]; });
+            const ids = new Set((rows || []).map(row => row.user_id));
+            Object.keys(WJC.ghosts).forEach(id => { if (!ids.has(id)) delete WJC.ghosts[id]; });
+        };
+
+        WJC.predictPose = function (a, dt) {
+            // Fade extrapolation to a stop after 300ms; no unbounded flight on a lost link.
+            dt = Math.max(0, dt);
+            dt = dt <= 0.2 ? dt : 0.2 + 0.1 * (1 - Math.exp(-(dt - 0.2) / 0.1));
+            return { x: WJC.wrapX(a.x + a.vx * dt),
+                y: a.y + a.vy * dt + 0.5 * a.gravity * dt * dt, face: a.face };
         };
 
         WJC.sampleGhost = function (g, now) {
             const snaps = g.snaps;
-            if (!snaps || !snaps.length) return { x: g.x, y: g.y, face: g.face };
-            const renderAt = now - WJC.INTERP_MS;
+            if (!snaps || !snaps.length) return null;
+            const desired = now - (g.offset || 0) - (g.delay || WJC.INTERP_MS);
+            // Adaptive buffer changes must not run the playback clock backwards.
+            const elapsed = g.frameAt == null ? 1 / 60 : Math.max(0, Math.min(0.05, (now - g.frameAt) / 1000));
+            g.renderAt = g.renderAt == null ? desired : Math.max(g.renderAt,
+                Math.min(desired, g.renderAt + elapsed * 1100));
             let i = snaps.length - 1;
-            while (i > 0 && snaps[i].t > renderAt) i--;
-            const a = snaps[i];
-            const b = snaps[i + 1];
-            if (b && b.t > a.t) {
-                const span = (b.t - a.t) / 1000;
-                let t = (renderAt - a.t) / (b.t - a.t);
-                t = Math.max(0, Math.min(1, t));
-                const dt = t * span;
-                // Follow a gravity arc from the earlier snapshot, then ease
-                // onto the next one so the bird lands where the wire said.
-                const predY = a.y + a.vy * dt + 0.5 * WJ.GRAVITY * dt * dt;
-                const endPred = a.y + a.vy * span + 0.5 * WJ.GRAVITY * span * span;
-                return {
-                    x: WJC.wrapX(a.x + WJC.wrapDx(b.x - a.x) * t),
-                    y: predY + (b.y - endPred) * t,
-                    face: t < 0.5 ? a.face : b.face
-                };
+            while (i > 0 && snaps[i].t > g.renderAt) i--;
+            const a = snaps[i], b = snaps[i + 1];
+            const dt = Math.max(0, (g.renderAt - a.t) / 1000);
+            let pose = WJC.predictPose(a, dt);
+            if (b && b.t > a.t && g.renderAt >= a.t) {
+                const span = (b.t - a.t) / 1000, f = Math.min(1, dt / span);
+                // Bounce packets anchor the new impulse at its actual sender time. Do
+                // not smear its upward velocity into the preceding falling segment.
+                if (!b.jump) {
+                    const endY = a.y + a.vy * span + 0.5 * a.gravity * span * span;
+                    pose.y = a.y + a.vy * dt + 0.5 * a.gravity * dt * dt + (b.y - endY) * f;
+                    pose.x = WJC.wrapX(a.x + WJC.wrapDx(b.x - a.x) * f);
+                }
             }
-            const dt = Math.max(0, Math.min(0.35, (renderAt - a.t) / 1000));
-            return {
-                x: WJC.wrapX(a.x + a.vx * dt),
-                y: a.y + a.vy * dt + 0.5 * WJ.GRAVITY * dt * dt,
-                face: a.face
-            };
+            if (g.display) {
+                // Short blend, then a hard per-second correction budget:
+                // late packets can bend the trajectory, never teleport the canvas bird.
+                const blend = 1 - Math.exp(-elapsed / 0.045);
+                const limit = 2000 * elapsed;
+                const dx = WJC.wrapDx(pose.x - g.display.x);
+                const dy = pose.y - g.display.y;
+                pose.x = WJC.wrapX(g.display.x + Math.max(-limit, Math.min(limit, dx * blend)));
+                pose.y = g.display.y + Math.max(-limit, Math.min(limit, dy * blend));
+            }
+            g.display = pose; g.frameAt = now;
+            return pose;
         };
 
         /* ---------------- live birds ---------------- */

@@ -507,17 +507,25 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 加新道具：`WJ.pick()` 個陣列加 key → `WJ.applyGadget()` 加效果 →
   `WJ.drawGadget()` 個 `map` 加 emoji → `WJ.drawHud()` badges 加顯示。
 - 改題目密度改 `WJ.QUIZ_GAP_MIN`／`QUIZ_GAP_MAX`；改選項數改 `spawnQuizRow()` 嘅 `count`。
-- 已知限制：**未喺真手機試過 tilt**（只驗證過桌面／模擬）——`TILT_RANGE = 11`
-  係憑手感估，實機太敏感就調大、太鈍就調細；`canvas` 內容喺
-  OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
+- **Tilt（2026-11）**：手機／平板按 Start 會自動開 tilt（iOS 要喺同一個 tap 問 motion 權限，
+  所以 `WJ.armTiltOnStart()` 喺 `enterFullscreen()` 之前同步呼叫）。
+  `WJ.tiltRoll()` 按螢幕方向用 `gamma`（直向）或 `beta`（橫向），先至跟到「手機平衡」。
+  入全屏、轉橫豎都會重設 `tiltZero`。全屏工具列收埋咗，畫面左上角有 `#wj-tilt-fs` 開關。
+  `TILT_RANGE = 11`：實機太敏感就調大、太鈍就調細。
+- 已知限制：`canvas` 內容喺 OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
 
 ### 10.10 全屏幕
 - **三個掣**：工具列 `#wj-fs-btn`、畫面右上角 `#wj-fs-enter`（⛶ 全屏）、
   全屏時右上角 `#wj-exit-fs`（✕ 退出全屏，唔放底部以免擋住左右移動）。三個都 call `WJ.toggleFullscreen()`。
 - **全屏左右移動（2026-11）**：全屏時 canvas 喺 `#wj-stage` 入面 letterbox（兩邊／上下有黑邊），
-  拇指成日撳中黑邊或者差少少出咗 pad。`WJ.pointerDir()` 會把黑邊同底部左右角落都當成方向掣；
-  事件聽喺 `#wj-stage`（唔只係 canvas）。唔可以喺 `pointerleave` 清 `holdDir`（pad 貼住 canvas 邊緣，移出 1px 就會停）。
-  CSS fallback（`body.wj-fs`）要給 `#wj-stage` `z-index: 9999`，避免頁面其他元素食咗 touch。
+  拇指成日撳中黑邊或者差少少出咗 pad。`WJ.pointerDir()` 會把黑邊、底部左右角落，
+  同埋 stage 底部約 28% 的左右兩邊都當成方向掣；事件聽喺 `#wj-stage`。
+  另有非 passive 嘅 `touchstart`／`touchmove` fallback。
+  唔可以喺 `pointerleave` 清 `holdDir`，iOS 亦唔好 `setPointerCapture`。
+  CSS fallback（iPhone Safari 冇 element fullscreen）：`body.wj-fs` 要 `position:fixed` +
+  `touch-action:none` 鎖 scroll（否則頁面一滑就 `pointercancel`，左右掣會似壞咗），
+  `#wj-stage` 要 `z-index: 9999`。`WJ.lockFsScroll()` 會記住／還原 scrollY。
+  手機預設用 **tilt 跟平衡** 郁左右；pad 只係後備。
 - 入場 overlay 有**兩個選擇**：`⛶ 全屏開始`（`WJ.start(true)`）同
   `視窗模式開始`（`WJ.start(false)`，會熄 `autoFs` 唔再自動入全屏）。
 - `WJ.start()`（唔帶參數，例如 Play again）會試入全屏一次（`WJ.autoFs`，

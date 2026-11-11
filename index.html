@@ -339,6 +339,28 @@
         body.wj-fs #wj-fs-enter {
             display: none;
         }
+        /* Tilt toggle in full screen (toolbar is hidden there). */
+        #wj-tilt-fs {
+            display: none;
+            position: absolute;
+            z-index: 25;
+            top: 6px;
+            left: 6px;
+            padding: 4px 9px;
+            border: 1px solid #a7f3d0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            color: #047857;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        #wj-stage:fullscreen #wj-tilt-fs,
+        #wj-stage:-webkit-full-screen #wj-tilt-fs,
+        body.wj-fs #wj-tilt-fs {
+            display: block;
+        }
 
         /* Keep intro / game-over cards phone-width when the stage is huge. */
         #wj-stage:fullscreen #wj-overlay > div,
@@ -350,6 +372,13 @@
         body.wj-fs {
             overflow: hidden;
             background: #0b1020;
+            position: fixed;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            overscroll-behavior: none;
         }
     </style>
 </head>
@@ -833,6 +862,7 @@
                         <canvas id="wj-canvas" class="block w-full h-full" style="touch-action:none;"></canvas>
                         <div id="wj-overlay" class="absolute inset-0 hidden items-center justify-center bg-white/90 p-5 text-center overflow-auto"></div>
                         <button id="wj-fs-enter" onclick="WJ.toggleFullscreen()" class="absolute top-2 right-2 z-20 px-3 py-1.5 rounded-full bg-white/90 border border-emerald-200 text-xs font-bold text-emerald-700 shadow">⛶ Full screen</button>
+                        <button id="wj-tilt-fs" onclick="WJ.enableTilt()">📱 Tilt</button>
                         <button id="wj-exit-fs" onclick="WJ.toggleFullscreen()" class="hidden">✕ Exit full screen</button>
                         <button id="wj-re-btn" onclick="WJ.restart()" title="Restart this run" aria-label="Restart this run">↺ Restart</button>
                     </div>
@@ -5140,6 +5170,10 @@
         WJ.start = function (withFs) {
             if (!WJ.canvas) WJ.mount();
             recordGuestUsage('Word Jump', (!WJ.topic || WJ.topic === '__all__') ? 'All topics' : WJ.topic);
+            // Ask for motion permission in this tap, before fullscreen,
+            // so tilt works on iPhone / iPad (the toolbar Tilt button is
+            // hidden once full screen starts).
+            WJ.armTiltOnStart();
             if (withFs === false) {
                 // Player chose windowed mode — don't force full screen later.
                 WJ.autoFs = false;
@@ -5189,14 +5223,31 @@
                 WJ.resize();
                 WJ.draw();
             };
+            if (WJ.tiltOn) WJ.tiltZero = null;
             requestAnimationFrame(relayout);
             // Full-screen layout can settle a frame or two late; a second
             // pass keeps pointer hit-testing aligned with the visible canvas.
             setTimeout(relayout, 120);
         };
 
+        WJ.lockFsScroll = function (on) {
+            if (on) {
+                if (!document.body.classList.contains('wj-fs')) {
+                    WJ.fsScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+                }
+                document.body.classList.add('wj-fs');
+                document.body.style.top = '-' + (WJ.fsScrollY || 0) + 'px';
+            } else {
+                const y = WJ.fsScrollY || 0;
+                document.body.classList.remove('wj-fs');
+                document.body.style.top = '';
+                window.scrollTo(0, y);
+            }
+        };
+
         WJ.fakeFullscreen = function (on) {
-            document.body.classList.toggle('wj-fs', !!on);
+            WJ.lockFsScroll(!!on);
+            if (WJ.tiltOn) WJ.tiltZero = null;
             WJ.syncFsUi();
         };
 
@@ -5254,7 +5305,7 @@
 
         WJ.exitFullscreenSoft = function () {
             WJ.fsPending++;
-            document.body.classList.remove('wj-fs');
+            WJ.lockFsScroll(false);
             const el = document.fullscreenElement || document.webkitFullscreenElement;
             if (el) {
                 const exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -5339,7 +5390,7 @@
                     <h3 class="text-2xl font-bold text-emerald-600 mb-1">Word Jump</h3>
                     <p class="text-gray-500 text-sm mb-4">Read the Chinese, then land on the English word that matches it.</p>
                     <div class="text-left bg-white rounded-xl border border-emerald-100 p-4 text-sm text-gray-600 space-y-2 mb-4">
-                        <p>👈 <b>Hold the pads</b> at the bottom (or tilt your phone) to move.</p>
+                        <p>👈 <b>Tilt your phone</b> to move, or hold the pads at the bottom.</p>
                         <p>🟪 <b>Purple tiles</b> carry English words — bounce on the one that means the word on top.</p>
                         <p>🔥 Answer a few in a row for bonus points and a shield.</p>
                         <p>👆 <b>Tap anywhere else</b> to shoot at monsters and UFOs.</p>
@@ -6924,7 +6975,17 @@
         WJ.pointerDir = function (clientX, clientY) {
             const c = WJ.canvas;
             if (!c) return 0;
+            const stage = document.getElementById('wj-stage');
+            const sr = stage ? stage.getBoundingClientRect() : null;
             const rect = c.getBoundingClientRect();
+            // Bottom thumb band of the whole stage (even if the canvas sits
+            // higher because of letterboxing). Leave a gap in the centre for
+            // the Restart button.
+            if (sr && sr.height && clientY >= sr.bottom - Math.max(150, sr.height * 0.28)) {
+                const mid = (sr.left + sr.right) / 2;
+                if (clientX < mid - 56) return -1;
+                if (clientX > mid + 56) return 1;
+            }
             if (rect.width > 0 && rect.height > 0 &&
                 clientX >= rect.left && clientX <= rect.right &&
                 clientY >= rect.top && clientY <= rect.bottom) {
@@ -6933,7 +6994,6 @@
                 const padY = WJ.H - 64;
                 if (Math.hypot(lx - 62, ly - padY) < 72) return -1;
                 if (Math.hypot(lx - (WJ.W - 62), ly - padY) < 72) return 1;
-                // Forgiving corner rectangles (full-screen thumbs sit low).
                 if (ly >= WJ.H - 140 && lx <= WJ.W * 0.38) return -1;
                 if (ly >= WJ.H - 140 && lx >= WJ.W * 0.62) return 1;
                 return 0;
@@ -6953,8 +7013,8 @@
             WJ.bound = true;
             const c = WJ.canvas;
             if (!c) { WJ.bound = false; return; }
-            // Listen on the stage so full-screen letterbox taps still steer.
             const stage = document.getElementById('wj-stage') || c;
+            const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
             const onDown = e => {
                 if (WJ.state !== 'playing' || WJ.paused) return;
@@ -6964,8 +7024,12 @@
                 if (dir) {
                     WJ.holdDir = dir;
                     WJ.holdPointer = e.pointerId;
-                    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-                } else if (e.target === c) {
+                    // setPointerCapture is flaky on iOS and can swallow the
+                    // rest of the gesture; pads plus document touchmove are enough.
+                    if (!isTouch) {
+                        try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                    }
+                } else if (e.target === c || (c.contains && c.contains(e.target))) {
                     WJ.shoot();
                 }
             };
@@ -6978,9 +7042,51 @@
             stage.addEventListener('pointerdown', onDown);
             stage.addEventListener('pointerup', onUp);
             stage.addEventListener('pointercancel', onUp);
-            // Do not clear holdDir on pointerleave: the pads sit on the
-            // canvas edge, and in full screen a 1px slip would stop steering.
             stage.addEventListener('contextmenu', e => e.preventDefault());
+
+            // Native touch fallback: iOS full-screen (CSS) often scrolls the
+            // page, fires pointercancel, and the pads look like they do nothing.
+            const touchById = (e, id) => {
+                const list = e.changedTouches || e.touches;
+                for (let i = 0; i < list.length; i++) {
+                    if (id == null || list[i].identifier === id) return list[i];
+                }
+                return null;
+            };
+            stage.addEventListener('touchstart', e => {
+                if (WJ.state !== 'playing' || WJ.paused) return;
+                if (e.target && e.target.closest && e.target.closest('button, #wj-overlay')) return;
+                const t = touchById(e, null);
+                if (!t) return;
+                e.preventDefault();
+                const dir = WJ.pointerDir(t.clientX, t.clientY);
+                if (dir) {
+                    WJ.holdDir = dir;
+                    WJ.holdTouch = t.identifier;
+                } else if (e.target === c || (c.contains && c.contains(e.target))) {
+                    WJ.shoot();
+                }
+            }, { passive: false });
+            const onTouchEnd = e => {
+                if (WJ.holdTouch == null) return;
+                if (touchById(e, WJ.holdTouch)) {
+                    WJ.holdDir = 0;
+                    WJ.holdTouch = null;
+                }
+            };
+            stage.addEventListener('touchend', onTouchEnd, { passive: false });
+            stage.addEventListener('touchcancel', onTouchEnd, { passive: false });
+            stage.addEventListener('touchmove', e => {
+                if (WJ.holdTouch != null || WJ.holdDir || WJ.fsOn()) e.preventDefault();
+                if (WJ.holdTouch == null) return;
+                const t = touchById(e, WJ.holdTouch);
+                if (!t) return;
+                const dir = WJ.pointerDir(t.clientX, t.clientY);
+                if (dir) WJ.holdDir = dir;
+            }, { passive: false });
+            document.addEventListener('touchmove', e => {
+                if (WJ.fsOn() && WJ.state === 'playing' && !WJ.paused) e.preventDefault();
+            }, { passive: false });
 
             document.addEventListener('keydown', e => {
                 const view = document.getElementById('wordjump-view');
@@ -7001,20 +7107,73 @@
             window.addEventListener('resize', () => { if (WJ.mounted) WJ.resize(); });
             document.addEventListener('fullscreenchange', WJ.syncFsUi);
             document.addEventListener('webkitfullscreenchange', WJ.syncFsUi);
+            window.addEventListener('orientationchange', () => {
+                if (WJ.tiltOn) WJ.tiltZero = null;
+                setTimeout(() => { if (WJ.mounted) { WJ.resize(); WJ.draw(); } }, 200);
+            });
+            if (screen.orientation && screen.orientation.addEventListener) {
+                screen.orientation.addEventListener('change', () => {
+                    if (WJ.tiltOn) WJ.tiltZero = null;
+                });
+            }
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden && WJ.state === 'playing' && !WJ.paused) WJ.togglePause();
             });
         };
 
-        WJ.enableTilt = async function () {
+        WJ.shouldAutoTilt = function () {
+            return ('ontouchstart' in window) ||
+                (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+                (typeof DeviceOrientationEvent !== 'undefined' &&
+                    typeof DeviceOrientationEvent.requestPermission === 'function');
+        };
+
+        WJ.syncTiltUi = function () {
+            const label = WJ.tiltOn ? '📱 Tilt: on' : '📱 Tilt: off';
             const b = document.getElementById('wj-tilt-btn');
-            if (WJ.tiltOn) {
+            if (b) b.innerText = label;
+            const fs = document.getElementById('wj-tilt-fs');
+            if (fs) fs.innerText = label;
+        };
+
+        // Left-right roll of the device, correct for portrait and landscape.
+        WJ.tiltRoll = function (e) {
+            if (e.gamma == null && e.beta == null) return null;
+            let angle = 0;
+            if (screen.orientation && typeof screen.orientation.angle === 'number') {
+                angle = screen.orientation.angle;
+            } else if (typeof window.orientation === 'number') {
+                angle = window.orientation;
+            }
+            angle = ((angle % 360) + 360) % 360;
+            if (angle === 90) return e.beta;
+            if (angle === 270) return e.beta == null ? null : -e.beta;
+            if (angle === 180) return e.gamma == null ? null : -e.gamma;
+            return e.gamma;
+        };
+
+        WJ.attachTilt = function () {
+            window.removeEventListener('deviceorientation', WJ.onTilt);
+            window.addEventListener('deviceorientation', WJ.onTilt);
+            WJ.tiltZero = null;
+            WJ.tiltOn = true;
+            WJ.syncTiltUi();
+        };
+
+        WJ.setTilt = async function (on, opts) {
+            const silent = !!(opts && opts.silent);
+            if (!on) {
                 window.removeEventListener('deviceorientation', WJ.onTilt);
                 WJ.tiltOn = false;
                 WJ.tiltValue = 0;
                 WJ.tiltSmooth = 0;
-                if (b) b.innerText = '📱 Tilt: off';
-                WJ.toast('Tilt off — use the pads.', '#94a3b8');
+                WJ.syncTiltUi();
+                if (!silent) WJ.toast('Tilt off — use the pads.', '#94a3b8');
+                return;
+            }
+            if (WJ.tiltOn) {
+                WJ.tiltZero = null;
+                WJ.syncTiltUi();
                 return;
             }
             try {
@@ -7022,25 +7181,37 @@
                     typeof DeviceOrientationEvent.requestPermission === 'function') {
                     const res = await DeviceOrientationEvent.requestPermission();
                     if (res !== 'granted') {
-                        WJ.toast('Tilt not allowed — use the pads.', '#ef4444');
+                        if (!silent) WJ.toast('Tilt not allowed — use the pads.', '#ef4444');
+                        WJ.syncTiltUi();
                         return;
                     }
                 }
-                window.addEventListener('deviceorientation', WJ.onTilt);
-                WJ.tiltZero = null;
-                WJ.tiltOn = true;
-                if (b) b.innerText = '📱 Tilt: on';
-                WJ.toast('Tilt on — hold your phone upright.', '#22c55e');
-                WJ.beep(660, 0.1, 'sine', 0.04);
-            } catch (e) {
-                WJ.toast('Tilt unavailable on this device.', '#ef4444');
+                WJ.attachTilt();
+                if (!silent) {
+                    WJ.toast('Tilt on — tilt the phone to move.', '#22c55e');
+                    WJ.beep(660, 0.1, 'sine', 0.04);
+                }
+            } catch (err) {
+                if (!silent) WJ.toast('Tilt unavailable on this device.', '#ef4444');
             }
         };
 
+        // Must be called from a user gesture (Start / Tilt button) so iOS
+        // can show the motion-permission prompt in the same tap.
+        WJ.armTiltOnStart = function () {
+            if (WJ.shouldAutoTilt()) WJ.setTilt(true, { silent: true });
+            else if (WJ.tiltOn) WJ.tiltZero = null;
+        };
+
+        WJ.enableTilt = function () {
+            return WJ.setTilt(!WJ.tiltOn);
+        };
+
         WJ.onTilt = function (e) {
-            if (e.gamma == null) return;
-            if (WJ.tiltZero === null) WJ.tiltZero = e.gamma;
-            WJ.tiltValue = WJ.clamp((e.gamma - WJ.tiltZero) / WJ.TILT_RANGE, -1, 1);
+            const roll = WJ.tiltRoll(e);
+            if (roll == null) return;
+            if (WJ.tiltZero === null) WJ.tiltZero = roll;
+            WJ.tiltValue = WJ.clamp((roll - WJ.tiltZero) / WJ.TILT_RANGE, -1, 1);
         };
 
         window.onload = () => {

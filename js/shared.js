@@ -868,6 +868,7 @@
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             if (viewId !== 'wordjump-view' && typeof WJC !== 'undefined') WJC.onLeaveView();
+            if (typeof DG !== 'undefined' && typeof DG.onLeaveView === 'function') DG.onLeaveView(viewId);
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
             if (!keepVocabPoll) nvStopPoll();
             if (window.lastFinalView) {

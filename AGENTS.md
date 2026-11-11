@@ -220,6 +220,21 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
 
+### 9.6a 不小心彈出後重回 — `supabase/battle_rejoin.sql`（要喺 9.6 之後跑）
+- 以前「← Back to Hub」會即刻 `leave_battle`：未開始就退出／刪房，已開始嘅 1v1
+  會直接完場，班際會把該學生標成 `done`，之後再用代碼加入會收到 `ROOM_ALREADY_STARTED`。
+- 而家頂部 **Back to Hub** 只係離開畫面，**唔會**退出房間；進度寫入
+  `localStorage["learniTY_battle_resume"]`（跟 user id，7 日過期）。
+  Hub 嘅 Word Battle 卡同 lobby 會出 **🔄 Rejoin** 掣，撳完由上次嘅題目繼續（計時重新 20 秒）。
+  重新整理或者關咗分頁都得。
+- 真係要退出先用等候室／老師 waiting 畫面嘅 **Leave room**／**Close room**（會確認），
+  或者完場畫面嘅 Back to Hub。
+- SQL：更新 `join_battle`，已經係成員／主持就可以再用代碼入返進行中或完場嘅房；
+  若只係早走被標成 `done`、但 `progress` 未做完，會清走 `done`。另加
+  `rejoin_battle(p_room_id, p_code)`。未跑呢份 SQL 都唔會壞：只要學生只係返咗 Hub
+  （冇撳 Leave room），前端可以直接讀返房間。如果之前已經 `leave_battle` 咗一場進行中嘅
+  battle，就要跑呢份 SQL 先可以再入。可重複跑。
+
 ### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
 
 年級**唔再**喺登入時叫學生揀。舊版只係把 `localStorage["student_form_level"]`
@@ -614,5 +629,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列 → `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

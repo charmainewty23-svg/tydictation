@@ -48,13 +48,21 @@
                 const view = lbModeFilter === 'dgsolo'
                     ? 'drive_and_go_solo_leaderboard'
                     : 'drive_and_go_multi_leaderboard';
-                const { data, error } = await sb.from(view)
-                    .select('user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at')
+                const baseColumns = 'user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at';
+                const readBoard = async (cols) => sb.from(view)
+                    .select(cols)
                     .order('composite', { ascending: false })
                     .order('elapsed_ms', { ascending: true })
                     .order('accuracy', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(10);
+                let { data, error } = await readBoard(baseColumns + ',topic');
+                // Old views (before the Agreement SQL) have no topic column.
+                if (error && /topic|column .* does not exist|42703|PGRST204/i.test(String(error.message || ''))) {
+                    const fallback = await readBoard(baseColumns);
+                    data = fallback.data ? fallback.data.map(r => Object.assign({}, r, { topic: 'tenses' })) : fallback.data;
+                    error = fallback.error || null;
+                }
                 lbRows = data || [];
                 lbRowsError = error || null;
                 renderLeaderboard();
@@ -116,7 +124,9 @@
                 const n = (typeof DG !== 'undefined' && DG.normalizeQuestionCount)
                     ? DG.normalizeQuestionCount(r.question_count)
                     : (Number(r.question_count) || 20);
-                const bank = (typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[r.bank_mode]) || 'AV';
+                const bank = (typeof DG !== 'undefined' && DG.topicChallenge)
+                    ? DG.topicChallenge(r.topic, r.bank_mode)
+                    : ((typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[r.bank_mode]) || 'Tenses · AV');
                 const scene = (typeof DG !== 'undefined' && DG.sceneLabel)
                     ? DG.sceneLabel(r.scene)
                     : String(r.scene || 'Desert Hills');

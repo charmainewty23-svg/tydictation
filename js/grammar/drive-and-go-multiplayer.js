@@ -1,9 +1,11 @@
 /* LearniTY Dictation — Drive & Go! multiplayer (2–5 players).
    Rooms use Supabase tables + short polling, in the same honest-client style
    as Word Battle. Requires supabase/drive_and_go.sql (and, on existing
-   rooms, supabase/drive_and_go_question_count.sql). The teacher pastes SQL
-   in the live project; never run it via a plugin. Single Player never
-   touches this file's database code. */
+   rooms, supabase/drive_and_go_question_count.sql +
+   supabase/drive_and_go_scenes_and_boards.sql; Agreement rooms also need
+   supabase/drive_and_go_agreement_topic.sql). The teacher pastes SQL in the
+   live project; never run it via a plugin. Single Player never touches this
+   file's database code. */
 
 (function () {
     'use strict';
@@ -56,6 +58,13 @@
     };
 
     DG.mpSqlHintHTML = function (kind) {
+        if (kind === 'agreement') {
+            return '<div class="dg-note warn text-left"><b>Agreement multiplayer needs one SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_agreement_topic.sql</code> in the Supabase SQL editor. ' +
+                'It adds the topic (<code>tenses</code> / <code>agreement</code>) and the Gap-fill / Choose challenge types. ' +
+                'Do not re-run the older Drive &amp; Go! files for this. ' +
+                'Single Player and Tenses multiplayer keep working without it.</div>';
+        }
         if (kind === 'scene') {
             return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the Supabase SQL editor ' +
@@ -88,6 +97,16 @@
             .filter(Boolean).join(' ');
         return /p_question_count|question_count|composite_score|elapsed_ms|Could not find the function public\.create_drive_and_go_room/i.test(text)
             || (/PGRST202/i.test(text) && /create_drive_and_go_room|question_count/i.test(text));
+    };
+
+    // Agreement rooms send p_topic and gapfill / choose. Before the new
+    // incremental is pasted the 8-arg function and the wider check are
+    // missing, so point at that one file — never at the older increments.
+    DG.mpIsAgreementSqlMissing = function (error) {
+        const text = [error && error.code, error && error.message, error && error.details, error && error.hint]
+            .filter(Boolean).join(' ');
+        return /p_topic|\btopic\b|gapfill|choose/i.test(text)
+            || (/23514/i.test(text) && /question_mode|bank_mode/i.test(text));
     };
 
     DG.rankMultiplayerRows = function (players) {
@@ -280,6 +299,7 @@
         const composite = Number(mine.composite_score != null ? mine.composite_score : mine.score) || 0;
         const raceScore = Number(mine.score) || 0;
         DG.submitCloudRun('multi', {
+            topic: DG.normalizeTopic(room.topic),
             bankMode: room.question_mode,
             questionCount: n,
             scene: room.scene,
@@ -298,17 +318,20 @@
     };
 
     DG.mpShowSqlHint = function (error) {
-        const kind = DG.mpIsSceneSqlMissing(error) ? 'scene'
-            : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '');
+        const kind = DG.mpIsAgreementSqlMissing(error) ? 'agreement'
+            : (DG.mpIsSceneSqlMissing(error) ? 'scene'
+                : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : ''));
         const content = DG.menuContent();
         const status = document.getElementById('dg-mp-status');
         if (status && content) status.outerHTML = DG.mpSqlHintHTML(kind);
         else if (typeof DG.toastSafe === 'function') {
-            DG.toastSafe(kind === 'scene'
-                ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
-                : (kind === 'question_count'
-                    ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                    : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'));
+            DG.toastSafe(kind === 'agreement'
+                ? 'Run supabase/drive_and_go_agreement_topic.sql in the Supabase SQL editor.'
+                : (kind === 'scene'
+                    ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                    : (kind === 'question_count'
+                        ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                        : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.')));
         }
     };
 
@@ -389,15 +412,19 @@
         DG.mpRole = 'create';
         DG.mpSetStatus('Creating room…', false);
         const settings = DG.readSettings();
-        const mode = settings.bankMode;
+        const topic = DG.normalizeTopic(settings.topic);
+        const mode = DG.normalizeBankMode(topic, settings.bankMode);
         const args = Object.assign({
             p_question_mode: mode,
             p_question_count: DG.normalizeQuestionCount(settings.questionCount),
             p_scene: DG.normalizeScene(settings.scene)
         }, DG.mpLookArgs());
+        // Tenses rooms deliberately omit p_topic so the existing 7-argument
+        // function keeps working before the new SQL is pasted.
+        if (topic === 'agreement') args.p_topic = 'agreement';
         sb.rpc('create_drive_and_go_room', args).then(({ data, error }) => {
             if (error) {
-                if (DG.mpIsSqlMissing(error) || DG.mpIsSceneSqlMissing(error) || DG.mpIsQuestionCountSqlMissing(error)) {
+                if (DG.mpIsSqlMissing(error) || DG.mpIsSceneSqlMissing(error) || DG.mpIsQuestionCountSqlMissing(error) || DG.mpIsAgreementSqlMissing(error)) {
                     DG.mpSetStatus('', false);
                     DG.mpShowSqlHint(error);
                 } else {
@@ -424,7 +451,7 @@
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(err => {
-            if (DG.mpIsSqlMissing(err) || DG.mpIsSceneSqlMissing(err) || DG.mpIsQuestionCountSqlMissing(err)) {
+            if (DG.mpIsSqlMissing(err) || DG.mpIsSceneSqlMissing(err) || DG.mpIsQuestionCountSqlMissing(err) || DG.mpIsAgreementSqlMissing(err)) {
                 DG.mpSetStatus('', false);
                 DG.mpShowSqlHint(err);
             } else {
@@ -690,7 +717,7 @@
         content.innerHTML =
             '<div class="text-center mb-4"><div class="text-7xl mb-1">🏁</div>' +
             '<h3 class="text-3xl font-bold text-green-600">Race lobby</h3>' +
-            '<p class="text-gray-500 font-bold">' + DG.esc(DG.MODE_LABEL[room.question_mode] || '') + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
+            '<p class="text-gray-500 font-bold">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
             '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
             '<p class="text-center text-sm font-bold text-gray-500 mb-4">Players ' + players.length + '/5 · share this code with 1–4 friends</p>' +
@@ -746,11 +773,14 @@
         const room = MP.room;
         DG.mpStopPoll();
         DG.showLoading('Loading the race questions…');
-        DG.loadBank(room.question_mode, !!force).then(() => {
+        const topic = DG.normalizeTopic(room.topic);
+        const mode = DG.normalizeBankMode(topic, room.question_mode);
+        DG.loadBank(topic, mode, !!force).then(() => {
             MP.beginning = false;
             DG.startRace({
                 mode: 'multi',
-                bankMode: room.question_mode,
+                topic: topic,
+                bankMode: mode,
                 seed: Number(room.seed),
                 room: room,
                 players: MP.players
@@ -792,6 +822,7 @@
         content.innerHTML =
             '<div class="text-center mb-4"><div class="text-7xl mb-2">🏆</div>' +
             '<h3 class="text-3xl font-bold text-amber-600">' + DG.esc((winner && DG.mpPlayerName(winner)) || 'Race') + ' wins!</h3>' +
+            '<p class="text-sm font-bold text-gray-500">' + DG.esc(DG.topicChallenge(room && room.topic, room && room.question_mode)) + '</p>' +
             '<p class="text-sm font-bold text-gray-500">Highest composite score after ' + n + ' correct answers.</p></div>' +
             '<div class="dg-menu-panel"><div class="dg-standings">' + rows.map((r, i) =>
                 '<div class="dg-standing' + (r.user_id === room.winner_id ? ' me' : '') + '"><span class="dg-medal">' +

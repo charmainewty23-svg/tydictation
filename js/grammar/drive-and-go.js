@@ -1,9 +1,11 @@
 /* LearniTY Dictation — Drive & Go! Mario Kart-style grammar racing game.
-   This file owns the pre-race flow (challenge → cat → controls → question
-   count → course → mode), the Google-Sheets question bank, same-verb tense
-   distractors, local preferences and shared helpers. The canvas race engine
-   lives in drive-and-go-race.js and the realtime 2–5 player lobby/race sync
-   lives in drive-and-go-multiplayer.js.
+   This file owns the pre-race flow (topic → challenge → cat → controls →
+   question count → course), the Google-Sheets question bank for both topics
+   (Tenses: tenses / Passives; Agreement: Agreement), same-verb tense
+   distractors, Agreement Gap-fill / Choose gates, local preferences and
+   shared helpers. The canvas race engine lives in drive-and-go-race.js and
+   the realtime 2–5 player lobby/race sync lives in
+   drive-and-go-multiplayer.js.
    All three files are classic scripts: no modules, no defer/async. */
 
 const DG = {
@@ -11,9 +13,21 @@ const DG = {
     BEST_SCORE_KEY: 'learniTY_dg_best_score',
     BEST_DISTANCE_KEY: 'learniTY_dg_best_distance',
     BEST_RUNS_KEY: 'learniTY_dg_best_runs',
+    // Two topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the Tenses
+    // map so existing tests and cached links keep working; the Agreement tab
+    // is case-sensitive and lives on its own.
+    TOPICS: ['tenses', 'agreement'],
+    TOPIC_LABEL: { tenses: 'Tenses', agreement: 'Agreement' },
+    MODES_FOR_TOPIC: {
+        tenses: ['av', 'pv', 'mixed'],
+        agreement: ['gapfill', 'choose', 'mixed']
+    },
+    AGREEMENT_TAB: 'Agreement',
     TAB_FOR_MODE: { av: ['tenses'], pv: ['Passives'], mixed: ['tenses', 'Passives'] },
     MODE_LABEL: { av: 'Active Voice (AV)', pv: 'Passive Voice (PV)', mixed: 'Mixed' },
     MODE_SHORT: { av: 'AV', pv: 'PV', mixed: 'Mixed' },
+    AGREEMENT_MODE_LABEL: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
+    AGREEMENT_MODE_SHORT: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
     QUESTION_COUNTS: [20, 25, 30, 35, 40, 50],
     // Three playable courses. The exact ids / names are stored in Supabase
     // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
@@ -61,10 +75,15 @@ const DG = {
     },
     bankCache: {},
     bankPoolCache: {},
+    // Raw gviz CSV per tab. The Agreement tab is fetched once and filtered
+    // into gapfill / choose / mixed, instead of three network requests.
+    sheetCache: {},
     settings: null,
-    // Pre-race flow. The very first question is Solo or Multiplayer; the
-    // old "Game mode" step at the end is gone. sessionMode is '' until the
-    // player picks, 'solo' or 'multi'. mpRole is 'create' (host) or 'join'.
+    // Pre-race flow. The very first question is Solo or Multiplayer; Solo and
+    // a multiplayer host then pick the topic (Tenses / Agreement), then the
+    // challenge. The old "Game mode" step at the end is gone. sessionMode is
+    // '' until the player picks, 'solo' or 'multi'. mpRole is 'create'
+    // (host) or 'join'.
     menuStep: 'session',
     sessionMode: '',
     mpRole: '',
@@ -73,7 +92,64 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
+        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
+    },
+
+    normalizeTopic(value) {
+        const id = String(value == null ? '' : value).trim().toLowerCase();
+        return DG.TOPICS.indexOf(id) !== -1 ? id : 'tenses';
+    },
+
+    // A challenge type is only valid for its own topic. `mixed` is shared.
+    // Legacy / missing values fall back to AV for Tenses and Gap-fill for
+    // Agreement.
+    normalizeBankMode(topic, mode) {
+        const t = DG.normalizeTopic(topic);
+        const id = String(mode == null ? '' : mode).trim().toLowerCase();
+        const list = DG.MODES_FOR_TOPIC[t] || DG.MODES_FOR_TOPIC.tenses;
+        if (list.indexOf(id) !== -1) return id;
+        return t === 'agreement' ? 'gapfill' : 'av';
+    },
+
+    topicLabel(value) {
+        return DG.TOPIC_LABEL[DG.normalizeTopic(value)];
+    },
+
+    modeLabel(topic, mode) {
+        const t = DG.normalizeTopic(topic);
+        const id = DG.normalizeBankMode(t, mode);
+        if (t === 'agreement') return DG.AGREEMENT_MODE_LABEL[id];
+        return DG.MODE_LABEL[id];
+    },
+
+    modeShort(topic, mode) {
+        const t = DG.normalizeTopic(topic);
+        const id = DG.normalizeBankMode(t, mode);
+        if (t === 'agreement') return DG.AGREEMENT_MODE_SHORT[id];
+        return DG.MODE_SHORT[id];
+    },
+
+    // Short topic-aware challenge label used by boards / lobby / results,
+    // e.g. "Tenses · PV" or "Agreement · Gap-fill".
+    challengeShort(topic, mode) {
+        return DG.topicLabel(topic) + ' · ' + DG.modeShort(topic, mode);
+    },
+
+    topicChallenge(topic, mode) {
+        return DG.challengeShort(topic, mode);
+    },
+
+    // The exact gviz tab(s) for a topic + challenge. Tenses keeps its
+    // existing map; Agreement always uses the single case-sensitive tab.
+    tabsFor(topic, mode) {
+        if (DG.normalizeTopic(topic) === 'agreement') return [DG.AGREEMENT_TAB];
+        return DG.TAB_FOR_MODE[DG.normalizeBankMode(topic, mode)] || [];
+    },
+
+    // Cache key: mixed must never overwrite the other topic's mixed bank.
+    bankKey(topic, mode) {
+        const t = DG.normalizeTopic(topic);
+        return t + ':' + DG.normalizeBankMode(t, mode);
     },
 
     normalizeQuestionCount(value) {
@@ -152,7 +228,8 @@ const DG = {
         let saved = null;
         try { saved = JSON.parse(localStorage.getItem(DG.SETTINGS_KEY) || 'null'); } catch (e) { saved = null; }
         DG.settings = Object.assign(DG.defaultSettings(), DG.normalizeLook(saved || {}));
-        if (saved && DG.TAB_FOR_MODE[saved.bankMode]) DG.settings.bankMode = saved.bankMode;
+        DG.settings.topic = DG.normalizeTopic(saved && saved.topic);
+        DG.settings.bankMode = DG.normalizeBankMode(DG.settings.topic, saved && saved.bankMode);
         if (saved && ['tilt', 'swipe', 'buttons'].indexOf(saved.controls) !== -1) DG.settings.controls = saved.controls;
         DG.settings.questionCount = DG.normalizeQuestionCount(saved && saved.questionCount);
         DG.settings.scene = DG.normalizeScene(saved && saved.scene);
@@ -220,11 +297,39 @@ const DG = {
             .toLowerCase();
     },
 
+    // "1. Gap-fill: ..." / "2. Choose: ..." (case-insensitive). Returns
+    // 'gapfill' / 'choose' / '' so the Agreement tab can skip rows without a
+    // recognisable type prefix instead of guessing.
+    parseQuestionType(question) {
+        const m = /^\d+[.)]\s*(Gap-fill|Choose)\s*:\s*/i.exec(String(question || ''));
+        if (!m) return '';
+        return /^gap-?fill$/i.test(m[1]) ? 'gapfill' : 'choose';
+    },
+
+    // Trailing slash-separated options on a Choose prompt, e.g. "(is / are)".
+    // Gap-fill's "(leave)" hint has only one part and is therefore ignored.
+    chooseOptions(prompt) {
+        const m = /\(([^)]*)\)\s*$/.exec(String(prompt || ''));
+        if (!m) return [];
+        const parts = m[1].split('/').map(s => s.trim()).filter(Boolean);
+        return parts.length >= 2 ? parts : [];
+    },
+
+    stripQuestionPrefix(prompt) {
+        return String(prompt || '')
+            .replace(/^\d+[.)]\s*/, '')
+            .replace(/^(?:Gap-fill|Choose)\s*:\s*/i, '')
+            .trim();
+    },
+
     /* Parse one gviz CSV tab. The sheet uses:
        - a header row ("Question (Column A)", "Answer (Column B)")
        - section heading rows (A = tense name, B empty)
        - "Challenging" heading rows (questions after it are challenging)
-       - question rows (A = numbered sentence with ____, B = answer(s)). */
+       - question rows (A = numbered sentence with ____, B = answer(s)).
+       The Agreement tab prefixes each question with "Gap-fill:" or
+       "Choose:"; the Tenses / Passives tabs do not and must keep working
+       exactly as before. */
     parseQuestionSheet(csvText, sheetName) {
         const questions = [];
         const bySection = {};
@@ -232,6 +337,7 @@ const DG = {
         const lines = String(csvText || '').split(/\r?\n/);
         let section = 'General';
         let challenging = false;
+        const agreementSheet = String(sheetName || '') === DG.AGREEMENT_TAB;
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             if (!line || !line.trim()) continue;
@@ -246,6 +352,10 @@ const DG = {
                 continue;
             }
             if (!question || !/^\d+[.)]/.test(question) || question.indexOf('____') === -1) continue;
+            const qType = DG.parseQuestionType(question);
+            // On the Agreement tab a numbered row without "Gap-fill:" or
+            // "Choose:" is not a question we can trust.
+            if (agreementSheet && !qType) continue;
             const variants = DG.answerVariants(answer);
             if (!variants.length) continue;
             const hintMatch = /\(([^)]*)\)/.exec(question);
@@ -263,7 +373,9 @@ const DG = {
                 variants,
                 primary: variants[0],
                 hint,
-                hintRaw
+                hintRaw,
+                qType: qType,
+                options: qType === 'choose' ? DG.chooseOptions(question) : []
             };
             questions.push(q);
             bySheet.push({ primary: q.primary, variants, item: q });
@@ -273,34 +385,65 @@ const DG = {
         return { questions, bySection, bySheet };
     },
 
-    loadBank(mode, force) {
-        const tabs = DG.TAB_FOR_MODE[mode];
-        if (!tabs) return Promise.reject(new Error('Unknown challenge mode: ' + mode));
-        if (!force && DG.bankCache[mode] && DG.bankCache[mode].length) return Promise.resolve(DG.bankCache[mode]);
+    // Agreement + challenge filtering. Mixed keeps both types.
+    filterAgreementQuestions(questions, mode) {
+        const list = Array.isArray(questions) ? questions : [];
+        const m = DG.normalizeBankMode('agreement', mode);
+        if (m === 'gapfill') return list.filter(q => q && q.qType === 'gapfill');
+        if (m === 'choose') return list.filter(q => q && q.qType === 'choose');
+        return list.filter(q => q && (q.qType === 'gapfill' || q.qType === 'choose'));
+    },
+
+    loadBank(topic, mode, force) {
+        const t = DG.normalizeTopic(topic);
+        const m = DG.normalizeBankMode(t, mode);
+        const tabs = DG.tabsFor(t, m);
+        if (!tabs || !tabs.length) return Promise.reject(new Error('Unknown challenge mode: ' + mode));
+        const key = DG.bankKey(t, m);
+        if (!force && DG.bankCache[key] && DG.bankCache[key].length) return Promise.resolve(DG.bankCache[key]);
         const sections = {};
         const sheets = {};
-        const all = [];
+        let all = [];
         let chain = Promise.resolve();
         tabs.forEach(tab => {
             chain = chain.then(() => {
-                const url = 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
-                    '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(tab);
-                return fetch(url, { credentials: 'omit' }).then(response => {
-                    if (!response.ok) throw new Error('The "' + tab + '" tab returned HTTP ' + response.status + '.');
-                    return response.text();
-                }).then(text => {
+                const cached = !force && DG.sheetCache[tab];
+                const textPromise = cached
+                    ? Promise.resolve(cached)
+                    : fetch('https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
+                        '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(tab), { credentials: 'omit' })
+                        .then(response => {
+                            if (!response.ok) throw new Error('The "' + tab + '" tab returned HTTP ' + response.status + '.');
+                            return response.text();
+                        })
+                        .then(text => {
+                            DG.sheetCache[tab] = text;
+                            return text;
+                        });
+                return textPromise.then(text => {
                     const parsed = DG.parseQuestionSheet(text, tab);
+                    if (t === 'agreement') {
+                        const filtered = DG.filterAgreementQuestions(parsed.questions, m);
+                        parsed.questions = filtered;
+                        parsed.bySection = {};
+                        parsed.bySheet = [];
+                        filtered.forEach(q => {
+                            parsed.bySheet.push({ primary: q.primary, variants: q.variants, item: q });
+                            if (!parsed.bySection[q.sectionKey]) parsed.bySection[q.sectionKey] = [];
+                            parsed.bySection[q.sectionKey].push({ primary: q.primary, variants: q.variants, item: q });
+                        });
+                    }
                     if (!parsed.questions.length) throw new Error('The "' + tab + '" tab has no usable questions.');
                     Object.keys(parsed.bySection).forEach(k => { sections[k] = parsed.bySection[k]; });
                     sheets[tab] = parsed.bySheet;
-                    all.push.apply(all, parsed.questions);
+                    all = all.concat(parsed.questions);
                 });
             });
         });
         return chain.then(() => {
             if (!all.length) throw new Error('The question bank is empty.');
-            DG.bankCache[mode] = all;
-            DG.bankPoolCache[mode] = { bySection: sections, bySheet: sheets };
+            DG.bankCache[key] = all;
+            DG.bankPoolCache[key] = { bySection: sections, bySheet: sheets };
             return all;
         });
     },
@@ -827,6 +970,173 @@ const DG = {
         return labels.map((label, lane) => ({ label, lane, correct: lane === correctLane }));
     },
 
+    /* ---------------- Agreement gates ---------------- */
+
+    // Common agreement families. A gap-fill answer that starts with one of
+    // these auxiliaries gets the rest of the family as plausible distractors.
+    AGREEMENT_AUX_PAIRS: [
+        ['is', 'are', 'am', 'was', 'were'],
+        ['has', 'have', 'had'],
+        ['do', 'does', 'did', "don't", "doesn't", "didn't"],
+        ["isn't", "aren't", "wasn't", "weren't"],
+        ["hasn't", "haven't", "hadn't"],
+        ["doesn't", "don't", "didn't"],
+        ['their', 'his or her', 'his', 'her', 'its']
+    ],
+
+    /* Agreement/tense cousins of the answer's verb: lemma, 3sg and past are
+       exactly the leave / leaves / left set the teacher asked for. */
+    agreementForms(question) {
+        const q = question || {};
+        const out = [];
+        const push = (value) => {
+            const text = String(value == null ? '' : value).trim();
+            if (text) out.push(text);
+        };
+        const hint = DG.parseVerbHint(q);
+        const ans = DG.normAnswer(q.primary);
+        const lemma = hint.lemma && hint.lemma !== 'not' ? hint.lemma : '';
+        // Auxiliary + participle answers ("is cleaned", "has finished"):
+        // swap only the auxiliary so the distractor stays the same verb and
+        // the same voice. This comes first for multi-word answers.
+        const auxMatch = /^(is|are|am|was|were|has|have|had|do|does|did)\s+(.+)$/.exec(ans);
+        if (auxMatch && !/^not\b/i.test(auxMatch[2])) {
+            const rest = ' ' + auxMatch[2];
+            const be = ['is', 'are', 'am', 'was', 'were'];
+            const have = ['has', 'have', 'had'];
+            const doAux = ['do', 'does', 'did'];
+            let family = doAux;
+            if (be.indexOf(auxMatch[1]) !== -1) family = be;
+            else if (have.indexOf(auxMatch[1]) !== -1) family = have;
+            family.forEach(aux => push(aux + rest));
+        }
+        // Same-verb forms next: for "don't want" the best distractors are
+        // "doesn't want" / "didn't want", not bare "do" / "does". On a Choose
+        // prompt the brackets are options, not a verb lemma, so they must not
+        // be conjugated into nonsense like "ares".
+        const chooseOptions = q.qType === 'choose' && Array.isArray(q.options) && q.options.length >= 2;
+        if (lemma && !chooseOptions) {
+            const parts = DG.verbParts(lemma);
+            if (parts.special === 'be') {
+                ['am', 'is', 'are', 'was', 'were', 'being', 'been'].forEach(push);
+            } else if (hint.negative) {
+                ["doesn't " + parts.lemma, "don't " + parts.lemma, "didn't " + parts.lemma,
+                    'does not ' + parts.lemma, 'do not ' + parts.lemma, 'did not ' + parts.lemma].forEach(push);
+            } else {
+                push(parts.lemma);
+                push(parts.s);
+                push(parts.past);
+                push(parts.ing);
+            }
+        }
+        // Common agreement families for answers that are just an auxiliary
+        // (is / are / was / have / do / their ...). Multi-word answers already
+        // got their same-verb forms above, so bare auxiliaries would be a
+        // weaker distractor than "doesn't want".
+        if (ans && (!lemma || ans.indexOf(' ') === -1)) {
+            DG.AGREEMENT_AUX_PAIRS.forEach(group => {
+                const hit = group.some(a => ans === a || ans.indexOf(a + ' ') === 0 || ans.indexOf(a + "'") === 0);
+                if (hit) group.forEach(push);
+            });
+        }
+        return out;
+    },
+
+    /* Exactly three gates for an Agreement question.
+       - Gap-fill: the correct form + two same-verb agreement / tense cousins,
+         then other Agreement-tab answers, then a small filler list.
+       - Choose: the options printed in the sentence. Two options get one
+         extra plausible gate; three options are used as-is (no fourth).
+       Any listed variant marks its gate correct, and no listed variant is
+       ever placed on a wrong gate. */
+    agreementGates(question, sheetPool, rng) {
+        const rnd = rng || Math.random;
+        const q = question || {};
+        const variantKeys = new Set((q.variants || []).concat([q.primary]).map(DG.normAnswer).filter(Boolean));
+        const isVariant = (label) => variantKeys.has(DG.normAnswer(label));
+        const hasLabel = (list, label) => {
+            const key = DG.normAnswer(label);
+            return list.some(l => DG.normAnswer(l) === key);
+        };
+        const filler = ['is', 'are', 'was', 'were', 'has', 'have', 'do', 'does', "don't", "doesn't"];
+        let labels = [];
+        const options = Array.isArray(q.options) ? q.options.slice() : [];
+        const candidates = DG.agreementForms(q).concat((sheetPool || []).map(entry =>
+            String(entry && entry.primary ? entry.primary : entry || '').trim())).concat(filler);
+
+        if (q.qType === 'choose' && options.length >= 2) {
+            labels = options.slice();
+            if (labels.length > 3) {
+                const keep = labels.filter(isVariant).slice(0, 3);
+                labels.forEach(l => { if (keep.length < 3 && keep.indexOf(l) === -1) keep.push(l); });
+                labels = keep;
+            }
+            // Two options (or a malformed Choose) need exactly one extra gate.
+            // A three-option Choose never gets a fourth.
+            if (labels.length === 2) {
+                for (let i = 0; i < candidates.length && labels.length < 3; i++) {
+                    const cand = candidates[i];
+                    const key = DG.normAnswer(cand);
+                    if (!key || variantKeys.has(key) || hasLabel(labels, cand)) continue;
+                    labels.push(cand);
+                }
+            }
+        } else {
+            labels = [q.primary];
+            for (let i = 0; i < candidates.length && labels.length < 3; i++) {
+                const cand = candidates[i];
+                const key = DG.normAnswer(cand);
+                if (!key || variantKeys.has(key) || hasLabel(labels, cand)) continue;
+                labels.push(cand);
+            }
+        }
+
+        // Belt and braces: always exactly three unique gates, never a listed
+        // variant on a wrong gate.
+        for (let i = 0; i < filler.length && labels.length < 3; i++) {
+            const cand = filler[i];
+            const key = DG.normAnswer(cand);
+            if (!key || variantKeys.has(key) || hasLabel(labels, cand)) continue;
+            labels.push(cand);
+        }
+        labels = labels.slice(0, 3);
+
+        DG.shuffleInPlace(labels, rnd);
+        return labels.map((label, lane) => ({
+            label,
+            lane,
+            correct: isVariant(label)
+        }));
+    },
+
+    // The HUD sentence. Tenses is untouched; Agreement strips the bank label
+    // ("1. Gap-fill:") and, for Choose, the options that are already on the
+    // gates so the sentence does not repeat them.
+    displayPrompt(question, gates) {
+        const q = question || {};
+        const prompt = String(q.prompt || '');
+        if (!q.qType) return prompt;
+        let text = DG.stripQuestionPrefix(prompt);
+        if (q.qType === 'choose') {
+            const options = (Array.isArray(q.options) && q.options.length)
+                ? q.options
+                : DG.chooseOptions(prompt);
+            const labels = (gates || []).map(g => DG.normAnswer(g && g.label));
+            const allOnGates = options.length > 0 && options.every(o => labels.indexOf(DG.normAnswer(o)) !== -1);
+            if (allOnGates) text = text.replace(/\s*\([^)]*\)\s*$/, '');
+        }
+        return text.trim();
+    },
+
+    gateIsCorrect(gates, lane) {
+        const wanted = Number(lane);
+        return (gates || []).some(g => g && g.correct && Number(g.lane) === wanted);
+    },
+
+    correctGateLabels(gates) {
+        return (gates || []).filter(g => g && g.correct).map(g => String(g.label));
+    },
+
     answerAffinity(question, label) {
         const correct = DG.normAnswer(question.primary);
         const other = DG.normAnswer(label);
@@ -847,8 +1157,17 @@ const DG = {
         return score;
     },
 
-    gatesFor(question, mode, rng) {
-        const pools = DG.bankPoolCache[mode] || { bySection: {}, bySheet: {} };
+    gatesFor(question, topic, mode, rng) {
+        const t = DG.normalizeTopic(topic);
+        const key = DG.bankKey(t, mode);
+        const pools = DG.bankPoolCache[key] || { bySection: {}, bySheet: {} };
+        if (t === 'agreement' || (question && question.qType)) {
+            return DG.agreementGates(
+                question,
+                (pools.bySheet && pools.bySheet[question.sheet]) || [],
+                rng
+            );
+        }
         return DG.buildGates(
             question,
             pools.bySection[question.sectionKey] || [],
@@ -857,8 +1176,8 @@ const DG = {
         );
     },
 
-    raceQuestionQueue(mode, seed) {
-        const bank = DG.bankCache[mode] || [];
+    raceQuestionQueue(topic, mode, seed) {
+        const bank = DG.bankCache[DG.bankKey(topic, mode)] || [];
         const list = bank.slice();
         DG.shuffleInPlace(list, seed == null ? Math.random : DG.makeRng(seed));
         return list;
@@ -883,21 +1202,22 @@ const DG = {
     /* ---------------- screens / pre-race flow ---------------- */
 
     /* The ordered steps of the current pre-race flow. The first step is
-       always Solo / Multiplayer. Solo goes straight through the settings and
-       skips the old last "Game mode" step. A multiplayer host goes through
-       Create first, then picks every room setting. A joiner only picks a cat
-       and controls, then enters the code — challenge / count / course belong
-       to the host. */
+       always Solo / Multiplayer. Solo then picks a topic (Tenses or
+       Agreement) and goes through the settings; the old last "Game mode"
+       step is gone. A multiplayer host goes through Create first, then picks
+       the topic and every room setting. A joiner only picks a cat and
+       controls, then enters the code — topic / challenge / count / course
+       belong to the host. */
     flowOrder() {
         if (!DG.sessionMode) return ['session'];
         if (DG.sessionMode === 'solo') {
-            return ['session', 'challenge', 'cat', 'controls', 'count', 'scene'];
+            return ['session', 'topic', 'challenge', 'cat', 'controls', 'count', 'scene'];
         }
         if (DG.mpRole === 'join') {
             return ['session', 'multi-entry', 'cat', 'controls', 'join'];
         }
         if (DG.mpRole === 'create') {
-            return ['session', 'multi-entry', 'challenge', 'cat', 'controls', 'count', 'scene'];
+            return ['session', 'multi-entry', 'topic', 'challenge', 'cat', 'controls', 'count', 'scene'];
         }
         return ['session', 'multi-entry'];
     },
@@ -949,11 +1269,12 @@ const DG = {
             '<p class="text-xl font-bold text-orange-500">' + DG.esc(message) + '</p></div>';
     },
 
-    showLoadError(mode, err) {
+    showLoadError(topic, mode, err) {
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
-        const label = DG.MODE_LABEL[mode] || 'grammar';
+        const t = DG.normalizeTopic(topic);
+        const label = DG.modeLabel(t, mode);
         content.innerHTML =
             '<div class="text-center mb-6"><div class="text-7xl mb-3">📡</div>' +
             '<h2 class="text-3xl font-bold text-orange-600">Question bank not loaded</h2></div>' +
@@ -962,21 +1283,23 @@ const DG = {
             '<p class="text-sm text-gray-500 mb-6">' + DG.esc(err && err.message ? err.message : 'Please check your connection and try again.') + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.retryBank()">Retry</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showSceneStep()">Back</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showTopicStep()">Back</button>' +
             '</div></div>';
     },
 
     retryBank() {
-        const mode = DG.readSettings().bankMode;
-        DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
-        DG.loadBank(mode, true).then(() => {
+        const s = DG.readSettings();
+        const topic = DG.normalizeTopic(s.topic);
+        const mode = DG.normalizeBankMode(topic, s.bankMode);
+        DG.showLoading('Loading ' + DG.modeLabel(topic, mode) + ' questions…');
+        DG.loadBank(topic, mode, true).then(() => {
             if (DG.menuStep === 'launch') DG.startSingle();
             else DG.showSceneStep();
-        }).catch(err => DG.showLoadError(mode, err));
+        }).catch(err => DG.showLoadError(topic, mode, err));
     },
 
-    // The dot rail follows flowOrder(), so Solo shows 6 steps, a multiplayer
-    // host 7 (Create comes before the settings) and a joiner 5.
+    // The dot rail follows flowOrder(), so Solo shows 7 steps, a multiplayer
+    // host 8 (Create comes before the topic and settings) and a joiner 5.
     stepDots(step) {
         const order = DG.flowOrder();
         const activeIndex = Math.max(0, order.indexOf(step));
@@ -1037,7 +1360,7 @@ const DG = {
         }
         DG.sessionMode = 'solo';
         DG.mpRole = '';
-        DG.showChallengeStep();
+        DG.showTopicStep();
     },
 
     /* Step 2a — multiplayer Create / Join. The host fills the settings after
@@ -1070,12 +1393,62 @@ const DG = {
         DG.sessionMode = 'multi';
         DG.mpRole = role === 'join' ? 'join' : 'create';
         if (DG.mpRole === 'join') DG.showCatStep();
-        else DG.showChallengeStep();
+        else DG.showTopicStep();
+    },
+
+    /* Topic step — after Solo, or after Create for a host. Joiners follow the
+       host and never see it. Tenses keeps AV / PV / Mixed; Agreement gets
+       Gap-fill / Choose / Mixed from the single Agreement tab. */
+    showTopicStep() {
+        DG.menuStep = 'topic';
+        if (!DG.canEditHostSettings()) {
+            DG.showCatStep();
+            return;
+        }
+        const s = DG.readSettings();
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const card = (topic, emoji, title, sub) => {
+            const active = s.topic === topic ? ' active' : '';
+            return '<button type="button" class="dg-choice' + active + '" onclick="DG.setTopic(\'' + topic + '\')">' +
+                '<span class="dg-choice-emoji">' + emoji + '</span>' +
+                '<span class="dg-choice-title">' + title + '</span>' +
+                '<span class="dg-choice-sub">' + sub + '</span></button>';
+        };
+        const back = (DG.sessionMode === 'multi' && DG.mpRole === 'create')
+            ? 'DG.showMultiplayerEntryStep()' : 'DG.showSessionStep()';
+        content.innerHTML =
+            '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
+            '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
+            '<p class="text-gray-500 font-bold mt-2">Pick a topic, then steer into the correct gate.</p></div>' +
+            DG.stepDots('topic') +
+            DG.stepHeading('topic', 'Choose your topic') +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">' +
+            card('tenses', '⏳', 'Tenses', 'Active voice, passive voice or both') +
+            card('agreement', '🤝', 'Agreement', 'Gap-fill, Choose, or both from the Agreement bank') +
+            '</div>' +
+            '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
+            '<button type="button" class="dg-menu-button" onclick="' + back + '">← Back</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.showChallengeStep()">Next: Challenge →</button></div>';
+    },
+
+    setTopic(topic) {
+        if (!DG.canEditHostSettings()) return;
+        const t = DG.normalizeTopic(topic);
+        if (DG.TOPICS.indexOf(t) === -1) return;
+        const s = DG.readSettings();
+        s.topic = t;
+        // Switching topic invalidates the other topic's challenge type.
+        s.bankMode = DG.normalizeBankMode(t, s.bankMode);
+        DG.saveSettings();
+        DG.showTopicStep();
     },
 
     showChallengeStep() {
         DG.menuStep = 'challenge';
         const s = DG.readSettings();
+        const topic = DG.normalizeTopic(s.topic);
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
@@ -1086,28 +1459,33 @@ const DG = {
                 '<span class="dg-choice-title">' + title + '</span>' +
                 '<span class="dg-choice-sub">' + sub + '</span></button>';
         };
+        const cards = topic === 'agreement'
+            ? (card('gapfill', '✏️', 'Gap-fill', 'Complete the sentence with the right form') +
+               card('choose', '✅', 'Choose', 'Pick the correct option from the sentence') +
+               card('mixed', '🌈', 'Mixed', 'Gap-fill and Choose shuffled together'))
+            : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+               card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
+               card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
         content.innerHTML =
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
-            '<p class="text-gray-500 font-bold mt-2">Read the sentence, steer into the correct gate, and race the track.</p></div>' +
+            '<p class="text-gray-500 font-bold mt-2">Topic: ' + DG.esc(DG.topicLabel(topic)) + '</p></div>' +
             DG.stepDots('challenge') +
             DG.stepHeading('challenge', 'Choose your challenge') +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">' +
-            card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
-            card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
-            card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together') +
+            cards +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
-            '<button type="button" class="dg-menu-button" onclick="' +
-            (DG.sessionMode === 'multi' ? 'DG.showMultiplayerEntryStep()' : 'DG.showSessionStep()') +
-            '">← Back</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showTopicStep()">← Topic</button>' +
             '<button type="button" class="btn-paw" onclick="DG.showCatStep()">Next: Cat driver →</button></div>';
     },
 
     setBankMode(mode) {
-        if (!DG.TAB_FOR_MODE[mode]) return;
         if (!DG.canEditHostSettings()) return;
-        DG.readSettings().bankMode = mode;
+        const s = DG.readSettings();
+        const next = DG.normalizeBankMode(s.topic, mode);
+        if (DG.MODES_FOR_TOPIC[DG.normalizeTopic(s.topic)].indexOf(String(mode).toLowerCase()) === -1) return;
+        s.bankMode = next;
         DG.saveSettings();
         DG.showChallengeStep();
     },
@@ -1334,16 +1712,18 @@ const DG = {
     startSingle() {
         DG.menuStep = 'launch';
         const settings = DG.readSettings();
-        const mode = settings.bankMode;
-        DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
-        DG.loadBank(mode).then(() => {
+        const topic = DG.normalizeTopic(settings.topic);
+        const mode = DG.normalizeBankMode(topic, settings.bankMode);
+        DG.showLoading('Loading ' + DG.modeLabel(topic, mode) + ' questions…');
+        DG.loadBank(topic, mode).then(() => {
             DG.startRace({
                 mode: 'single',
+                topic: topic,
                 bankMode: mode,
                 questionCount: settings.questionCount,
                 scene: settings.scene
             });
-        }).catch(err => DG.showLoadError(mode, err));
+        }).catch(err => DG.showLoadError(topic, mode, err));
     },
 
     /* ---------------- scoring / personal bests ---------------- */
@@ -1395,8 +1775,10 @@ const DG = {
         return Math.round((Number(accuracy) || 0) * 100) + '%';
     },
 
-    bestRunStorageKey(bankMode, questionCount) {
-        return String(bankMode || 'av') + ':' + DG.normalizeQuestionCount(questionCount);
+    bestRunStorageKey(topic, bankMode, questionCount) {
+        return DG.normalizeTopic(topic) + ':' +
+            DG.normalizeBankMode(topic, bankMode) + ':' +
+            DG.normalizeQuestionCount(questionCount);
     },
 
     readBestRuns() {
@@ -1408,8 +1790,15 @@ const DG = {
         }
     },
 
-    readBestRun(bankMode, questionCount) {
-        const row = DG.readBestRuns()[DG.bestRunStorageKey(bankMode, questionCount)];
+    readBestRun(topic, bankMode, questionCount) {
+        const t = DG.normalizeTopic(topic);
+        const mode = DG.normalizeBankMode(t, bankMode);
+        const n = DG.normalizeQuestionCount(questionCount);
+        const all = DG.readBestRuns();
+        // Before the topic column the key was "av:20". Keep showing those
+        // Tenses personal bests; new runs write the topic-aware key.
+        const legacy = (t === 'tenses') ? all[mode + ':' + n] : null;
+        const row = all[DG.bestRunStorageKey(t, mode, n)] || legacy;
         if (!row || typeof row !== 'object') return null;
         const composite = Number(row.composite);
         const time = Number(row.time);
@@ -1421,9 +1810,9 @@ const DG = {
         };
     },
 
-    recordBestRun(bankMode, questionCount, result) {
+    recordBestRun(topic, bankMode, questionCount, result) {
         if (!result || !result.composite) return false;
-        const key = DG.bestRunStorageKey(bankMode, questionCount);
+        const key = DG.bestRunStorageKey(topic, bankMode, questionCount);
         const all = DG.readBestRuns();
         const prev = all[key];
         const better = !prev
@@ -1478,8 +1867,9 @@ const DG = {
         if (typeof currentUser === 'undefined' || !currentUser || !currentUser.id) return null;
         const r = result || {};
         const s = DG.readSettings();
+        const topic = DG.normalizeTopic(r.topic || s.topic);
         const n = DG.normalizeQuestionCount(r.questionCount || s.questionCount);
-        const bankMode = DG.TAB_FOR_MODE[r.bankMode] ? r.bankMode : (DG.TAB_FOR_MODE[s.bankMode] ? s.bankMode : 'av');
+        const bankMode = DG.normalizeBankMode(topic, r.bankMode || s.bankMode);
         const accuracy = isFinite(Number(r.accuracy)) ? Math.max(0, Math.min(1, Number(r.accuracy))) : 0;
         const row = {
             user_id: currentUser.id,
@@ -1497,6 +1887,9 @@ const DG = {
             accuracy: Math.round(accuracy * 10000) / 10000,
             elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
         };
+        // Tenses must still insert into the current schema (no topic column
+        // yet). Only an Agreement run sends the new column.
+        if (topic === 'agreement') row.topic = 'agreement';
         if (extra && extra.room_id) {
             row.room_id = extra.room_id;
             row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
@@ -1514,20 +1907,25 @@ const DG = {
             sb.from(DG.cloudBoardTable(kind)).insert(row).then(({ error }) => {
                 if (!error) return;
                 console.warn('Drive & Go! ' + kind + ' score not saved:', error.message);
-                const text = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
-                if (/does not exist|Could not find|42P01|PGRST20|schema cache|relation/i.test(text)) {
-                    DG.cloudBoardSqlHint();
-                }
+                DG.cloudBoardSqlHint(error);
             }, () => {});
         } catch (e) {}
     },
 
-    cloudBoardSqlHint() {
+    cloudBoardSqlHint(error) {
         const now = Date.now();
         if (DG._cloudBoardHintAt && now - DG._cloudBoardHintAt < 60000) return;
         DG._cloudBoardHintAt = now;
+        const text = [error && error.code, error && error.message, error && error.details, error && error.hint]
+            .filter(Boolean).join(' ');
+        // A topic / gapfill / choose failure is the new incremental, not the
+        // older scene / board files the teacher already ran.
+        const agreement = /topic|gapfill|choose/i.test(text)
+            || (/23514/i.test(text) && /question_mode|bank_mode/i.test(text));
         if (typeof DG.toastSafe === 'function') {
-            DG.toastSafe('Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
+            DG.toastSafe(agreement
+                ? 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.'
+                : 'Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
         }
     },
 

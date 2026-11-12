@@ -30,7 +30,9 @@
         missingMePolls: 0,
         rejoining: false,
         closed: false,
-        detachTimer: 0
+        detachTimer: 0,
+        // Consecutive race syncs where the room (or our own seat) was missing.
+        raceMissingPolls: 0
     };
     DG.mpState = MP;
 
@@ -600,6 +602,14 @@
             MP.players = [];
             MP.closed = false;
             MP.joinCode = clean(room.code) || code;
+            MP.raceMissingPolls = 0;
+            // Still racing (the room came back after a dropout): resume the
+            // room sync and clear the disconnected panel, not the lobby.
+            if (DG.raceState && DG.raceState.active && typeof DG.mpStartRacePoll === 'function') {
+                if (typeof DG.hideOverlay === 'function') DG.hideOverlay();
+                DG.mpStartRacePoll();
+                return;
+            }
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(() => {
@@ -614,9 +624,20 @@
        Never call changeView, so the site cannot bounce them to the Hub. */
     DG.mpShowRoomClosed = function (error) {
         DG.mpStopPoll();
+        DG.mpStopRacePoll();
         MP.closed = true;
         const detail = error ? ' ' + DG.mpErrorText(error) : '';
         if (DG.raceState && DG.raceState.active) {
+            // A racer who already reached N correct keeps their own results
+            // (with a note that the room is gone) instead of losing the run.
+            if (DG.raceState.player && DG.raceState.player.finished &&
+                !DG.raceState.resultShown && typeof DG.showMpOwnResults === 'function') {
+                // Their run is over: stop the dead track from redrawing and
+                // keep the results panel on screen.
+                if (typeof DG.freezeRaceLoop === 'function') DG.freezeRaceLoop();
+                DG.showMpOwnResults(null, { closed: true });
+                return;
+            }
             if (typeof DG.showOverlay === 'function') {
                 DG.showOverlay(
                     '<div class="text-center"><div class="text-6xl mb-2">📡</div>' +
@@ -849,6 +870,27 @@
         });
     };
 
+    /* A racer who already reached N correct is done: leaving their results
+       panel must not delete their finished row (that row is what the rest of
+       the room ranks and what eventually ends the room). Stop syncing and go
+       back to the menu without calling leave_drive_and_go_room. */
+    DG.mpDetachRace = function () {
+        DG.mpStopRacePoll();
+        DG.mpStopPoll();
+        DG.mpCancelDetach();
+        MP.room = null;
+        MP.players = [];
+        MP.lastEffectSeq = 0;
+        MP.joinedAt = 0;
+        MP.joinCode = '';
+        MP.missingMePolls = 0;
+        MP.rejoining = false;
+        MP.closed = false;
+        MP.raceMissingPolls = 0;
+        DG.stopRace();
+        changeView('grammar-revision-view');
+    };
+
     /* Called by changeView when the player leaves the lobby/race view.
        Fire-and-forget; never leaves the branch waiting on a network call.
        The explicit Leave buttons leave regardless of the join-settling window;
@@ -866,6 +908,7 @@
         MP.missingMePolls = 0;
         MP.rejoining = false;
         MP.closed = false;
+        MP.raceMissingPolls = 0;
         if (!room) return;
         try {
             sb.rpc('leave_drive_and_go_room', { p_room_id: room.id }).then(() => {}, () => {});
@@ -877,6 +920,7 @@
     DG.mpStartRacePoll = function () {
         DG.mpStopRacePoll();
         MP.lastEffectSeq = 0;
+        MP.raceMissingPolls = 0;
         MP.racePollId = setInterval(() => DG.mpSyncRace(), 700);
         setTimeout(() => DG.mpSyncRace(), 350);
     };
@@ -928,8 +972,27 @@
                 if (typeof DG.updateMpProgress === 'function') DG.updateMpProgress(players);
                 const selfRow = players.find(x => x.user_id === me);
                 if (selfRow) DG.mpReadOwnEffect(selfRow);
+                // A finisher waits on their own results panel. Three reads in a
+                // row without the room (or our own seat) mean it really is
+                // gone: show a local results / disconnected panel. Never
+                // navigate away from the race view.
+                const missing = !room || !selfRow;
+                MP.raceMissingPolls = missing ? (MP.raceMissingPolls || 0) + 1 : 0;
+                if (missing && MP.raceMissingPolls >= MISSING_ME_LIMIT) {
+                    MP.raceMissingPolls = 0;
+                    DG.mpShowRoomClosed();
+                    return;
+                }
                 if (room && room.status === 'finished') {
                     DG.showMultiplayerResults(room, players);
+                    return;
+                }
+                // If the local results panel was never shown (or something
+                // replaced it), restore it for a finished racer.
+                if (selfRow && DG.raceState.player && DG.raceState.player.finished &&
+                    !DG.raceState.resultShown && !DG.raceState.ownResultShown &&
+                    typeof DG.showMpOwnResults === 'function') {
+                    DG.showMpOwnResults();
                 }
             }).catch(() => {
                 MP.syncing = false;

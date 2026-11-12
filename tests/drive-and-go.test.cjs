@@ -535,6 +535,34 @@ function loadRace(DG) {
     return DG;
 }
 
+/* Loads the race engine with a fake DOM and a recording changeView, so a test
+   can drive the real answer → finish → results path and prove it never
+   navigates the player away. */
+function loadRaceWithDom(DG, options) {
+    const o = options || {};
+    const calls = o.calls || { changeView: [] };
+    const element = o.element;
+    const context = vm.createContext({
+        window: { DG },
+        globalThis: {},
+        document: {
+            getElementById: (id) => element(id),
+            body: { classList: { add() {}, remove() {} } }
+        },
+        console,
+        Math,
+        Date,
+        currentUser: o.currentUser === undefined ? { id: 'me', email: 'me@school.test' } : o.currentUser,
+        changeView: (view) => calls.changeView.push(view),
+        requestAnimationFrame() { return 1; },
+        cancelAnimationFrame() {},
+        setTimeout: () => 1,
+        clearTimeout: () => {}
+    });
+    vm.runInContext(raceSource, context);
+    return { DG, context, calls, element };
+}
+
 /* Loads drive-and-go-multiplayer.js with a fake DOM + fake Supabase so the
    join / poll sequence can be exercised without a browser or a database. */
 function loadMultiplayer(DG, options) {
@@ -1027,4 +1055,386 @@ test('dashboard summary and row meta are unit-testable and use the composite boa
 
     // A guest (isAdmin false) gets an early return instead of a board query.
     await vm.runInContext('loadDriveAndGoAdmin()', ctx);
+});
+
+/* ---------------- results screens stay on screen ---------------- */
+
+/* A finish harness drives the real answerGate → finishPlayer path with the
+   race engine + multiplayer sync loaded. changeView is recorded in both
+   contexts, so "the player was not navigated away" is asserted, not guessed. */
+function makeFinishHarness() {
+    const loaded = loadDGWithDom();
+    const raceCalls = { changeView: [] };
+    loadRaceWithDom(loaded.DG, { element: loaded.element, calls: raceCalls });
+    const mp = loadMultiplayer(loaded.DG, {
+        element: loaded.element,
+        db: { room: null, players: [] }
+    });
+    const DG = loaded.DG;
+    const el = loaded.element;
+    DG.raceEls = {
+        overlay: el('dg-overlay'),
+        toast: el('dg-toast'),
+        question: el('dg-question-text'),
+        options: el('dg-options'),
+        score: el('dg-stat-score'),
+        combo: el('dg-stat-combo'),
+        speed: el('dg-stat-speed'),
+        pos: el('dg-stat-pos'),
+        time: el('dg-stat-time'),
+        progress: el('dg-stat-progress'),
+        itemBtn: null,
+        itemEmoji: null,
+        itemName: null,
+        accelBtn: null
+    };
+    return {
+        DG,
+        el,
+        raceCalls,
+        mp,
+        overlay: () => el('dg-overlay').innerHTML
+    };
+}
+
+/* Puts the real race state one correct answer away from the chosen N. */
+function beginFakeRun(DG, o) {
+    const opts = o || {};
+    const mode = opts.mode || 'single';
+    const n = DG.normalizeQuestionCount(opts.questionCount);
+    const S = DG.raceState;
+    S.active = true;
+    S.mode = mode;
+    S.bankMode = 'av';
+    S.scene = 'desert';
+    S.phase = 'racing';
+    S.paused = false;
+    S.clock = 42;
+    S.startedAtMs = Date.now() - 50000;
+    S.questionCount = n;
+    S.resultShown = false;
+    S.ownResultShown = false;
+    S.finishSent = false;
+    S.raf = 0;
+    S.opts = { mode, bankMode: 'av', players: opts.players || [] };
+    S.rivals = [];
+    S.bananas = [];
+    S.listeners = [];
+    S.toastTimer = 0;
+    S.countdown = 0;
+    S.player = {
+        lane: 1, laneX: 1, dist: 1000, speed: 120, score: 1500, combo: 0, maxCombo: 6,
+        correct: n - 1, wrong: 3, item: null, spinUntil: 0, slowUntil: 0,
+        nitroUntil: 0, boostUntil: 0, starUntil: 0, shrinkUntil: 0,
+        finished: false, finishAt: 0
+    };
+    S.activeQ = {
+        prompt: '1. She ____ (go) to school every day.',
+        primary: 'goes',
+        variants: ['goes'],
+        sectionKey: 'tenses|Present Simple',
+        sheet: 'tenses',
+        challenging: false
+    };
+    S.gates = [
+        { label: 'goes', lane: 1, correct: true, dist: 1000 },
+        { label: 'went', lane: 0, correct: false, dist: 1000 },
+        { label: 'gone', lane: 2, correct: false, dist: 1000 }
+    ];
+    S.gatesResolved = false;
+    S.gateDist = 1000;
+    S.nextGateAt = 0;
+    S.nextGateDist = 0;
+    S.lastResult = null;
+    S.hudDirty = true;
+    return S;
+}
+
+function assertNoNavigation(h) {
+    assert.deepEqual(Array.from(h.raceCalls.changeView), [],
+        'finishing must not call changeView (Hub / home / Create-Join / Solo-Multi step)');
+    assert.deepEqual(Array.from(h.mp.calls.changeView), []);
+    assert.equal(h.mp.calls.showSessionStep, 0, 'finishing must not open the Solo / Multiplayer step');
+    assert.equal(h.mp.calls.showMultiplayerMenu, 0, 'finishing must not open Create / Join');
+    assert.equal(h.mp.calls.backToTenses, 0);
+}
+
+test('Solo: every allowed N shows a results screen and is never auto-kicked', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    for (const n of Array.from(DG.QUESTION_COUNTS)) {
+        beginFakeRun(DG, { mode: 'single', questionCount: n });
+        DG.answerGate(1);
+
+        const S = DG.raceState;
+        assert.equal(S.player.correct, n, 'the run must end at exactly the chosen N');
+        assert.equal(S.player.finished, true);
+        assert.equal(S.resultShown, true, 'solo results must be marked shown');
+        assert.equal(S.phase, 'finished');
+        assertNoNavigation(h);
+
+        const html = h.overlay();
+        assert.ok(html.indexOf('Run finished') !== -1, 'N=' + n + ' results screen is missing');
+        assert.ok(html.indexOf('Composite') !== -1);
+        assert.ok(html.indexOf('Race score') !== -1);
+        assert.ok(html.indexOf('Time bonus') !== -1);
+        assert.ok(html.indexOf('Accuracy') !== -1);
+        assert.ok(html.indexOf(n + ' questions') !== -1, 'N=' + n + ' must be shown, not a fixed 20');
+        assert.ok(html.indexOf(n + '/' + n) !== -1, 'correct count must be N/N for N=' + n);
+        assert.ok(html.indexOf('dg-result-grid') !== -1);
+        // The results screen offers explicit buttons only.
+        assert.ok(html.indexOf('DG.restartRace()') !== -1);
+        assert.ok(html.indexOf('DG.exitRace()') !== -1);
+        assert.ok(html.indexOf('DG.showSessionStep()') === -1);
+        assert.ok(html.indexOf('DG.showMultiplayerEntryStep()') === -1);
+    }
+});
+
+test('Solo: a run that was already shown is not replaced by the old end-run path', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    beginFakeRun(DG, { mode: 'single', questionCount: 25 });
+    DG.answerGate(1);
+    const shown = h.overlay();
+    DG.endRun(); // the race loop still calls this one hold-time after the last gate
+    assert.equal(h.overlay(), shown, 'the finished results must not be re-rendered / changed');
+    assert.ok(h.overlay().indexOf('Run finished') !== -1);
+    assertNoNavigation(h);
+});
+
+test('Multiplayer: an early finisher gets their own results and stays in the room', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    const players = [
+        { user_id: 'me', nickname: 'Joiner Cat', correct: 20, wrong: 2, distance: 900, score: 1500, finished_at: '2026-01-01T00:00:20Z' },
+        { user_id: 'host', nickname: 'Host Cat', correct: 7, wrong: 1, distance: 420, score: 700, finished_at: null },
+        { user_id: 'third', nickname: 'Third Cat', correct: 3, wrong: 0, distance: 200, score: 300, finished_at: null }
+    ];
+    let finishes = 0;
+    DG.mpCrossFinish = function () { finishes += 1; };
+    DG.mpState.room = { id: 'room-1', status: 'playing', question_count: 20 };
+    DG.mpState.players = players;
+
+    beginFakeRun(DG, { mode: 'multi', questionCount: 20, players });
+    DG.answerGate(1);
+
+    const S = DG.raceState;
+    assert.equal(finishes, 1, 'the finished row must be sent to the room');
+    assert.equal(S.player.finished, true);
+    assert.equal(S.ownResultShown, true, 'the finisher must see their own results');
+    assert.equal(S.resultShown, false, 'the room ranking is still to come');
+    assert.equal(S.phase, 'racing', 'the race must stay live while the others finish');
+    assert.equal(DG.mpState.room && DG.mpState.room.id, 'room-1', 'the finisher must stay in the room');
+    assertNoNavigation(h);
+
+    const html = h.overlay();
+    assert.ok(html.indexOf('You finished!') !== -1);
+    assert.ok(html.indexOf('Composite') !== -1);
+    assert.ok(html.indexOf('Race score') !== -1);
+    assert.ok(html.indexOf('Time bonus') !== -1);
+    assert.ok(html.indexOf('Accuracy') !== -1);
+    assert.ok(html.indexOf('20 questions') !== -1);
+    assert.ok(html.indexOf('20/20') !== -1);
+    assert.ok(html.indexOf('Waiting for the other racers') !== -1);
+    // Live progress for the racers still going.
+    assert.ok(html.indexOf('dg-results-progress') !== -1);
+    assert.ok(html.indexOf('Host Cat') !== -1);
+    assert.ok(html.indexOf('7/20') !== -1);
+    // Only an explicit leave button.
+    assert.ok(html.indexOf('DG.mpDetachRace()') !== -1);
+    assert.equal(h.mp.calls.leaveCalls || 0, 0, 'finishing must not leave the room');
+});
+
+test('Multiplayer: every allowed N gives the finisher N/N and N questions', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    DG.mpCrossFinish = function () {};
+    for (const n of Array.from(DG.QUESTION_COUNTS)) {
+        DG.mpState.players = [
+            { user_id: 'me', nickname: 'Me', correct: n, wrong: 1, score: 900, finished_at: '2026-01-01T00:01:00Z' },
+            { user_id: 'host', nickname: 'Host Cat', correct: 2, wrong: 0, score: 200, finished_at: null }
+        ];
+        beginFakeRun(DG, { mode: 'multi', questionCount: n, players: DG.mpState.players });
+        DG.answerGate(1);
+        const html = h.overlay();
+        assert.ok(html.indexOf('You finished!') !== -1, 'N=' + n + ' own results missing');
+        assert.ok(html.indexOf(n + ' questions') !== -1, 'N=' + n + ' must be shown');
+        assert.ok(html.indexOf(n + '/' + n) !== -1, 'N=' + n + ' correct count missing');
+        assertNoNavigation(h);
+    }
+});
+
+test('Multiplayer: when the room finishes the final ranking replaces the panel and still stays put', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    DG.mpCrossFinish = function () {};
+    const room = { id: 'room-1', status: 'playing', question_count: 30, question_mode: 'av', scene: 'jungle' };
+    const players = [
+        { user_id: 'me', nickname: 'Joiner Cat', correct: 30, wrong: 2, score: 2100, composite_score: 2450, elapsed_ms: 60000, finished_at: '2026-01-01T00:01:00Z' },
+        { user_id: 'host', nickname: 'Host Cat', correct: 30, wrong: 0, score: 1900, composite_score: 2300, elapsed_ms: 70000, finished_at: '2026-01-01T00:01:10Z' }
+    ];
+    DG.mpState.room = room;
+    DG.mpState.players = players;
+
+    beginFakeRun(DG, { mode: 'multi', questionCount: 30, players });
+    DG.answerGate(1);
+    assert.ok(h.overlay().indexOf('You finished!') !== -1);
+
+    DG.showMultiplayerResults(Object.assign({}, room, { status: 'finished', winner_id: 'me' }), players);
+    const html = h.overlay();
+    assert.ok(html.indexOf('You win!') !== -1, 'the room ranking must appear');
+    assert.ok(html.indexOf('Your run') !== -1, 'the finisher keeps their own breakdown');
+    assert.ok(html.indexOf('Composite') !== -1);
+    assert.ok(html.indexOf('Time bonus') !== -1);
+    assert.ok(html.indexOf('30 correct answers wins') !== -1, 'N must come from the room, not 20');
+    assert.ok(html.indexOf('Joiner Cat') !== -1 && html.indexOf('Host Cat') !== -1);
+    assert.ok(html.indexOf('2450 pts') !== -1);
+    assert.ok(html.indexOf('100%') !== -1);
+    assert.ok(html.indexOf('DG.exitRace()') !== -1, 'leaving is an explicit button');
+    assertNoNavigation(h);
+    // Repeat calls (every 700 ms sync) must not stack or re-render.
+    const once = h.overlay();
+    DG.showMultiplayerResults(Object.assign({}, room, { status: 'finished', winner_id: 'me' }), players);
+    assert.equal(h.overlay(), once);
+});
+
+test('Multiplayer: sync shows the room ranking when it finishes and never navigates', async () => {
+    const loaded = loadDGWithDom();
+    const raceCalls = { changeView: [] };
+    loadRaceWithDom(loaded.DG, { element: loaded.element, calls: raceCalls });
+    const room = {
+        id: 'room-1', code: 'ABCD', host_id: 'host', status: 'finished',
+        question_mode: 'av', question_count: 50, scene: 'desert', seed: 7, winner_id: 'me',
+        created_at: '2026-01-01T00:00:00Z'
+    };
+    const players = [
+        { user_id: 'me', nickname: 'Me', correct: 50, wrong: 4, score: 4000, composite_score: 5000, elapsed_ms: 120000, finished_at: '2026-01-01T00:02:00Z' },
+        { user_id: 'host', nickname: 'Host Cat', correct: 50, wrong: 1, score: 4500, composite_score: 5100, elapsed_ms: 125000, finished_at: '2026-01-01T00:02:05Z' }
+    ];
+    const mp = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room, players } });
+    const DG = loaded.DG;
+    const el = loaded.element;
+    DG.raceEls = { overlay: el('dg-overlay'), toast: el('dg-toast') };
+    const S = beginFakeRun(DG, { mode: 'multi', questionCount: 50, players });
+    DG.mpState.room = room;
+    DG.mpState.players = players;
+    S.player.correct = 50;
+    S.player.finished = true;
+    S.player.runResult = DG.scoreRun(S.player, 120, 50);
+
+    DG.mpSyncRace();
+    await tick();
+    await tick();
+
+    const html = el('dg-overlay').innerHTML;
+    assert.ok(html.indexOf('Your run') !== -1, 'the finished room must show the ranking');
+    assert.ok(html.indexOf('Host Cat') !== -1);
+    assert.ok(html.indexOf('50 correct answers wins') !== -1);
+    assert.equal(DG.raceState.resultShown, true);
+    assert.deepEqual(Array.from(raceCalls.changeView), []);
+    assert.deepEqual(Array.from(mp.calls.changeView), []);
+    assert.equal(mp.calls.showSessionStep, 0);
+    assert.equal(mp.calls.showMultiplayerMenu, 0);
+    assert.equal(mp.calls.leaveCalls || 0, 0);
+});
+
+test('Multiplayer: a waiting finisher keeps their results when the room disappears', async () => {
+    const loaded = loadDGWithDom();
+    const raceCalls = { changeView: [] };
+    loadRaceWithDom(loaded.DG, { element: loaded.element, calls: raceCalls });
+    const mp = loadMultiplayer(loaded.DG, {
+        element: loaded.element,
+        db: { room: null, players: [] }
+    });
+    const DG = loaded.DG;
+    const el = loaded.element;
+    DG.raceEls = { overlay: el('dg-overlay'), toast: el('dg-toast') };
+    const S = beginFakeRun(DG, { mode: 'multi', questionCount: 25, players: [] });
+    DG.mpState.room = { id: 'room-1', code: 'ABCD', status: 'playing', question_count: 25 };
+    S.player.correct = 25;
+    S.player.finished = true;
+    S.player.runResult = DG.scoreRun(S.player, 60, 25);
+
+    for (let i = 0; i < 3; i++) {
+        DG.mpSyncRace();
+        await tick();
+        await tick();
+    }
+    const html = el('dg-overlay').innerHTML;
+    assert.ok(html.indexOf('You finished!') !== -1, 'the run results must be kept');
+    assert.ok(html.indexOf('The room is no longer available') !== -1);
+    assert.ok(html.indexOf('25/25') !== -1);
+    assert.equal(DG.mpState.racePollId, null, 'a missing room must stop the race sync');
+    assert.equal(DG.raceState.phase, 'finished', 'the dead track must stop redrawing');
+    assert.deepEqual(Array.from(raceCalls.changeView), []);
+    assert.deepEqual(Array.from(mp.calls.changeView), []);
+    assert.equal(mp.calls.leaveCalls || 0, 0);
+});
+
+test('the finish / results code contains no automatic navigation or 20 hard-code', () => {
+    const fn = (name) => {
+        const at = raceSource.indexOf('DG.' + name + ' = function');
+        assert.ok(at !== -1, name + ' is missing');
+        const end = raceSource.indexOf('\n    };', at);
+        return raceSource.slice(at, end);
+    };
+    ['finishPlayer', 'showSoloResults', 'showMpOwnResults', 'showMultiplayerResults'].forEach(name => {
+        const body = fn(name);
+        assert.ok(body.indexOf('changeView') === -1, name + ' must not call changeView');
+        assert.ok(body.indexOf('backToTenses') === -1, name + ' must not call backToTenses');
+        assert.ok(body.indexOf('showSessionStep') === -1, name + ' must not reopen the Solo / Multiplayer step');
+        assert.ok(body.indexOf('showMultiplayerMenu') === -1, name + ' must not reopen Create / Join');
+        assert.ok(!/correct\s*>=\s*20\b/.test(body), name + ' must not hard-code 20 correct answers');
+    });
+    // The solo count comes from the run, not a literal.
+    assert.match(raceSource, /p\.correct >= S\.questionCount/);
+    assert.match(raceSource, /maxCombo: o\.maxCombo/);
+});
+
+test('Multiplayer: leaving your own results keeps your finished row in the room', () => {
+    const h = makeFinishHarness();
+    const { DG } = h;
+    DG.mpCrossFinish = function () {};
+    const players = [
+        { user_id: 'me', nickname: 'Me', correct: 20, wrong: 1, score: 1200, finished_at: '2026-01-01T00:01:00Z' },
+        { user_id: 'host', nickname: 'Host Cat', correct: 4, wrong: 0, score: 400, finished_at: null }
+    ];
+    DG.mpState.room = { id: 'room-1', status: 'playing', question_count: 20 };
+    DG.mpState.players = players;
+    beginFakeRun(DG, { mode: 'multi', questionCount: 20, players });
+    DG.answerGate(1);
+    assert.ok(h.overlay().indexOf('You finished!') !== -1);
+
+    DG.mpDetachRace();
+    // Leaving is the player's own choice, and it must not delete the row the
+    // rest of the room still has to rank.
+    assert.equal(h.mp.calls.leaveCalls || 0, 0, 'leave_drive_and_go_room must not delete a finished row');
+    assert.deepEqual(Array.from(h.mp.calls.changeView), ['grammar-revision-view']);
+    assert.equal(DG.mpState.room, null);
+    assert.equal(DG.raceState.active, false);
+});
+
+test('Multiplayer: rejoining during a live race resumes the race sync, not the lobby', async () => {
+    const loaded = loadDGWithDom();
+    loadRaceWithDom(loaded.DG, { element: loaded.element, calls: { changeView: [] } });
+    const mp = loadMultiplayer(loaded.DG, {
+        element: loaded.element,
+        db: { room: null, players: [] },
+        joinRoom: MP_ROOM
+    });
+    const DG = loaded.DG;
+    DG.raceEls = { overlay: loaded.element('dg-overlay'), toast: loaded.element('dg-toast') };
+    DG.raceState.active = true;
+    DG.raceState.mode = 'multi';
+    DG.mpState.room = { id: 'room-1', code: 'ABCD', status: 'playing' };
+
+    DG.mpRejoinRoom();
+    await tick();
+    await tick();
+
+    assert.equal(DG.mpState.room && DG.mpState.room.id, 'room-1');
+    assert.ok(DG.mpState.racePollId, 'the room sync must resume while still racing');
+    assert.equal(DG.mpState.pollId, null, 'the lobby poll must not take over the race');
+    assert.deepEqual(Array.from(mp.calls.changeView), []);
+    assert.equal(mp.calls.leaveCalls || 0, 0);
 });

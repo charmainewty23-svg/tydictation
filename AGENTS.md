@@ -453,6 +453,22 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `DG.mpRejoinRoom()` 自動入返，唔會再跌落 Create／Join 或 Hub。房真的冇咗就喺
   原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
   返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
+- **完賽一定有結果畫面，唔會自動彈走（2026-11）**：solo／multi 都係一到 N 題正確
+  （N = 自己揀或房主揀嘅 20／25／30／35／40／50，**唔可以**寫死 20）就即刻出結果，
+  唔會 call `changeView`／`backToTenses`／`showSessionStep`／`showMultiplayerMenu`，
+  亦唔會自己離開房間。共通數字格係 `DG.resultGridHTML()`：composite、race score、
+  time bonus、時間、正確率、`correct / N`（solo 另加 wrong／max combo）。
+  - Solo：`DG.finishPlayer()` 直接 `DG.showSoloResults()`（唔再等 0.85 秒後嘅
+    `DG.endRun()`，`endRun` 只留返做「End run」）。掣：Race again／Back to Tenses。
+  - Multi：早完成嘅玩家睇 `DG.showMpOwnResults()`（`S.ownResultShown`），賽道同
+    room poll **繼續行**，面板入面 `#dg-results-progress` 會跟 `DG.updateMpProgress()`
+    顯示仲未完賽嘅人。全房完賽時 `DG.showMultiplayerResults()`（`S.resultShown`）
+    用最終排名取代自己嗰面板，並保留「Your run」數字格。結果畫面只可以撳
+    `DG.mpDetachRace()` 離開：**唔會** call `leave_drive_and_go_room`，所以自己嗰行
+    finished 紀錄仍然留喺房間。room／自己嗰行連續 3 次讀唔到就 `DG.mpShowRoomClosed()`；
+    已完成嘅玩家會保留自己成績＋「room no longer available」提示。
+  - 結果畫面出現後 `raceFrame` 唔再 `requestAnimationFrame`（phase = finished），
+    `DG.togglePause()`／`DG.useItem()` 對已完成玩家無效，唔會蓋走結果。
 - **多人進度板**：race view 左上角 `#dg-mp-progress`（HUD 下面、`pointer-events:none`、
   z-index 低過 HUD）。只喺 `mode === 'multi'` 出現，列出**未完成**嘅玩家：名、
   `correct / N`、進度條（`correct / N`）同已同步嘅賽道距離（次要提示）。

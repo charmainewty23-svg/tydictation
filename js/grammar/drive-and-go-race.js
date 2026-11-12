@@ -50,6 +50,10 @@
         timeUpSent: false,
         finishSent: false,
         resultShown: false,
+        // The local racer reached N correct: their own results panel is up
+        // while the rest of the room is still racing. Kept apart from
+        // resultShown so the final room ranking can still replace it.
+        ownResultShown: false,
         questionCount: 20,
         accelHeld: false,
         accelKeys: {},
@@ -153,6 +157,7 @@
         S.timeUpSent = false;
         S.finishSent = false;
         S.resultShown = false;
+        S.ownResultShown = false;
         S.questionCount = DG.normalizeQuestionCount(
             opts.questionCount || (opts.room && opts.room.question_count) || (settings && settings.questionCount)
         );
@@ -242,6 +247,17 @@
         changeView('grammar-revision-view');
     };
 
+    /* Stop the animation loop but keep the race view + overlay on screen. Used
+       when a results panel must stay up and the run is over (final room
+       results, room gone) so a dead track is not redrawn forever. */
+    DG.freezeRaceLoop = function () {
+        S.phase = 'finished';
+        if (S.raf) cancelAnimationFrame(S.raf);
+        S.raf = 0;
+        DG.releaseAccel();
+        DG.unbindRaceInput();
+    };
+
     DG.restartRace = function () {
         const opts = S.opts ? Object.assign({}, S.opts) : null;
         if (!opts || opts.mode !== 'single') {
@@ -267,7 +283,9 @@
         }
         DG.drawRace();
         DG.updateRaceHud(false);
-        S.raf = requestAnimationFrame(DG.raceFrame);
+        // A finished run is a static results screen: stop the loop instead of
+        // drawing an invisible frame forever behind the overlay.
+        S.raf = S.phase === 'finished' ? 0 : requestAnimationFrame(DG.raceFrame);
     };
 
     DG.updateRace = function (dt) {
@@ -491,12 +509,19 @@
                 bankMode: S.bankMode,
                 scene: S.scene
             }), null);
+            // Show the results at once and keep them up until the player taps
+            // a button. Never navigate for them.
+            DG.showSoloResults(result, { reached: true, maxCombo: p.maxCombo });
         } else {
             DG.toast('🏁 ' + S.questionCount + ' correct — waiting for the others…', 2200);
             if (!S.finishSent && typeof DG.mpCrossFinish === 'function') {
                 S.finishSent = true;
                 DG.mpCrossFinish();
             }
+            // An early finisher gets their own results panel straight away and
+            // stays in the room; the final ranking replaces it when the room
+            // finishes. No view change, no leave RPC.
+            DG.showMpOwnResults(result);
         }
     };
 
@@ -735,6 +760,7 @@
     DG.useItem = function () {
         if (!S.active || S.phase !== 'racing' || S.paused || !S.player) return;
         const p = S.player;
+        if (p.finished) return;
         const kind = p.item;
         if (!kind) {
             DG.toast('No item yet — answer a question correctly.', 1400);
@@ -899,6 +925,9 @@
 
     DG.togglePause = function () {
         if (!S.active || S.phase === 'finished') return;
+        // A racer who already reached N correct is on their results panel;
+        // the pause menu must not cover it while the room finishes.
+        if (S.player && S.player.finished) return;
         S.paused = !S.paused;
         if (S.paused) {
             DG.releaseAccel();
@@ -918,14 +947,123 @@
         }
     };
 
-    DG.endRun = function () {
-        if (S.phase === 'finished') return;
+    /* ---------------- results screens ---------------- */
+
+    /* One stat grid shared by the Solo results, the early Multiplayer
+       finisher panel and the room summary. The question count always comes
+       from the run itself (20 / 25 / 30 / 35 / 40 / 50), never a fixed 20. */
+    DG.resultGridHTML = function (result, extra) {
+        const r = result || {};
+        const o = extra || {};
+        const n = DG.normalizeQuestionCount(r.questionCount);
+        const num = (v) => Math.floor(Number(v) || 0);
+        const cells = [
+            '<div><span>Composite</span><b>' + num(r.composite) + '</b></div>',
+            '<div><span>Race score</span><b>' + num(r.raceScore) + '</b></div>',
+            '<div><span>Time bonus</span><b>+' + num(r.timeBonus) + '</b></div>',
+            '<div><span>Time</span><b>' + DG.formatRaceTime(r.elapsed) + '</b></div>',
+            '<div><span>Accuracy</span><b>' + DG.formatAccuracy(r.accuracy) + '</b></div>',
+            '<div><span>Correct</span><b>' + num(r.correct) + '/' + n + '</b></div>'
+        ];
+        const wrong = r.wrong == null ? o.wrong : r.wrong;
+        if (wrong != null) cells.push('<div><span>Wrong</span><b>' + num(wrong) + '</b></div>');
+        const combo = o.maxCombo == null ? r.maxCombo : o.maxCombo;
+        if (combo != null) cells.push('<div><span>Max combo</span><b>x' + num(combo) + '</b></div>');
+        return '<div class="dg-result-grid mb-5">' + cells.join('') + '</div>';
+    };
+
+    DG.bestRunLine = function (result) {
+        const r = result || {};
+        const n = DG.normalizeQuestionCount(r.questionCount);
+        const best = DG.readBestRun(S.bankMode, n);
+        if (!best) return 'No personal best for ' + n + ' questions yet.';
+        return 'Personal best for ' + n + ' questions: ' + best.composite + ' pts · ' + DG.formatRaceTime(best.time);
+    };
+
+    DG.soloResultsHTML = function (result, opts) {
+        const r = result || {};
+        const o = opts || {};
+        const n = DG.normalizeQuestionCount(r.questionCount);
+        const reached = o.reached == null
+            ? (Number(r.correct) || 0) >= n
+            : !!o.reached;
+        return '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
+            '<h3 class="text-3xl font-bold text-orange-600 mb-1">' + (reached ? 'Run finished' : 'Run ended') + '</h3>' +
+            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + n + ' questions</p>' +
+            DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
+            '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(DG.bestRunLine(r)) + '</p>' +
+            '<div class="flex gap-3 justify-center flex-wrap">' +
+            '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Tenses</button>' +
+            '</div></div>';
+    };
+
+    /* Solo results. Marks the run as over but does NOT call changeView, so the
+       player stays on this screen until they tap Race again / Back. */
+    DG.showSoloResults = function (result, opts) {
+        const p = S.player;
+        const r = result || (p && p.runResult) ||
+            DG.scoreRun(p || {}, p && p.elapsed != null ? p.elapsed : DG.raceElapsedSeconds(), S.questionCount);
+        S.resultShown = true;
         S.phase = 'finished';
         S.paused = false;
-        if (S.raf) cancelAnimationFrame(S.raf);
-        S.raf = 0;
-        S.resultShown = true;
+        DG.releaseAccel();
         DG.unbindRaceInput();
+        DG.showOverlay(DG.soloResultsHTML(r, Object.assign({
+            maxCombo: p ? p.maxCombo : undefined
+        }, opts)));
+        return r;
+    };
+
+    DG.mpOwnResultsHTML = function (result, board, opts) {
+        const r = result || {};
+        const o = opts || {};
+        const n = DG.normalizeQuestionCount(r.questionCount);
+        const progress = (typeof DG.mpProgressHTML === 'function') ? DG.mpProgressHTML(board) : '';
+        return '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
+            '<h3 class="text-3xl font-bold text-orange-600 mb-1">You finished!</h3>' +
+            '<p class="text-gray-500 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + n + ' questions</p>' +
+            DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
+            '<p class="text-sm font-bold text-gray-500 mb-3">' +
+            (o.closed
+                ? 'The room is no longer available. Your run still counts.'
+                : 'Waiting for the other racers — your run is locked in.') +
+            '</p>' +
+            '<div class="dg-results-progress" id="dg-results-progress">' +
+            (progress || '<p class="dg-results-wait">Waiting for the room…</p>') +
+            '</div>' +
+            '<div class="flex gap-3 justify-center flex-wrap">' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpDetachRace()">Leave race</button>' +
+            '</div></div>';
+    };
+
+    /* The early Multiplayer finisher panel. The race stays live (rivals keep
+       moving, the room poll keeps running) while this is on screen, so the
+       final ranking can still arrive and replace it. */
+    DG.showMpOwnResults = function (result, opts) {
+        if (S.resultShown) return;
+        const p = S.player;
+        if (!p || !p.finished) return;
+        const r = result || p.runResult ||
+            DG.scoreRun(p, p.elapsed != null ? p.elapsed : DG.raceElapsedSeconds(), S.questionCount);
+        S.ownResultShown = true;
+        const players = (DG.mpState && DG.mpState.players) || (S.opts && S.opts.players) || [];
+        const board = (typeof DG.mpProgressBoard === 'function')
+            ? DG.mpProgressBoard(players, {
+                mode: 'multi',
+                meId: currentUser && currentUser.id,
+                questionCount: S.questionCount
+            })
+            : null;
+        DG.showOverlay(DG.mpOwnResultsHTML(r, board, Object.assign({
+            maxCombo: p.maxCombo
+        }, opts)));
+        return r;
+    };
+
+    DG.endRun = function () {
+        if (S.phase === 'finished') return;
+        S.paused = false;
         if (S.mode === 'multi') {
             if (typeof DG.mpLeaveRace === 'function') DG.mpLeaveRace();
             return;
@@ -942,33 +1080,10 @@
             p.runResult = result;
         }
         const result = p.runResult || DG.scoreRun(p, p.elapsed || DG.raceElapsedSeconds(), S.questionCount);
-        if (p.correct >= S.questionCount) DG.recordBestRun(S.bankMode, S.questionCount, result);
-        DG.recordBest(p.score, p.dist);
-        const best = DG.readBestRun(S.bankMode, S.questionCount);
-        const bestLine = best
-            ? ('Personal best for ' + result.questionCount + ' questions: ' + best.composite + ' pts · ' + DG.formatRaceTime(best.time))
-            : 'No personal best for this question count yet.';
         const reached = p.correct >= S.questionCount;
-        DG.showOverlay(
-            '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
-            '<h3 class="text-3xl font-bold text-orange-600 mb-1">' + (reached ? 'Run finished' : 'Run ended') + '</h3>' +
-            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + result.questionCount + ' questions</p>' +
-            '<div class="dg-result-grid mb-5">' +
-            '<div><span>Composite</span><b>' + Math.floor(result.composite) + '</b></div>' +
-            '<div><span>Race score</span><b>' + Math.floor(result.raceScore) + '</b></div>' +
-            '<div><span>Time bonus</span><b>+' + Math.floor(result.timeBonus) + '</b></div>' +
-            '<div><span>Time</span><b>' + DG.formatRaceTime(result.elapsed) + '</b></div>' +
-            '<div><span>Accuracy</span><b>' + DG.formatAccuracy(result.accuracy) + '</b></div>' +
-            '<div><span>Correct</span><b>' + result.correct + '/' + result.questionCount + '</b></div>' +
-            '<div><span>Wrong</span><b>' + result.wrong + '</b></div>' +
-            '<div><span>Max combo</span><b>x' + p.maxCombo + '</b></div>' +
-            '</div>' +
-            '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(bestLine) + '</p>' +
-            '<div class="flex gap-3 justify-center flex-wrap">' +
-            '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Tenses</button>' +
-            '</div></div>'
-        );
+        if (reached) DG.recordBestRun(S.bankMode, S.questionCount, result);
+        DG.recordBest(p.score, p.dist);
+        DG.showSoloResults(result, { reached: reached, maxCombo: p.maxCombo });
     };
 
     DG.showMultiplayerResults = function (room, players) {
@@ -999,11 +1114,29 @@
             return DG.formatAccuracy((c + w) ? c / (c + w) : 0);
         };
         const time = (r) => r.elapsed_ms ? DG.formatRaceTime(r.elapsed_ms / 1000) : (r.finished_at ? 'done' : '—');
+        // Your own run keeps the full breakdown (composite / race score / time
+        // bonus / time / accuracy / correct out of N) even in the room summary.
+        const mine = rows.find(r => currentUser && r.user_id === currentUser.id);
+        const myRun = mine ? {
+            composite: points(mine),
+            raceScore: Number(mine.score) || 0,
+            timeBonus: Math.max(0, points(mine) - (Number(mine.score) || 0)),
+            elapsed: (Number(mine.elapsed_ms) || 0) / 1000,
+            accuracy: (Number(mine.correct) + Number(mine.wrong))
+                ? Number(mine.correct) / (Number(mine.correct) + Number(mine.wrong))
+                : 0,
+            correct: Number(mine.correct) || 0,
+            wrong: Number(mine.wrong) || 0,
+            questionCount: n
+        } : null;
         DG.showOverlay(
             '<div class="text-center"><div class="text-6xl mb-1">' + (youWin ? '🏆' : '🏁') + '</div>' +
             '<h3 class="text-3xl font-bold ' + (youWin ? 'text-amber-600' : 'text-orange-600') + ' mb-1">' +
             (youWin ? 'You win!' : DG.esc((winner && DG.mpPlayerName(winner)) || 'Race finished') + ' wins!') + '</h3>' +
             '<p class="text-sm font-bold text-gray-500 mb-4">' + DG.esc(reason) + '</p>' +
+            (myRun
+                ? '<p class="text-sm font-bold text-gray-500 mb-2">Your run</p>' + DG.resultGridHTML(myRun)
+                : '') +
             '<div class="dg-standings mb-5">' + rows.map((r, i) =>
                 '<div class="dg-standing' + (currentUser && r.user_id === currentUser.id ? ' me' : '') + '">' +
                 '<span class="dg-medal">' + medal(i) + '</span>' +
@@ -2324,15 +2457,23 @@
                 questionCount: S.questionCount
             })
             : null;
+        const html = (typeof DG.mpProgressHTML === 'function') ? DG.mpProgressHTML(board) : '';
         const el = document.getElementById('dg-mp-progress');
-        if (!el) return board;
-        if (!S.active || !board || !board.visible || !board.rows.length) {
-            el.classList.add('hidden');
-            el.innerHTML = '';
-            return board;
+        if (el) {
+            if (!S.active || !board || !board.visible || !board.rows.length) {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+            } else {
+                el.innerHTML = html;
+                el.classList.remove('hidden');
+            }
         }
-        el.innerHTML = (typeof DG.mpProgressHTML === 'function') ? DG.mpProgressHTML(board) : '';
-        el.classList.remove('hidden');
+        // An early finisher waits on the results panel. Keep that panel's
+        // "remaining racers" list live from the same synced rows.
+        const resultsEl = document.getElementById('dg-results-progress');
+        if (resultsEl) {
+            resultsEl.innerHTML = html || '<p class="dg-results-wait">Waiting for the room…</p>';
+        }
         return board;
     };
 

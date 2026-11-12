@@ -246,11 +246,80 @@ test('composite score adds a faster-finish time bonus of TIME_BONUS_FACTOR * N /
 
 test('accel constants are a bounded hold-to-speed bonus', () => {
     const DG = loadDG();
-    assert.equal(DG.ACCEL_KMH, 60);
-    assert.equal(DG.SPEED_CAP, 280);
+    assert.equal(DG.ACCEL_KMH, 110);
+    assert.equal(DG.SPEED_CAP, 340);
     assert.ok(DG.ACCEL_KMH > 0);
     assert.ok(DG.SPEED_CAP >= 100 + DG.ACCEL_KMH);
     assert.ok(DG.SPEED_CAP < 400);
+});
+
+test('three courses: exact ids, labels and a remembered default', () => {
+    const DG = loadDG();
+    assert.deepEqual(Array.from(DG.SCENES), ['desert', 'stadium', 'jungle']);
+    assert.equal(DG.SCENE_LABEL.desert, 'Desert Hills');
+    assert.equal(DG.SCENE_LABEL.stadium, 'Peach Stadium');
+    assert.equal(DG.SCENE_LABEL.jungle, 'Dino Dino Jungle');
+    assert.equal(DG.defaultSettings().scene, 'desert');
+    assert.equal(DG.readSettings().scene, 'desert');
+    assert.equal(DG.normalizeScene('stadium'), 'stadium');
+    assert.equal(DG.normalizeScene('JUNGLE'), 'jungle');
+    assert.equal(DG.normalizeScene('moon'), 'desert');
+    assert.equal(DG.normalizeScene(null), 'desert');
+
+    const saved = loadDG({
+        learniTY_dg_settings: JSON.stringify({ bankMode: 'mixed', controls: 'tilt', questionCount: 30, scene: 'jungle' })
+    });
+    assert.equal(saved.readSettings().scene, 'jungle');
+    assert.equal(saved.readSettings().questionCount, 30);
+
+    const bad = loadDG({
+        learniTY_dg_settings: JSON.stringify({ scene: 'volcano' })
+    });
+    assert.equal(bad.readSettings().scene, 'desert');
+});
+
+test('analog tilt maps a lean to a continuous lane target (0 left, 2 right)', () => {
+    const DG = loadDG();
+    assert.ok(DG.TILT_DEAD > 0 && DG.TILT_DEAD < 4);
+    assert.ok(DG.TILT_FULL >= 12);
+
+    // At rest (and inside the soft deadzone) the kart stays centred.
+    assert.equal(DG.tiltLaneTarget(0), 1);
+    assert.ok(Math.abs(DG.tiltLaneTarget(1) - 1) < 1e-9);
+    assert.ok(Math.abs(DG.tiltLaneTarget(-1.5) - 1) < 1e-9);
+    assert.ok(Math.abs(DG.tiltLaneTarget(DG.TILT_DEAD - 0.01) - 1) < 1e-9);
+
+    // Hard lean reaches the edges, and values in between are continuous.
+    assert.equal(DG.tiltLaneTarget(-90), 0);
+    assert.equal(DG.tiltLaneTarget(-DG.TILT_FULL), 0);
+    assert.equal(DG.tiltLaneTarget(DG.TILT_FULL), 2);
+    assert.equal(DG.tiltLaneTarget(90), 2);
+
+    const middle = [3, 4, 6, 9, 12, 15].map(deg => DG.tiltLaneTarget(deg));
+    middle.forEach(v => assert.ok(v > 1 && v < 2, 'expected a fractional lane, got ' + v));
+    const negMiddle = [-3, -4, -6, -9, -12, -15].map(deg => DG.tiltLaneTarget(deg));
+    negMiddle.forEach(v => assert.ok(v >= 0 && v < 1, 'expected a fractional lane, got ' + v));
+
+    // Monotonic and symmetric: more lean = further out, and sign mirrors.
+    for (let i = 1; i < middle.length; i++) assert.ok(middle[i] > middle[i - 1]);
+    middle.forEach((v, i) => assert.ok(Math.abs((2 - v) - negMiddle[i]) < 1e-9));
+
+    // A non-numeric reading never throws and stays centred.
+    assert.equal(DG.tiltLaneTarget(NaN), 1);
+    assert.equal(DG.tiltLaneTarget(undefined), 1);
+});
+
+test('nearestLane rounds a fractional lane position and clamps to 0..2', () => {
+    const DG = loadDG();
+    assert.equal(DG.nearestLane(0), 0);
+    assert.equal(DG.nearestLane(0.49), 0);
+    assert.equal(DG.nearestLane(0.5), 1);
+    assert.equal(DG.nearestLane(1), 1);
+    assert.equal(DG.nearestLane(1.5), 2);
+    assert.equal(DG.nearestLane(1.94), 2);
+    assert.equal(DG.nearestLane(-3), 0);
+    assert.equal(DG.nearestLane(9), 2);
+    assert.equal(DG.nearestLane(NaN), 1);
 });
 
 test('all three Drive & Go scripts are classic scripts and parse', () => {

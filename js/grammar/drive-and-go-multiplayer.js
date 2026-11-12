@@ -19,7 +19,8 @@
         beginning: false,
         lastEffectSeq: 0,
         lastSyncWarn: 0,
-        leaving: false
+        leaving: false,
+        boardRoomId: null
     };
     DG.mpState = MP;
 
@@ -40,6 +41,13 @@
     };
 
     DG.mpSqlHintHTML = function (kind) {
+        if (kind === 'scene') {
+            return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the Supabase SQL editor ' +
+                '(after <code>drive_and_go_question_count.sql</code>). It adds the course (<code>scene</code>) and the ' +
+                'new Solo / Multi leaderboards. A fresh setup can paste <code>supabase/drive_and_go.sql</code> instead. ' +
+                'Single Player works without it.</div>';
+        }
         if (kind === 'question_count') {
             return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_question_count.sql</code> in the Supabase SQL editor ' +
@@ -48,8 +56,16 @@
         }
         return '<div class="dg-note warn text-left"><b>Multiplayer needs one SQL file.</b><br>' +
             'The teacher must run <code>supabase/drive_and_go.sql</code> once in the Supabase SQL editor. ' +
-            'If rooms already exist and question counts fail, also run <code>supabase/drive_and_go_question_count.sql</code>. ' +
+            'If rooms already exist and question counts / courses fail, also run ' +
+            '<code>supabase/drive_and_go_question_count.sql</code> then <code>supabase/drive_and_go_scenes_and_boards.sql</code>. ' +
             'Single Player works without it.</div>';
+    };
+
+    DG.mpIsSceneSqlMissing = function (error) {
+        const text = [error && error.code, error && error.message, error && error.details, error && error.hint]
+            .filter(Boolean).join(' ');
+        return /p_scene|column .*\.?scene\b|relation .*drive_and_go_(?:solo|multi)_scores/i.test(text)
+            || (/PGRST202/i.test(text) && /p_scene/i.test(text));
     };
 
     DG.mpIsQuestionCountSqlMissing = function (error) {
@@ -97,15 +113,54 @@
         return patch;
     };
 
+    /* One finished Multiplayer row per signed-in, non-guest racer. Called from
+       the room results screen, where the place / player count are known.
+       Fire-and-forget: a missing table only shows the SQL hint. */
+    DG.mpSubmitMultiBoard = function (room, players) {
+        if (!room || !room.id) return;
+        if (MP.boardRoomId === room.id) return;
+        const me = currentUser && currentUser.id;
+        if (!me) return;
+        const rows = DG.rankMultiplayerRows(players);
+        const mine = rows.find(r => r && r.user_id === me);
+        if (!mine) return;
+        MP.boardRoomId = room.id;
+        const correct = Number(mine.correct) || 0;
+        const wrong = Number(mine.wrong) || 0;
+        const n = DG.normalizeQuestionCount(room.question_count);
+        const elapsed = (Number(mine.elapsed_ms) || 0) / 1000;
+        const composite = Number(mine.composite_score != null ? mine.composite_score : mine.score) || 0;
+        const raceScore = Number(mine.score) || 0;
+        DG.submitCloudRun('multi', {
+            bankMode: room.question_mode,
+            questionCount: n,
+            scene: room.scene,
+            composite: composite,
+            raceScore: raceScore,
+            timeBonus: Math.max(0, composite - raceScore) || DG.timeBonus(elapsed, n),
+            correct: correct,
+            wrong: wrong,
+            accuracy: (correct + wrong) ? correct / (correct + wrong) : 0,
+            elapsed: elapsed
+        }, {
+            room_id: room.id,
+            place: rows.indexOf(mine) + 1,
+            player_count: rows.length
+        });
+    };
+
     DG.mpShowSqlHint = function (error) {
-        const kind = DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '';
+        const kind = DG.mpIsSceneSqlMissing(error) ? 'scene'
+            : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '');
         const content = DG.menuContent();
         const status = document.getElementById('dg-mp-status');
         if (status && content) status.outerHTML = DG.mpSqlHintHTML(kind);
         else if (typeof DG.toastSafe === 'function') {
-            DG.toastSafe(kind === 'question_count'
-                ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.');
+            DG.toastSafe(kind === 'scene'
+                ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                : (kind === 'question_count'
+                    ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                    : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'));
         }
     };
 
@@ -163,7 +218,7 @@
             '<div class="text-center mb-5"><div class="text-7xl mb-2">🏎️</div>' +
             '<h3 class="text-3xl font-bold text-green-600">Multiplayer</h3>' +
             '<p class="text-gray-500 font-bold">2–5 players · first to ' + DG.normalizeQuestionCount(DG.readSettings().questionCount) + ' correct · highest composite score wins</p>' +
-            '<p class="text-sm font-bold text-orange-600 mt-1">Challenge: ' + DG.esc(DG.MODE_LABEL[mode] || '') + ' · ' + DG.normalizeQuestionCount(DG.readSettings().questionCount) + ' questions</p></div>' +
+            '<p class="text-sm font-bold text-orange-600 mt-1">Challenge: ' + DG.esc(DG.MODE_LABEL[mode] || '') + ' · ' + DG.normalizeQuestionCount(DG.readSettings().questionCount) + ' questions · ' + DG.esc(DG.sceneLabel(DG.readSettings().scene)) + '</p></div>' +
             '<div class="dg-menu-panel">' +
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">' +
             '<div class="dg-mp-box"><h4 class="font-bold text-green-700 mb-2">Create a room</h4>' +
@@ -207,11 +262,12 @@
         const mode = settings.bankMode;
         const args = Object.assign({
             p_question_mode: mode,
-            p_question_count: DG.normalizeQuestionCount(settings.questionCount)
+            p_question_count: DG.normalizeQuestionCount(settings.questionCount),
+            p_scene: DG.normalizeScene(settings.scene)
         }, DG.mpLookArgs());
         sb.rpc('create_drive_and_go_room', args).then(({ data, error }) => {
             if (error) {
-                if (DG.mpIsSqlMissing(error) || DG.mpIsQuestionCountSqlMissing(error)) {
+                if (DG.mpIsSqlMissing(error) || DG.mpIsSceneSqlMissing(error) || DG.mpIsQuestionCountSqlMissing(error)) {
                     DG.mpSetStatus('', false);
                     DG.mpShowSqlHint(error);
                 } else {
@@ -227,10 +283,11 @@
             MP.room = room;
             MP.players = [];
             MP.lastEffectSeq = 0;
+            MP.boardRoomId = null;
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(err => {
-            if (DG.mpIsSqlMissing(err) || DG.mpIsQuestionCountSqlMissing(err)) {
+            if (DG.mpIsSqlMissing(err) || DG.mpIsSceneSqlMissing(err) || DG.mpIsQuestionCountSqlMissing(err)) {
                 DG.mpSetStatus('', false);
                 DG.mpShowSqlHint(err);
             } else {
@@ -264,6 +321,7 @@
             MP.room = room;
             MP.players = [];
             MP.lastEffectSeq = 0;
+            MP.boardRoomId = null;
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(err => {
@@ -368,7 +426,7 @@
         content.innerHTML =
             '<div class="text-center mb-4"><div class="text-7xl mb-1">🏁</div>' +
             '<h3 class="text-3xl font-bold text-green-600">Race lobby</h3>' +
-            '<p class="text-gray-500 font-bold">' + DG.esc(DG.MODE_LABEL[room.question_mode] || '') + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions</p></div>' +
+            '<p class="text-gray-500 font-bold">' + DG.esc(DG.MODE_LABEL[room.question_mode] || '') + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
             '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
             '<p class="text-center text-sm font-bold text-gray-500 mb-4">Players ' + players.length + '/5 · share this code with 1–4 friends</p>' +
@@ -460,6 +518,7 @@
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
         const rows = DG.rankMultiplayerRows(players);
         const n = DG.normalizeQuestionCount(room && room.question_count);
+        if (typeof DG.mpSubmitMultiBoard === 'function') DG.mpSubmitMultiBoard(room, players);
         const winner = rows.find(r => r.user_id === room.winner_id) || rows[0];
         const points = (r) => (r.composite_score != null ? r.composite_score : r.score) || 0;
         const acc = (r) => {
@@ -586,9 +645,11 @@
                     const err = roomRes.error || playerRes.error;
                     if (DG.mpIsSqlMissing(err) && Date.now() - MP.lastSyncWarn > 6000) {
                         MP.lastSyncWarn = Date.now();
-                        DG.toastSafe(DG.mpIsQuestionCountSqlMissing(err)
-                            ? 'Run supabase/drive_and_go_question_count.sql to sync scores.'
-                            : 'Multiplayer needs supabase/drive_and_go.sql to sync.');
+                        DG.toastSafe(DG.mpIsSceneSqlMissing(err)
+                            ? 'Run supabase/drive_and_go_scenes_and_boards.sql to sync courses and boards.'
+                            : (DG.mpIsQuestionCountSqlMissing(err)
+                                ? 'Run supabase/drive_and_go_question_count.sql to sync scores.'
+                                : 'Multiplayer needs supabase/drive_and_go.sql to sync.'));
                     }
                     return;
                 }

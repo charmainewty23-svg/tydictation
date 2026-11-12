@@ -1,6 +1,6 @@
 /* LearniTY Dictation — Drive & Go! Mario Kart-style grammar racing game.
    This file owns the pre-race flow (challenge → cat → controls → question
-   count → mode), the Google-Sheets question bank, same-verb tense
+   count → course → mode), the Google-Sheets question bank, same-verb tense
    distractors, local preferences and shared helpers. The canvas race engine
    lives in drive-and-go-race.js and the realtime 2–5 player lobby/race sync
    lives in drive-and-go-multiplayer.js.
@@ -15,6 +15,16 @@ const DG = {
     MODE_LABEL: { av: 'Active Voice (AV)', pv: 'Passive Voice (PV)', mixed: 'Mixed' },
     MODE_SHORT: { av: 'AV', pv: 'PV', mixed: 'Mixed' },
     QUESTION_COUNTS: [20, 25, 30, 35, 40, 50],
+    // Three playable courses. The exact ids / names are stored in Supabase
+    // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
+    SCENES: ['desert', 'stadium', 'jungle'],
+    SCENE_LABEL: { desert: 'Desert Hills', stadium: 'Peach Stadium', jungle: 'Dino Dino Jungle' },
+    SCENE_EMOJI: { desert: '🏜️', stadium: '🏟️', jungle: '🦕' },
+    SCENE_FLAVOUR: {
+        desert: 'Pale-gold dunes, cactus and sun-bleached rocks.',
+        stadium: 'Peach grandstands, floodlights and painted kerbs.',
+        jungle: 'Humid canopy, palms and friendly dinosaurs.'
+    },
     // Race constants shared by the engine and the tests.
     NITRO_KMH: 40,
     SPIN_TIME: 1.5,
@@ -22,10 +32,16 @@ const DG = {
     START_GATE_DIST: 320,
     FINISH_DISTANCE: 4200,
     RACE_SECONDS: 180,
-    // Hold-to-speed: +60 km/h while ACCEL is held, hard-capped so stacked
+    // Hold-to-speed: +110 km/h while ACCEL is held, hard-capped so stacked
     // nitro / mushroom / star bonuses cannot run away.
-    ACCEL_KMH: 60,
-    SPEED_CAP: 280,
+    ACCEL_KMH: 110,
+    SPEED_CAP: 340,
+    // Analog tilt: a soft deadzone so a resting phone does not wander, and
+    // full left / right at 16° of lean.
+    TILT_DEAD: 2,
+    TILT_FULL: 16,
+    // Lane tracking speed for analog tilt (snappier than the old discrete 12).
+    TILT_LERP: 18,
     // Time bonus factor used by DG.timeBonus / DG.scoreRun (see those helpers).
     TIME_BONUS_FACTOR: 4000,
     CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
@@ -50,12 +66,44 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20 };
+        return { bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
     },
 
     normalizeQuestionCount(value) {
         const n = Number(value);
         return DG.QUESTION_COUNTS.indexOf(n) !== -1 ? n : 20;
+    },
+
+    normalizeScene(value) {
+        const id = String(value == null ? '' : value).trim().toLowerCase();
+        return DG.SCENES.indexOf(id) !== -1 ? id : 'desert';
+    },
+
+    sceneLabel(value) {
+        return DG.SCENE_LABEL[DG.normalizeScene(value)];
+    },
+
+    /* Analog tilt helpers, shared by the race engine and the unit tests.
+       delta is degrees, already wrapped to [-180, 180]. The result is a
+       fractional lane position: 0 = hard left, 1 = centre, 2 = hard right.
+       A soft deadzone (±TILT_DEAD) keeps a resting phone from wandering;
+       full lock arrives at ±TILT_FULL. The smoothstep curve makes small
+       leans gentle and holding a lean keeps the kart in that lane. */
+    tiltLaneTarget(delta) {
+        const d = Number(delta);
+        if (!isFinite(d)) return 1;
+        const mag = Math.abs(d);
+        if (mag <= DG.TILT_DEAD) return 1;
+        const t = Math.max(0, Math.min(1, (mag - DG.TILT_DEAD) / (DG.TILT_FULL - DG.TILT_DEAD)));
+        const eased = t * t * (3 - 2 * t);
+        return d < 0 ? 1 - eased : 1 + eased;
+    },
+
+    /* Clamp + round a fractional lane position to 0, 1 or 2. */
+    nearestLane(laneX) {
+        const v = Number(laneX);
+        if (!isFinite(v)) return 1;
+        return Math.round(Math.max(0, Math.min(2, v)));
     },
 
     readSettings() {
@@ -66,6 +114,7 @@ const DG = {
         if (saved && DG.TAB_FOR_MODE[saved.bankMode]) DG.settings.bankMode = saved.bankMode;
         if (saved && ['tilt', 'swipe', 'buttons'].indexOf(saved.controls) !== -1) DG.settings.controls = saved.controls;
         DG.settings.questionCount = DG.normalizeQuestionCount(saved && saved.questionCount);
+        DG.settings.scene = DG.normalizeScene(saved && saved.scene);
         DG.rememberLook(DG.settings);
         return DG.settings;
     },
@@ -850,7 +899,7 @@ const DG = {
 
     stepDots(activeIndex) {
         const bits = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 6; i++) {
             bits.push('<span class="' + (i < activeIndex ? 'done' : (i === activeIndex ? 'active' : '')) + '"></span>');
         }
         return '<div class="dg-step-dots">' + bits.join('') + '</div>';
@@ -969,7 +1018,7 @@ const DG = {
             '<p class="text-center text-gray-500 font-bold mb-4">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
             note +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
-            card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to change lane') +
+            card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +
             card('swipe', '👆', 'Swipe', 'Swipe left or right on the track') +
             card('buttons', '🔘', 'LEFT / CENTER / RIGHT', 'Tap the on-screen buttons') +
             '</div>' +
@@ -1023,7 +1072,7 @@ const DG = {
             '<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showControlsStep()">← Controls</button>' +
-            '<button type="button" class="btn-paw" onclick="DG.showModeStep()">Next: Game mode →</button></div>';
+            '<button type="button" class="btn-paw" onclick="DG.showSceneStep()">Next: Choose a course →</button></div>';
     },
 
     setQuestionCount(value) {
@@ -1031,6 +1080,35 @@ const DG = {
         DG.readSettings().questionCount = n;
         DG.saveSettings();
         DG.showCountStep();
+    },
+
+    showSceneStep() {
+        DG.menuStep = 'scene';
+        const s = DG.readSettings();
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const cards = DG.SCENES.map(id => {
+            const active = DG.normalizeScene(s.scene) === id ? ' active' : '';
+            return '<button type="button" class="dg-choice' + active + '" onclick="DG.setScene(\'' + id + '\')">' +
+                '<span class="dg-choice-emoji">' + DG.SCENE_EMOJI[id] + '</span>' +
+                '<span class="dg-choice-title">' + DG.esc(DG.SCENE_LABEL[id]) + '</span>' +
+                '<span class="dg-choice-sub">' + DG.esc(DG.SCENE_FLAVOUR[id]) + '</span></button>';
+        }).join('');
+        content.innerHTML =
+            DG.stepDots(4) +
+            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">5. Choose a course</h3>' +
+            '<p class="text-center text-gray-500 font-bold mb-4">Same track, three different worlds. In multiplayer the host picks the course for everyone.</p>' +
+            '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
+            '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.showModeStep()">Next: Game mode →</button></div>';
+    },
+
+    setScene(value) {
+        DG.readSettings().scene = DG.normalizeScene(value);
+        DG.saveSettings();
+        DG.showSceneStep();
     },
 
     showModeStep() {
@@ -1041,10 +1119,11 @@ const DG = {
         const s = DG.readSettings();
         const modeText = DG.MODE_LABEL[s.bankMode] || '';
         const n = DG.normalizeQuestionCount(s.questionCount);
+        const sceneText = DG.sceneLabel(s.scene);
         content.innerHTML =
-            DG.stepDots(4) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">5. Choose a game mode</h3>' +
-            '<p class="text-center text-gray-500 font-bold mb-5">Challenge: <span class="text-orange-600">' + DG.esc(modeText) + '</span> · <span class="text-orange-600">' + n + ' questions</span></p>' +
+            DG.stepDots(5) +
+            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">6. Choose a game mode</h3>' +
+            '<p class="text-center text-gray-500 font-bold mb-5">Challenge: <span class="text-orange-600">' + DG.esc(modeText) + '</span> · <span class="text-orange-600">' + n + ' questions</span> · <span class="text-orange-600">' + DG.esc(sceneText) + '</span></p>' +
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">' +
             '<button type="button" class="dg-choice" onclick="DG.startSingle()"><span class="dg-choice-emoji">🏁</span>' +
             '<span class="dg-choice-title">Single Player</span><span class="dg-choice-sub">Finish when you get ' + n + ' correct. Beat your best composite score and time.</span></button>' +
@@ -1052,15 +1131,21 @@ const DG = {
             '<span class="dg-choice-title">Multiplayer</span><span class="dg-choice-sub">2–5 players. First to ' + n + ' correct, then highest composite score wins.</span></button>' +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showControlsStep()">← Controls</button></div>';
+            '<button type="button" class="dg-menu-button" onclick="DG.showSceneStep()">← Course</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button></div>';
     },
 
     startSingle() {
-        const mode = DG.readSettings().bankMode;
+        const settings = DG.readSettings();
+        const mode = settings.bankMode;
         DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
         DG.loadBank(mode).then(() => {
-            DG.startRace({ mode: 'single', bankMode: mode, questionCount: DG.readSettings().questionCount });
+            DG.startRace({
+                mode: 'single',
+                bankMode: mode,
+                questionCount: settings.questionCount,
+                scene: settings.scene
+            });
         }).catch(err => DG.showLoadError(mode, err));
     },
 
@@ -1178,6 +1263,75 @@ const DG = {
             changed = true;
         }
         return changed;
+    },
+
+    /* ---------------- cloud boards (Drive & Go! Solo / Multi) ---------------- */
+
+    // Both boards are separate Supabase tables + views created by
+    // supabase/drive_and_go_scenes_and_boards.sql. Single Player itself never
+    // needs the SQL: a failed insert just skips the cloud board.
+    cloudBoardTable(kind) {
+        return kind === 'multi' ? 'drive_and_go_multi_scores' : 'drive_and_go_solo_scores';
+    },
+
+    cloudRunRow(result, extra) {
+        if (typeof previewStudentForm === 'function' && previewStudentForm()) return null;
+        if (typeof canUseCloud !== 'function' || !canUseCloud()) return null;
+        if (typeof sb === 'undefined' || !sb) return null;
+        if (typeof currentUser === 'undefined' || !currentUser || !currentUser.id) return null;
+        const r = result || {};
+        const s = DG.readSettings();
+        const n = DG.normalizeQuestionCount(r.questionCount || s.questionCount);
+        const bankMode = DG.TAB_FOR_MODE[r.bankMode] ? r.bankMode : (DG.TAB_FOR_MODE[s.bankMode] ? s.bankMode : 'av');
+        const accuracy = isFinite(Number(r.accuracy)) ? Math.max(0, Math.min(1, Number(r.accuracy))) : 0;
+        const row = {
+            user_id: currentUser.id,
+            email: currentUser.email || '',
+            nickname: (currentUser.user_metadata && currentUser.user_metadata.full_name) ||
+                String(currentUser.email || '').split('@')[0] || 'Player',
+            bank_mode: bankMode,
+            question_count: n,
+            scene: DG.normalizeScene(r.scene || s.scene),
+            composite: Math.max(0, Math.floor(Number(r.composite) || 0)),
+            race_score: Math.max(0, Math.floor(Number(r.raceScore) || 0)),
+            time_bonus: Math.max(0, Math.floor(Number(r.timeBonus) || 0)),
+            correct: Math.max(0, Math.floor(Number(r.correct) || 0)),
+            wrong: Math.max(0, Math.floor(Number(r.wrong) || 0)),
+            accuracy: Math.round(accuracy * 10000) / 10000,
+            elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
+        };
+        if (extra && extra.room_id) {
+            row.room_id = extra.room_id;
+            row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
+            row.player_count = extra.player_count == null ? null : Math.max(2, Math.floor(extra.player_count));
+        }
+        return row;
+    },
+
+    // Fire-and-forget: never blocks the results screen. A missing table only
+    // shows a short SQL hint (once a minute).
+    submitCloudRun(kind, result, extra) {
+        const row = DG.cloudRunRow(result, extra);
+        if (!row) return;
+        try {
+            sb.from(DG.cloudBoardTable(kind)).insert(row).then(({ error }) => {
+                if (!error) return;
+                console.warn('Drive & Go! ' + kind + ' score not saved:', error.message);
+                const text = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
+                if (/does not exist|Could not find|42P01|PGRST20|schema cache|relation/i.test(text)) {
+                    DG.cloudBoardSqlHint();
+                }
+            }, () => {});
+        } catch (e) {}
+    },
+
+    cloudBoardSqlHint() {
+        const now = Date.now();
+        if (DG._cloudBoardHintAt && now - DG._cloudBoardHintAt < 60000) return;
+        DG._cloudBoardHintAt = now;
+        if (typeof DG.toastSafe === 'function') {
+            DG.toastSafe('Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
+        }
     },
 
     /* ---------------- small helpers used by all three files ---------------- */

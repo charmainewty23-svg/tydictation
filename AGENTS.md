@@ -50,11 +50,11 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
-| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（6 步：Challenge → Cat → Controls → 題數 → **Course** → Mode）：AV／PV／Mixed 題庫（Google Sheet 頁 `tenses`／`Passives`）、同一動詞時態干擾項、貓仔造型、Tilt／Swipe／按鈕、題數（20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`、`submitCloudRun`（Solo／Multi 榜） |
+| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（**第一步 Solo／Multiplayer**）：Solo → Challenge → Cat → Controls → 題數 → Course → 直接開賽（冇舊嘅最後 Game mode 步）；Multi → Create／Join → 房主揀 Challenge／題數／Course，加入者只揀 Cat／Controls 再入房碼。AV／PV／Mixed 題庫（Google Sheet 頁 `tenses`／`Passives`）、同一動詞時態干擾項、貓仔造型、Tilt／Swipe／按鈕、題數（20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`／`laneStep`、`submitCloudRun`（Solo／Multi 榜） |
 | 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子／進度／用時、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、按住加速（ACCEL／↑／W／Space，`ACCEL_KMH 110`／`SPEED_CAP 340`，唔會用蘑菇）、analog tilt、單人到 N 題正確完結、五種道具使用、三個場嘅天空／背景／景物／路面 |
 | 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 同**場**適用全房（`p_scene`）；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間先貼 `supabase/drive_and_go_question_count.sql`，再貼 `supabase/drive_and_go_scenes_and_boards.sql`）；單人唔使 SQL；**唔好**用 plugin 跑 SQL |
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard`／`renderDriveAndGoLeaderboard`（Solo／Multi 兩塊榜） |
-| 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
+| 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面） |
 | 10 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
 | 11 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 
@@ -411,21 +411,33 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ### 9.9 Drive & Go! 課程＋Solo／Multi 排行榜（2026-11 加）
 
-- 開賽前流程而家 **6 步**：1 Challenge → 2 Cat → 3 Controls → 4 How many questions?
-  → 5 Choose a course → 6 Game mode（`stepDots` 用 6 點）。Course 有三個，**名唔可以改**：
+- 開賽前流程第一步一定係 **Solo／Multiplayer**（`DG.showSessionStep()`、`DG.flowOrder()`）。
+  Solo：1 Solo/Multi → 2 Challenge → 3 Cat → 4 Controls → 5 How many questions?
+  → 6 Choose a course →「Start race」直接開賽，**冇**舊嘅最後 Game mode 步。
+  Multiplayer：揀 Create／Join 之後，**房主**先至揀 Challenge／題數／Course，最後個掣係
+  「Create room」先 call `create_drive_and_go_room`；加入者只揀 Cat／Controls，
+  再入 4 位房碼，Challenge／題數／Course 全部跟房主（`canEditHostSettings()` 會擋）。
+  `stepDots` 按 `flowOrder()` 長度畫（Solo 6 點、房主 7 點、加入者 5 點）。Course 有三個，**名唔可以改**：
   `desert`＝Desert Hills、`stadium`＝Peach Stadium、`jungle`＝Dino Dino Jungle。
   `DG.SCENES`／`DG.SCENE_LABEL`／`DG.normalizeScene`（unknown → `desert`）＋
   `learniTY_dg_settings.scene` 記住上次選擇。三個場共用同一條曲路／山丘／投影／閘距，
   只換天空、背景、路邊景物同路面／路肩顏色；`DG.sceneStyle()` 喺 `drive-and-go-race.js`。
 - Multiplayer 由**房主**揀場，全房共用；lobby 標題顯示 mode · N · course，加入者改唔到。
   `mpCreate()` 會傳 `p_scene`，所以 rooms 表要有 `scene` 欄（新 SQL）。
-- **Tilt 係 analog**：`DG.tiltLaneTarget(delta)` 將 ±16° 連續映射去 0–2 lane（±2° 死區），
+- **轉線（steering）**：`DG.laneStep(state, dt, tiltTarget)` 係唯一更新 lane 嘅地方。
+  `tiltTarget == null` 係按鈕／鍵盤／swipe 模式，`lane` 保持玩家揀嘅目標，
+  **唔可以**再用 `p.lane = DG.nearestLane(p.laneX)` 覆寫（PR #26 就係咁令所有離散轉線
+  每幀被拉返中間，手機同電腦都轉唔到）。Tilt 模式先會由 `laneX` 反推 `lane` 用嚟判閘。
+- **Tilt 係 analog**：`DG.tiltLaneTarget(delta)` 將 ±12° 連續映射去 0–2 lane（±1.5° 死區），
+  大約 7° 正常手腕傾斜就會過到隔籬線（舊版 16° 太鈍，好似唔郁）。
   每幀 lerp `p.laneX`（`DG.TILT_LERP = 18`），唔再係「過 9° 先 steer 一次」。
   `DG.nearestLane(laneX)` 用嚟喺閘口／道具／多人同步對齊實際位置；按鈕／swipe／方向鍵
   仍然係 discrete，而且會短暫壓過 tilt（`S.tilt.manualUntil`）做後備。
 - **ACCEL**：`DG.ACCEL_KMH = 110`、`DG.SPEED_CAP = 340`；按住 ACCEL 時速度 lerp 用 8，
   唔按就用 2.3。唔會消耗／自動用蘑菇，Enter 仍然用道具。
 - 排行榜：Hub Leaderboard 多兩個 tab「Drive & Go! Solo」「Drive & Go! Multi」，兩份**唔會撈埋**。
+  老師 dashboard 都將兩塊榜放喺 **Grammar Quest 卡**最下面（`loadDriveAndGoAdmin()`），
+  同 Student Activity 一樣按年級分組，顯示複合分／時間／正確率／題數／AV·PV·Mixed／場名。
   各自一張表＋一個 personal-best view（`drive_and_go_solo_scores`／`drive_and_go_multi_scores`、
   `drive_and_go_solo_leaderboard`／`drive_and_go_multi_leaderboard`），按 composite 排，
   同分比更快 `elapsed_ms`、再比 accuracy、再比較早 `created_at`。顯示時間／正確率／題數／

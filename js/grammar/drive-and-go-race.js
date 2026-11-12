@@ -310,17 +310,16 @@
         // every frame, so holding a lean keeps the kart in that lane. Buttons,
         // swipe and arrow keys stay discrete (setLane / steer) and briefly win
         // over tilt so the on-screen buttons remain usable as a backup.
+        // DG.laneStep() is the one place that advances the lane: in discrete
+        // mode it must NEVER overwrite the button / key / swipe target from
+        // laneX, or the kart snaps back to the centre before it can move.
         const tiltFresh = S.tilt.active && (Date.now() - (S.tilt.lastAt || 0) < 2000);
         const tiltLive = S.tilt.enabled && tiltFresh && now >= (S.tilt.manualUntil || 0);
-        if (tiltLive) {
-            const targetLane = DG.tiltLaneTarget(S.tilt.delta);
-            S.tilt.target = targetLane;
-            p.laneX += (targetLane - p.laneX) * Math.min(1, dt * (DG.TILT_LERP || 18));
-        } else {
-            p.laneX += (p.lane - p.laneX) * Math.min(1, dt * 12);
-        }
-        p.laneX = Math.max(0, Math.min(2, p.laneX));
-        p.lane = DG.nearestLane(p.laneX);
+        const laneTarget = tiltLive ? DG.tiltLaneTarget(S.tilt.delta) : null;
+        if (tiltLive) S.tilt.target = laneTarget;
+        const laneState = DG.laneStep(p, dt, laneTarget);
+        p.laneX = laneState.laneX;
+        p.lane = laneState.lane;
 
         // Rivals
         for (let i = 0; i < S.rivals.length; i++) {
@@ -358,10 +357,11 @@
         }
         S.bananas = S.bananas.filter(b => !b.hit && b.dist > p.dist - 120);
 
-        // Gate crossing. A finished racer no longer answers gates. The lane is
-        // the kart's actual position (analog tilt gives fractional laneX).
+        // Gate crossing. A finished racer no longer answers gates. laneStep()
+        // keeps p.lane in sync with the kart: it is the pressed target in
+        // button / key / swipe mode and the nearest lane while tilting.
         if (!p.finished && !S.gatesResolved && S.gates.length && p.dist >= S.gateDist) {
-            DG.answerGate(DG.nearestLane(p.laneX));
+            DG.answerGate(p.lane);
         }
         if (S.gatesResolved && S.nextGateAt && now >= S.nextGateAt) {
             if (p.finished) {
@@ -636,14 +636,27 @@
         if (e.target && e.target.closest && e.target.closest('button')) return;
         S.swipe.down = true;
         S.swipe.x = e.clientX;
+        // Keep the release on the stage even if the finger drifts over the HUD
+        // buttons, otherwise pointerup never reaches us and the swipe is lost.
+        if (e.currentTarget && e.pointerId != null && e.currentTarget.setPointerCapture) {
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+        }
     };
 
     DG.onPointerUp = function (e) {
         if (!S.active || !S.swipe.down) return;
         S.swipe.down = false;
-        const dx = e.clientX - S.swipe.x;
-        if (Math.abs(dx) < 32) return;
-        DG.steer(dx < 0 ? -1 : 1);
+        if (e && e.type === 'pointercancel') return;
+        const dir = DG.swipeStep(e.clientX - S.swipe.x);
+        if (dir) DG.steer(dir);
+    };
+
+    /* Pure swipe → steer mapping: -1 = left, 1 = right, 0 = a tap. Shared
+       with the unit tests so a broken threshold / direction is caught. */
+    DG.swipeStep = function (dx) {
+        const d = Number(dx);
+        if (!isFinite(d) || Math.abs(d) < 32) return 0;
+        return d < 0 ? -1 : 1;
     };
 
     DG.onResize = function () {

@@ -908,6 +908,7 @@
                     if (!view || view.classList.contains('hidden')) return;
                     loadAdminDashboard();
                     loadGrammarAdmin('all');
+                    loadDriveAndGoAdmin();
                     loadLoginAdmin();
                     loadGuestAdmin();
                     loadBattleAdmin();

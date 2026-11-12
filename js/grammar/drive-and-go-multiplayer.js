@@ -190,7 +190,9 @@
             DG.showMultiplayerUnavailable('Exit the student preview to play multiplayer. Single Player still works in preview.');
             return;
         }
-        DG.showMultiplayerMenu();
+        DG.sessionMode = 'multi';
+        DG.mpRole = '';
+        DG.showMultiplayerEntryStep();
     };
 
     DG.showMultiplayerUnavailable = function (message) {
@@ -204,39 +206,15 @@
             '<p class="font-bold text-gray-600 mb-2">' + DG.esc(message) + '</p>' +
             '<p class="text-sm text-gray-500 mb-6">Multiplayer rooms are for 2–5 signed-in players. Single Player is always available.</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
-            '<button type="button" class="btn-paw" onclick="DG.startSingle()">Play Single Player</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showModeStep()">Back</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.launchSolo()">Play Single Player</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showSessionStep()">Back</button>' +
             '</div></div>';
     };
 
+    // Kept as an alias. Leaving a room returns to the Create / Join step, not
+    // to a second copy of the old settings summary.
     DG.showMultiplayerMenu = function () {
-        const content = DG.menuContent();
-        if (!content) return;
-        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
-        const mode = DG.readSettings().bankMode;
-        content.innerHTML =
-            '<div class="text-center mb-5"><div class="text-7xl mb-2">🏎️</div>' +
-            '<h3 class="text-3xl font-bold text-green-600">Multiplayer</h3>' +
-            '<p class="text-gray-500 font-bold">2–5 players · first to ' + DG.normalizeQuestionCount(DG.readSettings().questionCount) + ' correct · highest composite score wins</p>' +
-            '<p class="text-sm font-bold text-orange-600 mt-1">Challenge: ' + DG.esc(DG.MODE_LABEL[mode] || '') + ' · ' + DG.normalizeQuestionCount(DG.readSettings().questionCount) + ' questions · ' + DG.esc(DG.sceneLabel(DG.readSettings().scene)) + '</p></div>' +
-            '<div class="dg-menu-panel">' +
-            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">' +
-            '<div class="dg-mp-box"><h4 class="font-bold text-green-700 mb-2">Create a room</h4>' +
-            '<p class="text-sm text-gray-500 mb-4">You are the host. Invite 1–4 friends, then start when everyone is in.</p>' +
-            '<button type="button" class="btn-paw w-full" onclick="DG.mpCreate()">Create room</button></div>' +
-            '<div class="dg-mp-box"><h4 class="font-bold text-green-700 mb-2">Join a room</h4>' +
-            '<p class="text-sm text-gray-500 mb-3">Enter the 4-character room code.</p>' +
-            '<div class="flex gap-2">' +
-            '<input id="dg-join-code" type="text" inputmode="latin" autocomplete="off" maxlength="4" placeholder="CODE" ' +
-            'class="dg-code-input" onkeydown="if(event.key===\'Enter\'){event.preventDefault();DG.mpJoin();}" aria-label="Room code">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.mpJoin()">Join</button></div></div>' +
-            '</div>' +
-            '<div id="dg-mp-status" class="dg-note hidden mt-4"></div>' +
-            '</div>' +
-            '<div class="flex gap-3 justify-center flex-wrap mt-5">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showModeStep()">← Game mode</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showChallengeStep()">← Challenge</button>' +
-            '</div>';
+        DG.showMultiplayerEntryStep();
     };
 
     DG.mpSetStatus = function (text, warn) {
@@ -257,6 +235,10 @@
 
     DG.mpCreate = function () {
         if (MP.leaving) return;
+        // The host finishes the settings steps before this runs, so the room
+        // is created with the challenge, question count and course they chose.
+        DG.sessionMode = 'multi';
+        DG.mpRole = 'create';
         DG.mpSetStatus('Creating room…', false);
         const settings = DG.readSettings();
         const mode = settings.bankMode;
@@ -298,6 +280,8 @@
 
     DG.mpJoin = function () {
         if (MP.leaving) return;
+        DG.sessionMode = 'multi';
+        DG.mpRole = 'join';
         const input = document.getElementById('dg-join-code');
         const code = clean(input && input.value).toUpperCase();
         if (!/^[A-Z0-9]{4}$/.test(code)) {
@@ -358,7 +342,7 @@
                     DG.mpStopPoll();
                     const content = DG.menuContent();
                     if (content) content.innerHTML = DG.mpSqlHintHTML() +
-                        '<div class="text-center mt-5"><button type="button" class="dg-menu-button" onclick="DG.showModeStep()">Back</button></div>';
+                        '<div class="text-center mt-5"><button type="button" class="dg-menu-button" onclick="DG.showMultiplayerEntryStep()">Back</button></div>';
                 } else {
                     DG.toastSafe('Room sync failed: ' + DG.mpErrorText(err));
                 }

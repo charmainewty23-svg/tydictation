@@ -37,9 +37,11 @@ const DG = {
     ACCEL_KMH: 110,
     SPEED_CAP: 340,
     // Analog tilt: a soft deadzone so a resting phone does not wander, and
-    // full left / right at 16° of lean.
-    TILT_DEAD: 2,
-    TILT_FULL: 16,
+    // full left / right at 12° of lean. 12° (instead of the old 16°) means a
+    // normal wrist lean crosses into the next lane at ~7°, so tilt actually
+    // steers on a phone instead of only drifting a little.
+    TILT_DEAD: 1.5,
+    TILT_FULL: 12,
     // Lane tracking speed for analog tilt (snappier than the old discrete 12).
     TILT_LERP: 18,
     // Time bonus factor used by DG.timeBonus / DG.scoreRun (see those helpers).
@@ -60,7 +62,12 @@ const DG = {
     bankCache: {},
     bankPoolCache: {},
     settings: null,
-    menuStep: 'challenge',
+    // Pre-race flow. The very first question is Solo or Multiplayer; the
+    // old "Game mode" step at the end is gone. sessionMode is '' until the
+    // player picks, 'solo' or 'multi'. mpRole is 'create' (host) or 'join'.
+    menuStep: 'session',
+    sessionMode: '',
+    mpRole: '',
     tiltPermission: 'unknown',
 
     /* ---------------- preferences ---------------- */
@@ -87,8 +94,9 @@ const DG = {
        delta is degrees, already wrapped to [-180, 180]. The result is a
        fractional lane position: 0 = hard left, 1 = centre, 2 = hard right.
        A soft deadzone (±TILT_DEAD) keeps a resting phone from wandering;
-       full lock arrives at ±TILT_FULL. The smoothstep curve makes small
-       leans gentle and holding a lean keeps the kart in that lane. */
+       full lock arrives at ±TILT_FULL (12°). The smoothstep curve makes small
+       leans gentle, while a normal ~7° wrist lean already crosses into the
+       next lane. Holding a lean keeps the kart in that lane. */
     tiltLaneTarget(delta) {
         const d = Number(delta);
         if (!isFinite(d)) return 1;
@@ -104,6 +112,39 @@ const DG = {
         const v = Number(laneX);
         if (!isFinite(v)) return 1;
         return Math.round(Math.max(0, Math.min(2, v)));
+    },
+
+    /* Advance the kart's lane one frame. This is the single authoritative
+       steering step, shared by updateRace() and the unit tests.
+
+       state = { lane, laneX } where lane is the discrete target (button /
+       key / swipe) and laneX is the on-screen position.
+
+       tiltTarget == null  → discrete mode: laneX chases `lane`, and `lane`
+                             is NEVER overwritten from laneX. Overwriting it
+                             every frame was the PR #26 bug that snapped the
+                             kart straight back to the centre before it could
+                             reach the next lane, so buttons / keys / swipes
+                             appeared dead.
+       tiltTarget = 0..2   → analog tilt: laneX chases the lean, and `lane`
+                             follows the actual position so gates are judged
+                             where the kart really is. */
+    laneStep(state, dt, tiltTarget) {
+        const st = state || {};
+        const secs = Math.max(0, Number(dt) || 0);
+        const lane = DG.nearestLane(st.lane);
+        let laneX = Number(st.laneX);
+        if (!isFinite(laneX)) laneX = lane;
+        const tilt = (tiltTarget == null) ? null : Number(tiltTarget);
+        if (tilt == null || !isFinite(tilt)) {
+            laneX += (lane - laneX) * Math.min(1, secs * 12);
+            if (Math.abs(lane - laneX) < 0.002) laneX = lane;
+            return { lane, laneX };
+        }
+        const target = Math.max(0, Math.min(2, tilt));
+        laneX += (target - laneX) * Math.min(1, secs * (DG.TILT_LERP || 18));
+        if (Math.abs(target - laneX) < 0.002) laneX = target;
+        return { lane: DG.nearestLane(laneX), laneX };
     },
 
     readSettings() {
@@ -841,6 +882,37 @@ const DG = {
 
     /* ---------------- screens / pre-race flow ---------------- */
 
+    /* The ordered steps of the current pre-race flow. The first step is
+       always Solo / Multiplayer. Solo goes straight through the settings and
+       skips the old last "Game mode" step. A multiplayer host goes through
+       Create first, then picks every room setting. A joiner only picks a cat
+       and controls, then enters the code — challenge / count / course belong
+       to the host. */
+    flowOrder() {
+        if (!DG.sessionMode) return ['session'];
+        if (DG.sessionMode === 'solo') {
+            return ['session', 'challenge', 'cat', 'controls', 'count', 'scene'];
+        }
+        if (DG.mpRole === 'join') {
+            return ['session', 'multi-entry', 'cat', 'controls', 'join'];
+        }
+        if (DG.mpRole === 'create') {
+            return ['session', 'multi-entry', 'challenge', 'cat', 'controls', 'count', 'scene'];
+        }
+        return ['session', 'multi-entry'];
+    },
+
+    stepIndex(step) {
+        const i = DG.flowOrder().indexOf(step);
+        return i === -1 ? 0 : i;
+    },
+
+    // Only the host (or a Solo player) may change challenge / question count
+    // / course. A joiner follows the host's room settings.
+    canEditHostSettings() {
+        return !(DG.sessionMode === 'multi' && DG.mpRole === 'join');
+    },
+
     menuContent() {
         return document.getElementById('grammar-detail-content');
     },
@@ -884,7 +956,7 @@ const DG = {
             '<p class="text-sm text-gray-500 mb-6">' + DG.esc(err && err.message ? err.message : 'Please check your connection and try again.') + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.retryBank()">Retry</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showModeStep()">Back</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showSceneStep()">Back</button>' +
             '</div></div>';
     },
 
@@ -892,17 +964,107 @@ const DG = {
         const mode = DG.readSettings().bankMode;
         DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
         DG.loadBank(mode, true).then(() => {
-            if (DG.menuStep === 'mode') DG.showModeStep();
-            else DG.startSingle();
+            if (DG.menuStep === 'launch') DG.startSingle();
+            else DG.showSceneStep();
         }).catch(err => DG.showLoadError(mode, err));
     },
 
-    stepDots(activeIndex) {
+    // The dot rail follows flowOrder(), so Solo shows 6 steps, a multiplayer
+    // host 7 (Create comes before the settings) and a joiner 5.
+    stepDots(step) {
+        const order = DG.flowOrder();
+        const activeIndex = Math.max(0, order.indexOf(step));
         const bits = [];
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < order.length; i++) {
             bits.push('<span class="' + (i < activeIndex ? 'done' : (i === activeIndex ? 'active' : '')) + '"></span>');
         }
         return '<div class="dg-step-dots">' + bits.join('') + '</div>';
+    },
+
+    stepHeading(step, title) {
+        return '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">' +
+            (DG.stepIndex(step) + 1) + '. ' + title + '</h3>';
+    },
+
+    /* Step 1 — Solo or Multiplayer. This is always the first question after
+       the player taps Drive & Go!. */
+    showSessionStep() {
+        DG.menuStep = 'session';
+        DG.sessionMode = '';
+        DG.mpRole = '';
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const guest = (typeof isGuestUser === 'function') && isGuestUser();
+        const signedIn = (typeof canUseCloud === 'function') && canUseCloud();
+        const multiOff = guest || !signedIn;
+        const note = guest
+            ? '<div class="dg-note warn">Guests can play Single Player only. Sign in with a school Google account for Multiplayer.</div>'
+            : (!signedIn
+                ? '<div class="dg-note warn">Sign in with your school Google account to open Multiplayer. Single Player works right away.</div>'
+                : '');
+        content.innerHTML =
+            '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
+            '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
+            '<p class="text-gray-500 font-bold mt-2">Read the sentence, steer into the correct gate, and race the track.</p></div>' +
+            DG.stepDots('session') +
+            DG.stepHeading('session', 'Solo or Multiplayer?') +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">' +
+            '<button type="button" class="dg-choice" onclick="DG.chooseSession(\'solo\')">' +
+            '<span class="dg-choice-emoji">🏁</span>' +
+            '<span class="dg-choice-title">Solo</span>' +
+            '<span class="dg-choice-sub">Race on your own. A run ends after your chosen number of correct answers.</span></button>' +
+            '<button type="button" class="dg-choice' + (multiOff ? ' opacity-50' : '') + '"' +
+            (multiOff ? ' disabled aria-disabled="true"' : ' onclick="DG.chooseSession(\'multi\')"') + '>' +
+            '<span class="dg-choice-emoji">🏎️</span>' +
+            '<span class="dg-choice-title">Multiplayer</span>' +
+            '<span class="dg-choice-sub">' + (multiOff ? 'School account needed — 2–5 players.' : '2–5 players. Create a room or join one with a code.') + '</span></button>' +
+            '</div>' +
+            note;
+    },
+
+    chooseSession(mode) {
+        if (mode === 'multi') {
+            DG.sessionMode = 'multi';
+            if (typeof DG.openMultiplayer === 'function') DG.openMultiplayer();
+            return;
+        }
+        DG.sessionMode = 'solo';
+        DG.mpRole = '';
+        DG.showChallengeStep();
+    },
+
+    /* Step 2a — multiplayer Create / Join. The host fills the settings after
+       choosing Create; joiners go straight to their cat and controls. */
+    showMultiplayerEntryStep() {
+        DG.menuStep = 'multi-entry';
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        content.innerHTML =
+            '<div class="text-center mb-5"><div class="text-7xl mb-2">🏎️</div>' +
+            '<h2 class="text-3xl font-bold text-green-600">Multiplayer</h2>' +
+            '<p class="text-gray-500 font-bold">2–5 players · the host sets the challenge, the number of questions and the course for everyone.</p></div>' +
+            DG.stepDots('multi-entry') +
+            DG.stepHeading('multi-entry', 'Create or join a room?') +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">' +
+            '<button type="button" class="dg-choice" onclick="DG.chooseMultiRole(\'create\')">' +
+            '<span class="dg-choice-emoji">➕</span>' +
+            '<span class="dg-choice-title">Create a room</span>' +
+            '<span class="dg-choice-sub">You are the host. Pick the challenge, questions and course, then share the code.</span></button>' +
+            '<button type="button" class="dg-choice" onclick="DG.chooseMultiRole(\'join\')">' +
+            '<span class="dg-choice-emoji">🔑</span>' +
+            '<span class="dg-choice-title">Join someone\'s room</span>' +
+            '<span class="dg-choice-sub">Enter the host\'s 4-character code. Challenge, questions and course are set by the host.</span></button>' +
+            '</div>' +
+            '<div class="text-center"><button type="button" class="dg-menu-button" onclick="DG.showSessionStep()">← Solo / Multiplayer</button></div>';
+    },
+
+    chooseMultiRole(role) {
+        DG.sessionMode = 'multi';
+        DG.mpRole = role === 'join' ? 'join' : 'create';
+        if (DG.mpRole === 'join') DG.showCatStep();
+        else DG.showChallengeStep();
     },
 
     showChallengeStep() {
@@ -922,18 +1084,23 @@ const DG = {
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
             '<p class="text-gray-500 font-bold mt-2">Read the sentence, steer into the correct gate, and race the track.</p></div>' +
-            DG.stepDots(0) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">1. Choose your challenge</h3>' +
+            DG.stepDots('challenge') +
+            DG.stepHeading('challenge', 'Choose your challenge') +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">' +
             card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
             card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
             card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together') +
             '</div>' +
-            '<div class="text-center"><button type="button" class="btn-paw" onclick="DG.showCatStep()">Next: Cat driver →</button></div>';
+            '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
+            '<button type="button" class="dg-menu-button" onclick="' +
+            (DG.sessionMode === 'multi' ? 'DG.showMultiplayerEntryStep()' : 'DG.showSessionStep()') +
+            '">← Back</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.showCatStep()">Next: Cat driver →</button></div>';
     },
 
     setBankMode(mode) {
         if (!DG.TAB_FOR_MODE[mode]) return;
+        if (!DG.canEditHostSettings()) return;
         DG.readSettings().bankMode = mode;
         DG.saveSettings();
         DG.showChallengeStep();
@@ -952,15 +1119,17 @@ const DG = {
                 '</div></div>';
         };
         content.innerHTML =
-            DG.stepDots(1) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">2. Customize your cat driver</h3>' +
+            DG.stepDots('cat') +
+            DG.stepHeading('cat', 'Customize your cat driver') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
             row('Cat', 'cat', DG.CATS, s.cat) +
             row('Glasses', 'glasses', DG.GLASSES, s.glasses) +
             row('Hat', 'hat', DG.HATS, s.hat) +
             row('Outfit', 'outfit', DG.OUTFITS, s.outfit) +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showChallengeStep()">← Challenge</button>' +
+            '<button type="button" class="dg-menu-button" onclick="' +
+            ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showMultiplayerEntryStep()' : 'DG.showChallengeStep()') +
+            '">← Back</button>' +
             '<button type="button" class="btn-paw" onclick="DG.showControlsStep()">Next: Controls →</button></div>';
         requestAnimationFrame(() => DG.renderCatPreview());
     },
@@ -1013,8 +1182,8 @@ const DG = {
             : (DG.tiltPermission === 'granted'
                 ? '<div class="dg-note ok">Tilt is ready. Hold your phone level when the race starts.</div>' : '');
         content.innerHTML =
-            DG.stepDots(2) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">3. Choose your controls</h3>' +
+            DG.stepDots('controls') +
+            DG.stepHeading('controls', 'Choose your controls') +
             '<p class="text-center text-gray-500 font-bold mb-4">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
             note +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
@@ -1024,7 +1193,9 @@ const DG = {
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCatStep()">← Cat</button>' +
-            '<button type="button" class="btn-paw" onclick="DG.showCountStep()">Next: Questions →</button></div>';
+            '<button type="button" class="btn-paw" onclick="' +
+            ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showJoinStep()' : 'DG.showCountStep()') +
+            '">' + ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'Next: Room code →' : 'Next: Questions →') + '</button></div>';
     },
 
     chooseControls(value) {
@@ -1066,8 +1237,8 @@ const DG = {
                 '<span class="dg-choice-sub">questions</span></button>';
         }).join('');
         content.innerHTML =
-            DG.stepDots(3) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">4. How many questions?</h3>' +
+            DG.stepDots('count') +
+            DG.stepHeading('count', 'How many questions?') +
             '<p class="text-center text-gray-500 font-bold mb-4">A run ends when you get this many answers correct. Wrong answers do not count toward the total.</p>' +
             '<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
@@ -1076,6 +1247,7 @@ const DG = {
     },
 
     setQuestionCount(value) {
+        if (!DG.canEditHostSettings()) return;
         const n = DG.normalizeQuestionCount(value);
         DG.readSettings().questionCount = n;
         DG.saveSettings();
@@ -1095,47 +1267,66 @@ const DG = {
                 '<span class="dg-choice-title">' + DG.esc(DG.SCENE_LABEL[id]) + '</span>' +
                 '<span class="dg-choice-sub">' + DG.esc(DG.SCENE_FLAVOUR[id]) + '</span></button>';
         }).join('');
+        const host = DG.sessionMode === 'multi';
         content.innerHTML =
-            DG.stepDots(4) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">5. Choose a course</h3>' +
+            DG.stepDots('scene') +
+            DG.stepHeading('scene', 'Choose a course') +
             '<p class="text-center text-gray-500 font-bold mb-4">Same track, three different worlds. In multiplayer the host picks the course for everyone.</p>' +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
+            (host ? '<div id="dg-mp-status" class="dg-note hidden mb-4"></div>' : '') +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button>' +
-            '<button type="button" class="btn-paw" onclick="DG.showModeStep()">Next: Game mode →</button></div>';
+            (host
+                ? '<button type="button" class="btn-paw" onclick="DG.mpCreate()">Create room →</button>'
+                : '<button type="button" class="btn-paw" onclick="DG.launchSolo()">Start race →</button>') +
+            '</div>';
     },
 
     setScene(value) {
+        if (!DG.canEditHostSettings()) return;
         DG.readSettings().scene = DG.normalizeScene(value);
         DG.saveSettings();
         DG.showSceneStep();
     },
 
-    showModeStep() {
-        DG.menuStep = 'mode';
+    /* Joiner’s last step: the host owns the challenge / question count /
+       course, so the joiner only enters the code (their cat and controls were
+       already chosen on the previous steps). */
+    showJoinStep() {
+        DG.menuStep = 'join';
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
-        const s = DG.readSettings();
-        const modeText = DG.MODE_LABEL[s.bankMode] || '';
-        const n = DG.normalizeQuestionCount(s.questionCount);
-        const sceneText = DG.sceneLabel(s.scene);
         content.innerHTML =
-            DG.stepDots(5) +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">6. Choose a game mode</h3>' +
-            '<p class="text-center text-gray-500 font-bold mb-5">Challenge: <span class="text-orange-600">' + DG.esc(modeText) + '</span> · <span class="text-orange-600">' + n + ' questions</span> · <span class="text-orange-600">' + DG.esc(sceneText) + '</span></p>' +
-            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">' +
-            '<button type="button" class="dg-choice" onclick="DG.startSingle()"><span class="dg-choice-emoji">🏁</span>' +
-            '<span class="dg-choice-title">Single Player</span><span class="dg-choice-sub">Finish when you get ' + n + ' correct. Beat your best composite score and time.</span></button>' +
-            '<button type="button" class="dg-choice" onclick="DG.openMultiplayer()"><span class="dg-choice-emoji">🏎️</span>' +
-            '<span class="dg-choice-title">Multiplayer</span><span class="dg-choice-sub">2–5 players. First to ' + n + ' correct, then highest composite score wins.</span></button>' +
+            DG.stepDots('join') +
+            DG.stepHeading('join', 'Join the room') +
+            '<div class="dg-menu-panel">' +
+            '<p class="text-center text-gray-500 font-bold mb-4">Enter the host’s 4-character room code. The host’s challenge, number of questions and course apply to everyone.</p>' +
+            '<div class="flex gap-2 justify-center mb-4">' +
+            '<input id="dg-join-code" type="text" inputmode="latin" autocomplete="off" maxlength="4" placeholder="CODE" ' +
+            'class="dg-code-input" onkeydown="if(event.key===\'Enter\'){event.preventDefault();DG.mpJoin();}" aria-label="Room code">' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpJoin()">Join</button></div>' +
+            '<div id="dg-mp-status" class="dg-note hidden"></div>' +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showSceneStep()">← Course</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button></div>';
+            '<button type="button" class="dg-menu-button" onclick="DG.showControlsStep()">← Controls</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showMultiplayerEntryStep()">← Create / Join</button></div>';
+    },
+
+    launchSolo() {
+        DG.sessionMode = 'solo';
+        DG.mpRole = '';
+        DG.startSingle();
+    },
+
+    // Backwards-compatible alias: older inline handlers and cached links may
+    // still call showModeStep(). The game-mode step itself is gone.
+    showModeStep() {
+        DG.showSessionStep();
     },
 
     startSingle() {
+        DG.menuStep = 'launch';
         const settings = DG.readSettings();
         const mode = settings.bankMode;
         DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
@@ -1418,9 +1609,11 @@ const DG = {
 };
 
 function showDriveAndGo() {
-    DG.menuStep = 'challenge';
+    DG.menuStep = 'session';
+    DG.sessionMode = '';
+    DG.mpRole = '';
     DG.readSettings();
-    DG.showChallengeStep();
+    DG.showSessionStep();
     changeView('grammar-detail-view');
     recordGuestUsage('Grammar Quest', 'Drive & Go!');
 }

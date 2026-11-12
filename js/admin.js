@@ -123,7 +123,9 @@
             const n = (typeof DG !== 'undefined' && DG.normalizeQuestionCount)
                 ? DG.normalizeQuestionCount(row.question_count)
                 : (Number(row.question_count) || 20);
-            const bank = (typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[row.bank_mode]) || 'AV';
+            const bank = (typeof DG !== 'undefined' && DG.topicChallenge)
+                ? DG.topicChallenge(row.topic, row.bank_mode)
+                : ((typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[row.bank_mode]) || 'Tenses · AV');
             const scene = (typeof DG !== 'undefined' && DG.sceneLabel)
                 ? DG.sceneLabel(row.scene)
                 : String(row.scene || 'Desert Hills');
@@ -141,22 +143,40 @@
             if (forceForms) await ensureFormDirectory(true);
             statsEl.innerHTML = '';
 
-            const columns = 'user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at';
+            const baseColumns = 'user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at';
+            const columns = baseColumns + ',topic';
+            // Before supabase/drive_and_go_agreement_topic.sql is pasted the
+            // views have no topic column. Fall back to the old column list and
+            // treat every existing row as Tenses, so the Tenses dashboard never
+            // breaks.
+            const readBoard = async (view) => {
+                let res = await sb.from(view)
+                    .select(columns)
+                    .order('composite', { ascending: false })
+                    .order('elapsed_ms', { ascending: true })
+                    .order('accuracy', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(1000);
+                if (res.error) {
+                    const msg = String(res.error.message || '');
+                    if (/topic|column .* does not exist|42703|PGRST204/i.test(msg)) {
+                        res = await sb.from(view)
+                            .select(baseColumns)
+                            .order('composite', { ascending: false })
+                            .order('elapsed_ms', { ascending: true })
+                            .order('accuracy', { ascending: false })
+                            .order('created_at', { ascending: true })
+                            .limit(1000);
+                        if (res.data) {
+                            res.data = res.data.map(r => Object.assign({}, r, { topic: 'tenses' }));
+                        }
+                    }
+                }
+                return res;
+            };
             const [soloRes, multiRes] = await Promise.all([
-                sb.from('drive_and_go_solo_leaderboard')
-                    .select(columns)
-                    .order('composite', { ascending: false })
-                    .order('elapsed_ms', { ascending: true })
-                    .order('accuracy', { ascending: false })
-                    .order('created_at', { ascending: true })
-                    .limit(1000),
-                sb.from('drive_and_go_multi_leaderboard')
-                    .select(columns)
-                    .order('composite', { ascending: false })
-                    .order('elapsed_ms', { ascending: true })
-                    .order('accuracy', { ascending: false })
-                    .order('created_at', { ascending: true })
-                    .limit(1000)
+                readBoard('drive_and_go_solo_leaderboard'),
+                readBoard('drive_and_go_multi_leaderboard')
             ]);
             adminCache.dg = {
                 solo: soloRes.data || [],

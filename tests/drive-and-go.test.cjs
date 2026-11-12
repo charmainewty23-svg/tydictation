@@ -395,33 +395,37 @@ test('Drive & Go! opens on Solo or Multiplayer and never on the old game-mode st
         'a fresh Drive & Go! entry still opens the Solo / Multiplayer step');
 });
 
-test('Solo flow is session → challenge → cat → controls → count → scene and skips game mode', () => {
+test('Solo flow is session → topic → challenge → cat → controls → count → scene and skips game mode', () => {
     const { DG, content } = loadDGWithDom();
     DG.sessionMode = 'solo';
-    assert.deepEqual(Array.from(DG.flowOrder()), ['session', 'challenge', 'cat', 'controls', 'count', 'scene']);
+    assert.deepEqual(Array.from(DG.flowOrder()), ['session', 'topic', 'challenge', 'cat', 'controls', 'count', 'scene']);
     assert.ok(DG.flowOrder().indexOf('mode') === -1);
+
+    DG.showTopicStep();
+    assert.equal(DG.menuStep, 'topic');
+    assert.ok(content().indexOf('2. Choose your topic') !== -1);
 
     DG.showChallengeStep();
     assert.equal(DG.menuStep, 'challenge');
-    assert.ok(content().indexOf('2. Choose your challenge') !== -1);
-    assert.ok(content().indexOf('DG.showSessionStep()') !== -1);
+    assert.ok(content().indexOf('3. Choose your challenge') !== -1);
+    assert.ok(content().indexOf('DG.showTopicStep()') !== -1);
 
     DG.showCatStep();
     assert.equal(DG.menuStep, 'cat');
-    assert.ok(content().indexOf('3. Customize your cat driver') !== -1);
+    assert.ok(content().indexOf('4. Customize your cat driver') !== -1);
 
     DG.showControlsStep();
     assert.equal(DG.menuStep, 'controls');
-    assert.ok(content().indexOf('4. Choose your controls') !== -1);
+    assert.ok(content().indexOf('5. Choose your controls') !== -1);
 
     DG.showCountStep();
     assert.equal(DG.menuStep, 'count');
-    assert.ok(content().indexOf('5. How many questions?') !== -1);
+    assert.ok(content().indexOf('6. How many questions?') !== -1);
 
     DG.showSceneStep();
     assert.equal(DG.menuStep, 'scene');
     const html = content();
-    assert.ok(html.indexOf('6. Choose a course') !== -1);
+    assert.ok(html.indexOf('7. Choose a course') !== -1);
     // Solo starts immediately after the course; there is no game-mode step.
     assert.ok(html.indexOf('DG.launchSolo()') !== -1);
     assert.ok(html.indexOf('Start race') !== -1);
@@ -448,17 +452,17 @@ test('Multiplayer asks Create or Join before any settings', () => {
     assert.deepEqual(Array.from(DG.flowOrder()).slice(0, 2), ['session', 'multi-entry']);
 });
 
-test('multiplayer host picks challenge, count and course, then creates the room', () => {
+test('multiplayer host picks topic, challenge, count and course, then creates the room', () => {
     const { DG, content } = loadDGWithDom();
     DG.sessionMode = 'multi';
     DG.mpRole = 'create';
     assert.deepEqual(Array.from(DG.flowOrder()),
-        ['session', 'multi-entry', 'challenge', 'cat', 'controls', 'count', 'scene']);
+        ['session', 'multi-entry', 'topic', 'challenge', 'cat', 'controls', 'count', 'scene']);
     assert.equal(DG.canEditHostSettings(), true);
 
     DG.showChallengeStep();
-    assert.ok(content().indexOf('3. Choose your challenge') !== -1);
-    assert.ok(content().indexOf('DG.showMultiplayerEntryStep()') !== -1);
+    assert.ok(content().indexOf('4. Choose your challenge') !== -1);
+    assert.ok(content().indexOf('DG.showTopicStep()') !== -1);
 
     DG.setBankMode('mixed');
     assert.equal(DG.readSettings().bankMode, 'mixed');
@@ -469,7 +473,7 @@ test('multiplayer host picks challenge, count and course, then creates the room'
 
     DG.showSceneStep();
     const html = content();
-    assert.ok(html.indexOf('7. Choose a course') !== -1);
+    assert.ok(html.indexOf('8. Choose a course') !== -1);
     assert.ok(html.indexOf('DG.mpCreate()') !== -1);
     assert.ok(html.indexOf('Create room') !== -1);
     assert.ok(html.indexOf('DG.launchSolo()') === -1);

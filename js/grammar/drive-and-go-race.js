@@ -19,6 +19,7 @@
         phase: 'idle',
         paused: false,
         mode: 'single',
+        topic: 'tenses',
         bankMode: 'av',
         scene: 'desert',
         opts: null,
@@ -112,13 +113,14 @@
         DG.stopRace();
         const settings = DG.readSettings();
         const mode = opts.mode === 'multi' ? 'multi' : 'single';
-        const bankMode = opts.bankMode || settings.bankMode;
-        const bank = DG.bankCache[bankMode] || [];
+        const topic = DG.normalizeTopic(opts.topic || (opts.room && opts.room.topic) || settings.topic);
+        const bankMode = DG.normalizeBankMode(topic, opts.bankMode || settings.bankMode);
+        const bank = DG.bankCache[DG.bankKey(topic, bankMode)] || [];
         if (!bank.length) {
-            DG.showLoadError(bankMode, new Error('The question bank is not loaded yet.'));
+            DG.showLoadError(topic, bankMode, new Error('The question bank is not loaded yet.'));
             return;
         }
-        S.opts = Object.assign({}, opts, { mode, bankMode });
+        S.opts = Object.assign({}, opts, { mode, topic, bankMode });
         S.active = true;
         S.raf = 0;
         S.lastTs = 0;
@@ -126,10 +128,11 @@
         S.phase = 'countdown';
         S.paused = false;
         S.mode = mode;
+        S.topic = topic;
         S.bankMode = bankMode;
         S.room = opts.room || null;
         S.scene = DG.normalizeScene(opts.scene || (opts.room && opts.room.scene) || (settings && settings.scene));
-        S.questions = DG.raceQuestionQueue(bankMode, opts.seed);
+        S.questions = DG.raceQuestionQueue(topic, bankMode, opts.seed);
         S.qIndex = 0;
         S.activeQ = null;
         S.gates = [];
@@ -418,7 +421,7 @@
         if (S.player && S.player.finished) return;
         if (!S.questions.length) return;
         if (S.qIndex >= S.questions.length) {
-            S.questions = DG.raceQuestionQueue(S.bankMode, S.mode === 'multi' && S.opts ? S.opts.seed : null);
+            S.questions = DG.raceQuestionQueue(S.topic, S.bankMode, S.mode === 'multi' && S.opts ? S.opts.seed : null);
             S.qIndex = 0;
         }
         const q = S.questions[S.qIndex++];
@@ -427,7 +430,7 @@
         if (S.mode === 'multi' && S.opts && S.opts.seed != null) {
             rng = DG.makeRng((Number(S.opts.seed) ^ DG.hashString(q.id)) >>> 0);
         }
-        const gates = DG.gatesFor(q, S.bankMode, rng);
+        const gates = DG.gatesFor(q, S.topic, S.bankMode, rng);
         S.gates = gates.map(g => ({
             label: g.label,
             lane: g.lane,
@@ -444,11 +447,13 @@
     DG.answerGate = function (lane) {
         if (!S.activeQ || S.gatesResolved || !S.gates.length) return;
         const p = S.player;
-        const correctGate = S.gates.find(g => g.correct);
-        if (!correctGate) return;
-        const correct = Number(lane) === correctGate.lane;
+        const correctGates = S.gates.filter(g => g.correct);
+        if (!correctGates.length) return;
+        const correct = (typeof DG.gateIsCorrect === 'function')
+            ? DG.gateIsCorrect(S.gates, lane)
+            : Number(lane) === correctGates[0].lane;
         S.gatesResolved = true;
-        S.lastResult = { correct, lane: Number(lane), correctLane: correctGate.lane };
+        S.lastResult = { correct, lane: Number(lane), correctLane: correctGates[0].lane };
         const now = S.clock;
         if (correct) {
             p.combo += 1;
@@ -478,7 +483,7 @@
             p.score = Math.max(0, p.score - 25);
             p.speed = Math.min(p.speed, 25);
             p.spinUntil = now + DG.SPIN_TIME;
-            DG.toast('❌ Correct: ' + correctGate.label, 2200);
+            DG.toast('❌ Correct: ' + correctGates.map(g => g.label).join(' / '), 2200);
         }
         S.nextGateDist = Math.max(S.gateDist + DG.GATE_GAP, p.dist + 300);
         S.nextGateAt = now + RESULT_HOLD;
@@ -501,11 +506,12 @@
         p.runResult = result;
         DG.releaseAccel();
         if (S.mode === 'single') {
-            DG.recordBestRun(S.bankMode, S.questionCount, result);
+            DG.recordBestRun(S.topic, S.bankMode, S.questionCount, result);
             DG.recordBest(p.score, p.dist);
             DG.toast('🏁 ' + S.questionCount + ' correct — finished!', 1800);
             // Cloud board is fire-and-forget; the results screen never waits for it.
             DG.submitCloudRun('single', Object.assign({}, result, {
+                topic: S.topic,
                 bankMode: S.bankMode,
                 scene: S.scene
             }), null);
@@ -856,7 +862,9 @@
         const p = S.player;
         if (!els || !p || !S.active) return;
         const q = S.activeQ;
-        const qText = q ? q.prompt : 'Get ready…';
+        const qText = q
+            ? (typeof DG.displayPrompt === 'function' ? DG.displayPrompt(q, S.gates) : q.prompt)
+            : 'Get ready…';
         if (force || els.question.textContent !== qText) {
             els.question.textContent = qText;
         }
@@ -975,7 +983,7 @@
     DG.bestRunLine = function (result) {
         const r = result || {};
         const n = DG.normalizeQuestionCount(r.questionCount);
-        const best = DG.readBestRun(S.bankMode, n);
+        const best = DG.readBestRun(S.topic, S.bankMode, n);
         if (!best) return 'No personal best for ' + n + ' questions yet.';
         return 'Personal best for ' + n + ' questions: ' + best.composite + ' pts · ' + DG.formatRaceTime(best.time);
     };
@@ -989,7 +997,7 @@
             : !!o.reached;
         return '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
             '<h3 class="text-3xl font-bold text-orange-600 mb-1">' + (reached ? 'Run finished' : 'Run ended') + '</h3>' +
-            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + n + ' questions</p>' +
+            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
             '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(DG.bestRunLine(r)) + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
@@ -1022,7 +1030,7 @@
         const progress = (typeof DG.mpProgressHTML === 'function') ? DG.mpProgressHTML(board) : '';
         return '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
             '<h3 class="text-3xl font-bold text-orange-600 mb-1">You finished!</h3>' +
-            '<p class="text-gray-500 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + n + ' questions</p>' +
+            '<p class="text-gray-500 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
             '<p class="text-sm font-bold text-gray-500 mb-3">' +
             (o.closed
@@ -1081,7 +1089,7 @@
         }
         const result = p.runResult || DG.scoreRun(p, p.elapsed || DG.raceElapsedSeconds(), S.questionCount);
         const reached = p.correct >= S.questionCount;
-        if (reached) DG.recordBestRun(S.bankMode, S.questionCount, result);
+        if (reached) DG.recordBestRun(S.topic, S.bankMode, S.questionCount, result);
         DG.recordBest(p.score, p.dist);
         DG.showSoloResults(result, { reached: reached, maxCombo: p.maxCombo });
     };
@@ -1102,6 +1110,8 @@
             ? DG.rankMultiplayerRows(players)
             : (players || []).slice();
         const n = DG.normalizeQuestionCount(room && room.question_count || S.questionCount);
+        const roomTopic = DG.normalizeTopic((room && room.topic) || S.topic);
+        const roomMode = DG.normalizeBankMode(roomTopic, (room && room.question_mode) || S.bankMode);
         const winnerId = room && room.winner_id;
         let winner = rows.find(r => r.user_id === winnerId);
         if (!winner) winner = rows[0];
@@ -1133,6 +1143,7 @@
             '<div class="text-center"><div class="text-6xl mb-1">' + (youWin ? '🏆' : '🏁') + '</div>' +
             '<h3 class="text-3xl font-bold ' + (youWin ? 'text-amber-600' : 'text-orange-600') + ' mb-1">' +
             (youWin ? 'You win!' : DG.esc((winner && DG.mpPlayerName(winner)) || 'Race finished') + ' wins!') + '</h3>' +
+            '<p class="text-sm font-bold text-gray-500 mb-1">' + DG.esc(DG.topicChallenge(roomTopic, roomMode)) + '</p>' +
             '<p class="text-sm font-bold text-gray-500 mb-4">' + DG.esc(reason) + '</p>' +
             (myRun
                 ? '<p class="text-sm font-bold text-gray-500 mb-2">Your run</p>' + DG.resultGridHTML(myRun)

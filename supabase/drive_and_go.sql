@@ -3,14 +3,16 @@
 -- Run once in Supabase → SQL Editor (project mggnwzirjmibreimrwiq).
 -- Safe to re-run.
 --
--- Includes the three courses (scene: desert / stadium / jungle) and the
--- separate Solo / Multi leaderboards. Rooms use short polling (no Realtime
--- publication needed), like Word Battle. Drive & Go! tables are deliberately
--- separate from battle_* tables.
+-- Includes the three courses (scene: desert / stadium / jungle), the two
+-- topics (topic: tenses / agreement) and the separate Solo / Multi
+-- leaderboards. Rooms use short polling (no Realtime publication needed),
+-- like Word Battle. Drive & Go! tables are deliberately separate from
+-- battle_* tables.
 --
 -- Single Player never needs this file. Teachers who already ran the older
--- files can paste supabase/drive_and_go_question_count.sql and then
--- supabase/drive_and_go_scenes_and_boards.sql instead of this whole file.
+-- files can paste supabase/drive_and_go_question_count.sql,
+-- supabase/drive_and_go_scenes_and_boards.sql and then
+-- supabase/drive_and_go_agreement_topic.sql instead of this whole file.
 -- ============================================================
 
 create table if not exists public.drive_and_go_rooms (
@@ -19,8 +21,10 @@ create table if not exists public.drive_and_go_rooms (
     host_id          uuid not null references auth.users(id) on delete cascade,
     status           text not null default 'waiting'
                      check (status in ('waiting', 'playing', 'finished')),
+    topic            text not null default 'tenses'
+                     check (topic in ('tenses', 'agreement')),
     question_mode    text not null default 'av'
-                     check (question_mode in ('av', 'pv', 'mixed')),
+                     check (question_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose')),
     question_count   int not null default 20
                      check (question_count in (20, 25, 30, 35, 40, 50)),
     scene            text not null default 'desert'
@@ -70,6 +74,8 @@ alter table public.drive_and_go_rooms
     add column if not exists question_count int not null default 20;
 alter table public.drive_and_go_rooms
     add column if not exists scene text not null default 'desert';
+alter table public.drive_and_go_rooms
+    add column if not exists topic text not null default 'tenses';
 alter table public.drive_and_go_players
     add column if not exists wrong int not null default 0;
 alter table public.drive_and_go_players
@@ -177,6 +183,7 @@ grant select, update on public.drive_and_go_players to authenticated;
 
 drop function if exists public.create_drive_and_go_room(text, text, text, text, text);
 drop function if exists public.create_drive_and_go_room(text, text, text, text, text, int);
+drop function if exists public.create_drive_and_go_room(text, text, text, text, text, int, text);
 
 create or replace function public.create_drive_and_go_room(
     p_question_mode text default 'av',
@@ -185,7 +192,8 @@ create or replace function public.create_drive_and_go_room(
     p_hat text default null,
     p_outfit text default null,
     p_question_count int default 20,
-    p_scene text default 'desert'
+    p_scene text default 'desert',
+    p_topic text default 'tenses'
 ) returns setof public.drive_and_go_rooms
 language plpgsql
 security definer
@@ -196,6 +204,7 @@ declare
     v_code   text;
     v_room   public.drive_and_go_rooms;
     v_try    int := 0;
+    v_topic  text := lower(coalesce(p_topic, 'tenses'));
     v_mode   text := lower(coalesce(p_question_mode, 'av'));
     v_count  int := coalesce(p_question_count, 20);
     v_scene  text := lower(coalesce(p_scene, 'desert'));
@@ -206,8 +215,17 @@ begin
     if auth.uid() is null then
         raise exception 'NOT_AUTHENTICATED';
     end if;
-    if v_mode not in ('av', 'pv', 'mixed') then
-        v_mode := 'av';
+    if v_topic not in ('tenses', 'agreement') then
+        v_topic := 'tenses';
+    end if;
+    if v_topic = 'agreement' then
+        if v_mode not in ('gapfill', 'choose', 'mixed') then
+            v_mode := 'gapfill';
+        end if;
+    else
+        if v_mode not in ('av', 'pv', 'mixed') then
+            v_mode := 'av';
+        end if;
     end if;
     if v_count not in (20, 25, 30, 35, 40, 50) then
         v_count := 20;
@@ -238,8 +256,11 @@ begin
         end if;
     end loop;
 
-    insert into public.drive_and_go_rooms (code, host_id, question_mode, question_count, seed, scene)
-    values (v_code, auth.uid(), v_mode, v_count, floor(random() * 2147483646)::bigint + 1, v_scene)
+    insert into public.drive_and_go_rooms
+        (code, host_id, topic, question_mode, question_count, seed, scene)
+    values
+        (v_code, auth.uid(), v_topic, v_mode, v_count,
+         floor(random() * 2147483646)::bigint + 1, v_scene)
     returning * into v_room;
 
     insert into public.drive_and_go_players
@@ -584,16 +605,30 @@ end;
 $dg$;
 
 -- Only signed-in users may call these functions.
-revoke all on function public.create_drive_and_go_room(text, text, text, text, text) from public, anon, authenticated;
-revoke all on function public.create_drive_and_go_room(text, text, text, text, text, int) from public, anon, authenticated;
-revoke all on function public.create_drive_and_go_room(text, text, text, text, text, int, text) from public, anon;
+-- Only signed-in users may call these functions. The three old
+-- create_drive_and_go_room overloads may already have been dropped above, so
+-- revoke them only when they still exist.
+do $rev$
+begin
+    if to_regprocedure('public.create_drive_and_go_room(text,text,text,text,text)') is not null then
+        execute 'revoke all on function public.create_drive_and_go_room(text,text,text,text,text) from public, anon, authenticated';
+    end if;
+    if to_regprocedure('public.create_drive_and_go_room(text,text,text,text,text,int)') is not null then
+        execute 'revoke all on function public.create_drive_and_go_room(text,text,text,text,text,int) from public, anon, authenticated';
+    end if;
+    if to_regprocedure('public.create_drive_and_go_room(text,text,text,text,text,int,text)') is not null then
+        execute 'revoke all on function public.create_drive_and_go_room(text,text,text,text,text,int,text) from public, anon, authenticated';
+    end if;
+end
+$rev$;
+revoke all on function public.create_drive_and_go_room(text, text, text, text, text, int, text, text) from public, anon;
 revoke all on function public.join_drive_and_go_room(text, text, text, text, text) from public, anon;
 revoke all on function public.start_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.leave_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.cross_drive_and_go_finish(uuid) from public, anon;
 revoke all on function public.time_up_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.apply_drive_and_go_effect(uuid, uuid, text, int) from public, anon;
-grant execute on function public.create_drive_and_go_room(text, text, text, text, text, int, text) to authenticated;
+grant execute on function public.create_drive_and_go_room(text, text, text, text, text, int, text, text) to authenticated;
 grant execute on function public.join_drive_and_go_room(text, text, text, text, text) to authenticated;
 grant execute on function public.start_drive_and_go_room(uuid) to authenticated;
 grant execute on function public.leave_drive_and_go_room(uuid) to authenticated;
@@ -610,8 +645,10 @@ create table if not exists public.drive_and_go_solo_scores (
     user_id        uuid not null references auth.users(id) on delete cascade,
     email          text not null,
     nickname       text,
+    topic          text not null default 'tenses'
+                   check (topic in ('tenses', 'agreement')),
     bank_mode      text not null default 'av'
-                   check (bank_mode in ('av', 'pv', 'mixed')),
+                   check (bank_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose')),
     question_count int  not null default 20,
     scene          text not null default 'desert'
                    check (scene in ('desert', 'stadium', 'jungle')),
@@ -632,6 +669,9 @@ create index if not exists drive_and_go_solo_user_idx
     on public.drive_and_go_solo_scores (user_id);
 create index if not exists drive_and_go_solo_created_idx
     on public.drive_and_go_solo_scores (created_at desc);
+
+alter table public.drive_and_go_solo_scores
+    add column if not exists topic text not null default 'tenses';
 
 alter table public.drive_and_go_solo_scores enable row level security;
 
@@ -659,6 +699,7 @@ select
     user_id,
     email,
     nickname,
+    topic,
     bank_mode,
     question_count,
     scene,
@@ -674,9 +715,9 @@ select
 from (
     select
         s.*,
-        count(*) over (partition by s.user_id) as plays,
+        count(*) over (partition by s.user_id, s.topic) as plays,
         row_number() over (
-            partition by s.user_id
+            partition by s.user_id, s.topic
             order by s.composite desc, s.elapsed_ms asc, s.accuracy desc, s.created_at asc
         ) as rn
     from public.drive_and_go_solo_scores s
@@ -694,8 +735,10 @@ create table if not exists public.drive_and_go_multi_scores (
     user_id        uuid not null references auth.users(id) on delete cascade,
     email          text not null,
     nickname       text,
+    topic          text not null default 'tenses'
+                   check (topic in ('tenses', 'agreement')),
     bank_mode      text not null default 'av'
-                   check (bank_mode in ('av', 'pv', 'mixed')),
+                   check (bank_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose')),
     question_count int  not null default 20,
     scene          text not null default 'desert'
                    check (scene in ('desert', 'stadium', 'jungle')),
@@ -722,6 +765,9 @@ create index if not exists drive_and_go_multi_created_idx
 create index if not exists drive_and_go_multi_room_idx
     on public.drive_and_go_multi_scores (room_id);
 
+alter table public.drive_and_go_multi_scores
+    add column if not exists topic text not null default 'tenses';
+
 alter table public.drive_and_go_multi_scores enable row level security;
 
 drop policy if exists "drive and go multi board is public" on public.drive_and_go_multi_scores;
@@ -746,6 +792,7 @@ select
     user_id,
     email,
     nickname,
+    topic,
     bank_mode,
     question_count,
     scene,
@@ -761,9 +808,9 @@ select
 from (
     select
         s.*,
-        count(*) over (partition by s.user_id) as plays,
+        count(*) over (partition by s.user_id, s.topic) as plays,
         row_number() over (
-            partition by s.user_id
+            partition by s.user_id, s.topic
             order by s.composite desc, s.elapsed_ms asc, s.accuracy desc, s.created_at asc
         ) as rn
     from public.drive_and_go_multi_scores s
@@ -772,7 +819,85 @@ where rn = 1;
 
 grant select on public.drive_and_go_multi_leaderboard to anon, authenticated;
 
+-- ---------- re-run safety: widen old topic / mode checks ----------
+-- Fresh tables above already carry the new inline checks. This block makes a
+-- repeat run of this file on an older database replace the narrower ones.
+
+do $chk$
+declare
+    r record;
+begin
+    for r in
+        select conname
+          from pg_constraint
+         where conrelid = 'public.drive_and_go_rooms'::regclass
+           and contype = 'c'
+           and pg_get_constraintdef(oid) ilike '%question_mode%'
+    loop
+        execute format('alter table public.drive_and_go_rooms drop constraint %I', r.conname);
+    end loop;
+
+    for r in
+        select conname
+          from pg_constraint
+         where conrelid = 'public.drive_and_go_solo_scores'::regclass
+           and contype = 'c'
+           and pg_get_constraintdef(oid) ilike '%bank_mode%'
+    loop
+        execute format('alter table public.drive_and_go_solo_scores drop constraint %I', r.conname);
+    end loop;
+
+    for r in
+        select conname
+          from pg_constraint
+         where conrelid = 'public.drive_and_go_multi_scores'::regclass
+           and contype = 'c'
+           and pg_get_constraintdef(oid) ilike '%bank_mode%'
+    loop
+        execute format('alter table public.drive_and_go_multi_scores drop constraint %I', r.conname);
+    end loop;
+end
+$chk$;
+
+alter table public.drive_and_go_rooms
+    drop constraint if exists drive_and_go_rooms_question_mode_chk;
+alter table public.drive_and_go_rooms
+    add constraint drive_and_go_rooms_question_mode_chk
+    check (question_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose'));
+
+alter table public.drive_and_go_solo_scores
+    drop constraint if exists drive_and_go_solo_scores_bank_mode_chk;
+alter table public.drive_and_go_solo_scores
+    add constraint drive_and_go_solo_scores_bank_mode_chk
+    check (bank_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose'));
+
+alter table public.drive_and_go_multi_scores
+    drop constraint if exists drive_and_go_multi_scores_bank_mode_chk;
+alter table public.drive_and_go_multi_scores
+    add constraint drive_and_go_multi_scores_bank_mode_chk
+    check (bank_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose'));
+
+alter table public.drive_and_go_rooms
+    drop constraint if exists drive_and_go_rooms_topic_chk;
+alter table public.drive_and_go_rooms
+    add constraint drive_and_go_rooms_topic_chk
+    check (topic in ('tenses', 'agreement'));
+
+alter table public.drive_and_go_solo_scores
+    drop constraint if exists drive_and_go_solo_scores_topic_chk;
+alter table public.drive_and_go_solo_scores
+    add constraint drive_and_go_solo_scores_topic_chk
+    check (topic in ('tenses', 'agreement'));
+
+alter table public.drive_and_go_multi_scores
+    drop constraint if exists drive_and_go_multi_scores_topic_chk;
+alter table public.drive_and_go_multi_scores
+    add constraint drive_and_go_multi_scores_topic_chk
+    check (topic in ('tenses', 'agreement'));
+
+notify pgrst, 'reload schema';
+
 -- Check it worked:
--- select nickname, composite, elapsed_ms, accuracy, question_count, bank_mode, scene, plays
+-- select nickname, topic, bank_mode, composite, elapsed_ms, accuracy, question_count, scene, plays
 -- from public.drive_and_go_solo_leaderboard
--- order by composite desc, elapsed_ms asc, accuracy desc, created_at asc limit 10;
+-- order by topic, composite desc, elapsed_ms asc, accuracy desc, created_at asc limit 10;

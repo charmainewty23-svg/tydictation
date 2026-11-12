@@ -444,6 +444,21 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   AV·PV·Mixed（同場名）。學生睇 top 10；老師按年級分組（同 Word Jump）。
   完成 Single Player（N 題正確）或多人房間出結果時，已登入非訪客會 fire-and-forget 寫自己嗰行；
   失敗唔會阻結果畫面，只會 toast 提示跑 SQL。單機本身**唔需要** SQL。
+- **加入者唔會被彈走（2026-11）**：`mpPoll` 只會交一個 `DG.mpRoomUpdatePlan()`
+  （`navigate` 永遠係 `false`），lobby／開賽／結果／房間關閉全部喺原本個 view 內處理，
+  **唔會** call `changeView`、`backToTenses` 或 `showSessionStep`。剛加入嘅玩家有
+  `MP.joinedAt` 12 秒 settle window：期間被動 view 改變只會 `DG.mpDetachDuringSettle()`
+  （保留座位、停 poll），唔會 call `leave_drive_and_go_room` 刪走自己嗰行；
+  如果真係離開，window 完結先 release。`mpPoll` 連續 3 次讀唔到自己會用同一個房碼
+  `DG.mpRejoinRoom()` 自動入返，唔會再跌落 Create／Join 或 Hub。房真的冇咗就喺
+  原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
+  返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
+- **多人進度板**：race view 左上角 `#dg-mp-progress`（HUD 下面、`pointer-events:none`、
+  z-index 低過 HUD）。只喺 `mode === 'multi'` 出現，列出**未完成**嘅玩家：名、
+  `correct / N`、進度條（`correct / N`）同已同步嘅賽道距離（次要提示）。
+  `DG.mpProgressBoard()`（純函數）按 correct 由高到低排，同分比距離；自己嗰行 `.me`
+  ＋「(you)」。`DG.updateMpProgress()` 喺 `mpSyncRace` 每 700ms 更新，開賽先用 lobby
+  名單畫一次；`DG.hideMpProgress()` 喺 solo／離開賽道時收埋。贏嘅條件仍然係 N 題正確。
 - SQL：已有舊 rooms 嘅老師要自己喺 Supabase SQL editor 貼
   `supabase/drive_and_go_scenes_and_boards.sql`（喺 `drive_and_go_question_count.sql` 之後，可重跑）；
   全新安裝貼更新咗嘅 `supabase/drive_and_go.sql` 就一次過有齊 scene＋兩塊榜。

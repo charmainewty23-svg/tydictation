@@ -208,7 +208,12 @@
         DG.spawnGates();
         DG.updateRaceHud(true);
         DG.showOverlay('', true);
-        if (mode === 'multi' && typeof DG.mpStartRacePoll === 'function') DG.mpStartRacePoll();
+        if (mode === 'multi') {
+            DG.updateMpProgress((opts && opts.players) || []);
+            if (typeof DG.mpStartRacePoll === 'function') DG.mpStartRacePoll();
+        } else {
+            DG.hideMpProgress();
+        }
         S.lastTs = 0;
         S.raf = requestAnimationFrame(DG.raceFrame);
     };
@@ -226,6 +231,7 @@
         document.body.classList.remove('dg-racing');
         const raceView = document.getElementById('drive-and-go-view');
         if (raceView) raceView.classList.remove('dg-live');
+        DG.hideMpProgress();
         DG.hideOverlay();
         if (DG.raceEls && DG.raceEls.toast) DG.raceEls.toast.classList.remove('show');
         if (wasActive) S.player = null;
@@ -2306,6 +2312,36 @@
     };
 
     /* ---------------- multiplayer hooks used by the sync file ---------------- */
+
+    /* Corner board: every remaining racer with a correct / N bar. Solo never
+       shows it. Updates every ~700ms from the already-synced player rows, so
+       it never adds another database query. */
+    DG.updateMpProgress = function (players) {
+        const board = (typeof DG.mpProgressBoard === 'function')
+            ? DG.mpProgressBoard(players || (S.opts && S.opts.players) || [], {
+                mode: S.mode,
+                meId: currentUser && currentUser.id,
+                questionCount: S.questionCount
+            })
+            : null;
+        const el = document.getElementById('dg-mp-progress');
+        if (!el) return board;
+        if (!S.active || !board || !board.visible || !board.rows.length) {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+            return board;
+        }
+        el.innerHTML = (typeof DG.mpProgressHTML === 'function') ? DG.mpProgressHTML(board) : '';
+        el.classList.remove('hidden');
+        return board;
+    };
+
+    DG.hideMpProgress = function () {
+        const el = document.getElementById('dg-mp-progress');
+        if (!el) return;
+        el.classList.add('hidden');
+        el.innerHTML = '';
+    };
 
     DG.mpSyncRivals = function (players, replace) {
         if (!S.active) return;

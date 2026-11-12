@@ -65,7 +65,7 @@ function loadDGWithDom(store, opts) {
     vm.runInContext(source, context);
     const DG = vm.runInContext('DG', context);
     const content = () => element('grammar-detail-content').innerHTML;
-    return { DG, context, elements, content };
+    return { DG, context, elements, element, content };
 }
 
 const SAMPLE = [
@@ -391,7 +391,8 @@ test('Drive & Go! opens on Solo or Multiplayer and never on the old game-mode st
     assert.ok(html.indexOf('Choose your challenge') === -1);
     assert.ok(html.indexOf('Game mode') === -1);
     assert.ok(!/DG\.showModeStep\(\)/.test(html));
-    assert.ok(/showDriveAndGo[\s\S]{0,160}showSessionStep/.test(source));
+    assert.ok(/showDriveAndGo[\s\S]{0,360}showSessionStep/.test(source),
+        'a fresh Drive & Go! entry still opens the Solo / Multiplayer step');
 });
 
 test('Solo flow is session → challenge → cat → controls → count → scene and skips game mode', () => {
@@ -534,6 +535,117 @@ function loadRace(DG) {
     return DG;
 }
 
+/* Loads drive-and-go-multiplayer.js with a fake DOM + fake Supabase so the
+   join / poll sequence can be exercised without a browser or a database. */
+function loadMultiplayer(DG, options) {
+    const opts = options || {};
+    const calls = {
+        changeView: [],
+        backToTenses: 0,
+        abandons: 0,
+        begins: 0,
+        showSessionStep: 0,
+        showMultiplayerMenu: 0,
+        rpc: [],
+        intervals: 0,
+        timeouts: []
+    };
+    const elements = {};
+    // Share the DOM store with drive-and-go.js when the caller passes the
+    // element helper from loadDGWithDom(), so menuContent() sees the same
+    // #grammar-detail-content node as the multiplayer helpers.
+    const element = opts.element || ((id) => {
+        if (!elements[id]) {
+            elements[id] = {
+                id,
+                innerHTML: '',
+                textContent: '',
+                value: '',
+                onclick: null,
+                classList: {
+                    add() {}, remove() {}, toggle() {}, contains() { return false; }
+                }
+            };
+        }
+        return elements[id];
+    });
+    const db = opts.db || { room: null, players: [] };
+    const fake = {
+        from(table) {
+            if (table === 'drive_and_go_rooms') {
+                return {
+                    select() { return this; },
+                    eq() { return this; },
+                    maybeSingle() { return Promise.resolve({ data: db.room, error: db.error || null }); }
+                };
+            }
+            return {
+                select() { return this; },
+                eq() { return this; },
+                order() { return Promise.resolve({ data: db.players, error: db.error || null }); },
+                update() {
+                    return { eq() { return { eq() { return Promise.resolve({ data: null, error: null }); } }; } };
+                }
+            };
+        },
+        rpc(name, args) {
+            calls.rpc.push({ name, args });
+            if (name === 'leave_drive_and_go_room') calls.leaveCalls = (calls.leaveCalls || 0) + 1;
+            if (name === 'join_drive_and_go_room') return Promise.resolve({ data: opts.joinRoom || db.room, error: opts.joinError || null });
+            return Promise.resolve({ data: db.room, error: null });
+        }
+    };
+    const context = vm.createContext({
+        window: { DG },
+        globalThis: {},
+        document: {
+            getElementById: (id) => (opts.missingContent && id === 'grammar-detail-content') ? null : element(id)
+        },
+        console,
+        Math,
+        Date,
+        currentUser: opts.currentUser === undefined ? { id: 'me', email: 'me@school.test' } : opts.currentUser,
+        isGuestUser: () => !!opts.guest,
+        canUseCloud: () => !opts.guest,
+        previewStudentForm: () => false,
+        changeView: (view) => calls.changeView.push(view),
+        backToTenses: () => { calls.backToTenses += 1; },
+        setInterval: () => { calls.intervals += 1; return 1; },
+        clearInterval: () => {},
+        setTimeout: (fn) => { calls.timeouts.push(fn); return calls.timeouts.length; },
+        clearTimeout: () => {},
+        navigator: { clipboard: null },
+        sb: fake
+    });
+    vm.runInContext(mpSource, context);
+    if (!DG.raceState) DG.raceState = { active: false, mode: 'multi' };
+    DG.mpAbandon = function () { calls.abandons += 1; };
+    DG.mpBeginRace = function () { calls.begins += 1; };
+    const showSession = DG.showSessionStep;
+    DG.showSessionStep = function () { calls.showSessionStep += 1; return showSession.apply(DG, arguments); };
+    const showMenu = DG.showMultiplayerMenu;
+    DG.showMultiplayerMenu = function () { calls.showMultiplayerMenu += 1; return showMenu.apply(DG, arguments); };
+    return { DG, context, element, calls, db };
+}
+
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+const MP_ROOM = {
+    id: 'room-1',
+    code: 'ABCD',
+    host_id: 'host',
+    status: 'waiting',
+    question_mode: 'av',
+    question_count: 20,
+    scene: 'desert',
+    seed: 7
+};
+
+const MP_PLAYERS = [
+    { user_id: 'host', email: 'host@school.test', nickname: 'Host Cat', correct: 0, distance: 0 },
+    { user_id: 'me', email: 'me@school.test', nickname: 'Joiner Cat', correct: 0, distance: 0 }
+];
+
 test('discrete steering keeps its lane target instead of snapping back to centre (PR #26 regression)', () => {
     const DG = loadDG();
     assert.equal(typeof DG.laneStep, 'function');
@@ -613,6 +725,240 @@ test('every control path calls setLane / steer, which only changes the discrete 
     assert.match(raceSource, /DG\.swipeStep\([\s\S]{0,120}DG\.steer\(dir\)/);
     assert.match(raceSource, /DG\.setLane = function \(lane\)[\s\S]{0,400}S\.player\.lane = n/);
     assert.ok(!/S\.player\.laneX\s*=\s*n/.test(raceSource));
+});
+
+/* ---------------- multiplayer join must never bounce the player home ---------------- */
+
+test('a successful join stays in the room lobby and never navigates home', async () => {
+    const loaded = loadDGWithDom();
+    const { DG, element, calls } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    element('dg-join-code').value = 'abcd';
+
+    DG.mpJoin();
+    await tick();
+    await tick();
+
+    assert.equal(DG.mpState.room && DG.mpState.room.id, 'room-1');
+    assert.equal(DG.mpState.joinCode, 'ABCD');
+    assert.ok(DG.mpState.joinedAt > 0, 'the join settle window should start at join time');
+    assert.deepEqual(Array.from(calls.changeView), [], 'join must not call changeView');
+    assert.equal(calls.backToTenses, 0, 'join must not call backToTenses');
+    assert.equal(calls.showSessionStep, 0, 'join must not drop back to the Solo / Multiplayer step');
+    assert.equal(calls.showMultiplayerMenu, 0, 'join must not show the Create / Join screen');
+    assert.equal(calls.leaveCalls || 0, 0, 'join must not call leave_drive_and_go_room');
+    assert.equal(calls.abandons, 0, 'join must not abandon the room');
+    assert.ok(element('grammar-detail-content').innerHTML.indexOf('Race lobby') !== -1,
+        'the joiner must see the lobby');
+});
+
+test('lobby and mid-race room updates never call changeView or backToTenses', async () => {
+    const loaded = loadDGWithDom();
+    const { DG, element, calls, db } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    DG.mpState.room = MP_ROOM;
+    DG.mpState.joinedAt = Date.now();
+
+    DG.mpPoll();
+    await tick();
+    await tick();
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.abandons, 0);
+    assert.equal(calls.showSessionStep, 0);
+    assert.equal(calls.showMultiplayerMenu, 0);
+    assert.ok(element('grammar-detail-content').innerHTML.indexOf('Race lobby') !== -1);
+
+    // The host started: the joiner is told to begin the race, not sent home.
+    db.room = Object.assign({}, MP_ROOM, { status: 'playing' });
+    db.players = MP_PLAYERS.map(p => Object.assign({}, p, { correct: 3 }));
+    DG.mpPoll();
+    await tick();
+    await tick();
+    assert.equal(calls.begins, 1, 'a playing room should begin the race');
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.abandons, 0);
+    assert.equal(calls.leaveCalls || 0, 0);
+
+    // A later update while the race is already live must be ignored, not
+    // treated as a reason to leave the race view.
+    DG.raceState.active = true;
+    DG.mpPoll();
+    await tick();
+    await tick();
+    assert.equal(calls.begins, 1, 'an active race does not restart');
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.abandons, 0);
+    assert.equal(calls.leaveCalls || 0, 0);
+});
+
+test('a transient missing membership row waits and rejoins instead of ejecting', async () => {
+    const loaded = loadDGWithDom();
+    const { DG, element, calls, db } = loadMultiplayer(loaded.DG, {
+        element: loaded.element,
+        db: { room: MP_ROOM, players: [] },
+        joinRoom: MP_ROOM
+    });
+    DG.mpState.room = MP_ROOM;
+    DG.mpState.joinedAt = Date.now();
+    const before = element('grammar-detail-content').innerHTML = '<p>join step</p>';
+
+    DG.mpPoll();
+    await tick();
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.leaveCalls || 0, 0);
+    assert.equal(DG.mpState.missingMePolls, 1, 'the first miss is just a retry');
+    assert.equal(element('grammar-detail-content').innerHTML, before, 'the join step must not be replaced');
+
+    DG.mpPoll();
+    await tick();
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(DG.mpState.missingMePolls, 2);
+
+    DG.mpPoll();
+    await tick();
+    await tick();
+    assert.ok(calls.rpc.some(r => r.name === 'join_drive_and_go_room'),
+        'the third miss should re-enter the same room by code');
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.leaveCalls || 0, 0);
+});
+
+test('a room update that cannot find the room shows a local panel, not the Hub', async () => {
+    const loaded = loadDGWithDom();
+    const { DG, element, calls, db } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: null, players: [] } });
+    DG.mpState.room = MP_ROOM;
+    DG.mpState.joinedAt = Date.now() - 20000;
+
+    DG.mpPoll();
+    await tick();
+    DG.mpPoll();
+    await tick();
+    DG.mpPoll();
+    await tick();
+    await tick();
+
+    assert.equal(calls.changeView.length, 0);
+    assert.equal(calls.backToTenses, 0);
+    assert.equal(calls.leaveCalls || 0, 0);
+    assert.ok(element('grammar-detail-content').innerHTML.indexOf('Room closed') !== -1);
+    assert.equal(db.room, null);
+});
+
+test('a settling joiner keeps their seat on a passive view change', () => {
+    const loaded = loadDGWithDom();
+    const { DG, calls } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    DG.mpState.room = MP_ROOM;
+    DG.mpState.joinedAt = Date.now();
+
+    DG.onLeaveView('hub-view');
+    assert.equal(calls.abandons, 0, 'a view change during join settling must not leave the room');
+    assert.ok(DG.mpState.detachTimer, 'the seat should be released later if the player really left');
+
+    DG.mpState.joinedAt = Date.now() - 20000;
+    DG.onLeaveView('hub-view');
+    assert.equal(calls.abandons, 1, 'after settling, an ordinary leave still abandons the room');
+});
+
+test('the poll planner never navigates and classifies lobby / race / results / closed', () => {
+    const loaded = loadDGWithDom();
+    const { DG } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    const plan = (room, players, ctx) => DG.mpRoomUpdatePlan(room, players, ctx);
+    const notMember = [{ user_id: 'host', nickname: 'Host' }];
+
+    const lobby = plan(MP_ROOM, MP_PLAYERS, { meId: 'me' });
+    assert.equal(lobby.kind, 'lobby');
+    assert.equal(lobby.navigate, false);
+
+    const begin = plan(Object.assign({}, MP_ROOM, { status: 'playing' }), MP_PLAYERS, { meId: 'me' });
+    assert.equal(begin.kind, 'begin');
+    assert.equal(begin.navigate, false);
+
+    const sync = plan(Object.assign({}, MP_ROOM, { status: 'playing' }), MP_PLAYERS, { meId: 'me', raceActive: true });
+    assert.equal(sync.kind, 'sync');
+    assert.equal(sync.navigate, false);
+
+    const results = plan(Object.assign({}, MP_ROOM, { status: 'finished' }), MP_PLAYERS, { meId: 'me', raceActive: true });
+    assert.equal(results.kind, 'results');
+    assert.equal(results.navigate, false);
+
+    const retry = plan(MP_ROOM, notMember, { meId: 'me', missingMePolls: 1 });
+    assert.equal(retry.kind, 'wait');
+    assert.equal(retry.missingMePolls, 2);
+
+    const rejoin = plan(MP_ROOM, notMember, { meId: 'me', missingMePolls: 2 });
+    assert.equal(rejoin.kind, 'rejoin');
+    assert.equal(rejoin.navigate, false);
+
+    const waitRoom = plan(null, [], { meId: 'me', missingMePolls: 0 });
+    assert.equal(waitRoom.kind, 'wait');
+    const closed = plan(null, [], { meId: 'me', missingMePolls: 2 });
+    assert.equal(closed.kind, 'closed');
+    assert.equal(closed.navigate, false);
+});
+
+/* ---------------- multiplayer progress corner board ---------------- */
+
+test('progress board lists remaining racers by correct answers with N as the bar', () => {
+    const loaded = loadDGWithDom();
+    const { DG } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    const board = DG.mpProgressBoard([
+        { user_id: 'me', nickname: 'Joiner Cat', correct: 3, distance: 40 },
+        { user_id: 'host', nickname: 'Host Cat', correct: 8, distance: 120 },
+        { user_id: 'done', nickname: 'Done Cat', correct: 20, distance: 900, finished_at: '2026-01-01T00:00:00Z' }
+    ], { meId: 'me', questionCount: 20, mode: 'multi' });
+
+    assert.equal(board.visible, true);
+    assert.equal(board.total, 20);
+    assert.deepEqual(Array.from(board.rows.map(r => r.name)), ['Host Cat', 'Joiner Cat']);
+    assert.equal(board.rows[0].fraction, 0.4);
+    assert.equal(board.rows[0].barWidth, 40);
+    assert.equal(board.rows[0].percent, 40);
+    assert.equal(board.rows[1].isMe, true);
+    assert.equal(board.rows[1].fraction, 0.15);
+    assert.equal(board.finishedCount, 1);
+    assert.equal(board.remainingCount, 2);
+    assert.ok(board.finished.every(r => r.finished));
+    assert.equal(board.me.correct, 3);
+
+    const html = DG.mpProgressHTML(board);
+    assert.ok(html.indexOf('Race to 20 correct') !== -1);
+    assert.ok(html.indexOf('width:40%') !== -1);
+    assert.ok(html.indexOf('(you)') !== -1);
+    assert.ok(html.indexOf('8/20') !== -1);
+    assert.ok(html.indexOf('120 m') !== -1);
+});
+
+test('progress board uses distance only as a tie-break and stays hidden in solo', () => {
+    const loaded = loadDGWithDom();
+    const { DG } = loadMultiplayer(loaded.DG, { element: loaded.element, db: { room: MP_ROOM, players: MP_PLAYERS } });
+    const board = DG.mpProgressBoard([
+        { user_id: 'a', nickname: 'A', correct: 5, distance: 10 },
+        { user_id: 'b', nickname: 'B', correct: 5, distance: 90 },
+        { user_id: 'c', nickname: 'C', correct: 4, distance: 500 }
+    ], { meId: 'c', questionCount: 20, mode: 'multi' });
+    assert.deepEqual(Array.from(board.rows.map(r => r.name)), ['B', 'A', 'C']);
+
+    const solo = DG.mpProgressBoard([
+        { user_id: 'me', nickname: 'Me', correct: 5, distance: 10 }
+    ], { meId: 'me', questionCount: 20, mode: 'single' });
+    assert.equal(solo.visible, false);
+    assert.equal(DG.mpProgressHTML(solo), '');
+});
+
+test('the race view owns the progress overlay markup and updates it from sync', () => {
+    const overlayAt = htmlSource.indexOf('id="dg-mp-progress"');
+    const stageAt = htmlSource.indexOf('id="dg-stage"');
+    const viewEnd = htmlSource.indexOf('<!-- Dictation Master Views -->');
+    assert.ok(overlayAt > stageAt && overlayAt < viewEnd, 'the overlay must live inside the race stage');
+    assert.ok(/\.dg-mp-progress\s*\{[\s\S]{0,600}pointer-events:\s*none/.test(htmlSource),
+        'the overlay must never block steering / ACCEL');
+    assert.ok(/DG\.updateMpProgress\(players\)/.test(mpSource), 'room sync must refresh the board');
+    assert.ok(/DG\.updateMpProgress\(\(opts && opts\.players\) \|\| \[\]\)/.test(raceSource),
+        'the board should be seeded with the lobby roster when the race starts');
+    assert.ok(/DG\.hideMpProgress\(\)/.test(raceSource), 'leaving the race hides the board');
 });
 
 /* ---------------- teacher dashboard ---------------- */

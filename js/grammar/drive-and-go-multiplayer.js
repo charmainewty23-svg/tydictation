@@ -20,9 +20,22 @@
         lastEffectSeq: 0,
         lastSyncWarn: 0,
         leaving: false,
-        boardRoomId: null
+        boardRoomId: null,
+        // Join settling: a freshly joined player keeps ownership of their room
+        // for a short window. A passive view change (token refresh, accidental
+        // navigation) in that window must not call leave_drive_and_go_room and
+        // delete their player row, which is what used to eject joiners.
+        joinedAt: 0,
+        joinCode: '',
+        missingMePolls: 0,
+        rejoining: false,
+        closed: false,
+        detachTimer: 0
     };
     DG.mpState = MP;
+
+    const JOIN_SETTLE_MS = 12000;
+    const MISSING_ME_LIMIT = 3;
 
     const clean = (v) => String(v == null ? '' : v).trim();
 
@@ -92,6 +105,139 @@
             if (d) return d;
             return 0;
         });
+    };
+
+    /* Compact corner board for the multiplayer race. Pure so the unit tests
+       can check ordering / fractions / local highlight without a browser.
+       The race ends at N correct answers, so the primary bar is correct / N.
+       Track distance is only a secondary cue (shown as metres). Finished
+       racers are dropped from the "remaining" list; the caller can show how
+       many have finished. */
+    DG.mpProgressBoard = function (players, opts) {
+        const o = opts || {};
+        const total = Math.max(1, Math.floor(Number(o.questionCount) || 20));
+        const meId = o.meId || '';
+        const all = (players || []).filter(p => p && (p.user_id || p.email || p.nickname)).map(p => {
+            const correct = Math.max(0, Math.min(total, Math.floor(Number(p.correct) || 0)));
+            const distance = Math.max(0, Math.floor(Number(p.distance) || 0));
+            const finished = !!p.finished_at || correct >= total;
+            const fraction = finished ? 1 : Math.max(0, Math.min(1, correct / total));
+            const percent = Math.round(fraction * 100);
+            return {
+                userId: p.user_id || '',
+                name: DG.mpPlayerName(p),
+                correct: correct,
+                total: total,
+                distance: distance,
+                fraction: fraction,
+                percent: percent,
+                barWidth: percent,
+                finished: finished,
+                isMe: !!meId && p.user_id === meId
+            };
+        });
+        const remaining = all.filter(r => !r.finished)
+            .sort((a, b) => (b.correct - a.correct) || (b.distance - a.distance) || a.name.localeCompare(b.name));
+        return {
+            visible: o.mode !== 'single' && all.length > 0,
+            total: total,
+            rows: remaining,
+            finished: all.filter(r => r.finished),
+            finishedCount: all.filter(r => r.finished).length,
+            remainingCount: remaining.length,
+            me: all.find(r => r.isMe) || null
+        };
+    };
+
+    DG.mpProgressHTML = function (board) {
+        if (!board || !board.visible || !board.rows.length) return '';
+        return '<h4>Race to ' + board.total + ' correct</h4>' +
+            board.rows.map(r =>
+                '<div class="dg-race-row' + (r.isMe ? ' me' : '') + '">' +
+                '<span class="dg-race-name">' + DG.esc(r.name) + (r.isMe ? ' (you)' : '') + '</span>' +
+                '<span class="dg-race-count">' + r.correct + '/' + r.total + '</span>' +
+                '<span class="dg-race-bar"><i style="width:' + Math.max(0, Math.min(100, r.barWidth)) + '%"></i></span>' +
+                '<span class="dg-race-dist">' + r.distance + ' m</span>' +
+                '</div>').join('') +
+            (board.finishedCount
+                ? '<div class="dg-race-more">' + board.finishedCount + ' finished</div>'
+                : '');
+    };
+
+    /* Decide what a poll result means without ever navigating the site. The
+       join/lobby/race flow is driven by view-local renders only, so a room
+       update can never bounce a joiner back to the Hub (or the pre-race step). */
+    DG.mpRoomUpdatePlan = function (room, players, ctx) {
+        const c = ctx || {};
+        const meId = c.meId || '';
+        const list = players || [];
+        const isMember = c.isMember == null
+            ? list.some(p => p && p.user_id === meId)
+            : !!c.isMember;
+        const missing = Math.max(0, Number(c.missingMePolls) || 0);
+        const raceActive = !!c.raceActive;
+
+        if (!room) {
+            if (missing + 1 < MISSING_ME_LIMIT) {
+                return { kind: 'wait', navigate: false, missingMePolls: missing + 1 };
+            }
+            return { kind: 'closed', navigate: false, missingMePolls: 0 };
+        }
+        if (!isMember && (room.status === 'waiting' || room.status === 'playing')) {
+            if (missing + 1 < MISSING_ME_LIMIT) {
+                return { kind: 'wait', navigate: false, missingMePolls: missing + 1 };
+            }
+            return { kind: 'rejoin', navigate: false, missingMePolls: 0 };
+        }
+        if (room.status === 'playing') {
+            return { kind: raceActive ? 'sync' : 'begin', navigate: false, missingMePolls: 0 };
+        }
+        if (room.status === 'finished') {
+            return { kind: raceActive ? 'results' : 'results-lobby', navigate: false, missingMePolls: 0 };
+        }
+        return { kind: 'lobby', navigate: false, missingMePolls: 0 };
+    };
+
+    DG.mpIsSettling = function () {
+        return !!MP.joinedAt && (Date.now() - MP.joinedAt) < JOIN_SETTLE_MS;
+    };
+
+    // Explicit leave is always allowed; passive view churn during join
+    // settling keeps the room so the joiner is not deleted from it.
+    DG.mpCanAbandon = function () {
+        return !DG.mpIsSettling();
+    };
+
+    // Stop polling but keep the joined seat while the settle window runs. If
+    // the player really did leave (they never come back to the lobby), the
+    // seat is released when the window expires.
+    DG.mpDetachDuringSettle = function () {
+        DG.mpStopPoll();
+        if (MP.detachTimer) clearTimeout(MP.detachTimer);
+        const remaining = Math.max(0, JOIN_SETTLE_MS - (Date.now() - MP.joinedAt)) + 80;
+        MP.detachTimer = setTimeout(() => {
+            MP.detachTimer = 0;
+            if (MP.room && !DG.mpIsSettling()) DG.mpAbandon();
+        }, remaining);
+    };
+
+    DG.mpCancelDetach = function () {
+        if (MP.detachTimer) clearTimeout(MP.detachTimer);
+        MP.detachTimer = 0;
+    };
+
+    /* Re-opening Drive & Go while a joined room is still held (for example
+       after the passive view change the settle window protects) drops the
+       player back into their lobby instead of the Solo / Multiplayer step. */
+    DG.mpResumeRoom = function () {
+        if (!MP.room || MP.leaving || MP.closed) return false;
+        DG.mpCancelDetach();
+        DG.sessionMode = 'multi';
+        const me = currentUser && currentUser.id;
+        DG.mpRole = MP.room.host_id === me ? 'create' : 'join';
+        DG.mpStartLobbyPoll();
+        DG.mpPoll();
+        return true;
     };
 
     DG.mpPlayerPatch = function (player) {
@@ -266,6 +412,13 @@
             MP.players = [];
             MP.lastEffectSeq = 0;
             MP.boardRoomId = null;
+            MP.closed = false;
+            MP.missingMePolls = 0;
+            MP.rejoining = false;
+            MP.joinCode = clean(room.code) || MP.joinCode;
+            // Same settle window as a joiner: a passive view change just after
+            // creating the room must not delete the host's seat.
+            MP.joinedAt = Date.now();
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(err => {
@@ -306,6 +459,13 @@
             MP.players = [];
             MP.lastEffectSeq = 0;
             MP.boardRoomId = null;
+            MP.closed = false;
+            MP.missingMePolls = 0;
+            MP.rejoining = false;
+            MP.joinCode = clean(room.code) || code;
+            // A joiner owns this seat for the next few seconds: a passive
+            // view change must not delete the row and eject them.
+            MP.joinedAt = Date.now();
             DG.mpStartLobbyPoll();
             DG.mpPoll();
         }).catch(err => {
@@ -316,6 +476,7 @@
     /* ---------------- lobby ---------------- */
 
     DG.mpStartLobbyPoll = function () {
+        if (typeof DG.mpCancelDetach === 'function') DG.mpCancelDetach();
         DG.mpStopPoll();
         MP.pollId = setInterval(() => DG.mpPoll(), 1000);
     };
@@ -350,30 +511,53 @@
             }
             const room = roomRes.data;
             const players = playerRes.data || [];
+            const me = currentUser && currentUser.id;
+            const plan = DG.mpRoomUpdatePlan(room, players, {
+                meId: me,
+                missingMePolls: MP.missingMePolls,
+                raceActive: !!(DG.raceState && DG.raceState.active)
+            });
+            MP.missingMePolls = plan.missingMePolls;
+            // Never call changeView / backToTenses / showSessionStep from a
+            // room update. The joiner stays in the lobby or race view.
+            if (plan.kind === 'closed') {
+                DG.mpShowRoomClosed();
+                return;
+            }
+            if (plan.kind === 'wait') {
+                if (MP.room) MP.room = room || MP.room;
+                MP.players = players;
+                DG.mpSetStatus('Syncing the room…', false);
+                return;
+            }
+            if (plan.kind === 'rejoin') {
+                DG.mpRejoinRoom();
+                return;
+            }
             if (!room) {
-                DG.mpStopPoll();
-                DG.showMultiplayerMenu();
-                DG.mpSetStatus('That room has closed. Create a new one or join another code.', true);
+                DG.mpShowRoomClosed();
                 return;
             }
             MP.room = room;
             MP.players = players;
-            const me = currentUser && currentUser.id;
-            if (room.status === 'waiting' && !players.some(p => p.user_id === me)) {
+            MP.closed = false;
+            if (plan.kind === 'begin') {
                 DG.mpStopPoll();
-                DG.showMultiplayerMenu();
-                DG.mpSetStatus('You are no longer in that room.', true);
+                DG.mpBeginRace();
                 return;
             }
-            if (room.status === 'playing') {
+            if (plan.kind === 'sync') {
                 DG.mpStopPoll();
-                if (!DG.raceState.active) DG.mpBeginRace();
                 return;
             }
-            if (room.status === 'finished') {
+            if (plan.kind === 'results') {
                 DG.mpStopPoll();
-                if (DG.raceState.active) DG.showMultiplayerResults(room, players);
-                else DG.mpShowFinishedInLobby(room, players);
+                DG.showMultiplayerResults(room, players);
+                return;
+            }
+            if (plan.kind === 'results-lobby') {
+                DG.mpStopPoll();
+                DG.mpShowFinishedInLobby(room, players);
                 return;
             }
             DG.mpRenderLobby();
@@ -384,6 +568,81 @@
                 DG.toastSafe('Multiplayer needs the teacher to run supabase/drive_and_go.sql.');
             }
         });
+    };
+
+    /* A membership read can briefly miss the joiner's row (or the room) right
+       after the join RPC. Re-enter with the same short code instead of dumping
+       the player out to the Create / Join screen. */
+    DG.mpRejoinRoom = function () {
+        if (MP.rejoining || MP.leaving) return;
+        const code = clean((MP.room && MP.room.code) || MP.joinCode).toUpperCase();
+        if (!MP.room || !code) {
+            DG.mpShowRoomClosed();
+            return;
+        }
+        MP.rejoining = true;
+        MP.missingMePolls = 0;
+        DG.mpSetStatus('Rejoining the room…', false);
+        const args = Object.assign({ p_code: code }, DG.mpLookArgs());
+        sb.rpc('join_drive_and_go_room', args).then(({ data, error }) => {
+            MP.rejoining = false;
+            if (error) {
+                MP.missingMePolls = MISSING_ME_LIMIT;
+                DG.mpShowRoomClosed(error);
+                return;
+            }
+            const room = Array.isArray(data) ? data[0] : data;
+            if (!room || !room.id) {
+                DG.mpShowRoomClosed();
+                return;
+            }
+            MP.room = room;
+            MP.players = [];
+            MP.closed = false;
+            MP.joinCode = clean(room.code) || code;
+            DG.mpStartLobbyPoll();
+            DG.mpPoll();
+        }).catch(() => {
+            MP.rejoining = false;
+            MP.missingMePolls = MISSING_ME_LIMIT;
+            DG.mpShowRoomClosed();
+        });
+    };
+
+    /* The room truly ended (deleted / unrecoverable). Stay where the player
+       is: render a local panel inside the lobby, or an overlay during a race.
+       Never call changeView, so the site cannot bounce them to the Hub. */
+    DG.mpShowRoomClosed = function (error) {
+        DG.mpStopPoll();
+        MP.closed = true;
+        const detail = error ? ' ' + DG.mpErrorText(error) : '';
+        if (DG.raceState && DG.raceState.active) {
+            if (typeof DG.showOverlay === 'function') {
+                DG.showOverlay(
+                    '<div class="text-center"><div class="text-6xl mb-2">📡</div>' +
+                    '<h3 class="text-2xl font-bold text-orange-600 mb-2">Room disconnected</h3>' +
+                    '<p class="text-gray-500 font-bold mb-5">That room is no longer available.' + DG.esc(detail) + '</p>' +
+                    '<div class="flex gap-3 justify-center flex-wrap">' +
+                    '<button type="button" class="btn-paw" onclick="DG.mpRejoinRoom()">Try again</button>' +
+                    '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Leave race</button>' +
+                    '</div></div>'
+                );
+            }
+            return;
+        }
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        content.innerHTML =
+            '<div class="text-center mb-4"><div class="text-7xl mb-2">📡</div>' +
+            '<h3 class="text-3xl font-bold text-orange-600">Room closed</h3></div>' +
+            '<div class="dg-menu-panel text-center">' +
+            '<p class="font-bold text-gray-600 mb-2">That room is no longer available.' + DG.esc(detail) + '</p>' +
+            '<p class="text-sm text-gray-500 mb-6">You can try the same room code again, or create / join another room.</p>' +
+            '<div class="flex gap-3 justify-center flex-wrap">' +
+            '<button type="button" class="btn-paw" onclick="DG.mpRejoinRoom()">Try again</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showMultiplayerEntryStep()">Create / Join</button>' +
+            '</div></div>';
     };
 
     DG.mpRenderLobby = function () {
@@ -538,12 +797,20 @@
             MP.leaving = false;
             MP.room = null;
             MP.players = [];
+            MP.joinedAt = 0;
+            MP.joinCode = '';
+            MP.missingMePolls = 0;
+            MP.closed = false;
             DG.stopRace();
             DG.showMultiplayerMenu();
         }, () => {
             MP.leaving = false;
             MP.room = null;
             MP.players = [];
+            MP.joinedAt = 0;
+            MP.joinCode = '';
+            MP.missingMePolls = 0;
+            MP.closed = false;
             DG.stopRace();
             DG.showMultiplayerMenu();
         });
@@ -563,26 +830,42 @@
             MP.leaving = false;
             MP.room = null;
             MP.players = [];
+            MP.joinedAt = 0;
+            MP.joinCode = '';
+            MP.missingMePolls = 0;
+            MP.closed = false;
             DG.stopRace();
             changeView('grammar-revision-view');
         }, () => {
             MP.leaving = false;
             MP.room = null;
             MP.players = [];
+            MP.joinedAt = 0;
+            MP.joinCode = '';
+            MP.missingMePolls = 0;
+            MP.closed = false;
             DG.stopRace();
             changeView('grammar-revision-view');
         });
     };
 
     /* Called by changeView when the player leaves the lobby/race view.
-       Fire-and-forget; never leaves the branch waiting on a network call. */
+       Fire-and-forget; never leaves the branch waiting on a network call.
+       The explicit Leave buttons leave regardless of the join-settling window;
+       only passive view churn is protected by DG.mpCanAbandon(). */
     DG.mpAbandon = function () {
         const room = MP.room;
         DG.mpStopPoll();
         DG.mpStopRacePoll();
+        DG.mpCancelDetach();
         MP.room = null;
         MP.players = [];
         MP.lastEffectSeq = 0;
+        MP.joinedAt = 0;
+        MP.joinCode = '';
+        MP.missingMePolls = 0;
+        MP.rejoining = false;
+        MP.closed = false;
         if (!room) return;
         try {
             sb.rpc('leave_drive_and_go_room', { p_room_id: room.id }).then(() => {}, () => {});
@@ -642,6 +925,7 @@
                 if (room) MP.room = room;
                 MP.players = players;
                 DG.mpSyncRivals(players);
+                if (typeof DG.updateMpProgress === 'function') DG.updateMpProgress(players);
                 const selfRow = players.find(x => x.user_id === me);
                 if (selfRow) DG.mpReadOwnEffect(selfRow);
                 if (room && room.status === 'finished') {

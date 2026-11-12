@@ -324,19 +324,89 @@
         // --- Admin: guest (password 0203) logins + usage ---
         // Guests never appear in student_logins, scores or leaderboards; these
         // tables (supabase/guest_tracking.sql) are readable by the teacher only.
+        //
+        // Only a rolling last 24 hours is kept. The database side deletes older
+        // rows (prune_guest_records), the selects below ask for the same window,
+        // and renderGuestAdmin filters again before drawing anything.
+        const GUEST_ADMIN_SCOPE = 'guest-admin';
+        const GUEST_ADMIN_GROUP = 'all';
+
+        // Reuse the teacher dashboard's existing + / - controls (the same
+        // adminFormToggleButtons / adminFormOpen pair as the F3 / F4 / F6
+        // groups). adminFormOpen starts empty, so the card is collapsed until
+        // the teacher opens it, and survives a Refresh because the state lives
+        // in memory rather than in the rendered HTML.
+        function isGuestAdminOpen() {
+            return isAdminFormOpen(GUEST_ADMIN_SCOPE, GUEST_ADMIN_GROUP);
+        }
+
+        function syncGuestAdminChrome() {
+            const open = isGuestAdminOpen();
+            const body = document.getElementById('guest-admin-body');
+            if (body) body.classList.toggle('hidden', !open);
+            const holder = document.getElementById('guest-admin-toggles');
+            if (holder) {
+                holder.innerHTML = adminFormToggleButtons(
+                    GUEST_ADMIN_SCOPE, GUEST_ADMIN_GROUP, 'Guest logins', open
+                );
+            }
+            return open;
+        }
+
+        // Pure rolling-24-hour window shared by the stats and the list.
+        // Deliberately not a calendar day and no 7-day figure: rows older than
+        // 24 hours are deleted in the database, so nothing may advertise them.
+        function guestAdminWindow(logins, usage, now) {
+            const base = (now == null) ? Date.now() : Number(now);
+            const recentLogins = filterGuestRecords(logins, 'logged_in_at', base);
+            const recentUsage = filterGuestRecords(usage, 'created_at', base);
+            const todayKey = hkDayKey(new Date(base).toISOString());
+            return {
+                logins: recentLogins,
+                usage: recentUsage,
+                summary: {
+                    logins: recentLogins.length,
+                    todayHk: recentLogins.filter(l => l.logged_in_at && hkDayKey(l.logged_in_at) === todayKey).length,
+                    usage: recentUsage.length
+                }
+            };
+        }
+
+        function guestAdminSummary(logins, usage, now) {
+            return guestAdminWindow(logins, usage, now).summary;
+        }
+
+        // Called on entering the admin view and by the card's Refresh button
+        // (which passes a `true` argument that this loader does not need: every
+        // call prunes and re-reads the rolling 24-hour window).
         async function loadGuestAdmin() {
             if (!isAdmin()) return;
             const statsEl = document.getElementById('guest-admin-stats');
             const listEl = document.getElementById('guest-admin-container');
             if (!statsEl || !listEl) return;
+            // Keep the heading's + / - controls in sync even before data lands.
+            syncGuestAdminChrome();
 
+            // Prune first so the selects cannot return rows that were just
+            // deleted. Not fatal: an older install without the RPC still loads.
+            try {
+                const pruned = await sb.rpc('prune_guest_records');
+                if (pruned && pruned.error) console.warn('Guest prune failed:', pruned.error.message);
+            } catch (e) {
+                console.warn('Guest prune failed:', (e && e.message) ? e.message : e);
+            }
+
+            const now = Date.now();
+            const cutoff = guestCutoffIso(now);
             const [loginsRes, usageRes] = await Promise.all([
                 sb.from('guest_logins')
                     .select('id, logged_in_at, user_agent, session_key', { count: 'exact' })
+                    .gte('logged_in_at', cutoff)
                     .order('logged_in_at', { ascending: false })
                     .limit(500),
                 sb.from('guest_usage')
                     .select('id, session_key, feature, detail, created_at')
+                    .gte('created_at', cutoff)
                     .order('created_at', { ascending: false })
                     .limit(60)
             ]);
@@ -345,7 +415,9 @@
                 loginsCount: loginsRes.count,
                 loginsError: loginsRes.error || null,
                 usage: usageRes.data || [],
-                usageError: usageRes.error || null
+                usageError: usageRes.error || null,
+                cutoff: cutoff,
+                loadedAt: now
             };
             renderGuestAdmin();
         }
@@ -354,39 +426,36 @@
             const statsEl = document.getElementById('guest-admin-stats');
             const listEl = document.getElementById('guest-admin-container');
             if (!statsEl || !listEl || !adminCache.guest) return;
+            syncGuestAdminChrome();
             const pack = adminCache.guest;
             const firstError = pack.loginsError || pack.usageError;
             if (firstError) {
                 statsEl.innerHTML = '';
                 const missing = isMissingSchema(firstError.message);
                 listEl.innerHTML = missing
-                    ? '<p class="text-amber-500 text-center py-10 font-bold">Guest tracking is not set up yet.<br><span class="text-sm font-normal">Run <code>supabase/guest_tracking.sql</code> in the Supabase SQL Editor.</span></p>'
+                    ? '<p class="text-amber-500 text-center py-10 font-bold">Guest tracking is not set up yet.<br><span class="text-sm font-normal">Run <code>supabase/guest_tracking.sql</code> (and <code>supabase/guest_tracking_prune.sql</code> on an existing install) in the Supabase SQL Editor.</span></p>'
                     : '<p class="text-red-400 text-center py-10">Cannot load guest records: ' + escapeHtml(firstError.message) + '</p>';
                 return;
             }
-            const logs = pack.logins;
-            const total = (pack.loginsCount != null) ? pack.loginsCount : logs.length;
-            const todayKey = hkDayKey(new Date().toISOString());
-            const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
-            const loggedToday = logs.filter(l => l.logged_in_at && hkDayKey(l.logged_in_at) === todayKey).length;
-            const loggedThisWeek = logs.filter(l => l.logged_in_at && new Date(l.logged_in_at).getTime() >= sevenDaysAgo).length;
+            const win = guestAdminWindow(pack.logins, pack.usage, pack.loadedAt || Date.now());
+            const stats = win.summary;
             statsEl.innerHTML = `
                 <div class="bg-cyan-50 rounded-2xl p-5 text-center border-2 border-cyan-100">
-                    <div class="text-3xl font-bold text-cyan-600">${total}</div>
-                    <div class="text-sm text-gray-500 font-bold">Guest Logins</div>
+                    <div class="text-3xl font-bold text-cyan-600">${stats.logins}</div>
+                    <div class="text-sm text-gray-500 font-bold">Guest Logins (24h)</div>
                 </div>
                 <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
-                    <div class="text-3xl font-bold text-green-600">${loggedToday}</div>
-                    <div class="text-sm text-gray-500 font-bold">Today</div>
+                    <div class="text-3xl font-bold text-green-600">${stats.todayHk}</div>
+                    <div class="text-sm text-gray-500 font-bold">Today (HK)</div>
                 </div>
                 <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
-                    <div class="text-3xl font-bold text-purple-600">${loggedThisWeek}</div>
-                    <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
+                    <div class="text-3xl font-bold text-purple-600">${stats.usage}</div>
+                    <div class="text-sm text-gray-500 font-bold">Browsing Records (24h)</div>
                 </div>
             `;
-            const usage = pack.usage;
+            const usage = win.usage;
             if (!usage.length) {
-                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No guest usage recorded yet.</p>';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No guest usage in the last 24 hours.</p>';
                 return;
             }
             listEl.innerHTML = `

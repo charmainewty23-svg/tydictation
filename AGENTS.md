@@ -403,8 +403,21 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   寫入只經 security definer RPC `record_guest_login(p_session_key, p_user_agent)` 同
   `record_guest_usage(p_session_key, p_feature, p_detail)`（會截長度、空 key／feature 直接 return），
   已 `revoke` anon／public 對表嘅直接 insert/update/delete。
-- Admin Dashboard 新卡「🕵️ Guest logins」→ `loadGuestAdmin()`：總登入數、今日（HK 時間）、
-  最近 7 日，下面係最近 usage（feature、detail、相對時間、hover 顯示 HK 時間）。
+- **只保留 rolling 24 小時**（`now() - interval '24 hours'`，唔係香港 calendar day）。
+  `prune_guest_records()`（security definer，anon＋authenticated 可 execute）會 delete 兩張表
+  過期 rows；`record_guest_login`／`record_guest_usage` 每次寫入前都會 `perform` 佢，
+  `loadGuestAdmin()` 載入／Refresh 時亦會 `sb.rpc('prune_guest_records')`（失敗只 warn，
+  舊安裝冇呢個 function 都照載入）。前端用同一個 cutoff：`GUEST_RETENTION_MS`／
+  `guestRetentionCutoffMs()`／`guestCutoffIso()`／`isWithinGuestLogWindow()`／
+  `filterGuestRecords()`（`js/shared.js`），`loadGuestAdmin()` 再 `.gte()` 落 query，
+  `renderGuestAdmin()` 渲染前再過濾一次。舊安裝只需貼 `supabase/guest_tracking_prune.sql`；
+  新安裝貼更新咗嘅 `guest_tracking.sql` 已經有齊。
+- Admin Dashboard 新卡「🕵️ Guest logins」→ `loadGuestAdmin()`：只計 24 小時窗口
+  （`Guest Logins (24h)`、`Today (HK)` 子數、`Browsing Records (24h)`），下面係 24 小時內
+  usage（feature、detail、相對時間、hover 顯示 HK 時間）。**冇**再顯示總數／Last 7 Days。
+  張卡改用 F3／F4／F6 同一套 +/- 摺疊掣（`adminFormToggleButtons`＋`adminFormOpen`，
+  scope `guest-admin`、group `all`），**預設收起**，heading／描述／Refresh／+/- 保持可見，
+  stats 同 usage list 收喺 `#guest-admin-body.admin-form-body` 入面；展開狀態喺 Refresh 之間保留。
   未跑 SQL 嘅話張卡會顯示提示，唔會整壞 dashboard 其他部分。
 - 訪客資料**唔會**出現喺學生排行榜、My Records、Word Jump Top 7 或者 `student_logins` 年級分組；
   訪客亦開唔到 admin view（`GUEST_BLOCKED_VIEWS`＋`isAdmin()`）。
@@ -898,5 +911,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

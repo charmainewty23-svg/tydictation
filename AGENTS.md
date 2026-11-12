@@ -107,6 +107,10 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   多人要 2–5 個已登入玩家，短碼開房／入房；先到終點贏，否則 3 分鐘到以最高分定勝負。
   多人要老師喺 live Supabase 專案自行貼跑 `supabase/drive_and_go.sql`；單人唔使呢份 SQL。
   Guest 可以玩單人，唔可以開多人房。
+- 賽道係 deterministic pseudo-3D（OutRun 式）：`DG.project`／`DG.projectRel` 用 world Z（`player.dist`）
+  計 `DG.trackCurve`／`DG.trackLateral`（左右彎）同 `DG.trackHill`（上落斜）；多人用 room seed，單人每次開局 random seed。
+  `DG.drawTrack` 畫 curved segments，`DG.ensureScenery`／`DG.drawScenery` 放 world-Z 路邊景物（大廈／樹／燈柱／路牌／車）。
+  答案門 `GATE_GAP = 420`、`START_GATE_DIST = 320`，下一個門最少喺 player 前面 300 units；唔好加返 `p.dist + 70`／`+ 100` fallback。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

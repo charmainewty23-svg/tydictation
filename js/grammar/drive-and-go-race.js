@@ -37,6 +37,9 @@
         finishDistance: DG.FINISH_DISTANCE,
         raceSeconds: DG.RACE_SECONDS,
         startedAtMs: 0,
+        trackSeed: 1,
+        scenery: [],
+        sceneryNextZ: 0,
         countdown: 3.2,
         toastTimer: 0,
         toastUntil: 0,
@@ -127,6 +130,13 @@
         S.finishDistance = Number(opts.room && opts.room.finish_distance) || DG.FINISH_DISTANCE;
         S.raceSeconds = Number(opts.room && opts.room.duration_seconds) || DG.RACE_SECONDS;
         S.startedAtMs = opts.room && opts.room.started_at ? Date.parse(opts.room.started_at) : 0;
+        // Multiplayer racers share the room seed so everyone sees the same
+        // curves, hills and roadside scenery. Single-player gets a fresh
+        // start-of-run seed.
+        S.trackSeed = opts.seed != null ? (Number(opts.seed) >>> 0)
+            : ((Math.random() * 0xffffffff) >>> 0);
+        S.scenery = [];
+        S.sceneryNextZ = 0;
         S.countdown = 3.2;
         S.toastUntil = 0;
         S.flashUntil = 0;
@@ -308,7 +318,7 @@
             DG.answerGate(p.lane);
         }
         if (S.gatesResolved && S.nextGateAt && now >= S.nextGateAt) {
-            S.gateDist = Math.max(S.nextGateDist, p.dist + 70);
+            S.gateDist = Math.max(S.nextGateDist, p.dist + 300);
             DG.spawnGates();
         }
 
@@ -405,7 +415,7 @@
             p.spinUntil = now + DG.SPIN_TIME;
             DG.toast('❌ Correct: ' + correctGate.label, 2200);
         }
-        S.nextGateDist = Math.max(S.gateDist + DG.GATE_GAP, p.dist + 100);
+        S.nextGateDist = Math.max(S.gateDist + DG.GATE_GAP, p.dist + 300);
         S.nextGateAt = now + RESULT_HOLD;
         S.hudDirty = true;
         DG.updateRaceHud(true);
@@ -810,6 +820,392 @@
 
     /* ---------------- drawing ---------------- */
 
+    // Deterministic pseudo-3D course. World Z is the driver's distance in
+    // metres. trackCurve()/trackHill() are smooth sums of sines; their
+    // seed-derived phases give every racer in a room the same route without
+    // storing any track data.
+    const CAM_DEPTH = 420;
+    const FAR_REL = 2400;
+    const NEAR_REL = 4;
+    const HORIZON_BASE = 0.30;
+    const ROAD_BOTTOM = 0.96;
+    const SEGMENT_COUNT = 96;
+    const SCENERY_STEP = 26;
+    const SCENERY_AHEAD = 1500;
+    const SCENERY_BEHIND = 90;
+    const SCENERY_KINDS = {
+        city: ['building', 'building', 'lamp', 'sign', 'car', 'tree'],
+        open: ['tree', 'tree', 'tree', 'lamp', 'sign']
+    };
+
+    DG.trackSeedValue = function () {
+        if (S.mode === 'multi' && S.opts && S.opts.seed != null) return Number(S.opts.seed) >>> 0;
+        return (S.trackSeed || 1) >>> 0;
+    };
+
+    DG.trackPhases = function () {
+        const seed = DG.trackSeedValue();
+        const cache = DG._trackPhaseCache || (DG._trackPhaseCache = { seed: -1, phases: [0, 0, 0] });
+        if (cache.seed === seed) return cache.phases;
+        cache.seed = seed;
+        cache.phases = [
+            (seed % 6283) / 1000,
+            ((seed >>> 10) % 6283) / 1000,
+            ((seed >>> 21) % 6283) / 1000
+        ];
+        return cache.phases;
+    };
+
+    // Track heading (radians) relative to a straight road.
+    DG.trackCurve = function (z) {
+        const ph = DG.trackPhases();
+        return 0.62 * Math.sin(z * 0.0016 + ph[0]) +
+            0.26 * Math.sin(z * 0.0038 + ph[1]) +
+            0.10 * Math.sin(z * 0.0091 + ph[2]);
+    };
+
+    // Antiderivative of trackCurve(): lateral road position at world Z.
+    DG.trackLateral = function (z) {
+        const ph = DG.trackPhases();
+        return -0.62 / 0.0016 * Math.cos(z * 0.0016 + ph[0]) -
+            0.26 / 0.0038 * Math.cos(z * 0.0038 + ph[1]) -
+            0.10 / 0.0091 * Math.cos(z * 0.0091 + ph[2]);
+    };
+
+    // Road elevation (world units) at world Z.
+    DG.trackHill = function (z) {
+        const ph = DG.trackPhases();
+        return 34 * Math.sin(z * 0.0011 + ph[0] * 0.7) +
+            15 * Math.sin(z * 0.0027 + ph[1] * 1.4) +
+            5 * Math.sin(z * 0.0063 + ph[2] * 2.1);
+    };
+
+    DG.trackHorizonY = function () {
+        const h = DG.view.h;
+        const camZ = S.player ? S.player.dist : 0;
+        const cache = DG._horizonCache || (DG._horizonCache = { camZ: null, h: 0, y: 0 });
+        if (cache.camZ === camZ && cache.h === h) return cache.y;
+        const slope = (DG.trackHill(camZ + 260) - DG.trackHill(camZ)) / 260;
+        const pitch = Math.max(-1, Math.min(1, slope * 900));
+        cache.camZ = camZ;
+        cache.h = h;
+        cache.y = h * HORIZON_BASE - pitch * h * 0.04;
+        return cache.y;
+    };
+
+    // Core projection for a point `rel` world units in front of the camera.
+    // Lane 0/1/2 (or a fractional laneX) is returned in screen space.
+    DG.projectRel = function (rel, lane) {
+        const w = DG.view.w, h = DG.view.h;
+        const camZ = S.player ? S.player.dist : 0;
+        const r = Math.max(-40, Number(rel) || 0);
+        const raw = 1 / (1 + Math.max(0, r) / CAM_DEPTH);
+        const rawFar = 1 / (1 + FAR_REL / CAM_DEPTH);
+        const persp = (raw - rawFar) / (1 - rawFar);
+        const horizonY = DG.trackHorizonY();
+        const bottom = h * ROAD_BOTTOM;
+        const elev = DG.trackHill(camZ + r) - DG.trackHill(camZ);
+        const y = horizonY + (bottom - horizonY) * persp - elev * h * 0.0022 * persp;
+        const lat = (DG.trackLateral(camZ + r) - DG.trackLateral(camZ)) -
+            DG.trackCurve(camZ) * r;
+        const centerX = w / 2 + lat * (w / 180) * persp;
+        const roadHalf = w * (0.02 + 0.49 * persp);
+        const laneN = lane == null ? 1 : lane;
+        return {
+            x: centerX + (laneN - 1) * roadHalf * 0.64,
+            y: y,
+            scale: persp,
+            roadHalf: roadHalf,
+            centerX: centerX
+        };
+    };
+
+    DG.project = function (rel, lane) {
+        return DG.projectRel(rel, lane);
+    };
+
+    /* ---------------- roadside scenery ---------------- */
+
+    DG.ensureScenery = function (camZ) {
+        if (!S.scenery) S.scenery = [];
+        if (!S.sceneryNextZ || S.sceneryNextZ < camZ - SCENERY_BEHIND) {
+            S.sceneryNextZ = camZ - SCENERY_BEHIND;
+        }
+        const limit = camZ + SCENERY_AHEAD;
+        while (S.sceneryNextZ < limit) {
+            const z = S.sceneryNextZ;
+            S.sceneryNextZ += SCENERY_STEP;
+            const rng = DG.makeRng((DG.hashString('dg-scenery') ^ DG.trackSeedValue() ^ Math.floor(z * 13)) >>> 0);
+            const city = 0.5 + 0.5 * Math.sin(z * 0.0013 + DG.trackPhases()[0]) > 0.48;
+            const kinds = city ? SCENERY_KINDS.city : SCENERY_KINDS.open;
+            for (let s = 0; s < 2; s++) {
+                const side = s === 0 ? -1 : 1;
+                if (rng() > (city ? 0.82 : 0.48)) continue;
+                const kind = kinds[Math.floor(rng() * kinds.length)];
+                let offset = 1.5 + rng() * 0.9;
+                if (kind === 'lamp') offset = 1.28 + rng() * 0.14;
+                else if (kind === 'car') offset = 1.26 + rng() * 0.2;
+                else if (kind === 'building') offset = 1.6 + rng() * 1.1;
+                S.scenery.push({
+                    z: z + rng() * SCENERY_STEP * 0.8,
+                    side: side,
+                    kind: kind,
+                    offset: offset,
+                    size: 0.72 + rng() * 0.7,
+                    tone: Math.floor(rng() * 3)
+                });
+            }
+        }
+        S.scenery = S.scenery.filter(it => it.z > camZ - SCENERY_BEHIND);
+    };
+
+    DG.drawSceneryItem = function (ctx, it, x, baseY, sc, w, h) {
+        const size = it.size;
+        if (it.kind === 'building') {
+            const bw = w * 0.13 * sc * size;
+            const bh = h * 0.34 * sc * size;
+            if (bw < 2 || bh < 3) return;
+            const top = baseY - bh;
+            const tones = ['#64748b', '#7c8794', '#55606f'];
+            ctx.fillStyle = tones[it.tone % tones.length];
+            ctx.fillRect(x - bw / 2, top, bw, bh);
+            ctx.fillStyle = 'rgba(15,23,42,.35)';
+            ctx.fillRect(x - bw / 2, top, bw * 0.18, bh);
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(x - bw / 2 - 1.5 * sc, top - 3 * sc, bw + 3 * sc, Math.max(1, 3 * sc));
+            if (bw > 16 && bh > 28) {
+                const cols = Math.min(4, Math.max(1, Math.floor(bw / 12)));
+                const rows = Math.min(6, Math.max(1, Math.floor(bh / 20)));
+                const gapX = bw / (cols + 1);
+                const gapY = bh / (rows + 1);
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        ctx.fillStyle = ((r + c + it.tone) % 3 === 0)
+                            ? 'rgba(253,224,71,.85)' : 'rgba(15,23,42,.45)';
+                        ctx.fillRect(x - bw / 2 + gapX * (c + 1) - bw * 0.045,
+                            top + gapY * (r + 1) - bh * 0.018,
+                            bw * 0.09, bh * 0.036);
+                    }
+                }
+            }
+            return;
+        }
+        if (it.kind === 'tree') {
+            const trunkW = Math.max(1, w * 0.009 * sc * size);
+            const trunkH = h * 0.11 * sc * size;
+            const r = w * 0.055 * sc * size;
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(x - trunkW / 2, baseY - trunkH, trunkW, trunkH);
+            ctx.fillStyle = it.tone === 0 ? '#166534' : (it.tone === 1 ? '#15803d' : '#14532d');
+            ctx.beginPath();
+            ctx.arc(x, baseY - trunkH - r * 0.2, r, 0, Math.PI * 2);
+            ctx.arc(x - r * 0.7, baseY - trunkH + r * 0.25, r * 0.72, 0, Math.PI * 2);
+            ctx.arc(x + r * 0.7, baseY - trunkH + r * 0.25, r * 0.72, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+        }
+        if (it.kind === 'lamp') {
+            const poleH = h * 0.17 * sc * size;
+            const poleW = Math.max(1, 2.2 * sc);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = poleW;
+            ctx.beginPath();
+            ctx.moveTo(x, baseY);
+            ctx.lineTo(x, baseY - poleH);
+            ctx.stroke();
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.arc(x, baseY - poleH, Math.max(1.5, 3.4 * sc), 0, Math.PI * 2);
+            ctx.fill();
+            return;
+        }
+        if (it.kind === 'sign') {
+            const bw = w * 0.095 * sc * size;
+            const bh = h * 0.052 * sc * size;
+            if (bw < 2 || bh < 2) return;
+            const postH = h * 0.05 * sc;
+            const postW = Math.max(1, 1.6 * sc);
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(x - postW / 2, baseY - postH, postW, postH);
+            ctx.fillStyle = it.tone === 0 ? '#0ea5e9' : (it.tone === 1 ? '#22c55e' : '#f59e0b');
+            ctx.fillRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            ctx.strokeStyle = 'rgba(255,255,255,.85)';
+            ctx.lineWidth = Math.max(1, 1.4 * sc);
+            ctx.strokeRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            return;
+        }
+        // Parked car.
+        const bw = w * 0.09 * sc * size;
+        const bh = h * 0.045 * sc * size;
+        if (bw < 2 || bh < 2) return;
+        const top = baseY - bh;
+        const colors = ['#ef4444', '#3b82f6', '#facc15'];
+        ctx.fillStyle = colors[it.tone % colors.length];
+        ctx.fillRect(x - bw / 2, top, bw, bh);
+        ctx.fillStyle = 'rgba(15,23,42,.55)';
+        ctx.fillRect(x - bw * 0.32, top - bh * 0.45, bw * 0.64, bh * 0.5);
+        ctx.fillStyle = '#111827';
+        const wheel = Math.max(1, bw * 0.14);
+        ctx.beginPath();
+        ctx.arc(x - bw * 0.3, baseY, wheel, 0, Math.PI * 2);
+        ctx.arc(x + bw * 0.3, baseY, wheel, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    DG.drawScenery = function (ctx, camZ, horizonY) {
+        if (!S.scenery.length) return;
+        const w = DG.view.w, h = DG.view.h;
+        const items = [];
+        for (let i = 0; i < S.scenery.length; i++) {
+            const it = S.scenery[i];
+            const rel = it.z - camZ;
+            if (rel < -30 || rel > FAR_REL) continue;
+            it._rel = rel;
+            items.push(it);
+        }
+        items.sort((a, b) => b._rel - a._rel);
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            const pr = DG.projectRel(it._rel, 1);
+            if (pr.scale < 0.02 || pr.y > h + 120 || pr.y < horizonY - 12) continue;
+            const x = pr.centerX + it.side * it.offset * pr.roadHalf;
+            if (x < -w * 0.2 || x > w * 1.2) continue;
+            DG.drawSceneryItem(ctx, it, x, pr.y, pr.scale, w, h);
+        }
+    };
+
+    DG.drawBackdrop = function (ctx, camZ, horizonY) {
+        const w = DG.view.w, h = DG.view.h;
+        const heading = DG.trackCurve(camZ);
+        const scroll = (camZ * 0.06) % (w * 2);
+        const shift = scroll + heading * w * 0.45;
+
+        // Distant skyline (slow parallax with distance and curve).
+        ctx.fillStyle = 'rgba(30,58,86,.55)';
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY);
+        for (let x = 0; x <= w; x += 6) {
+            const t = (x + shift * 0.5) / w;
+            const bh = h * (0.035 + 0.026 * (Math.sin(t * Math.PI * 7 + 1.1) + 1) / 2 +
+                0.014 * (Math.sin(t * Math.PI * 17 + 2.3) + 1) / 2);
+            ctx.lineTo(x, horizonY - bh);
+        }
+        ctx.lineTo(w, horizonY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Far hills.
+        ctx.fillStyle = '#1f4d3a';
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY + 2);
+        for (let x = 0; x <= w; x += w / 12) {
+            const hy = horizonY - Math.sin((x + shift) / w * Math.PI * 2.2 + 1.2) * h * 0.035;
+            ctx.lineTo(x, hy);
+        }
+        ctx.lineTo(w, horizonY + h * 0.05);
+        ctx.lineTo(0, horizonY + h * 0.05);
+        ctx.closePath();
+        ctx.fill();
+
+        // Nearer hills, moving a little faster.
+        ctx.fillStyle = '#155e3b';
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY + 6);
+        for (let x = 0; x <= w; x += w / 10) {
+            const hy = horizonY - Math.sin((x + shift * 1.6) / w * Math.PI * 2.8 + 3.4) * h * 0.022;
+            ctx.lineTo(x, hy);
+        }
+        ctx.lineTo(w, horizonY + h * 0.06);
+        ctx.lineTo(0, horizonY + h * 0.06);
+        ctx.closePath();
+        ctx.fill();
+    };
+
+    DG.drawTrack = function (ctx, camZ, horizonY) {
+        const w = DG.view.w, h = DG.view.h;
+        const pts = [];
+        for (let i = 0; i <= SEGMENT_COUNT; i++) {
+            const t = i / SEGMENT_COUNT;
+            const rel = NEAR_REL * Math.pow(FAR_REL / NEAR_REL, t);
+            pts.push({ z: camZ + rel, p: DG.projectRel(rel, 1) });
+        }
+
+        // Grass bands behind the road; they scroll because they follow world Z.
+        for (let i = SEGMENT_COUNT - 1; i >= 0; i--) {
+            const far = pts[i + 1], near = pts[i];
+            ctx.fillStyle = (Math.floor(far.z / SCENERY_STEP) % 2 === 0) ? '#14532d' : '#166534';
+            ctx.beginPath();
+            ctx.moveTo(0, far.p.y);
+            ctx.lineTo(w, far.p.y);
+            ctx.lineTo(w, near.p.y);
+            ctx.lineTo(0, near.p.y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Road surface, kerbs and lane dashes, far to near.
+        for (let i = SEGMENT_COUNT - 1; i >= 0; i--) {
+            const far = pts[i + 1], near = pts[i];
+            const band = Math.floor(far.z / 22) % 2 === 0;
+            ctx.fillStyle = band ? '#3f4753' : '#374151';
+            ctx.beginPath();
+            ctx.moveTo(far.p.centerX - far.p.roadHalf, far.p.y);
+            ctx.lineTo(far.p.centerX + far.p.roadHalf, far.p.y);
+            ctx.lineTo(near.p.centerX + near.p.roadHalf, near.p.y);
+            ctx.lineTo(near.p.centerX - near.p.roadHalf, near.p.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Alternating red/white kerbs just outside the road.
+            const kerb = band ? '#dc2626' : '#f8fafc';
+            const sides = [[-1, 1.13, 1.0], [1, 1.0, 1.13]];
+            for (let s = 0; s < sides.length; s++) {
+                const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
+                ctx.fillStyle = kerb;
+                ctx.beginPath();
+                ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
+                ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
+                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
+                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Dashes between the three lanes (divider offsets ±0.32).
+            if (Math.floor(far.z / 40) % 2 === 0) {
+                ctx.fillStyle = 'rgba(248,250,252,.78)';
+                const offs = [-0.32, 0.32];
+                for (let d = 0; d < offs.length; d++) {
+                    const farW = Math.max(0.6, far.p.roadHalf * 0.032);
+                    const nearW = Math.max(0.8, near.p.roadHalf * 0.032);
+                    const fx = far.p.centerX + offs[d] * far.p.roadHalf;
+                    const nx = near.p.centerX + offs[d] * near.p.roadHalf;
+                    ctx.beginPath();
+                    ctx.moveTo(fx - farW, far.p.y);
+                    ctx.lineTo(fx + farW, far.p.y);
+                    ctx.lineTo(nx + nearW, near.p.y);
+                    ctx.lineTo(nx - nearW, near.p.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Continuous white edge lines.
+        ctx.strokeStyle = 'rgba(255,255,255,.55)';
+        ctx.lineWidth = 1.5;
+        for (let side = -1; side <= 1; side += 2) {
+            ctx.beginPath();
+            for (let i = 0; i <= SEGMENT_COUNT; i++) {
+                const p = pts[i].p;
+                const x = p.centerX + side * p.roadHalf;
+                if (i === 0) ctx.moveTo(x, p.y);
+                else ctx.lineTo(x, p.y);
+            }
+            ctx.stroke();
+        }
+    };
+
     DG.drawRace = function () {
         if (!DG.raceEls || !DG.view) return;
         const ctx = DG.raceEls.canvas.getContext('2d');
@@ -828,91 +1224,33 @@
         ctx.fillStyle = sky;
         ctx.fillRect(0, 0, w, h);
 
-        // Far hills
-        ctx.fillStyle = '#166534';
-        ctx.beginPath();
-        ctx.moveTo(0, h * 0.28);
-        for (let x = 0; x <= w; x += w / 8) {
-            ctx.lineTo(x, h * 0.28 - Math.sin(x / w * Math.PI * 3 + 1.2) * h * 0.035);
-        }
-        ctx.lineTo(w, h * 0.42);
-        ctx.lineTo(0, h * 0.42);
-        ctx.closePath();
-        ctx.fill();
-
-        const horizon = h * 0.28;
-        const bottom = h * 0.94;
-        const roadTop = w * 0.075;
-        const roadBottom = w * 0.505;
-
-        // Grass
+        const horizonY = DG.trackHorizonY();
+        DG.drawBackdrop(ctx, p.dist, horizonY);
         ctx.fillStyle = '#14532d';
-        ctx.fillRect(0, horizon, w, h - horizon);
-        ctx.fillStyle = '#166534';
-        for (let i = 0; i < 18; i++) {
-            const t = i / 18;
-            const y = horizon + (h - horizon) * t * t;
-            ctx.fillRect(0, y, w, Math.max(2, h * 0.012));
-        }
+        ctx.fillRect(0, horizonY, w, h - horizonY);
 
-        // Road surface
-        ctx.fillStyle = '#374151';
-        ctx.beginPath();
-        ctx.moveTo(w / 2 - roadTop, horizon);
-        ctx.lineTo(w / 2 + roadTop, horizon);
-        ctx.lineTo(w / 2 + roadBottom, bottom);
-        ctx.lineTo(w / 2 - roadBottom, bottom);
-        ctx.closePath();
-        ctx.fill();
-
-        // Road border
-        ctx.strokeStyle = 'rgba(255,255,255,.35)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(w / 2 - roadTop, horizon);
-        ctx.lineTo(w / 2 - roadBottom, bottom);
-        ctx.moveTo(w / 2 + roadTop, horizon);
-        ctx.lineTo(w / 2 + roadBottom, bottom);
-        ctx.stroke();
-
-        // Scrolling lane dashes
-        const shift = p.dist % 36;
-        for (let k = 0; k < 22; k++) {
-            const rel = k * 36 - shift;
-            if (rel < -30) continue;
-            const a = DG.project(rel, 0);
-            const b = DG.project(rel + 18, 0);
-            if (a.scale <= 0.02) continue;
-            ctx.strokeStyle = 'rgba(255,255,255,' + Math.min(0.75, 0.15 + a.scale * 0.7) + ')';
-            ctx.lineWidth = Math.max(1, 3 * a.scale);
-            [-0.5, 0.5].forEach(side => {
-                const ax = w / 2 + side * a.roadHalf * 0.64;
-                const bx = w / 2 + side * b.roadHalf * 0.64;
-                ctx.beginPath();
-                ctx.moveTo(ax, a.y);
-                ctx.lineTo(bx, b.y);
-                ctx.stroke();
-            });
-        }
+        DG.ensureScenery(p.dist);
+        DG.drawTrack(ctx, p.dist, horizonY);
+        DG.drawScenery(ctx, p.dist, horizonY);
 
         // Finish line in multiplayer
         if (S.mode === 'multi' && S.finishDistance) {
             const rel = S.finishDistance - p.dist;
-            if (rel > -20 && rel < 1000) {
+            if (rel > -20 && rel < FAR_REL) {
                 const a = DG.project(rel, 0);
                 const size = Math.max(4, a.roadHalf * 0.14);
-                const y = a.y;
+                const left = a.centerX - a.roadHalf;
+                const cellW = a.roadHalf * 2 / 12;
                 for (let row = 0; row < 2; row++) {
                     for (let i = 0; i < 12; i++) {
-                        const x = w / 2 - a.roadHalf + i * (a.roadHalf * 2 / 12);
                         ctx.fillStyle = (row + i) % 2 ? '#111827' : '#f9fafb';
-                        ctx.fillRect(x, y - row * size, a.roadHalf * 2 / 12, size);
+                        ctx.fillRect(left + i * cellW, a.y - row * size, cellW, size);
                     }
                 }
                 ctx.fillStyle = '#fef08a';
                 ctx.font = '700 ' + Math.max(9, 22 * a.scale) + 'px Fredoka, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('FINISH', w / 2, y - size * 2.6);
+                ctx.fillText('FINISH', a.centerX, a.y - size * 2.6);
             }
         }
 
@@ -921,13 +1259,13 @@
             const rel = b.dist - p.dist;
             if (rel < -20) return;
             const pr = DG.project(rel, b.lane);
-            if (pr.y < horizon + 4) return;
+            if (pr.y < horizonY + 4 || pr.y > h + 30) return;
             ctx.font = Math.max(12, 26 * pr.scale) + 'px serif';
             ctx.textAlign = 'center';
             ctx.fillText('🍌', pr.x, pr.y);
         });
 
-        // Draw far → near: gates and rivals.
+        // Draw far → near: gates and rivals (kept on top of the scenery).
         const drawables = [];
         S.gates.forEach(g => {
             drawables.push({ kind: 'gate', z: g.dist - p.dist, gate: g });
@@ -937,13 +1275,14 @@
         });
         drawables.sort((a, b) => b.z - a.z);
         drawables.forEach(d => {
-            if (d.z > 1000) return;
+            if (d.z > FAR_REL) return;
             if (d.kind === 'gate') DG.drawGate(ctx, d.gate, d.z);
             else DG.drawRival(ctx, d.rival, d.z);
         });
 
-        // Player kart
-        const px = w / 2 + (p.laneX - 1) * w * 0.268;
+        // Player kart: stays in its lane on the near road.
+        const nearLane = DG.projectRel(0, p.laneX);
+        const px = nearLane.x;
         const py = h - 138;
         const scale = Math.min(w / 430, h / 700) * 1.12;
         DG.drawKart(ctx, px, py, scale, p.look, {
@@ -982,7 +1321,7 @@
             for (let i = 0; i < 10; i++) {
                 const side = i % 2 ? 1 : -1;
                 const x = w / 2 + side * (w * (0.18 + (i / 10) * 0.3));
-                const y = horizon + ((i * 57 + S.clock * 320) % (h - horizon));
+                const y = horizonY + ((i * 57 + S.clock * 320) % Math.max(1, h - horizonY));
                 ctx.beginPath();
                 ctx.moveTo(x, y);
                 ctx.lineTo(x + side * 12, y + 34);
@@ -991,23 +1330,12 @@
         }
     };
 
-    DG.project = function (rel, lane) {
-        const w = DG.view.w, h = DG.view.h;
-        const horizon = h * 0.28;
-        const bottom = h * 0.94;
-        const q = 1 / (1 + Math.max(-0.15, rel) / 185);
-        const t = Math.max(0.02, Math.min(1, q));
-        const y = horizon + (bottom - horizon) * t;
-        const roadHalf = w * 0.075 + (w * 0.505 - w * 0.075) * t;
-        const x = w / 2 + (lane - 1) * roadHalf * 0.64;
-        return { x, y, scale: t, roadHalf };
-    };
-
     DG.drawGate = function (ctx, gate, rel) {
         if (rel < -40) return;
         const w = DG.view.w, h = DG.view.h;
         const pr = DG.project(rel, gate.lane);
-        const gateW = Math.max(30, pr.roadHalf * 0.52);
+        if (pr.scale <= 0.02 || pr.y > h + 120) return;
+        const gateW = Math.max(32, pr.roadHalf * 0.58);
         const gateH = Math.max(24, h * 0.085 * pr.scale + 16);
         const x = pr.x - gateW / 2;
         const y = pr.y - gateH;
@@ -1060,9 +1388,9 @@
     };
 
     DG.drawRival = function (ctx, r, rel) {
-        if (rel < -10 || rel > 1000) return;
+        if (rel < -10 || rel > FAR_REL) return;
         const pr = DG.project(rel, r.laneX);
-        if (pr.y < DG.view.h * 0.27) return;
+        if (pr.y < DG.trackHorizonY() - 6) return;
         const scale = Math.max(0.32, pr.scale) * Math.min(DG.view.w / 430, DG.view.h / 700) * 0.96;
         const spin = S.clock < (r.spinUntil || 0) ? (S.clock * 14) % (Math.PI * 2) : 0;
         DG.drawKart(ctx, pr.x, pr.y, scale, r.look, {

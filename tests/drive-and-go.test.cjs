@@ -115,7 +115,8 @@ test('nitro and spin-out constants match the requested gameplay', () => {
     const DG = loadDG();
     assert.equal(DG.NITRO_KMH, 40);
     assert.equal(DG.SPIN_TIME, 1.5);
-    assert.equal(DG.GATE_GAP, 150);
+    assert.equal(DG.GATE_GAP, 420);
+    assert.equal(DG.START_GATE_DIST, 320);
     assert.equal(DG.RACE_SECONDS, 180);
     assert.equal(DG.FINISH_DISTANCE, 4200);
 });

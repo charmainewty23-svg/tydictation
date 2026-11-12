@@ -15,8 +15,8 @@ const DG = {
     // Race constants shared by the engine and the tests.
     NITRO_KMH: 40,
     SPIN_TIME: 1.5,
-    GATE_GAP: 150,
-    START_GATE_DIST: 140,
+    GATE_GAP: 420,
+    START_GATE_DIST: 320,
     FINISH_DISTANCE: 4200,
     RACE_SECONDS: 180,
     CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
@@ -414,8 +414,8 @@ const DG = {
             '<div class="dg-step-dots"><span class="active"></span><span></span><span></span><span></span></div>' +
             '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">1. Choose your challenge</h3>' +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">' +
-            card('av', '🟢', 'Active Voice', 'AV — tenses tab · 120 questions') +
-            card('pv', '🔵', 'Passive Voice', 'PV — Passives tab · 120 questions') +
+            card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+            card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
             card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together') +
             '</div>' +
             '<div class="text-center"><button type="button" class="btn-paw" onclick="DG.showCatStep()">Next: Cat driver →</button></div>';

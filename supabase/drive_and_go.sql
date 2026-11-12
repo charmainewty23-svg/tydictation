@@ -16,6 +16,8 @@ create table if not exists public.drive_and_go_rooms (
                      check (status in ('waiting', 'playing', 'finished')),
     question_mode    text not null default 'av'
                      check (question_mode in ('av', 'pv', 'mixed')),
+    question_count   int not null default 20
+                     check (question_count in (20, 25, 30, 35, 40, 50)),
     seed             bigint not null,
     finish_distance  int not null default 4200,
     duration_seconds int not null default 180,
@@ -39,6 +41,9 @@ create table if not exists public.drive_and_go_players (
     score         int not null default 0,
     combo         int not null default 0,
     correct       int not null default 0,
+    wrong         int not null default 0,
+    composite_score int not null default 0,
+    elapsed_ms    int not null default 0,
     lane          int not null default 1 check (lane between 0 and 2),
     effect_kind   text check (effect_kind in ('spin', 'slow')),
     effect_until  timestamptz,
@@ -51,6 +56,36 @@ create table if not exists public.drive_and_go_players (
 
 create index if not exists drive_and_go_rooms_created_idx on public.drive_and_go_rooms (created_at desc);
 create index if not exists drive_and_go_players_room_idx on public.drive_and_go_players (room_id);
+
+-- Re-running this file on an existing database will not alter CREATE TABLE,
+-- so also add any new columns if they are missing.
+alter table public.drive_and_go_rooms
+    add column if not exists question_count int not null default 20;
+alter table public.drive_and_go_players
+    add column if not exists wrong int not null default 0;
+alter table public.drive_and_go_players
+    add column if not exists composite_score int not null default 0;
+alter table public.drive_and_go_players
+    add column if not exists elapsed_ms int not null default 0;
+
+do $chk$
+begin
+    if not exists (
+        select 1 from pg_constraint
+        where conname = 'drive_and_go_rooms_question_count_chk'
+          and conrelid = 'public.drive_and_go_rooms'::regclass
+    ) then
+        begin
+            alter table public.drive_and_go_rooms
+                add constraint drive_and_go_rooms_question_count_chk
+                check (question_count in (20, 25, 30, 35, 40, 50));
+        exception when others then
+            -- Fresh tables already have the same check inline on the column.
+            null;
+        end;
+    end if;
+end
+$chk$;
 
 -- ---------- helpers ----------
 
@@ -113,12 +148,15 @@ grant select, update on public.drive_and_go_players to authenticated;
 
 -- ---------- room lifecycle ----------
 
+drop function if exists public.create_drive_and_go_room(text, text, text, text, text);
+
 create or replace function public.create_drive_and_go_room(
     p_question_mode text default 'av',
     p_cat text default null,
     p_glasses text default null,
     p_hat text default null,
-    p_outfit text default null
+    p_outfit text default null,
+    p_question_count int default 20
 ) returns setof public.drive_and_go_rooms
 language plpgsql
 security definer
@@ -130,6 +168,7 @@ declare
     v_room   public.drive_and_go_rooms;
     v_try    int := 0;
     v_mode   text := lower(coalesce(p_question_mode, 'av'));
+    v_count  int := coalesce(p_question_count, 20);
     v_email  text := coalesce(auth.jwt() ->> 'email', '');
     v_nick   text;
     i        int;
@@ -139,6 +178,9 @@ begin
     end if;
     if v_mode not in ('av', 'pv', 'mixed') then
         v_mode := 'av';
+    end if;
+    if v_count not in (20, 25, 30, 35, 40, 50) then
+        v_count := 20;
     end if;
 
     -- Housekeeping: abandoned rooms are dead after 12 hours.
@@ -163,8 +205,8 @@ begin
         end if;
     end loop;
 
-    insert into public.drive_and_go_rooms (code, host_id, question_mode, seed)
-    values (v_code, auth.uid(), v_mode, floor(random() * 2147483646)::bigint + 1)
+    insert into public.drive_and_go_rooms (code, host_id, question_mode, question_count, seed)
+    values (v_code, auth.uid(), v_mode, v_count, floor(random() * 2147483646)::bigint + 1)
     returning * into v_room;
 
     insert into public.drive_and_go_players
@@ -352,6 +394,79 @@ begin
           and v_room.status = 'waiting' then
         delete from public.drive_and_go_rooms where id = v_room.id;
     end if;
+
+    -- A mid-race leave should end the room once every remaining racer has
+    -- reached N correct (or also left).
+    if exists (
+        select 1 from public.drive_and_go_rooms r
+         where r.id = p_room_id and r.status = 'playing'
+    ) then
+        perform public.maybe_finish_drive_and_go_room(p_room_id);
+    end if;
+end;
+$dg$;
+
+-- Room ends when every remaining racer has finished (N correct) or left.
+-- Winner is the highest composite score; tie-break: faster finish, then
+-- higher accuracy (correct / (correct + wrong)).
+create or replace function public.maybe_finish_drive_and_go_room(p_room_id uuid)
+returns setof public.drive_and_go_rooms
+language plpgsql
+security definer
+set search_path = public
+as $dg$
+declare
+    v_room       public.drive_and_go_rooms;
+    v_winner     uuid;
+    v_remaining  int;
+    v_unfinished int;
+begin
+    select * into v_room
+      from public.drive_and_go_rooms
+     where id = p_room_id
+     for update;
+
+    if v_room.id is null then
+        return;
+    end if;
+    if v_room.status <> 'playing' then
+        return next v_room;
+        return;
+    end if;
+
+    select count(*), count(*) filter (where finished_at is null)
+      into v_remaining, v_unfinished
+      from public.drive_and_go_players
+     where room_id = p_room_id;
+
+    if v_remaining = 0 then
+        delete from public.drive_and_go_rooms where id = p_room_id;
+        return;
+    end if;
+    if v_unfinished > 0 then
+        return next v_room;
+        return;
+    end if;
+
+    select p.user_id into v_winner
+      from public.drive_and_go_players p
+     where p.room_id = v_room.id
+     order by p.composite_score desc,
+              p.finished_at asc nulls last,
+              (p.correct::double precision / nullif(p.correct + p.wrong, 0)) desc nulls last,
+              p.score desc,
+              p.user_id
+     limit 1;
+
+    update public.drive_and_go_rooms
+       set status = 'finished',
+           winner_id = v_winner,
+           result_reason = 'finish',
+           finished_at = now()
+     where id = v_room.id
+     returning * into v_room;
+
+    return next v_room;
 end;
 $dg$;
 
@@ -373,17 +488,8 @@ begin
            last_seen = now()
      where room_id = p_room_id and user_id = auth.uid();
 
-    update public.drive_and_go_rooms
-       set status = 'finished',
-           winner_id = auth.uid(),
-           result_reason = 'finish',
-           finished_at = now()
-     where id = p_room_id
-       and status = 'playing'
-       and winner_id is null;
-
-    select * into v_room from public.drive_and_go_rooms where id = p_room_id;
-    return next v_room;
+    return query
+        select * from public.maybe_finish_drive_and_go_room(p_room_id);
 end;
 $dg$;
 
@@ -409,30 +515,8 @@ begin
     if v_room.id is null then
         raise exception 'ROOM_NOT_FOUND';
     end if;
-    if v_room.status <> 'playing' then
-        return next v_room;
-        return;
-    end if;
-    if v_room.started_at is null
-       or now() < v_room.started_at + make_interval(secs => v_room.duration_seconds) then
-        return next v_room;
-        return;
-    end if;
-
-    select p.user_id into v_winner
-      from public.drive_and_go_players p
-     where p.room_id = v_room.id
-     order by p.score desc, p.distance desc, p.last_seen asc, p.user_id
-     limit 1;
-
-    update public.drive_and_go_rooms
-       set status = 'finished',
-           winner_id = v_winner,
-           result_reason = 'time',
-           finished_at = now()
-     where id = v_room.id
-     returning * into v_room;
-
+    -- The 3-minute "highest score wins" rule has been removed. Rooms now end
+    -- when every remaining racer has N correct answers (or has left).
     return next v_room;
 end;
 $dg$;
@@ -467,14 +551,15 @@ end;
 $dg$;
 
 -- Only signed-in users may call these functions.
-revoke all on function public.create_drive_and_go_room(text, text, text, text, text) from public, anon;
+revoke all on function public.create_drive_and_go_room(text, text, text, text, text) from public, anon, authenticated;
+revoke all on function public.create_drive_and_go_room(text, text, text, text, text, int) from public, anon;
 revoke all on function public.join_drive_and_go_room(text, text, text, text, text) from public, anon;
 revoke all on function public.start_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.leave_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.cross_drive_and_go_finish(uuid) from public, anon;
 revoke all on function public.time_up_drive_and_go_room(uuid) from public, anon;
 revoke all on function public.apply_drive_and_go_effect(uuid, uuid, text, int) from public, anon;
-grant execute on function public.create_drive_and_go_room(text, text, text, text, text) to authenticated;
+grant execute on function public.create_drive_and_go_room(text, text, text, text, text, int) to authenticated;
 grant execute on function public.join_drive_and_go_room(text, text, text, text, text) to authenticated;
 grant execute on function public.start_drive_and_go_room(uuid) to authenticated;
 grant execute on function public.leave_drive_and_go_room(uuid) to authenticated;

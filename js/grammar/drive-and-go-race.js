@@ -49,6 +49,10 @@
         timeUpSent: false,
         finishSent: false,
         resultShown: false,
+        questionCount: 20,
+        accelHeld: false,
+        accelKeys: {},
+        accelSources: { key: false, button: false },
         tilt: { enabled: false, zero: null, active: false, left: false, right: false, lastAt: 0, timer: 0, warned: false },
         swipe: { down: false, x: 0 },
         listeners: []
@@ -76,7 +80,9 @@
             toast: document.getElementById('dg-toast'),
             itemBtn: document.getElementById('dg-item-btn'),
             itemEmoji: document.getElementById('dg-item-emoji'),
-            itemName: document.getElementById('dg-item-name')
+            itemName: document.getElementById('dg-item-name'),
+            progress: document.getElementById('dg-stat-progress'),
+            accelBtn: document.getElementById('dg-accel-btn')
         };
         DG.resizeCanvas();
         DG.bindRaceInput();
@@ -145,6 +151,10 @@
         S.timeUpSent = false;
         S.finishSent = false;
         S.resultShown = false;
+        S.questionCount = DG.normalizeQuestionCount(
+            opts.questionCount || (opts.room && opts.room.question_count) || (settings && settings.questionCount)
+        );
+        DG.releaseAccel();
         S.player = {
             lane: 1, laneX: 1, dist: 0, speed: 0, score: 0, combo: 0, maxCombo: 0,
             correct: 0, wrong: 0, item: null, spinUntil: 0, slowUntil: 0,
@@ -202,6 +212,7 @@
         S.active = false;
         S.phase = 'idle';
         S.paused = false;
+        DG.releaseAccel();
         if (S.raf) cancelAnimationFrame(S.raf);
         S.raf = 0;
         DG.unbindRaceInput();
@@ -253,6 +264,7 @@
             S.countdown -= dt;
             if (S.countdown <= 0) {
                 S.phase = 'racing';
+                if (!S.startedAtMs) S.startedAtMs = Date.now();
                 DG.toast('GO!', 900);
             }
             return;
@@ -263,17 +275,27 @@
         const now = S.clock;
 
         // Player speed: 100 km/h base, faster with combo, slower while spun.
+        // ACCEL is a hold-to-speed bonus; it does not fire the mushroom item.
+        // Spin-out overrides it. Star / mushroom boosts may stack, but a hard
+        // SPEED_CAP keeps the total bounded.
         const spinning = now < p.spinUntil;
         const slowed = now < p.slowUntil;
-        let target = 100 + Math.min(45, p.combo * 3);
-        if (now < p.nitroUntil) target += DG.NITRO_KMH * Math.max(0, (p.nitroUntil - now) / 1.2);
-        if (now < p.boostUntil) target += 45;
-        if (slowed) target *= 0.5;
-        if (spinning) target = 0;
-        const accel = spinning ? 7 : 2.3;
+        const cap = DG.SPEED_CAP || 280;
+        let target;
+        if (p.finished) {
+            target = 0;
+        } else {
+            target = 100 + Math.min(45, p.combo * 3);
+            if (now < p.nitroUntil) target += DG.NITRO_KMH * Math.max(0, (p.nitroUntil - now) / 1.2);
+            if (now < p.boostUntil) target += 45;
+            if (S.accelHeld && !spinning && !S.paused) target += (DG.ACCEL_KMH || 60);
+            if (slowed) target *= 0.5;
+            if (spinning) target = 0;
+        }
+        const accel = spinning || p.finished ? 7 : 2.3;
         p.speed += (target - p.speed) * Math.min(1, dt * accel);
         if (p.speed < 0) p.speed = 0;
-        if (p.speed > 340) p.speed = 340;
+        if (p.speed > cap) p.speed = cap;
         p.dist += p.speed * (1000 / 3600) * dt;
         p.laneX += (p.lane - p.laneX) * Math.min(1, dt * 12);
 
@@ -313,34 +335,20 @@
         }
         S.bananas = S.bananas.filter(b => !b.hit && b.dist > p.dist - 120);
 
-        // Gate crossing.
-        if (!S.gatesResolved && S.gates.length && p.dist >= S.gateDist) {
+        // Gate crossing. A finished racer no longer answers gates.
+        if (!p.finished && !S.gatesResolved && S.gates.length && p.dist >= S.gateDist) {
             DG.answerGate(p.lane);
         }
         if (S.gatesResolved && S.nextGateAt && now >= S.nextGateAt) {
-            S.gateDist = Math.max(S.nextGateDist, p.dist + 300);
-            DG.spawnGates();
-        }
-
-        // Multiplayer timer.
-        if (S.mode === 'multi') {
-            const left = DG.raceTimeLeft();
-            if (left <= 0 && !S.timeUpSent) {
-                S.timeUpSent = true;
-                if (typeof DG.mpTimeUp === 'function') DG.mpTimeUp();
-            }
-            if (!p.finished && p.dist >= S.finishDistance) {
-                p.finished = true;
-                p.finishAt = now;
-                DG.toast('🏁 Finish!', 1800);
-                if (!S.finishSent && typeof DG.mpCrossFinish === 'function') {
-                    S.finishSent = true;
-                    DG.mpCrossFinish();
-                }
+            if (p.finished) {
+                if (S.mode === 'single') DG.endRun();
+            } else {
+                S.gateDist = Math.max(S.nextGateDist, p.dist + 300);
+                DG.spawnGates();
             }
         }
 
-        DG.recordBest(p.score, p.dist);
+        if (!p.finished) DG.recordBest(p.score, p.dist);
     };
 
     DG.raceTimeLeft = function () {
@@ -349,9 +357,17 @@
         return Math.max(0, S.raceSeconds - elapsed);
     };
 
+    DG.raceElapsedSeconds = function () {
+        const p = S.player;
+        if (p && p.finished && p.elapsed != null) return p.elapsed;
+        if (!S.startedAtMs) return 0;
+        return Math.max(0, (Date.now() - S.startedAtMs) / 1000);
+    };
+
     /* ---------------- questions / gates ---------------- */
 
     DG.spawnGates = function () {
+        if (S.player && S.player.finished) return;
         if (!S.questions.length) return;
         if (S.qIndex >= S.questions.length) {
             S.questions = DG.raceQuestionQueue(S.bankMode, S.mode === 'multi' && S.opts ? S.opts.seed : null);
@@ -391,7 +407,7 @@
             p.maxCombo = Math.max(p.maxCombo, p.combo);
             p.correct += 1;
             p.score += 100 + Math.min(150, p.combo * 10);
-            p.speed = Math.min(340, p.speed + DG.NITRO_KMH);
+            p.speed = Math.min(DG.SPEED_CAP || 280, p.speed + DG.NITRO_KMH);
             p.nitroUntil = now + 1.2;
             const rank = DG.playerRank();
             const item = DG.itemForCorrect({
@@ -407,6 +423,7 @@
                 DG.toast('✅ +' + DG.NITRO_KMH + ' km/h', 1100);
             }
             DG.recordBest(p.score, p.dist);
+            if (p.correct >= S.questionCount) DG.finishPlayer();
         } else {
             p.combo = 0;
             p.wrong += 1;
@@ -420,6 +437,32 @@
         S.hudDirty = true;
         DG.updateRaceHud(true);
         DG.updateItemSlot();
+    };
+
+    DG.finishPlayer = function () {
+        const p = S.player;
+        if (!p || p.finished) return;
+        const elapsed = DG.raceElapsedSeconds();
+        const result = DG.scoreRun(p, elapsed, S.questionCount);
+        p.finished = true;
+        p.finishAt = S.clock;
+        p.elapsed = result.elapsed;
+        p.timeBonus = result.timeBonus;
+        p.composite = result.composite;
+        p.accuracy = result.accuracy;
+        p.runResult = result;
+        DG.releaseAccel();
+        if (S.mode === 'single') {
+            DG.recordBestRun(S.bankMode, S.questionCount, result);
+            DG.recordBest(p.score, p.dist);
+            DG.toast('🏁 ' + S.questionCount + ' correct — finished!', 1800);
+        } else {
+            DG.toast('🏁 ' + S.questionCount + ' correct — waiting for the others…', 2200);
+            if (!S.finishSent && typeof DG.mpCrossFinish === 'function') {
+                S.finishSent = true;
+                DG.mpCrossFinish();
+            }
+        }
     };
 
     DG.playerRank = function () {
@@ -450,14 +493,84 @@
         DG.setLane(S.player.lane + (dir < 0 ? -1 : 1));
     };
 
+    DG.isAccelKey = function (key) {
+        return key === 'ArrowUp' || key === 'w' || key === 'W' || key === ' ';
+    };
+
+    DG.accelKeyId = function (key) {
+        if (key === ' ') return 'Space';
+        if (key === 'w' || key === 'W') return 'w';
+        return key;
+    };
+
+    DG.syncAccelHeld = function () {
+        if (S.paused || S.phase === 'finished' || (S.player && S.player.finished)) {
+            S.accelHeld = false;
+            return;
+        }
+        S.accelHeld = !!(S.accelSources.key || S.accelSources.button);
+        const btn = DG.raceEls && DG.raceEls.accelBtn;
+        if (btn) btn.classList.toggle('held', S.accelHeld);
+    };
+
+    DG.setAccelSource = function (source, on) {
+        if (!S.accelSources) S.accelSources = { key: false, button: false };
+        S.accelSources[source] = !!on;
+        DG.syncAccelHeld();
+    };
+
+    DG.releaseAccel = function () {
+        S.accelKeys = {};
+        S.accelSources = { key: false, button: false };
+        S.accelHeld = false;
+        const btn = DG.raceEls && DG.raceEls.accelBtn;
+        if (btn) btn.classList.remove('held');
+    };
+
+    DG.onAccelDown = function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (e && e.currentTarget && e.pointerId != null && e.currentTarget.setPointerCapture) {
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+        if (!S.active || S.paused || S.phase !== 'racing') return;
+        if (S.player && S.player.finished) return;
+        DG.setAccelSource('button', true);
+    };
+
+    DG.onAccelUp = function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        DG.setAccelSource('button', false);
+    };
+
     DG.onKeyDown = function (e) {
         if (!S.active) return;
         const key = e.key;
+        if (DG.isAccelKey(key)) {
+            S.accelKeys[DG.accelKeyId(key)] = true;
+            DG.setAccelSource('key', true);
+            e.preventDefault();
+            return;
+        }
         if (key === 'ArrowLeft' || key === 'a' || key === 'A') { DG.steer(-1); e.preventDefault(); }
         else if (key === 'ArrowRight' || key === 'd' || key === 'D') { DG.steer(1); e.preventDefault(); }
         else if (key === 'ArrowDown' || key === 's' || key === 'S') { DG.setLane(1); e.preventDefault(); }
-        else if (key === ' ' || key === 'Enter') { DG.useItem(); e.preventDefault(); }
+        else if (key === 'Enter') { DG.useItem(); e.preventDefault(); }
         else if (key === 'p' || key === 'P' || key === 'Escape') { DG.togglePause(); e.preventDefault(); }
+    };
+
+    DG.onKeyUp = function (e) {
+        const key = e.key;
+        if (!DG.isAccelKey(key)) return;
+        delete S.accelKeys[DG.accelKeyId(key)];
+        const still = S.accelKeys && Object.keys(S.accelKeys).length > 0;
+        DG.setAccelSource('key', still);
+        e.preventDefault();
+    };
+
+    DG.onWindowBlur = function () {
+        DG.releaseAccel();
     };
 
     DG.onTilt = function (e) {
@@ -515,11 +628,20 @@
             S.listeners.push({ target, type, fn, opts });
         };
         add(window, 'keydown', DG.onKeyDown);
+        add(window, 'keyup', DG.onKeyUp);
+        add(window, 'blur', DG.onWindowBlur);
+        add(document, 'visibilitychange', DG.onWindowBlur);
         add(window, 'resize', DG.onResize);
         if (DG.raceEls) {
             add(DG.raceEls.stage, 'pointerdown', DG.onPointerDown);
             add(DG.raceEls.stage, 'pointerup', DG.onPointerUp);
             add(DG.raceEls.stage, 'pointercancel', DG.onPointerUp);
+            if (DG.raceEls.accelBtn) {
+                add(DG.raceEls.accelBtn, 'pointerdown', DG.onAccelDown);
+                add(DG.raceEls.accelBtn, 'pointerup', DG.onAccelUp);
+                add(DG.raceEls.accelBtn, 'pointercancel', DG.onAccelUp);
+                add(DG.raceEls.accelBtn, 'lostpointercapture', DG.onAccelUp);
+            }
         }
         const settings = DG.readSettings();
         if (settings.controls === 'tilt') {
@@ -553,6 +675,7 @@
         S.tilt.left = false;
         S.tilt.right = false;
         S.swipe.down = false;
+        DG.releaseAccel();
     };
 
     /* ---------------- items ---------------- */
@@ -606,7 +729,7 @@
         } else if (kind === 'mushroom') {
             p.item = null;
             p.boostUntil = Math.max(p.boostUntil, now + 3);
-            p.speed = Math.min(340, p.speed + 18);
+            p.speed = Math.min(DG.SPEED_CAP || 280, p.speed + 18);
             DG.toast('🍄 Mushroom boost!', 1400);
         }
         DG.updateItemSlot();
@@ -675,15 +798,15 @@
         els.combo.textContent = '🔥 x' + p.combo;
         els.speed.textContent = Math.round(p.speed) + ' km/h';
         els.pos.textContent = DG.ordinal(DG.playerRank());
-        if (S.mode === 'multi') {
-            const left = DG.raceTimeLeft();
-            const m = Math.floor(left / 60);
-            const sec = Math.floor(left % 60);
-            els.time.classList.remove('hidden');
-            els.time.textContent = m + ':' + (sec < 10 ? '0' : '') + sec;
-        } else if (els.time) {
-            els.time.classList.add('hidden');
+        if (els.progress) {
+            els.progress.classList.remove('hidden');
+            els.progress.textContent = p.correct + '/' + S.questionCount;
         }
+        if (els.time) {
+            els.time.classList.remove('hidden');
+            els.time.textContent = DG.formatRaceTime(DG.raceElapsedSeconds());
+        }
+        if (els.accelBtn) els.accelBtn.classList.toggle('held', !!S.accelHeld);
         const shrunk = S.clock < p.shrinkUntil;
         els.question.classList.toggle('dg-shrunk', shrunk);
         DG.updateItemSlot();
@@ -726,9 +849,10 @@
         if (!S.active || S.phase === 'finished') return;
         S.paused = !S.paused;
         if (S.paused) {
+            DG.releaseAccel();
             DG.showOverlay(
                 '<div class="text-center"><div class="text-6xl mb-2">⏸</div><h3 class="text-2xl font-bold text-orange-600 mb-2">Paused</h3>' +
-                '<p class="text-gray-500 font-bold mb-5">' + (S.mode === 'multi' ? 'The 3-minute race clock keeps running for everyone.' : 'Take a breath. Your run is waiting.') + '</p>' +
+                '<p class="text-gray-500 font-bold mb-5">' + (S.mode === 'multi' ? 'Other racers keep going. Accel is released until you resume.' : 'Take a breath. Your run is waiting. Accel is released.') + '</p>' +
                 '<div class="flex gap-3 justify-center flex-wrap">' +
                 '<button type="button" class="btn-paw" onclick="DG.togglePause()">Resume</button>' +
                 (S.mode === 'multi'
@@ -755,22 +879,39 @@
             return;
         }
         const p = S.player;
+        if (!p) return;
+        if (!p.finished) {
+            const elapsed = DG.raceElapsedSeconds();
+            const result = DG.scoreRun(p, elapsed, S.questionCount);
+            p.elapsed = result.elapsed;
+            p.timeBonus = result.timeBonus;
+            p.composite = result.composite;
+            p.accuracy = result.accuracy;
+            p.runResult = result;
+        }
+        const result = p.runResult || DG.scoreRun(p, p.elapsed || DG.raceElapsedSeconds(), S.questionCount);
+        if (p.correct >= S.questionCount) DG.recordBestRun(S.bankMode, S.questionCount, result);
         DG.recordBest(p.score, p.dist);
-        const bestScore = DG.readBestScore();
-        const bestDistance = DG.readBestDistance();
+        const best = DG.readBestRun(S.bankMode, S.questionCount);
+        const bestLine = best
+            ? ('Personal best for ' + result.questionCount + ' questions: ' + best.composite + ' pts · ' + DG.formatRaceTime(best.time))
+            : 'No personal best for this question count yet.';
+        const reached = p.correct >= S.questionCount;
         DG.showOverlay(
             '<div class="text-center"><div class="text-6xl mb-1">🏁</div>' +
-            '<h3 class="text-3xl font-bold text-orange-600 mb-1">Run finished</h3>' +
-            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + '</p>' +
+            '<h3 class="text-3xl font-bold text-orange-600 mb-1">' + (reached ? 'Run finished' : 'Run ended') + '</h3>' +
+            '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.MODE_LABEL[S.bankMode] || '') + ' · ' + result.questionCount + ' questions</p>' +
             '<div class="dg-result-grid mb-5">' +
-            '<div><span>Score</span><b>' + Math.floor(p.score) + '</b></div>' +
+            '<div><span>Composite</span><b>' + Math.floor(result.composite) + '</b></div>' +
+            '<div><span>Race score</span><b>' + Math.floor(result.raceScore) + '</b></div>' +
+            '<div><span>Time bonus</span><b>+' + Math.floor(result.timeBonus) + '</b></div>' +
+            '<div><span>Time</span><b>' + DG.formatRaceTime(result.elapsed) + '</b></div>' +
+            '<div><span>Accuracy</span><b>' + DG.formatAccuracy(result.accuracy) + '</b></div>' +
+            '<div><span>Correct</span><b>' + result.correct + '/' + result.questionCount + '</b></div>' +
+            '<div><span>Wrong</span><b>' + result.wrong + '</b></div>' +
             '<div><span>Max combo</span><b>x' + p.maxCombo + '</b></div>' +
-            '<div><span>Correct</span><b>' + p.correct + '</b></div>' +
-            '<div><span>Wrong</span><b>' + p.wrong + '</b></div>' +
-            '<div><span>Distance</span><b>' + Math.floor(p.dist) + ' m</b></div>' +
-            '<div><span>Top speed</span><b>' + Math.round(p.speed) + ' km/h</b></div>' +
             '</div>' +
-            '<p class="text-sm font-bold text-gray-500 mb-5">Personal best: ' + bestScore + ' pts · ' + bestDistance + ' m</p>' +
+            '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(bestLine) + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Tenses</button>' +
@@ -787,21 +928,22 @@
         S.raf = 0;
         DG.unbindRaceInput();
         if (typeof DG.mpStopRacePoll === 'function') DG.mpStopRacePoll();
-        const rows = (players || []).slice().sort((a, b) => {
-            const fa = a.finished_at ? Date.parse(a.finished_at) : Infinity;
-            const fb = b.finished_at ? Date.parse(b.finished_at) : Infinity;
-            if (fa !== fb) return fa - fb;
-            if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
-            return (b.distance || 0) - (a.distance || 0);
-        });
+        const rows = typeof DG.rankMultiplayerRows === 'function'
+            ? DG.rankMultiplayerRows(players)
+            : (players || []).slice();
+        const n = DG.normalizeQuestionCount(room && room.question_count || S.questionCount);
         const winnerId = room && room.winner_id;
         let winner = rows.find(r => r.user_id === winnerId);
         if (!winner) winner = rows[0];
         const youWin = winner && currentUser && winner.user_id === currentUser.id;
-        const reason = room && room.result_reason === 'time'
-            ? 'The 3-minute limit ended — highest score wins.'
-            : 'First across the finish line wins.';
+        const reason = 'Highest composite score after ' + n + ' correct answers wins.';
         const medal = (i) => i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+        const points = (r) => (r.composite_score != null ? r.composite_score : r.score) || 0;
+        const acc = (r) => {
+            const c = Number(r.correct) || 0, w = Number(r.wrong) || 0;
+            return DG.formatAccuracy((c + w) ? c / (c + w) : 0);
+        };
+        const time = (r) => r.elapsed_ms ? DG.formatRaceTime(r.elapsed_ms / 1000) : (r.finished_at ? 'done' : '—');
         DG.showOverlay(
             '<div class="text-center"><div class="text-6xl mb-1">' + (youWin ? '🏆' : '🏁') + '</div>' +
             '<h3 class="text-3xl font-bold ' + (youWin ? 'text-amber-600' : 'text-orange-600') + ' mb-1">' +
@@ -811,8 +953,8 @@
                 '<div class="dg-standing' + (currentUser && r.user_id === currentUser.id ? ' me' : '') + '">' +
                 '<span class="dg-medal">' + medal(i) + '</span>' +
                 '<span class="dg-who">' + DG.esc(DG.mpPlayerName(r)) + '</span>' +
-                '<span class="dg-points">' + (r.score || 0) + ' pts</span>' +
-                '<span class="dg-dist">' + Math.floor(r.distance || 0) + ' m</span>' +
+                '<span class="dg-points">' + points(r) + ' pts</span>' +
+                '<span class="dg-dist">' + acc(r) + ' · ' + time(r) + '</span>' +
                 '</div>').join('') + '</div>' +
             '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div>'
         );
@@ -1234,25 +1376,8 @@
         DG.drawScenery(ctx, p.dist, horizonY);
 
         // Finish line in multiplayer
-        if (S.mode === 'multi' && S.finishDistance) {
-            const rel = S.finishDistance - p.dist;
-            if (rel > -20 && rel < FAR_REL) {
-                const a = DG.project(rel, 0);
-                const size = Math.max(4, a.roadHalf * 0.14);
-                const left = a.centerX - a.roadHalf;
-                const cellW = a.roadHalf * 2 / 12;
-                for (let row = 0; row < 2; row++) {
-                    for (let i = 0; i < 12; i++) {
-                        ctx.fillStyle = (row + i) % 2 ? '#111827' : '#f9fafb';
-                        ctx.fillRect(left + i * cellW, a.y - row * size, cellW, size);
-                    }
-                }
-                ctx.fillStyle = '#fef08a';
-                ctx.font = '700 ' + Math.max(9, 22 * a.scale) + 'px Fredoka, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('FINISH', a.centerX, a.y - size * 2.6);
-            }
-        }
+        // The 4200 m finish line is no longer a win condition (racers
+        // finish at N correct), so it is not drawn.
 
         // Bananas on the track
         S.bananas.forEach(b => {

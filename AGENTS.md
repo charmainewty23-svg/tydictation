@@ -50,9 +50,9 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
-| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程：AV／PV／Mixed 題庫（Google Sheet 頁 `tenses`／`Passives`）、貓仔造型、Tilt／Swipe／按鈕、單人／多人（2–5）選擇、道具解鎖規則 |
-| 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、單人 endless（localStorage 最高分）、五種道具使用 |
-| 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；先到終點贏，否則 3 分鐘限時以最高分定勝負。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`；單人唔使呢份 SQL |
+| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程：AV／PV／Mixed 題庫（Google Sheet 頁 `tenses`／`Passives`）、同一動詞時態干擾項、貓仔造型、Tilt／Swipe／按鈕、題數（20／25／30／35／40／50）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳 |
+| 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子／進度／用時、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、按住加速（ACCEL／↑／W／Space，唔會用蘑菇）、單人到 N 題正確完結、五種道具使用 |
+| 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 適用全房；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間再貼 `supabase/drive_and_go_question_count.sql`）；單人唔使呢份 SQL；**唔好**用 plugin 跑 SQL |
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard` |
 | 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin` |
 | 10 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
@@ -81,7 +81,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `grammar-revision-view` | Tenses 2 卡：let's revise!／Drive & Go! |
 | `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
 | `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情同 Drive & Go! 開賽選單都用呢個） |
-| `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、LEFT／CENTER／RIGHT） |
+| `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、ACCEL、LEFT／CENTER／RIGHT） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
 | `error-book-view` | 學生錯題簿 |
@@ -95,18 +95,22 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `Drive & Go!`（`showDriveAndGo()`）。9 個時態（`tenseData`，包括 `future perfect tense`）喺
   `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
 - `Drive & Go!` 係 Mario Kart 式文法賽車：`showDriveAndGo()` 喺 `#grammar-detail-view`
-  行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、單人或多人），然後入 `#drive-and-go-view`
+  行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、題數 20／25／30／35／40／50、單人或多人），然後入 `#drive-and-go-view`
   比賽。Back 返 `grammar-revision-view`，並會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。
 - 題庫用現有 Google Sheet（`SPREADSHEET_ID`）gviz CSV：AV 讀頁名剛好係 `tenses`，PV 讀
   `Passives`（複數；唔好用錯 `passive`），Mixed 兩頁一齊洗牌。只由題庫出題，唔好發明題目。
   答案可接受 ` / ` 分隔嘅寫法，亦會把 typographic apostrophe 當普通 `'`。每題三條答案門
-  （正確 + 兩個同 section 嘅 distractor）。正確：Nitro +40 km/h、加分、combo、按規則派道具
+  （正確 + 兩個**同一動詞**嘅其他時態；AV 用主動、PV 用被動，Mixed 先留喺同一 voice。
+  變位填唔滿兩個先先 fallback 同 section／同 sheet，最後先用 filler）。正確：Nitro +40 km/h、加分、combo、按規則派道具
   （香蕉／連對 6 題無敵星／落後先有紅龜殼／challenging 題雷電／連對 3 題蘑菇）。錯誤：
-  1.5 秒 spin-out、減速、扣分、combo 斷，單人唔會因此出局。
-- 單人係 endless，最高分同最佳距離存 localStorage；呢版**唔會** hook `saveGrammarToCloud`。
-  多人要 2–5 個已登入玩家，短碼開房／入房；先到終點贏，否則 3 分鐘到以最高分定勝負。
-  多人要老師喺 live Supabase 專案自行貼跑 `supabase/drive_and_go.sql`；單人唔使呢份 SQL。
-  Guest 可以玩單人，唔可以開多人房。
+  1.5 秒 spin-out、減速、扣分、combo 斷，唔會計入 N 題正確。玩家可按住 ACCEL／↑／W／Space 加速（唔會消耗道具、亦唔會自動用蘑菇；旋轉時無效；有速度上限）。
+- 單人唔再係 endless：答對 N 題就完。複合分 = 現有賽分 + 時間獎勳（越快越高：`round(4000 * N / max(elapsed, 1))`），
+  個人最佳（複合分同時間）按題數（同 bank mode）存 localStorage；呢版**唔會** hook `saveGrammarToCloud`。
+  多人要 2–5 個已登入玩家，短碼開房／入房；房主揀嘅 N 適用全房（lobby 會顯示），加入者改唔到。
+  每人答對 N 題先完，全部剩餘玩家完（或離開）先結束房間；最高複合分贏（同分先比更快完成，再比正確率）。
+  多人要老師喺 live Supabase 專案自行貼跑 `supabase/drive_and_go.sql`；若房間已經建過，再貼可重跑嘅
+  `supabase/drive_and_go_question_count.sql`。**唔好**用 plugin 或 agent 對資料庫跑呢啲 SQL。單人唔使呢份 SQL。
+  Guest 可以玩單人（同樣揀 N），唔可以開多人房。HUD 喺兩種模式都顯示 `12/20` 進度同已經用咗幾耐。
 - 賽道係 deterministic pseudo-3D（OutRun 式）：`DG.project`／`DG.projectRel` 用 world Z（`player.dist`）
   計 `DG.trackCurve`／`DG.trackLateral`（左右彎）同 `DG.trackHill`（上落斜）；多人用 room seed，單人每次開局 random seed。
   `DG.drawTrack` 畫 curved segments，`DG.ensureScenery`／`DG.drawScenery` 放 world-Z 路邊景物（大廈／樹／燈柱／路牌／車）。
@@ -313,6 +317,14 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 預覽期間 `ownDisplayedForm()`／`resolveOwnForm()` 直接回傳揀咗嘅年級，當已分班學生（只睇嗰個年級 New Vocab），唔會呼叫 `my_form`／`claimSavedForm`，亦唔會改老師 email 嘅 `student_forms`。
 - 頂部橫幅顯示 "You are previewing the F3 student account."，撳 **Exit preview** 返老師帳戶。登出會清預覽。刷新分頁會用 `sessionStorage["learniTY_preview_form"]` 還原。
 - 預覽期間唔寫雲端成績：`dictation_results`、`wj_scores`、`error_book` upsert／delete、Grammar Quest scores。練習可以照做，分數只留喺呢次預覽（sessionStorage）。預覽中亦開唔到 Admin Dashboard。
+
+### 9.6b Drive & Go! 題數同完局規則 — `supabase/drive_and_go_question_count.sql`
+
+- 新安裝貼完整嘅 `supabase/drive_and_go.sql` 即可（已包含 `question_count` 同 N 題正確完局）。
+- 若老師已經跑過舊版 `drive_and_go.sql`，喺 live 專案 SQL Editor 再貼可重跑嘅
+  `supabase/drive_and_go_question_count.sql`。**唔好**用 Supabase plugin 或 agent 跑呢啲 SQL，
+  只可以老師自己喺 [SQL editor](https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new) 貼。
+- 單人唔使呢份 SQL。
 
 ### 9.7 年級（Form）— `supabase/student_forms.sql`（要喺 login tracking 之後跑）
 

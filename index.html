@@ -500,7 +500,7 @@
         .dg-toast {
             position: absolute;
             left: 50%;
-            bottom: calc(138px + env(safe-area-inset-bottom));
+            bottom: calc(258px + env(safe-area-inset-bottom));
             transform: translate(-50%, 8px);
             z-index: 24;
             background: rgba(15, 23, 42, 0.92);
@@ -558,6 +558,18 @@
         .dg-item-btn small { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; margin-top: 2px; }
         .dg-item-btn.empty { opacity: 0.62; border-color: #cbd5e1; box-shadow: 0 5px 0 #64748b; background: #e2e8f0; }
         .dg-item-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #b45309; }
+        .dg-accel-btn {
+            right: 10px;
+            bottom: calc(168px + env(safe-area-inset-bottom));
+            border-color: #38bdf8;
+            background: radial-gradient(circle at 30% 25%, #e0f2fe, #0ea5e9);
+            color: #0c4a6e;
+            box-shadow: 0 5px 0 #0369a1;
+        }
+        .dg-accel-btn.held, .dg-accel-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #0369a1;
+        }
         .dg-controls {
             position: absolute;
             left: 0;
@@ -1069,11 +1081,16 @@
                             <span id="dg-stat-combo" class="dg-stat">🔥 x0</span>
                             <span id="dg-stat-speed" class="dg-stat">0 km/h</span>
                             <span id="dg-stat-pos" class="dg-stat">1st</span>
-                            <span id="dg-stat-time" class="dg-stat hidden">3:00</span>
+                            <span id="dg-stat-progress" class="dg-stat">0/20</span>
+                            <span id="dg-stat-time" class="dg-stat">0:00</span>
                         </div>
                     </div>
                     <div id="dg-toast" class="dg-toast"></div>
                     <button id="dg-pause-btn" type="button" class="dg-pause-btn" onclick="DG.togglePause()" aria-label="Pause">⏸</button>
+                    <button id="dg-accel-btn" type="button" class="dg-item-btn dg-accel-btn" aria-label="Hold to accelerate">
+                        <span>🚀</span>
+                        <small>ACCEL</small>
+                    </button>
                     <button id="dg-item-btn" type="button" class="dg-item-btn empty" onclick="DG.useItem()" aria-label="Use item">
                         <span id="dg-item-emoji">—</span>
                         <small id="dg-item-name">ITEM</small>

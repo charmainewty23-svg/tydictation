@@ -8,7 +8,8 @@
             loginsError: null,
             battles: null,
             battlesError: null,
-            wj: null
+            wj: null,
+            dg: null
         };
 
         async function loadAdminDashboard() {
@@ -86,6 +87,145 @@
                     `).join('')}
                 </div>
             `, { collapsible: true, scope: 'admin-activity' });
+        }
+
+        // --- Admin: Drive & Go! records (inside the Grammar Quest card) ---
+        // Two separate personal-best views already exist in the live project:
+        // drive_and_go_solo_leaderboard / drive_and_go_multi_leaderboard.
+        // No new schema is needed.
+
+        function driveAndGoBoardSummary(rows) {
+            const list = Array.isArray(rows) ? rows : [];
+            let runs = 0;
+            let best = 0;
+            let bestName = '';
+            list.forEach(r => {
+                const plays = Number(r && r.plays);
+                runs += isFinite(plays) && plays > 0 ? plays : 1;
+                const composite = Number(r && r.composite) || 0;
+                if (composite > best) {
+                    best = composite;
+                    bestName = displayName(r);
+                }
+            });
+            return { players: list.length, runs, best, bestName };
+        }
+
+        function driveAndGoRowMeta(r) {
+            const row = r || {};
+            const elapsed = (Number(row.elapsed_ms) || 0) / 1000;
+            const time = (typeof DG !== 'undefined' && DG.formatRaceTime)
+                ? DG.formatRaceTime(elapsed)
+                : Math.round(elapsed) + 's';
+            const acc = (typeof DG !== 'undefined' && DG.formatAccuracy)
+                ? DG.formatAccuracy(row.accuracy)
+                : Math.round((Number(row.accuracy) || 0) * 100) + '%';
+            const n = (typeof DG !== 'undefined' && DG.normalizeQuestionCount)
+                ? DG.normalizeQuestionCount(row.question_count)
+                : (Number(row.question_count) || 20);
+            const bank = (typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[row.bank_mode]) || 'AV';
+            const scene = (typeof DG !== 'undefined' && DG.sceneLabel)
+                ? DG.sceneLabel(row.scene)
+                : String(row.scene || 'Desert Hills');
+            const plays = Number(row.plays);
+            const runs = plays > 1 ? ' · ' + plays + ' runs' : '';
+            return time + ' · ' + acc + ' · ' + n + ' Q · ' + bank + ' · ' + scene + runs;
+        }
+
+        async function loadDriveAndGoAdmin(forceForms) {
+            if (!isAdmin()) return;
+            const statsEl = document.getElementById('dg-admin-stats');
+            const soloEl = document.getElementById('dg-admin-solo-container');
+            const multiEl = document.getElementById('dg-admin-multi-container');
+            if (!statsEl || !soloEl || !multiEl) return;
+            if (forceForms) await ensureFormDirectory(true);
+            statsEl.innerHTML = '';
+
+            const columns = 'user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at';
+            const [soloRes, multiRes] = await Promise.all([
+                sb.from('drive_and_go_solo_leaderboard')
+                    .select(columns)
+                    .order('composite', { ascending: false })
+                    .order('elapsed_ms', { ascending: true })
+                    .order('accuracy', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(1000),
+                sb.from('drive_and_go_multi_leaderboard')
+                    .select(columns)
+                    .order('composite', { ascending: false })
+                    .order('elapsed_ms', { ascending: true })
+                    .order('accuracy', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(1000)
+            ]);
+            adminCache.dg = {
+                solo: soloRes.data || [],
+                soloError: soloRes.error || null,
+                multi: multiRes.data || [],
+                multiError: multiRes.error || null
+            };
+            renderDriveAndGoAdmin();
+        }
+
+        function renderDriveAndGoAdminBoard(container, rows, solo, error) {
+            if (!container) return;
+            if (error) {
+                const missing = isMissingSchema(error.message);
+                container.innerHTML = missing
+                    ? '<p class="text-gray-400 text-center py-8 text-sm">Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' board is not set up yet.<br>Run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the SQL editor.</p>'
+                    : '<p class="text-red-400 text-center py-8 text-sm">Cannot load Drive &amp; Go! records: ' + escapeHtml(error.message) + '</p>';
+                return;
+            }
+            if (!rows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8 text-sm">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>';
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(rows), (list) =>
+                '<div class="space-y-2">' + list.map((r, i) => {
+                    const medal = ['🥇', '🥈', '🥉'][i] || `<span class="text-gray-400">${i + 1}.</span>`;
+                    return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                        <span class="w-7 text-center text-sm font-bold">${medal}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                                <p class="text-sm font-bold text-gray-700 truncate">${escapeHtml(displayName(r))}</p>
+                                ${classBadge(r.email, r.nickname)}
+                                ${formAssignControl(r.email, r.nickname)}
+                            </div>
+                            <p class="text-xs text-gray-400 truncate">${escapeHtml(driveAndGoRowMeta(r))}</p>
+                        </div>
+                        <span class="font-bold text-green-600 text-sm whitespace-nowrap">${Number(r.composite) || 0} pts</span>
+                    </div>`;
+                }).join('') + '</div>',
+            { emptyAll: '<p class="text-gray-400 text-center py-8 text-sm">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>' });
+        }
+
+        function renderDriveAndGoAdmin() {
+            const statsEl = document.getElementById('dg-admin-stats');
+            const soloEl = document.getElementById('dg-admin-solo-container');
+            const multiEl = document.getElementById('dg-admin-multi-container');
+            if (!statsEl || !soloEl || !multiEl || !adminCache.dg) return;
+            const pack = adminCache.dg;
+            const solo = driveAndGoBoardSummary(pack.solo);
+            const multi = driveAndGoBoardSummary(pack.multi);
+            statsEl.innerHTML = `
+                <div class="bg-green-50 rounded-2xl p-4 text-center border-2 border-green-100">
+                    <p class="text-2xl font-bold text-green-600">${solo.players}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Solo students</p>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-4 text-center border-2 border-blue-100">
+                    <p class="text-2xl font-bold text-blue-600">${solo.runs}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Solo runs</p>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-4 text-center border-2 border-green-100">
+                    <p class="text-2xl font-bold text-green-600">${multi.players}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Multi students</p>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-4 text-center border-2 border-blue-100">
+                    <p class="text-2xl font-bold text-blue-600">${multi.runs}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Multi runs</p>
+                </div>`;
+            renderDriveAndGoAdminBoard(soloEl, pack.solo, true, pack.soloError);
+            renderDriveAndGoAdminBoard(multiEl, pack.multi, false, pack.multiError);
         }
 
         // --- Admin: student login activity ---

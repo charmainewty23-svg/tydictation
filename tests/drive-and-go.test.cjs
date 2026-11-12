@@ -9,6 +9,8 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../js/grammar/drive-and-go.js'), 'utf8');
 const raceSource = fs.readFileSync(path.join(__dirname, '../js/grammar/drive-and-go-race.js'), 'utf8');
 const mpSource = fs.readFileSync(path.join(__dirname, '../js/grammar/drive-and-go-multiplayer.js'), 'utf8');
+const adminSource = fs.readFileSync(path.join(__dirname, '../js/admin.js'), 'utf8');
+const htmlSource = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 
 function loadDG(store) {
     const ls = store || {};
@@ -25,6 +27,45 @@ function loadDG(store) {
     });
     vm.runInContext(source, context);
     return vm.runInContext('DG', context);
+}
+
+// Loads drive-and-go.js with enough fake DOM to render every pre-race step
+// (the functions themselves are what we assert on; nothing touches a browser).
+function loadDGWithDom(store, opts) {
+    const ls = store || {};
+    const options = opts || {};
+    const elements = {};
+    const element = (id) => {
+        if (!elements[id]) {
+            elements[id] = {
+                id,
+                innerHTML: '',
+                onclick: null,
+                classList: {
+                    add() {}, remove() {}, toggle() {}, contains() { return false; }
+                }
+            };
+        }
+        return elements[id];
+    };
+    const context = vm.createContext({
+        window: {},
+        globalThis: {},
+        localStorage: {
+            getItem(k) { return Object.prototype.hasOwnProperty.call(ls, k) ? ls[k] : null; },
+            setItem(k, v) { ls[k] = String(v); },
+            removeItem(k) { delete ls[k]; }
+        },
+        document: { getElementById: element },
+        requestAnimationFrame() { return 0; },
+        isGuestUser: () => !!options.guest,
+        canUseCloud: () => !options.guest,
+        console
+    });
+    vm.runInContext(source, context);
+    const DG = vm.runInContext('DG', context);
+    const content = () => element('grammar-detail-content').innerHTML;
+    return { DG, context, elements, content };
 }
 
 const SAMPLE = [
@@ -295,14 +336,19 @@ test('analog tilt maps a lean to a continuous lane target (0 left, 2 right)', ()
     assert.equal(DG.tiltLaneTarget(DG.TILT_FULL), 2);
     assert.equal(DG.tiltLaneTarget(90), 2);
 
-    const middle = [3, 4, 6, 9, 12, 15].map(deg => DG.tiltLaneTarget(deg));
+    const middle = [3, 4, 6, 8, 10, 11].map(deg => DG.tiltLaneTarget(deg));
     middle.forEach(v => assert.ok(v > 1 && v < 2, 'expected a fractional lane, got ' + v));
-    const negMiddle = [-3, -4, -6, -9, -12, -15].map(deg => DG.tiltLaneTarget(deg));
+    const negMiddle = [-3, -4, -6, -8, -10, -11].map(deg => DG.tiltLaneTarget(deg));
     negMiddle.forEach(v => assert.ok(v >= 0 && v < 1, 'expected a fractional lane, got ' + v));
 
     // Monotonic and symmetric: more lean = further out, and sign mirrors.
     for (let i = 1; i < middle.length; i++) assert.ok(middle[i] > middle[i - 1]);
     middle.forEach((v, i) => assert.ok(Math.abs((2 - v) - negMiddle[i]) < 1e-9));
+
+    // A normal ~7° wrist lean already reaches the next lane (full tilt at 12°).
+    assert.ok(DG.tiltLaneTarget(7) >= 1.5, 'a normal lean should cross into the next lane');
+    assert.ok(DG.tiltLaneTarget(-7) <= 0.5, 'a normal lean should cross into the next lane');
+    assert.ok(Math.abs(DG.tiltLaneTarget(4) - 1) < 0.5, 'small leans stay gentle');
 
     // A non-numeric reading never throws and stays centred.
     assert.equal(DG.tiltLaneTarget(NaN), 1);
@@ -329,4 +375,310 @@ test('all three Drive & Go scripts are classic scripts and parse', () => {
     new vm.Script(source);
     new vm.Script(raceSource);
     new vm.Script(mpSource);
+});
+
+/* ---------------- pre-race flow: Solo / Multi first ---------------- */
+
+test('Drive & Go! opens on Solo or Multiplayer and never on the old game-mode step', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.showSessionStep();
+    assert.equal(DG.menuStep, 'session');
+    const html = content();
+    assert.ok(/Solo or Multiplayer\?/.test(html));
+    assert.ok(html.indexOf("DG.chooseSession('solo')") !== -1);
+    assert.ok(html.indexOf("DG.chooseSession('multi')") !== -1);
+    // No challenge / cat / course yet — and no final "Game mode" question.
+    assert.ok(html.indexOf('Choose your challenge') === -1);
+    assert.ok(html.indexOf('Game mode') === -1);
+    assert.ok(!/DG\.showModeStep\(\)/.test(html));
+    assert.ok(/showDriveAndGo[\s\S]{0,160}showSessionStep/.test(source));
+});
+
+test('Solo flow is session → challenge → cat → controls → count → scene and skips game mode', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.sessionMode = 'solo';
+    assert.deepEqual(Array.from(DG.flowOrder()), ['session', 'challenge', 'cat', 'controls', 'count', 'scene']);
+    assert.ok(DG.flowOrder().indexOf('mode') === -1);
+
+    DG.showChallengeStep();
+    assert.equal(DG.menuStep, 'challenge');
+    assert.ok(content().indexOf('2. Choose your challenge') !== -1);
+    assert.ok(content().indexOf('DG.showSessionStep()') !== -1);
+
+    DG.showCatStep();
+    assert.equal(DG.menuStep, 'cat');
+    assert.ok(content().indexOf('3. Customize your cat driver') !== -1);
+
+    DG.showControlsStep();
+    assert.equal(DG.menuStep, 'controls');
+    assert.ok(content().indexOf('4. Choose your controls') !== -1);
+
+    DG.showCountStep();
+    assert.equal(DG.menuStep, 'count');
+    assert.ok(content().indexOf('5. How many questions?') !== -1);
+
+    DG.showSceneStep();
+    assert.equal(DG.menuStep, 'scene');
+    const html = content();
+    assert.ok(html.indexOf('6. Choose a course') !== -1);
+    // Solo starts immediately after the course; there is no game-mode step.
+    assert.ok(html.indexOf('DG.launchSolo()') !== -1);
+    assert.ok(html.indexOf('Start race') !== -1);
+    assert.ok(html.indexOf('DG.showModeStep()') === -1);
+    assert.ok(html.indexOf('Game mode') === -1);
+});
+
+test('Multiplayer asks Create or Join before any settings', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.sessionMode = 'multi';
+    DG.mpRole = '';
+    assert.deepEqual(Array.from(DG.flowOrder()), ['session', 'multi-entry']);
+
+    DG.showMultiplayerEntryStep();
+    assert.equal(DG.menuStep, 'multi-entry');
+    const html = content();
+    assert.ok(html.indexOf("DG.chooseMultiRole('create')") !== -1);
+    assert.ok(html.indexOf("DG.chooseMultiRole('join')") !== -1);
+    // Create / Join is asked before challenge, count or course.
+    assert.ok(html.indexOf('Choose your challenge') === -1);
+    assert.ok(html.indexOf('How many questions') === -1);
+    assert.ok(html.indexOf('Choose a course') === -1);
+    // The very first step is still Solo / Multiplayer.
+    assert.deepEqual(Array.from(DG.flowOrder()).slice(0, 2), ['session', 'multi-entry']);
+});
+
+test('multiplayer host picks challenge, count and course, then creates the room', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.sessionMode = 'multi';
+    DG.mpRole = 'create';
+    assert.deepEqual(Array.from(DG.flowOrder()),
+        ['session', 'multi-entry', 'challenge', 'cat', 'controls', 'count', 'scene']);
+    assert.equal(DG.canEditHostSettings(), true);
+
+    DG.showChallengeStep();
+    assert.ok(content().indexOf('3. Choose your challenge') !== -1);
+    assert.ok(content().indexOf('DG.showMultiplayerEntryStep()') !== -1);
+
+    DG.setBankMode('mixed');
+    assert.equal(DG.readSettings().bankMode, 'mixed');
+    DG.setQuestionCount(40);
+    assert.equal(DG.readSettings().questionCount, 40);
+    DG.setScene('stadium');
+    assert.equal(DG.readSettings().scene, 'stadium');
+
+    DG.showSceneStep();
+    const html = content();
+    assert.ok(html.indexOf('7. Choose a course') !== -1);
+    assert.ok(html.indexOf('DG.mpCreate()') !== -1);
+    assert.ok(html.indexOf('Create room') !== -1);
+    assert.ok(html.indexOf('DG.launchSolo()') === -1);
+    // The existing RPC already takes the count and the scene.
+    assert.ok(/create_drive_and_go_room/.test(mpSource));
+    assert.ok(/p_question_count/.test(mpSource) && /p_scene/.test(mpSource));
+});
+
+test('a joiner follows the host settings but still picks a character and controls', () => {
+    const { DG, content } = loadDGWithDom({
+        learniTY_dg_settings: JSON.stringify({ bankMode: 'av', questionCount: 20, scene: 'desert' })
+    });
+    DG.sessionMode = 'multi';
+    DG.mpRole = 'join';
+    assert.deepEqual(Array.from(DG.flowOrder()), ['session', 'multi-entry', 'cat', 'controls', 'join']);
+    assert.equal(DG.canEditHostSettings(), false);
+
+    // Host-owned settings cannot be changed by a joiner.
+    DG.setBankMode('pv');
+    DG.setQuestionCount(50);
+    DG.setScene('jungle');
+    assert.equal(DG.readSettings().bankMode, 'av');
+    assert.equal(DG.readSettings().questionCount, 20);
+    assert.equal(DG.readSettings().scene, 'desert');
+
+    // Per-player look and controls still work.
+    DG.setLook('cat', 'Black');
+    assert.equal(DG.readSettings().cat, 'Black');
+    DG.chooseControls('swipe');
+    assert.equal(DG.readSettings().controls, 'swipe');
+
+    DG.showJoinStep();
+    assert.equal(DG.menuStep, 'join');
+    const html = content();
+    assert.ok(html.indexOf('5. Join the room') !== -1);
+    assert.ok(html.indexOf('dg-join-code') !== -1);
+    assert.ok(html.indexOf('DG.mpJoin()') !== -1);
+    // No challenge / count / course controls for joiners.
+    assert.ok(html.indexOf('Choose your challenge') === -1);
+    assert.ok(html.indexOf('How many questions') === -1);
+    assert.ok(html.indexOf('Choose a course') === -1);
+});
+
+test('guests only get Solo on the first step', () => {
+    const { DG, content } = loadDGWithDom({}, { guest: true });
+    DG.showSessionStep();
+    const html = content();
+    assert.ok(html.indexOf('Guests can play Single Player only') !== -1);
+    assert.ok(/disabled aria-disabled="true"/.test(html));
+    assert.ok(html.indexOf("DG.chooseSession('multi')") === -1);
+});
+
+/* ---------------- steering ---------------- */
+
+function loadRace(DG) {
+    const context = vm.createContext({
+        window: { DG },
+        globalThis: {},
+        document: { getElementById() { return null; } },
+        console
+    });
+    vm.runInContext(raceSource, context);
+    return DG;
+}
+
+test('discrete steering keeps its lane target instead of snapping back to centre (PR #26 regression)', () => {
+    const DG = loadDG();
+    assert.equal(typeof DG.laneStep, 'function');
+
+    // Press LEFT from the centre lane: lane becomes 0 at once and laneX moves
+    // toward it. It must never be overwritten back to lane 1 mid-move.
+    let state = { lane: 1, laneX: 1 };
+    state.lane = 0;
+    let snappedBack = false;
+    for (let i = 0; i < 120; i++) {
+        state = DG.laneStep(state, 1 / 120, null);
+        if (state.lane !== 0) snappedBack = true;
+    }
+    assert.equal(snappedBack, false, 'the discrete lane target was overwritten by laneX');
+    assert.equal(state.lane, 0);
+    assert.ok(state.laneX < 0.001, 'kart never reached the left lane');
+
+    // RIGHT from the left lane works the same way.
+    state.lane = 2;
+    for (let i = 0; i < 120; i++) state = DG.laneStep(state, 1 / 120, null);
+    assert.equal(state.lane, 2);
+    assert.ok(state.laneX > 1.999);
+
+    // CENTER returns to the middle lane.
+    state.lane = 1;
+    for (let i = 0; i < 120; i++) state = DG.laneStep(state, 1 / 120, null);
+    assert.equal(state.lane, 1);
+    assert.ok(Math.abs(state.laneX - 1) < 0.001);
+
+    // The race loop must use the shared helper and must not write lane back
+    // from laneX (the exact bug).
+    assert.match(raceSource, /DG\.laneStep\(p, dt, laneTarget\)/);
+    assert.ok(!/p\.lane\s*=\s*DG\.nearestLane\(p\.laneX\)/.test(raceSource),
+        'updateRace must not overwrite the button / key / swipe lane from laneX');
+});
+
+test('analog tilt moves laneX and the gate lane follows the real position', () => {
+    const DG = loadDG();
+    let state = { lane: 1, laneX: 1 };
+    for (let i = 0; i < 120; i++) state = DG.laneStep(state, 1 / 120, DG.tiltLaneTarget(16));
+    assert.equal(state.lane, 2);
+    assert.ok(Math.abs(state.laneX - 2) < 0.001);
+
+    for (let i = 0; i < 120; i++) state = DG.laneStep(state, 1 / 120, DG.tiltLaneTarget(-16));
+    assert.equal(state.lane, 0);
+    assert.ok(Math.abs(state.laneX) < 0.001);
+
+    for (let i = 0; i < 120; i++) state = DG.laneStep(state, 1 / 120, DG.tiltLaneTarget(0));
+    assert.equal(state.lane, 1);
+    assert.ok(Math.abs(state.laneX - 1) < 0.001);
+
+    // A gentle lean rounds to the nearest gate lane but keeps a fractional
+    // screen position, so the kart still moves smoothly.
+    const gentle = DG.laneStep({ lane: 1, laneX: 1 }, 1 / 60, DG.tiltLaneTarget(4));
+    assert.ok(gentle.laneX > 1);
+    assert.equal(gentle.lane, DG.nearestLane(gentle.laneX));
+});
+
+test('swipe direction maps to left / right and ignores taps', () => {
+    const DG = loadRace(loadDG());
+    assert.equal(DG.swipeStep(-80), -1);
+    assert.equal(DG.swipeStep(80), 1);
+    assert.equal(DG.swipeStep(-32), -1);
+    assert.equal(DG.swipeStep(31), 0);
+    assert.equal(DG.swipeStep(0), 0);
+    assert.equal(DG.swipeStep(NaN), 0);
+    assert.ok(/DG\.swipeStep\(e\.clientX - S\.swipe\.x\)/.test(raceSource));
+});
+
+test('every control path calls setLane / steer, which only changes the discrete target', () => {
+    // Keyboard, the three on-screen buttons and swipe all end in setLane.
+    assert.ok(/onclick="DG\.setLane\(0\)"/.test(htmlSource));
+    assert.ok(/onclick="DG\.setLane\(1\)"/.test(htmlSource));
+    assert.ok(/onclick="DG\.setLane\(2\)"/.test(htmlSource));
+    assert.match(raceSource, /key === 'ArrowLeft'[\s\S]{0,120}DG\.steer\(-1\)/);
+    assert.match(raceSource, /key === 'ArrowRight'[\s\S]{0,120}DG\.steer\(1\)/);
+    assert.match(raceSource, /DG\.swipeStep\([\s\S]{0,120}DG\.steer\(dir\)/);
+    assert.match(raceSource, /DG\.setLane = function \(lane\)[\s\S]{0,400}S\.player\.lane = n/);
+    assert.ok(!/S\.player\.laneX\s*=\s*n/.test(raceSource));
+});
+
+/* ---------------- teacher dashboard ---------------- */
+
+test('Drive & Go! Solo and Multi boards sit inside the Grammar Quest dashboard card', () => {
+    const grammarAt = htmlSource.indexOf('📜 Grammar Quest');
+    const soloAt = htmlSource.indexOf('id="dg-admin-solo-container"');
+    const multiAt = htmlSource.indexOf('id="dg-admin-multi-container"');
+    const loginsAt = htmlSource.indexOf('🕒 Student Logins');
+    assert.ok(grammarAt !== -1 && soloAt !== -1 && multiAt !== -1 && loginsAt !== -1);
+    assert.ok(soloAt > grammarAt, 'Solo board must be inside the Grammar Quest card');
+    assert.ok(multiAt > soloAt, 'Multi board must follow the Solo board');
+    assert.ok(multiAt < loginsAt, 'Drive & Go! boards must stay in the Grammar Quest card');
+    assert.ok(htmlSource.indexOf('loadDriveAndGoAdmin(true)') !== -1);
+    assert.ok(/id="dg-admin-stats"/.test(htmlSource));
+});
+
+test('the dashboard reads the existing Solo / Multi views and never invents a table', () => {
+    assert.ok(adminSource.indexOf('drive_and_go_solo_leaderboard') !== -1);
+    assert.ok(adminSource.indexOf('drive_and_go_multi_leaderboard') !== -1);
+    assert.ok(!/create table|from\(['"]drive_and_go_(?:solo|multi)_scores/.test(adminSource));
+    assert.match(adminSource, /async function loadDriveAndGoAdmin[\s\S]{0,80}if \(!isAdmin\(\)\) return;/);
+    assert.ok(/loadDriveAndGoAdmin\(\)/.test(fs.readFileSync(path.join(__dirname, '../js/shared.js'), 'utf8')));
+});
+
+function loadAdminUtils(DG) {
+    const context = vm.createContext({
+        console,
+        DG,
+        isAdmin: () => false,
+        sb: { from() { throw new Error('a guest must not query the board'); } },
+        document: { getElementById() { return null; } },
+        displayName: (r) => (r && (r.nickname || r.email)) || '?',
+        escapeHtml: (t) => String(t == null ? '' : t),
+        classBadge: () => '',
+        formAssignControl: () => '',
+        groupRowsByForm: (rows) => [{ id: '', label: 'Unassigned', rows: rows || [] }],
+        renderFormSections: () => '<rows></rows>',
+        isMissingSchema: () => true,
+        ensureFormDirectory: async () => ({})
+    });
+    vm.runInContext(adminSource, context);
+    return context;
+}
+
+test('dashboard summary and row meta are unit-testable and use the composite board fields', async () => {
+    const DG = loadDG();
+    const ctx = loadAdminUtils(DG);
+    const rows = [
+        { nickname: 'Alice', email: 'a@school', composite: 900, elapsed_ms: 60000, accuracy: 0.8, question_count: 20, bank_mode: 'pv', scene: 'jungle', plays: 3 },
+        { nickname: 'Bob', email: 'b@school', composite: 1200, elapsed_ms: 90000, accuracy: 0.5, question_count: 30, bank_mode: 'mixed', scene: 'stadium', plays: 1 }
+    ];
+    const summary = vm.runInContext('driveAndGoBoardSummary', ctx)(rows);
+    assert.equal(summary.players, 2);
+    assert.equal(summary.runs, 4);
+    assert.equal(summary.best, 1200);
+    assert.equal(summary.bestName, 'Bob');
+
+    const meta = vm.runInContext('driveAndGoRowMeta', ctx)(rows[0]);
+    assert.ok(meta.indexOf('1:00') !== -1);
+    assert.ok(meta.indexOf('80%') !== -1);
+    assert.ok(meta.indexOf('20 Q') !== -1);
+    assert.ok(meta.indexOf('PV') !== -1);
+    assert.ok(meta.indexOf('Dino Dino Jungle') !== -1);
+    assert.ok(meta.indexOf('3 runs') !== -1);
+
+    // A guest (isAdmin false) gets an early return instead of a board query.
+    await vm.runInContext('loadDriveAndGoAdmin()', ctx);
 });

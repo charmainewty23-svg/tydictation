@@ -497,6 +497,122 @@
             white-space: nowrap;
         }
         .dg-stat.hidden { display: none; }
+        /* Multiplayer-only corner board: every remaining racer, name +
+           correct answers / N + a progress bar (track distance is a secondary
+           cue). It sits under the question HUD on the left and never takes
+           pointer events, so steering / ACCEL / answer gates keep working. */
+        .dg-mp-progress {
+            position: absolute;
+            left: 8px;
+            top: calc(140px + env(safe-area-inset-top));
+            /* Below the question HUD (z 10) so a long sentence always wins;
+               above the canvas, and never a pointer target. */
+            z-index: 9;
+            width: min(48vw, 208px);
+            max-height: 38vh;
+            overflow: hidden;
+            padding: 6px 8px 7px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.24);
+            background: rgba(15, 23, 42, 0.74);
+            color: #fff;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .dg-mp-progress.hidden { display: none; }
+        .dg-mp-progress h4 {
+            margin: 0 0 4px;
+            font-size: 9px;
+            line-height: 1.15;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #fdba74;
+        }
+        .dg-race-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 5px;
+            row-gap: 2px;
+            padding: 3px 3px 4px;
+            border-radius: 8px;
+        }
+        .dg-race-row + .dg-race-row { margin-top: 2px; }
+        .dg-race-row.me {
+            background: rgba(250, 204, 21, 0.2);
+        }
+        .dg-race-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 11px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .dg-race-row.me .dg-race-name { color: #fde68a; }
+        .dg-race-count {
+            font-size: 10px;
+            font-weight: 700;
+            color: #d1fae5;
+            white-space: nowrap;
+        }
+        .dg-race-bar {
+            grid-column: 1 / -1;
+            display: block;
+            height: 5px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+        .dg-race-bar i {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #34d399, #fbbf24);
+        }
+        .dg-race-row.me .dg-race-bar i {
+            background: linear-gradient(90deg, #fde047, #fb923c);
+        }
+        .dg-race-dist {
+            grid-column: 1 / -1;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: rgba(226, 232, 240, 0.75);
+        }
+        .dg-race-more {
+            margin-top: 3px;
+            font-size: 8px;
+            font-weight: 700;
+            color: rgba(226, 232, 240, 0.7);
+        }
+        /* Live "remaining racers" list inside an early finisher's results
+           panel (white .dg-panel), so the dark board rows stay readable. */
+        .dg-results-progress {
+            margin: 0 0 16px;
+            padding: 9px 10px 10px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 2px solid rgba(15, 23, 42, 0.15);
+            text-align: left;
+        }
+        .dg-results-progress h4 {
+            margin: 0 0 4px;
+            font-size: 9px;
+            line-height: 1.15;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #fdba74;
+        }
+        .dg-results-wait {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(226, 232, 240, 0.8);
+        }
         .dg-toast {
             position: absolute;
             left: 50%;
@@ -1085,6 +1201,7 @@
                             <span id="dg-stat-time" class="dg-stat">0:00</span>
                         </div>
                     </div>
+                    <div id="dg-mp-progress" class="dg-mp-progress hidden" aria-live="polite" aria-label="Racer progress"></div>
                     <div id="dg-toast" class="dg-toast"></div>
                     <button id="dg-pause-btn" type="button" class="dg-pause-btn" onclick="DG.togglePause()" aria-label="Pause">⏸</button>
                     <button id="dg-accel-btn" type="button" class="dg-item-btn dg-accel-btn" aria-label="Hold to accelerate">
@@ -1549,19 +1666,21 @@
                         </div>
                     </div>
                 </div>
-                <div class="cat-card p-8 mt-6">
+                <div class="cat-card p-8 mt-6" data-form-scope="guest-admin" data-form-group="all">
                     <div class="flex items-start justify-between gap-4 flex-wrap">
                         <div>
-                            <h2 class="text-3xl font-bold text-cyan-600 mb-2">🕵️ Guest logins</h2>
-                            <p class="text-gray-400 mb-6">Password guest sign-ins and what they used (teacher only)</p>
+                            <h2 class="text-3xl font-bold text-cyan-600 mb-2 flex items-center gap-2 flex-wrap">🕵️ Guest logins <span id="guest-admin-toggles"></span></h2>
+                            <p class="text-gray-400 mb-6">Password guest sign-ins and what they used (teacher only) · last 24 hours only</p>
                         </div>
                         <button onclick="loadGuestAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-colors">↻ Refresh</button>
                     </div>
-                    <div id="guest-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
-                    <div id="guest-admin-container">
-                        <div class="flex flex-col items-center py-10">
-                            <div class="loader mb-4"></div>
-                            <p class="text-cyan-400 font-bold">Loading...</p>
+                    <div id="guest-admin-body" class="admin-form-body hidden">
+                        <div id="guest-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                        <div id="guest-admin-container">
+                            <div class="flex flex-col items-center py-10">
+                                <div class="loader mb-4"></div>
+                                <p class="text-cyan-400 font-bold">Loading...</p>
+                            </div>
                         </div>
                     </div>
                 </div>

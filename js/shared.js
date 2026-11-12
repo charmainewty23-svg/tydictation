@@ -71,6 +71,36 @@
             }
         }
 
+        // Rolling retention window for guest browsing records.
+        // Deliberately a rolling last 24 hours (now - 24h), NOT an
+        // Asia/Hong_Kong calendar day: the database deletes anything older
+        // (prune_guest_records() in supabase/guest_tracking.sql and the
+        // incremental supabase/guest_tracking_prune.sql), so the dashboard
+        // window must use exactly the same cutoff.
+        const GUEST_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+        function guestRetentionCutoffMs(now) {
+            const base = (now == null) ? Date.now() : Number(now);
+            return (Number.isFinite(base) ? base : Date.now()) - GUEST_RETENTION_MS;
+        }
+
+        function guestCutoffIso(now) {
+            return new Date(guestRetentionCutoffMs(now)).toISOString();
+        }
+
+        function isWithinGuestLogWindow(value, now) {
+            if (value == null || value === '') return false;
+            const t = new Date(value).getTime();
+            return Number.isFinite(t) && t >= guestRetentionCutoffMs(now);
+        }
+
+        // Keep only rows inside the rolling 24-hour window. Used by the
+        // dashboard query (.gte) and again when rendering, so a stale row
+        // that somehow comes back from the database is never displayed.
+        function filterGuestRecords(rows, field, now) {
+            return (rows || []).filter(r => r && isWithinGuestLogWindow(r[field], now));
+        }
+
         // One row per successful password entry. Called only from
         // signInAsGuest — a refresh that restores the session from
         // sessionStorage goes through startGuestSession() without this.

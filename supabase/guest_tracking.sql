@@ -12,6 +12,12 @@
 --   guest_usage  — one row per meaningful guest activity (Word Jump,
 --                  dictation modes, New Vocab, Error Book, Grammar Quest…),
 --                  linked to that login through session_key
+--
+-- Retention: only a ROLLING last 24 hours is kept (now() - interval '24
+-- hours'), NOT an Asia/Hong_Kong calendar day. prune_guest_records() deletes
+-- older rows; record_guest_login / record_guest_usage call it on every write
+-- and the dashboard calls it on every load/Refresh. The frontend filters with
+-- the same cutoff. Existing installs only need supabase/guest_tracking_prune.sql.
 -- ============================================================
 
 create table if not exists public.guest_logins (
@@ -48,6 +54,30 @@ create policy "admin reads guest usage" on public.guest_usage
 grant select on public.guest_logins to authenticated;
 grant select on public.guest_usage to authenticated;
 
+-- Helps the 24-hour delete and the dashboard's .gte query.
+create index if not exists guest_logins_logged_in_at_idx
+    on public.guest_logins (logged_in_at);
+create index if not exists guest_usage_created_at_idx
+    on public.guest_usage (created_at);
+
+-- Rolling 24-hour delete: used on every guest write and on every dashboard
+-- load/Refresh. Security definer so guests (anon) and the teacher can both
+-- trigger it even though direct table deletes stay revoked.
+create or replace function public.prune_guest_records()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    -- Rolling last 24 hours, not a calendar day.
+    delete from public.guest_logins
+     where logged_in_at < now() - interval '24 hours';
+    delete from public.guest_usage
+     where created_at < now() - interval '24 hours';
+end;
+$$;
+
 -- Called from the browser right after the guest password is accepted.
 -- One row per password entry.
 create or replace function public.record_guest_login(
@@ -63,6 +93,7 @@ begin
     if p_session_key = '' then
         return;
     end if;
+    perform public.prune_guest_records();
     insert into public.guest_logins (session_key, user_agent)
     values (p_session_key, left(coalesce(p_user_agent, ''), 300));
 end;
@@ -85,12 +116,18 @@ begin
     if p_session_key = '' or p_feature = '' then
         return;
     end if;
+    perform public.prune_guest_records();
     insert into public.guest_usage (session_key, feature, detail)
     values (p_session_key, p_feature, nullif(left(coalesce(p_detail, ''), 120), ''));
 end;
 $$;
 
 -- Only the RPCs are callable; no direct table writes from the browser.
+revoke all on function public.prune_guest_records() from public;
+revoke all on function public.prune_guest_records() from anon;
+revoke all on function public.prune_guest_records() from authenticated;
+grant execute on function public.prune_guest_records() to anon, authenticated;
+
 revoke all on function public.record_guest_login(text, text) from public;
 revoke all on function public.record_guest_login(text, text) from anon;
 revoke all on function public.record_guest_login(text, text) from authenticated;

@@ -931,7 +931,13 @@ const DG = {
         if (typeof DG.stopRace === 'function') DG.stopRace();
         if (viewId !== 'grammar-detail-view') {
             if (typeof DG.mpStopPoll === 'function') DG.mpStopPoll();
-            if (typeof DG.mpAbandon === 'function') DG.mpAbandon();
+            // A freshly joined racer keeps their seat for a short settle
+            // window. Token refreshes or an accidental view change must not
+            // call leave_drive_and_go_room and delete their player row, which
+            // would make the next poll think they were never in the room.
+            const canAbandon = typeof DG.mpCanAbandon !== 'function' || DG.mpCanAbandon();
+            if (typeof DG.mpAbandon === 'function' && canAbandon) DG.mpAbandon();
+            else if (typeof DG.mpDetachDuringSettle === 'function') DG.mpDetachDuringSettle();
         }
     },
 
@@ -1613,7 +1619,10 @@ function showDriveAndGo() {
     DG.sessionMode = '';
     DG.mpRole = '';
     DG.readSettings();
-    DG.showSessionStep();
+    // A room held during the join settle window resumes its lobby; otherwise
+    // start the normal Solo / Multiplayer flow.
+    const resumed = (typeof DG.mpResumeRoom === 'function') && DG.mpResumeRoom();
+    if (!resumed) DG.showSessionStep();
     changeView('grammar-detail-view');
     recordGuestUsage('Grammar Quest', 'Drive & Go!');
 }

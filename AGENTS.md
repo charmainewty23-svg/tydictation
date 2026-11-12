@@ -403,8 +403,21 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   寫入只經 security definer RPC `record_guest_login(p_session_key, p_user_agent)` 同
   `record_guest_usage(p_session_key, p_feature, p_detail)`（會截長度、空 key／feature 直接 return），
   已 `revoke` anon／public 對表嘅直接 insert/update/delete。
-- Admin Dashboard 新卡「🕵️ Guest logins」→ `loadGuestAdmin()`：總登入數、今日（HK 時間）、
-  最近 7 日，下面係最近 usage（feature、detail、相對時間、hover 顯示 HK 時間）。
+- **只保留 rolling 24 小時**（`now() - interval '24 hours'`，唔係香港 calendar day）。
+  `prune_guest_records()`（security definer，anon＋authenticated 可 execute）會 delete 兩張表
+  過期 rows；`record_guest_login`／`record_guest_usage` 每次寫入前都會 `perform` 佢，
+  `loadGuestAdmin()` 載入／Refresh 時亦會 `sb.rpc('prune_guest_records')`（失敗只 warn，
+  舊安裝冇呢個 function 都照載入）。前端用同一個 cutoff：`GUEST_RETENTION_MS`／
+  `guestRetentionCutoffMs()`／`guestCutoffIso()`／`isWithinGuestLogWindow()`／
+  `filterGuestRecords()`（`js/shared.js`），`loadGuestAdmin()` 再 `.gte()` 落 query，
+  `renderGuestAdmin()` 渲染前再過濾一次。舊安裝只需貼 `supabase/guest_tracking_prune.sql`；
+  新安裝貼更新咗嘅 `guest_tracking.sql` 已經有齊。
+- Admin Dashboard 新卡「🕵️ Guest logins」→ `loadGuestAdmin()`：只計 24 小時窗口
+  （`Guest Logins (24h)`、`Today (HK)` 子數、`Browsing Records (24h)`），下面係 24 小時內
+  usage（feature、detail、相對時間、hover 顯示 HK 時間）。**冇**再顯示總數／Last 7 Days。
+  張卡改用 F3／F4／F6 同一套 +/- 摺疊掣（`adminFormToggleButtons`＋`adminFormOpen`，
+  scope `guest-admin`、group `all`），**預設收起**，heading／描述／Refresh／+/- 保持可見，
+  stats 同 usage list 收喺 `#guest-admin-body.admin-form-body` 入面；展開狀態喺 Refresh 之間保留。
   未跑 SQL 嘅話張卡會顯示提示，唔會整壞 dashboard 其他部分。
 - 訪客資料**唔會**出現喺學生排行榜、My Records、Word Jump Top 7 或者 `student_logins` 年級分組；
   訪客亦開唔到 admin view（`GUEST_BLOCKED_VIEWS`＋`isAdmin()`）。
@@ -444,6 +457,37 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   AV·PV·Mixed（同場名）。學生睇 top 10；老師按年級分組（同 Word Jump）。
   完成 Single Player（N 題正確）或多人房間出結果時，已登入非訪客會 fire-and-forget 寫自己嗰行；
   失敗唔會阻結果畫面，只會 toast 提示跑 SQL。單機本身**唔需要** SQL。
+- **加入者唔會被彈走（2026-11）**：`mpPoll` 只會交一個 `DG.mpRoomUpdatePlan()`
+  （`navigate` 永遠係 `false`），lobby／開賽／結果／房間關閉全部喺原本個 view 內處理，
+  **唔會** call `changeView`、`backToTenses` 或 `showSessionStep`。剛加入嘅玩家有
+  `MP.joinedAt` 12 秒 settle window：期間被動 view 改變只會 `DG.mpDetachDuringSettle()`
+  （保留座位、停 poll），唔會 call `leave_drive_and_go_room` 刪走自己嗰行；
+  如果真係離開，window 完結先 release。`mpPoll` 連續 3 次讀唔到自己會用同一個房碼
+  `DG.mpRejoinRoom()` 自動入返，唔會再跌落 Create／Join 或 Hub。房真的冇咗就喺
+  原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
+  返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
+- **完賽一定有結果畫面，唔會自動彈走（2026-11）**：solo／multi 都係一到 N 題正確
+  （N = 自己揀或房主揀嘅 20／25／30／35／40／50，**唔可以**寫死 20）就即刻出結果，
+  唔會 call `changeView`／`backToTenses`／`showSessionStep`／`showMultiplayerMenu`，
+  亦唔會自己離開房間。共通數字格係 `DG.resultGridHTML()`：composite、race score、
+  time bonus、時間、正確率、`correct / N`（solo 另加 wrong／max combo）。
+  - Solo：`DG.finishPlayer()` 直接 `DG.showSoloResults()`（唔再等 0.85 秒後嘅
+    `DG.endRun()`，`endRun` 只留返做「End run」）。掣：Race again／Back to Tenses。
+  - Multi：早完成嘅玩家睇 `DG.showMpOwnResults()`（`S.ownResultShown`），賽道同
+    room poll **繼續行**，面板入面 `#dg-results-progress` 會跟 `DG.updateMpProgress()`
+    顯示仲未完賽嘅人。全房完賽時 `DG.showMultiplayerResults()`（`S.resultShown`）
+    用最終排名取代自己嗰面板，並保留「Your run」數字格。結果畫面只可以撳
+    `DG.mpDetachRace()` 離開：**唔會** call `leave_drive_and_go_room`，所以自己嗰行
+    finished 紀錄仍然留喺房間。room／自己嗰行連續 3 次讀唔到就 `DG.mpShowRoomClosed()`；
+    已完成嘅玩家會保留自己成績＋「room no longer available」提示。
+  - 結果畫面出現後 `raceFrame` 唔再 `requestAnimationFrame`（phase = finished），
+    `DG.togglePause()`／`DG.useItem()` 對已完成玩家無效，唔會蓋走結果。
+- **多人進度板**：race view 左上角 `#dg-mp-progress`（HUD 下面、`pointer-events:none`、
+  z-index 低過 HUD）。只喺 `mode === 'multi'` 出現，列出**未完成**嘅玩家：名、
+  `correct / N`、進度條（`correct / N`）同已同步嘅賽道距離（次要提示）。
+  `DG.mpProgressBoard()`（純函數）按 correct 由高到低排，同分比距離；自己嗰行 `.me`
+  ＋「(you)」。`DG.updateMpProgress()` 喺 `mpSyncRace` 每 700ms 更新，開賽先用 lobby
+  名單畫一次；`DG.hideMpProgress()` 喺 solo／離開賽道時收埋。贏嘅條件仍然係 N 題正確。
 - SQL：已有舊 rooms 嘅老師要自己喺 Supabase SQL editor 貼
   `supabase/drive_and_go_scenes_and_boards.sql`（喺 `drive_and_go_question_count.sql` 之後，可重跑）；
   全新安裝貼更新咗嘅 `supabase/drive_and_go.sql` 就一次過有齊 scene＋兩塊榜。
@@ -867,5 +911,5 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。

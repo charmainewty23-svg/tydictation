@@ -12,7 +12,9 @@
                 ? 'Personal bests — top 10 by best score and words collected.'
                 : lbModeFilter === 'wjchallenge'
                     ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
-                    : 'Cumulative scores — practice more to rank higher!';
+                    : (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti')
+                        ? 'Personal bests by composite score — time, accuracy, questions and AV / PV / Mixed.'
+                        : 'Cumulative scores — practice more to rank higher!';
         }
 
         async function loadLeaderboard(mode) {
@@ -35,6 +37,22 @@
                     .select('user_id,nickname,email,score,height,words,plays,created_at')
                     .order('score', { ascending: false })
                     .order('words', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(10);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
+            if (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti') {
+                const view = lbModeFilter === 'dgsolo'
+                    ? 'drive_and_go_solo_leaderboard'
+                    : 'drive_and_go_multi_leaderboard';
+                const { data, error } = await sb.from(view)
+                    .select('user_id,nickname,email,bank_mode,question_count,scene,composite,race_score,time_bonus,correct,wrong,accuracy,elapsed_ms,plays,created_at')
+                    .order('composite', { ascending: false })
+                    .order('elapsed_ms', { ascending: true })
+                    .order('accuracy', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(10);
                 lbRows = data || [];
@@ -77,12 +95,64 @@
             , { emptyAll: '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>' });
         }
 
+        function renderDriveAndGoLeaderboard(container) {
+            const solo = lbModeFilter === 'dgsolo';
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">Drive &amp; Go! leaderboard not available. Run <code class="text-orange-600">supabase/drive_and_go_scenes_and_boards.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            if (!lbRows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => {
+                const time = (typeof DG !== 'undefined' && DG.formatRaceTime)
+                    ? DG.formatRaceTime((Number(r.elapsed_ms) || 0) / 1000)
+                    : Math.round((Number(r.elapsed_ms) || 0) / 1000) + 's';
+                const acc = (typeof DG !== 'undefined' && DG.formatAccuracy)
+                    ? DG.formatAccuracy(r.accuracy)
+                    : Math.round((Number(r.accuracy) || 0) * 100) + '%';
+                const n = (typeof DG !== 'undefined' && DG.normalizeQuestionCount)
+                    ? DG.normalizeQuestionCount(r.question_count)
+                    : (Number(r.question_count) || 20);
+                const bank = (typeof DG !== 'undefined' && DG.MODE_SHORT && DG.MODE_SHORT[r.bank_mode]) || 'AV';
+                const scene = (typeof DG !== 'undefined' && DG.sceneLabel)
+                    ? DG.sceneLabel(r.scene)
+                    : String(r.scene || 'Desert Hills');
+                const runs = Number(r.plays) > 1 ? ' · ' + Number(r.plays) + ' runs' : '';
+                const meta = time + ' · ' + acc + ' · ' + n + ' Q · ' + bank + ' · ' + scene + runs;
+                return `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <div class="flex-1 ml-3 min-w-0">
+                                <p class="font-bold text-gray-700 truncate">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</p>
+                                <p class="text-xs text-gray-400 truncate">${escapeHtml(meta)}</p>
+                            </div>
+                            ${formAssignControl(r.email, r.nickname)}
+                            <span class="font-bold text-orange-600 text-lg whitespace-nowrap">${Number(r.composite) || 0} pts</span>
+                        </div>`;
+            };
+            if (!isAdmin()) {
+                container.innerHTML = `<div class="space-y-3">${lbRows.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            const empty = '<p class="text-gray-400 text-center py-10">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>';
+            container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: empty, emptyForm: '<p class="text-gray-400 text-center py-4">No runs from this form yet.</p>' });
+        }
+
         function renderLeaderboard() {
             if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
             if (!container || !lbRows || lbModeFilter === 'wjchallenge') return;
             if (lbModeFilter === 'wordjump') {
                 renderWordJumpLeaderboard(container);
+                return;
+            }
+            if (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti') {
+                renderDriveAndGoLeaderboard(container);
                 return;
             }
             if (lbRowsError || !lbRows.length) {

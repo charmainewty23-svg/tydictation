@@ -1,24 +1,49 @@
 /* LearniTY Dictation — Drive & Go! Mario Kart-style grammar racing game.
-   This file owns the pre-race flow (challenge → cat → controls → mode), the
-   Google-Sheets question bank, gate building, local preferences and shared
-   helpers. The canvas race engine lives in drive-and-go-race.js and the
-   realtime 2–5 player lobby/race sync lives in drive-and-go-multiplayer.js.
+   This file owns the pre-race flow (challenge → cat → controls → question
+   count → course → mode), the Google-Sheets question bank, same-verb tense
+   distractors, local preferences and shared helpers. The canvas race engine
+   lives in drive-and-go-race.js and the realtime 2–5 player lobby/race sync
+   lives in drive-and-go-multiplayer.js.
    All three files are classic scripts: no modules, no defer/async. */
 
 const DG = {
     SETTINGS_KEY: 'learniTY_dg_settings',
     BEST_SCORE_KEY: 'learniTY_dg_best_score',
     BEST_DISTANCE_KEY: 'learniTY_dg_best_distance',
+    BEST_RUNS_KEY: 'learniTY_dg_best_runs',
     TAB_FOR_MODE: { av: ['tenses'], pv: ['Passives'], mixed: ['tenses', 'Passives'] },
     MODE_LABEL: { av: 'Active Voice (AV)', pv: 'Passive Voice (PV)', mixed: 'Mixed' },
     MODE_SHORT: { av: 'AV', pv: 'PV', mixed: 'Mixed' },
+    QUESTION_COUNTS: [20, 25, 30, 35, 40, 50],
+    // Three playable courses. The exact ids / names are stored in Supabase
+    // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
+    SCENES: ['desert', 'stadium', 'jungle'],
+    SCENE_LABEL: { desert: 'Desert Hills', stadium: 'Peach Stadium', jungle: 'Dino Dino Jungle' },
+    SCENE_EMOJI: { desert: '🏜️', stadium: '🏟️', jungle: '🦕' },
+    SCENE_FLAVOUR: {
+        desert: 'Pale-gold dunes, cactus and sun-bleached rocks.',
+        stadium: 'Peach grandstands, floodlights and painted kerbs.',
+        jungle: 'Humid canopy, palms and friendly dinosaurs.'
+    },
     // Race constants shared by the engine and the tests.
     NITRO_KMH: 40,
     SPIN_TIME: 1.5,
-    GATE_GAP: 150,
-    START_GATE_DIST: 140,
+    GATE_GAP: 420,
+    START_GATE_DIST: 320,
     FINISH_DISTANCE: 4200,
     RACE_SECONDS: 180,
+    // Hold-to-speed: +110 km/h while ACCEL is held, hard-capped so stacked
+    // nitro / mushroom / star bonuses cannot run away.
+    ACCEL_KMH: 110,
+    SPEED_CAP: 340,
+    // Analog tilt: a soft deadzone so a resting phone does not wander, and
+    // full left / right at 16° of lean.
+    TILT_DEAD: 2,
+    TILT_FULL: 16,
+    // Lane tracking speed for analog tilt (snappier than the old discrete 12).
+    TILT_LERP: 18,
+    // Time bonus factor used by DG.timeBonus / DG.scoreRun (see those helpers).
+    TIME_BONUS_FACTOR: 4000,
     CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
     GLASSES: ['None', 'Sunglasses', 'Glasses'],
     HATS: ['None', 'Party Hat', 'Crown'],
@@ -41,7 +66,44 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt' };
+        return { bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
+    },
+
+    normalizeQuestionCount(value) {
+        const n = Number(value);
+        return DG.QUESTION_COUNTS.indexOf(n) !== -1 ? n : 20;
+    },
+
+    normalizeScene(value) {
+        const id = String(value == null ? '' : value).trim().toLowerCase();
+        return DG.SCENES.indexOf(id) !== -1 ? id : 'desert';
+    },
+
+    sceneLabel(value) {
+        return DG.SCENE_LABEL[DG.normalizeScene(value)];
+    },
+
+    /* Analog tilt helpers, shared by the race engine and the unit tests.
+       delta is degrees, already wrapped to [-180, 180]. The result is a
+       fractional lane position: 0 = hard left, 1 = centre, 2 = hard right.
+       A soft deadzone (±TILT_DEAD) keeps a resting phone from wandering;
+       full lock arrives at ±TILT_FULL. The smoothstep curve makes small
+       leans gentle and holding a lean keeps the kart in that lane. */
+    tiltLaneTarget(delta) {
+        const d = Number(delta);
+        if (!isFinite(d)) return 1;
+        const mag = Math.abs(d);
+        if (mag <= DG.TILT_DEAD) return 1;
+        const t = Math.max(0, Math.min(1, (mag - DG.TILT_DEAD) / (DG.TILT_FULL - DG.TILT_DEAD)));
+        const eased = t * t * (3 - 2 * t);
+        return d < 0 ? 1 - eased : 1 + eased;
+    },
+
+    /* Clamp + round a fractional lane position to 0, 1 or 2. */
+    nearestLane(laneX) {
+        const v = Number(laneX);
+        if (!isFinite(v)) return 1;
+        return Math.round(Math.max(0, Math.min(2, v)));
     },
 
     readSettings() {
@@ -51,6 +113,8 @@ const DG = {
         DG.settings = Object.assign(DG.defaultSettings(), DG.normalizeLook(saved || {}));
         if (saved && DG.TAB_FOR_MODE[saved.bankMode]) DG.settings.bankMode = saved.bankMode;
         if (saved && ['tilt', 'swipe', 'buttons'].indexOf(saved.controls) !== -1) DG.settings.controls = saved.controls;
+        DG.settings.questionCount = DG.normalizeQuestionCount(saved && saved.questionCount);
+        DG.settings.scene = DG.normalizeScene(saved && saved.scene);
         DG.rememberLook(DG.settings);
         return DG.settings;
     },
@@ -144,7 +208,8 @@ const DG = {
             const variants = DG.answerVariants(answer);
             if (!variants.length) continue;
             const hintMatch = /\(([^)]*)\)/.exec(question);
-            const hint = hintMatch ? hintMatch[1].split('/').pop().trim() : '';
+            const hintRaw = hintMatch ? hintMatch[1].trim() : '';
+            const hint = hintRaw.split('/').pop().trim().replace(/^not\s+/i, '');
             const sectionKey = sheetName + '|' + section;
             const q = {
                 id: sheetName + ':' + questions.length,
@@ -156,7 +221,8 @@ const DG = {
                 answerRaw: answer,
                 variants,
                 primary: variants[0],
-                hint
+                hint,
+                hintRaw
             };
             questions.push(q);
             bySheet.push({ primary: q.primary, variants, item: q });
@@ -227,55 +293,492 @@ const DG = {
         return list;
     },
 
-    /* Prefer a distractor that shares the verb in the bracket hint and the
-       same auxiliary / tense ending. Never returns the answer or any of its
-       alternatives. Falls back to the rest of the same sheet. */
+    /* ---------------- same-verb tense conjugator ---------------- */
+
+    // Compact irregular table for common sheet verbs. Regular verbs use the
+    // helpers below (-s / -ed / -ing / past participle).
+    VERB_IRREGULAR: {
+        be: { special: 'be', s: 'is', past: 'was', pp: 'been', ing: 'being' },
+        have: { s: 'has', past: 'had', pp: 'had', ing: 'having' },
+        do: { s: 'does', past: 'did', pp: 'done', ing: 'doing' },
+        go: { s: 'goes', past: 'went', pp: 'gone', ing: 'going' },
+        write: { past: 'wrote', pp: 'written' },
+        leave: { past: 'left', pp: 'left' },
+        see: { past: 'saw', pp: 'seen' },
+        take: { past: 'took', pp: 'taken' },
+        come: { past: 'came', pp: 'come', ing: 'coming' },
+        make: { past: 'made', pp: 'made' },
+        get: { past: 'got', pp: 'got' },
+        give: { past: 'gave', pp: 'given' },
+        find: { past: 'found', pp: 'found' },
+        think: { past: 'thought', pp: 'thought' },
+        know: { past: 'knew', pp: 'known' },
+        say: { s: 'says', past: 'said', pp: 'said' },
+        tell: { past: 'told', pp: 'told' },
+        become: { past: 'became', pp: 'become' },
+        begin: { past: 'began', pp: 'begun' },
+        break: { past: 'broke', pp: 'broken' },
+        bring: { past: 'brought', pp: 'brought' },
+        build: { past: 'built', pp: 'built' },
+        buy: { past: 'bought', pp: 'bought' },
+        catch: { past: 'caught', pp: 'caught' },
+        choose: { past: 'chose', pp: 'chosen' },
+        cut: { past: 'cut', pp: 'cut' },
+        draw: { past: 'drew', pp: 'drawn' },
+        drink: { past: 'drank', pp: 'drunk' },
+        drive: { past: 'drove', pp: 'driven' },
+        eat: { past: 'ate', pp: 'eaten' },
+        fall: { past: 'fell', pp: 'fallen' },
+        feel: { past: 'felt', pp: 'felt' },
+        fight: { past: 'fought', pp: 'fought' },
+        forget: { past: 'forgot', pp: 'forgotten' },
+        grow: { past: 'grew', pp: 'grown' },
+        hear: { past: 'heard', pp: 'heard' },
+        hold: { past: 'held', pp: 'held' },
+        keep: { past: 'kept', pp: 'kept' },
+        lose: { past: 'lost', pp: 'lost' },
+        meet: { past: 'met', pp: 'met' },
+        pay: { past: 'paid', pp: 'paid' },
+        put: { past: 'put', pp: 'put' },
+        read: { past: 'read', pp: 'read' },
+        ride: { past: 'rode', pp: 'ridden' },
+        rise: { past: 'rose', pp: 'risen' },
+        run: { past: 'ran', pp: 'run' },
+        sell: { past: 'sold', pp: 'sold' },
+        send: { past: 'sent', pp: 'sent' },
+        set: { past: 'set', pp: 'set' },
+        show: { past: 'showed', pp: 'shown' },
+        shut: { past: 'shut', pp: 'shut' },
+        sing: { past: 'sang', pp: 'sung' },
+        sit: { past: 'sat', pp: 'sat' },
+        sleep: { past: 'slept', pp: 'slept' },
+        speak: { past: 'spoke', pp: 'spoken' },
+        spend: { past: 'spent', pp: 'spent' },
+        stand: { past: 'stood', pp: 'stood' },
+        steal: { past: 'stole', pp: 'stolen' },
+        swim: { past: 'swam', pp: 'swum' },
+        teach: { past: 'taught', pp: 'taught' },
+        throw: { past: 'threw', pp: 'thrown' },
+        understand: { past: 'understood', pp: 'understood' },
+        wear: { past: 'wore', pp: 'worn' },
+        win: { past: 'won', pp: 'won' },
+        broadcast: { past: 'broadcast', pp: 'broadcast' },
+        beat: { past: 'beat', pp: 'beaten' },
+        bite: { past: 'bit', pp: 'bitten' },
+        blow: { past: 'blew', pp: 'blown' },
+        cost: { past: 'cost', pp: 'cost' },
+        deal: { past: 'dealt', pp: 'dealt' },
+        feed: { past: 'fed', pp: 'fed' },
+        fly: { s: 'flies', past: 'flew', pp: 'flown', ing: 'flying' },
+        forgive: { past: 'forgave', pp: 'forgiven' },
+        freeze: { past: 'froze', pp: 'frozen' },
+        hang: { past: 'hung', pp: 'hung' },
+        hide: { past: 'hid', pp: 'hidden' },
+        hit: { past: 'hit', pp: 'hit' },
+        hurt: { past: 'hurt', pp: 'hurt' },
+        lay: { past: 'laid', pp: 'laid' },
+        lead: { past: 'led', pp: 'led' },
+        lend: { past: 'lent', pp: 'lent' },
+        let: { past: 'let', pp: 'let' },
+        lie: { past: 'lay', pp: 'lain', ing: 'lying' },
+        light: { past: 'lit', pp: 'lit' },
+        mean: { past: 'meant', pp: 'meant' },
+        quit: { past: 'quit', pp: 'quit' },
+        ring: { past: 'rang', pp: 'rung' },
+        shake: { past: 'shook', pp: 'shaken' },
+        shine: { past: 'shone', pp: 'shone' },
+        shoot: { past: 'shot', pp: 'shot' },
+        shrink: { past: 'shrank', pp: 'shrunk' },
+        sink: { past: 'sank', pp: 'sunk' },
+        slide: { past: 'slid', pp: 'slid' },
+        spit: { past: 'spat', pp: 'spat' },
+        split: { past: 'split', pp: 'split' },
+        spread: { past: 'spread', pp: 'spread' },
+        stick: { past: 'stuck', pp: 'stuck' },
+        strike: { past: 'struck', pp: 'struck' },
+        swear: { past: 'swore', pp: 'sworn' },
+        sweep: { past: 'swept', pp: 'swept' },
+        swing: { past: 'swung', pp: 'swung' },
+        tear: { past: 'tore', pp: 'torn' },
+        wake: { past: 'woke', pp: 'woken' },
+        weep: { past: 'wept', pp: 'wept' },
+        withdraw: { past: 'withdrew', pp: 'withdrawn' },
+        bear: { past: 'bore', pp: 'born' },
+        bend: { past: 'bent', pp: 'bent' },
+        bind: { past: 'bound', pp: 'bound' },
+        bleed: { past: 'bled', pp: 'bled' },
+        burst: { past: 'burst', pp: 'burst' },
+        cast: { past: 'cast', pp: 'cast' },
+        cling: { past: 'clung', pp: 'clung' },
+        creep: { past: 'crept', pp: 'crept' },
+        dig: { past: 'dug', pp: 'dug' },
+        dream: { past: 'dreamt', pp: 'dreamt' },
+        flee: { past: 'fled', pp: 'fled' },
+        grind: { past: 'ground', pp: 'ground' },
+        kneel: { past: 'knelt', pp: 'knelt' },
+        lean: { past: 'leant', pp: 'leant' },
+        leap: { past: 'leapt', pp: 'leapt' },
+        learn: { past: 'learnt', pp: 'learnt' },
+        mistake: { past: 'mistook', pp: 'mistaken' },
+        overcome: { past: 'overcame', pp: 'overcome' },
+        rewrite: { past: 'rewrote', pp: 'rewritten' },
+        seek: { past: 'sought', pp: 'sought' },
+        sew: { past: 'sewed', pp: 'sewn' },
+        shed: { past: 'shed', pp: 'shed' },
+        smell: { past: 'smelt', pp: 'smelt' },
+        spell: { past: 'spelt', pp: 'spelt' },
+        spill: { past: 'spilt', pp: 'spilt' },
+        spin: { past: 'spun', pp: 'spun' },
+        spoil: { past: 'spoilt', pp: 'spoilt' },
+        spring: { past: 'sprang', pp: 'sprung' },
+        sting: { past: 'stung', pp: 'stung' },
+        swell: { past: 'swelled', pp: 'swollen' },
+        undergo: { s: 'undergoes', past: 'underwent', pp: 'undergone' },
+        upset: { past: 'upset', pp: 'upset' },
+        weave: { past: 'wove', pp: 'woven' },
+        wind: { past: 'wound', pp: 'wound' }
+    },
+
+    TENSE_KEYS: [
+        'presentSimple', 'pastSimple', 'futureSimple',
+        'presentContinuous', 'pastContinuous', 'futureContinuous',
+        'presentPerfect', 'pastPerfect', 'futurePerfect'
+    ],
+
+    TENSE_NEIGHBORS: {
+        presentSimple: ['presentContinuous', 'pastSimple', 'presentPerfect', 'futureSimple', 'pastContinuous', 'pastPerfect', 'futureContinuous', 'futurePerfect'],
+        pastSimple: ['presentPerfect', 'pastContinuous', 'pastPerfect', 'presentSimple', 'presentContinuous', 'futureSimple', 'futurePerfect', 'futureContinuous'],
+        futureSimple: ['presentSimple', 'futureContinuous', 'futurePerfect', 'presentContinuous', 'pastSimple', 'presentPerfect', 'pastPerfect', 'pastContinuous'],
+        presentContinuous: ['presentSimple', 'pastContinuous', 'futureContinuous', 'presentPerfect', 'pastSimple', 'futureSimple', 'pastPerfect', 'futurePerfect'],
+        pastContinuous: ['pastSimple', 'presentContinuous', 'pastPerfect', 'presentSimple', 'presentPerfect', 'futureContinuous', 'futureSimple', 'futurePerfect'],
+        presentPerfect: ['pastSimple', 'pastPerfect', 'presentSimple', 'presentContinuous', 'futurePerfect', 'pastContinuous', 'futureSimple', 'futureContinuous'],
+        pastPerfect: ['pastSimple', 'presentPerfect', 'pastContinuous', 'futurePerfect', 'presentSimple', 'presentContinuous', 'futureSimple', 'futureContinuous'],
+        futurePerfect: ['futureSimple', 'presentPerfect', 'pastPerfect', 'futureContinuous', 'pastSimple', 'presentSimple', 'presentContinuous', 'pastContinuous'],
+        futureContinuous: ['futureSimple', 'presentContinuous', 'pastContinuous', 'futurePerfect', 'presentSimple', 'pastSimple', 'presentPerfect', 'pastPerfect'],
+        modal: ['presentSimple', 'pastSimple', 'futureSimple', 'presentPerfect', 'presentContinuous', 'pastPerfect', 'futurePerfect', 'futureContinuous']
+    },
+
+    verbEscapeRe(text) {
+        return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    },
+
+    verbDoublesFinal(verb) {
+        return /^[^aeiou]*[aeiou][^aeiouwxy]$/i.test(verb);
+    },
+
+    verbPresentS(verb) {
+        if (/[^aeiou]y$/i.test(verb)) return verb.slice(0, -1) + 'ies';
+        if (/(?:s|sh|ch|x|z|o)$/i.test(verb)) return verb + 'es';
+        return verb + 's';
+    },
+
+    verbIng(verb) {
+        if (/ie$/i.test(verb)) return verb.slice(0, -2) + 'ying';
+        if (/e$/i.test(verb) && !/(?:ee|oe|ye)$/i.test(verb)) return verb.slice(0, -1) + 'ing';
+        if (DG.verbDoublesFinal(verb)) return verb + verb.slice(-1) + 'ing';
+        return verb + 'ing';
+    },
+
+    verbRegularPast(verb) {
+        if (/[^aeiou]y$/i.test(verb)) return verb.slice(0, -1) + 'ied';
+        if (/e$/i.test(verb)) return verb + 'd';
+        if (DG.verbDoublesFinal(verb)) return verb + verb.slice(-1) + 'ed';
+        return verb + 'ed';
+    },
+
+    verbParts(lemma) {
+        const v = String(lemma || '').toLowerCase().trim();
+        const irr = DG.VERB_IRREGULAR[v] || {};
+        return {
+            lemma: v,
+            s: irr.s || DG.verbPresentS(v),
+            past: irr.past || DG.verbRegularPast(v),
+            pp: irr.pp || irr.past || DG.verbRegularPast(v),
+            ing: irr.ing || DG.verbIng(v),
+            special: irr.special || ''
+        };
+    },
+
+    /* Lemma is the last "/" part of the bracket hint, with a leading "not"
+       stripped. Negatives come from "not/" or "not " in the hint, or from
+       answers such as "doesn't like". */
+    parseVerbHint(question) {
+        const prompt = String(question && question.prompt || '');
+        const hintStored = String(question && (question.hintRaw != null ? question.hintRaw : question.hint) || '');
+        const m = /\(([^)]*)\)/.exec(prompt);
+        const raw = (m ? m[1] : hintStored).trim();
+        const parts = raw.split('/').map(s => s.trim()).filter(Boolean);
+        let last = parts.length ? parts[parts.length - 1] : raw;
+        last = last.replace(/^not\s+/i, '').trim();
+        const lemma = last.toLowerCase();
+        const fromHint = /\bnot\b/i.test(raw) || parts.some(p => /^not$/i.test(p));
+        const ans = String(question && (question.primary || (question.variants && question.variants[0]) || '') || '');
+        const fromAnswer = /n['\u2019]t\b|\bnot\b/i.test(ans);
+        return { lemma, negative: fromHint || fromAnswer, hintRaw: raw };
+    },
+
+    detectAgreement(question) {
+        const prompt = String(question && question.prompt || '').replace(/^\d+[.)]\s*/, '');
+        const ans = DG.normAnswer(question && question.primary);
+        const subject = prompt.split('____')[0] || '';
+        if (/^(are|were|have|do|don'?t|aren'?t|weren'?t|haven'?t)\b/.test(ans)) return { person: 3, number: 'pl' };
+        if (/^am\b/.test(ans) || /^I\b/.test(subject)) return { person: 1, number: 'sg' };
+        if (/^(is|was|has|does|isn'?t|wasn'?t|hasn'?t|doesn'?t)\b/.test(ans)) return { person: 3, number: 'sg' };
+        if (/^You\b/i.test(subject)) return { person: 2, number: 'sg' };
+        if (/^(We|They|These|Those)\b/i.test(subject)) return { person: 3, number: 'pl' };
+        if (/^(He|She|It|This|That)\b/i.test(subject)) return { person: 3, number: 'sg' };
+        if (/\b(and|&)\b/.test(subject) || /\b(people|children|students|teachers|they|we)\b/i.test(subject)) return { person: 3, number: 'pl' };
+        if (/\b(is|was|has|does)\b/.test(subject)) return { person: 3, number: 'sg' };
+        if (/\b(are|were|have|do)\b/.test(subject)) return { person: 3, number: 'pl' };
+        return { person: 3, number: 'sg' };
+    },
+
+    verbBePresent(agr) {
+        if (agr.person === 1 && agr.number === 'sg') return 'am';
+        if (agr.number === 'pl' || agr.person === 2) return 'are';
+        return 'is';
+    },
+
+    verbBePast(agr) {
+        if (agr.number === 'pl' || agr.person === 2) return 'were';
+        return 'was';
+    },
+
+    verbHaveAux(agr) {
+        return (agr.person === 3 && agr.number === 'sg') ? 'has' : 'have';
+    },
+
+    verbDoAux(agr) {
+        return (agr.person === 3 && agr.number === 'sg') ? 'does' : 'do';
+    },
+
+    verbUsesContraction(question) {
+        return /n['\u2019]t\b/.test(String(question && question.primary || ''));
+    },
+
+    verbNegAux(aux, contracted) {
+        if (!contracted) {
+            if (aux === 'will') return 'will not';
+            if (aux === 'can') return 'cannot';
+            if (aux === 'am') return 'am not';
+            return aux + ' not';
+        }
+        const map = {
+            am: "I'm not",
+            is: "isn't", are: "aren't", was: "wasn't", were: "weren't",
+            has: "hasn't", have: "haven't", had: "hadn't",
+            do: "don't", does: "doesn't", did: "didn't",
+            will: "won't", would: "wouldn't", can: "can't", could: "couldn't",
+            must: 'must not', should: "shouldn't", may: 'may not', might: 'might not'
+        };
+        return map[aux] || (aux + "n't");
+    },
+
+    verbWithAux(aux, rest, negative, contracted) {
+        const body = rest ? (' ' + rest) : '';
+        if (negative) {
+            const neg = DG.verbNegAux(aux, contracted);
+            // "I'm not writing" already includes the subject pronoun; use "am not".
+            if (aux === 'am' && contracted) return "am not" + body;
+            return neg + body;
+        }
+        return aux + body;
+    },
+
+    /* Generate active and passive tense forms of one verb, matching the
+       person / number / polarity of the correct answer when possible. */
+    formsForVerb(lemma, opts) {
+        const options = opts || {};
+        const parts = DG.verbParts(lemma);
+        if (!parts.lemma) return [];
+        const agr = options.agreement || { person: 3, number: 'sg' };
+        const negative = !!options.negative;
+        const contracted = options.contracted !== false;
+        const beNow = DG.verbBePresent(agr);
+        const bePast = DG.verbBePast(agr);
+        const have = DG.verbHaveAux(agr);
+        const doAux = DG.verbDoAux(agr);
+        const base = parts.lemma;
+        const out = [];
+        const add = (key, voice, label) => {
+            const text = String(label || '').replace(/\s+/g, ' ').trim();
+            if (!text) return;
+            out.push({ key, voice, label: text });
+        };
+
+        if (parts.special === 'be') {
+            add('presentSimple', 'active', DG.verbWithAux(beNow, '', negative, contracted));
+            add('pastSimple', 'active', DG.verbWithAux(bePast, '', negative, contracted));
+        } else if (negative) {
+            add('presentSimple', 'active', DG.verbWithAux(doAux, base, true, contracted));
+            add('pastSimple', 'active', DG.verbWithAux('did', base, true, contracted));
+        } else {
+            const present = (agr.person === 3 && agr.number === 'sg') ? parts.s : base;
+            add('presentSimple', 'active', present);
+            add('pastSimple', 'active', parts.past);
+        }
+        add('futureSimple', 'active', DG.verbWithAux('will', base, negative, contracted));
+        add('presentContinuous', 'active', DG.verbWithAux(beNow, parts.ing, negative, contracted));
+        add('pastContinuous', 'active', DG.verbWithAux(bePast, parts.ing, negative, contracted));
+        add('futureContinuous', 'active', DG.verbWithAux('will', 'be ' + parts.ing, negative, contracted));
+        add('presentPerfect', 'active', DG.verbWithAux(have, parts.pp, negative, contracted));
+        add('pastPerfect', 'active', DG.verbWithAux('had', parts.pp, negative, contracted));
+        add('futurePerfect', 'active', DG.verbWithAux('will', 'have ' + parts.pp, negative, contracted));
+
+        add('presentSimple', 'passive', DG.verbWithAux(beNow, parts.pp, negative, contracted));
+        add('pastSimple', 'passive', DG.verbWithAux(bePast, parts.pp, negative, contracted));
+        add('futureSimple', 'passive', DG.verbWithAux('will', 'be ' + parts.pp, negative, contracted));
+        add('presentContinuous', 'passive', DG.verbWithAux(beNow, 'being ' + parts.pp, negative, contracted));
+        add('pastContinuous', 'passive', DG.verbWithAux(bePast, 'being ' + parts.pp, negative, contracted));
+        add('presentPerfect', 'passive', DG.verbWithAux(have, 'been ' + parts.pp, negative, contracted));
+        add('pastPerfect', 'passive', DG.verbWithAux('had', 'been ' + parts.pp, negative, contracted));
+        add('futurePerfect', 'passive', DG.verbWithAux('will', 'have been ' + parts.pp, negative, contracted));
+
+        const modals = ['can', 'must', 'should', 'may', 'could', 'might'];
+        for (let i = 0; i < modals.length; i++) {
+            add('modal', 'passive', DG.verbWithAux(modals[i], 'be ' + parts.pp, negative, contracted));
+        }
+        return out;
+    },
+
+    classifyAnswer(question, parts) {
+        const ans = DG.normAnswer(question && question.primary);
+        const pp = DG.verbEscapeRe(parts.pp);
+        const ing = DG.verbEscapeRe(parts.ing);
+        const voice = (
+            new RegExp('\\b(?:be|been|being)\\s+' + pp + '\\s*$').test(ans) ||
+            new RegExp('\\b(?:is|are|am|was|were|isn\'t|aren\'t|wasn\'t|weren\'t)\\s+' + pp + '\\s*$').test(ans)
+        ) ? 'passive' : 'active';
+        let tense = 'presentSimple';
+        if (/\b(?:can|could|must|should|may|might|cannot|can'?t)\b/.test(ans) && voice === 'passive') {
+            tense = 'modal';
+        } else if (/\bwill have been\b/.test(ans) || (voice === 'active' && /\bwill have\b/.test(ans))) {
+            tense = 'futurePerfect';
+        } else if (voice === 'passive' && /\bwill be\b/.test(ans) && !/\bbeing\b/.test(ans)) {
+            tense = 'futureSimple';
+        } else if (/\bwill be\b/.test(ans) && new RegExp(ing).test(ans)) {
+            tense = 'futureContinuous';
+        } else if (/\b(?:will|won'?t)\b/.test(ans)) {
+            tense = 'futureSimple';
+        } else if (/\bhad been\b/.test(ans) || (voice === 'active' && /\bhad\b/.test(ans))) {
+            tense = 'pastPerfect';
+        } else if (/\b(?:has|have|hasn'?t|haven'?t) been\b/.test(ans) || (voice === 'active' && /\b(?:has|have|hasn'?t|haven'?t)\b/.test(ans))) {
+            tense = 'presentPerfect';
+        } else if (/\b(?:is|are|am|isn'?t|aren'?t) being\b/.test(ans)) {
+            tense = 'presentContinuous';
+        } else if (/\b(?:was|were|wasn'?t|weren'?t) being\b/.test(ans)) {
+            tense = 'pastContinuous';
+        } else if (new RegExp('\\b(?:is|are|am|isn\'?t|aren\'?t)\\s+' + ing + '\\b').test(ans)) {
+            tense = 'presentContinuous';
+        } else if (new RegExp('\\b(?:was|were|wasn\'?t|weren\'?t)\\s+' + ing + '\\b').test(ans)) {
+            tense = 'pastContinuous';
+        } else if (voice === 'passive' && /\b(?:was|were|wasn'?t|weren'?t)\b/.test(ans)) {
+            tense = 'pastSimple';
+        } else if (voice === 'passive' && /\b(?:is|are|am|isn'?t|aren'?t)\b/.test(ans)) {
+            tense = 'presentSimple';
+        } else if (/\b(?:did|didn'?t|did not)\b/.test(ans)) {
+            tense = 'pastSimple';
+        } else if (/\b(?:does|do|doesn'?t|don'?t|does not|do not)\b/.test(ans)) {
+            tense = 'presentSimple';
+        } else if (ans === DG.normAnswer(parts.past)) {
+            tense = 'pastSimple';
+        } else if (ans === DG.normAnswer(parts.s) || ans === DG.normAnswer(parts.lemma)) {
+            tense = 'presentSimple';
+        }
+        return { voice, tense };
+    },
+
+    /* Pick two other tense forms of the same verb. Stay in the same voice
+       when possible (Mixed only crosses voice after that). Prefer confusable
+       nearby tenses. */
+    distractSameVerb(question, rng) {
+        const rnd = rng || Math.random;
+        const hint = DG.parseVerbHint(question);
+        if (!hint.lemma || hint.lemma === 'not') return [];
+        const parts = DG.verbParts(hint.lemma);
+        const agr = DG.detectAgreement(question);
+        const classified = DG.classifyAnswer(question, parts);
+        const contracted = DG.verbUsesContraction(question);
+        const forms = DG.formsForVerb(hint.lemma, {
+            agreement: agr,
+            negative: hint.negative,
+            contracted
+        });
+        const forbidden = new Set((question.variants || []).concat([question.primary]).map(DG.normAnswer).filter(Boolean));
+        const seen = new Set(forbidden);
+        const usable = [];
+        forms.forEach(form => {
+            const key = DG.normAnswer(form.label);
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            usable.push(form);
+        });
+        const sameVoice = usable.filter(f => f.voice === classified.voice);
+        const pool = sameVoice.length >= 2 ? sameVoice : usable;
+        const neighbors = DG.TENSE_NEIGHBORS[classified.tense] || DG.TENSE_NEIGHBORS.presentSimple;
+        const rank = (form) => {
+            const idx = neighbors.indexOf(form.key);
+            return (idx === -1 ? 40 : idx) + rnd() * 0.4;
+        };
+        const ranked = pool.slice().sort((a, b) => rank(a) - rank(b));
+        const picked = [];
+        const pickedKeys = new Set();
+        for (let i = 0; i < ranked.length && picked.length < 2; i++) {
+            const key = DG.normAnswer(ranked[i].label);
+            if (pickedKeys.has(key)) continue;
+            pickedKeys.add(key);
+            picked.push(ranked[i].label);
+        }
+        return picked;
+    },
+
+    /* Two wrong gates come from other tense forms of the same verb first.
+       Only if conjugation cannot fill two unique forms do we fall back to
+       same-section / same-sheet answers, then a tiny filler list. Never
+       reuse the correct answer or its slash-alternatives. */
     buildGates(question, sectionPool, sheetPool, rng) {
         const rnd = rng || Math.random;
-        const forbidden = new Set(question.variants.map(DG.normAnswer));
-        const seen = new Set(forbidden);
-        const candidates = [];
-        const consider = (pool) => {
+        const forbidden = new Set((question.variants || []).concat([question.primary]).map(DG.normAnswer).filter(Boolean));
+        const chosen = [];
+        const takeLabel = (label) => {
+            const text = String(label || '').trim();
+            const key = DG.normAnswer(text);
+            if (!key || forbidden.has(key) || chosen.some(c => DG.normAnswer(c.label) === key)) return false;
+            chosen.push({ label: text, score: 1 });
+            return true;
+        };
+        DG.distractSameVerb(question, rnd).forEach(takeLabel);
+
+        const consider = (pool, list) => {
             (pool || []).forEach(entry => {
                 const label = String(entry && entry.primary ? entry.primary : entry || '').trim();
                 const key = DG.normAnswer(label);
-                if (!key || seen.has(key)) return;
-                seen.add(key);
-                const related = DG.answerAffinity(question, label);
-                candidates.push({ label, score: related + rnd() * 0.9 });
+                if (!key || forbidden.has(key) || chosen.some(c => DG.normAnswer(c.label) === key)) return;
+                if (list.some(c => DG.normAnswer(c.label) === key)) return;
+                list.push({ label, score: DG.answerAffinity(question, label) + rnd() * 0.9 });
             });
         };
-        consider(sectionPool);
-        candidates.sort((a, b) => b.score - a.score);
-        const chosen = [];
         const takeFrom = (list) => {
-            while (chosen.length < 2 && list.length) {
-                const idx = Math.floor(rnd() * Math.min(list.length, 8));
-                chosen.push(list.splice(idx, 1)[0]);
+            const ranked = list.slice().sort((a, b) => b.score - a.score);
+            while (chosen.length < 2 && ranked.length) {
+                const idx = Math.floor(rnd() * Math.min(ranked.length, 8));
+                const item = ranked.splice(idx, 1)[0];
+                takeLabel(item.label);
             }
         };
-        takeFrom(candidates.slice());
+        if (chosen.length < 2) {
+            const section = [];
+            consider(sectionPool, section);
+            takeFrom(section);
+        }
         if (chosen.length < 2) {
             const extra = [];
-            const seenExtra = new Set(forbidden);
-            (sheetPool || []).forEach(entry => {
-                const label = String(entry && entry.primary ? entry.primary : entry || '').trim();
-                const key = DG.normAnswer(label);
-                if (!key || seenExtra.has(key) || chosen.some(c => DG.normAnswer(c.label) === key)) return;
-                seenExtra.add(key);
-                extra.push({ label, score: DG.answerAffinity(question, label) });
-            });
+            consider(sheetPool, extra);
             takeFrom(extra);
         }
         if (chosen.length < 2) {
-            // A well-formed sheet always has enough other answers. If it does
-            // not, still return exactly three gates without reusing the answer.
             const fillers = ['is', 'are', 'was', 'were', 'has', 'have', 'had', 'does', 'did', 'will'];
-            for (let i = 0; i < fillers.length && chosen.length < 2; i++) {
-                const key = DG.normAnswer(fillers[i]);
-                if (forbidden.has(key) || chosen.some(c => DG.normAnswer(c.label) === key)) continue;
-                chosen.push({ label: fillers[i], score: 0 });
-            }
+            for (let i = 0; i < fillers.length && chosen.length < 2; i++) takeLabel(fillers[i]);
         }
         const labels = [question.primary, chosen[0].label, chosen[1].label];
         DG.shuffleInPlace(labels, rnd);
@@ -394,6 +897,14 @@ const DG = {
         }).catch(err => DG.showLoadError(mode, err));
     },
 
+    stepDots(activeIndex) {
+        const bits = [];
+        for (let i = 0; i < 6; i++) {
+            bits.push('<span class="' + (i < activeIndex ? 'done' : (i === activeIndex ? 'active' : '')) + '"></span>');
+        }
+        return '<div class="dg-step-dots">' + bits.join('') + '</div>';
+    },
+
     showChallengeStep() {
         DG.menuStep = 'challenge';
         const s = DG.readSettings();
@@ -411,11 +922,11 @@ const DG = {
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
             '<p class="text-gray-500 font-bold mt-2">Read the sentence, steer into the correct gate, and race the track.</p></div>' +
-            '<div class="dg-step-dots"><span class="active"></span><span></span><span></span><span></span></div>' +
+            DG.stepDots(0) +
             '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">1. Choose your challenge</h3>' +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">' +
-            card('av', '🟢', 'Active Voice', 'AV — tenses tab · 120 questions') +
-            card('pv', '🔵', 'Passive Voice', 'PV — Passives tab · 120 questions') +
+            card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+            card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
             card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together') +
             '</div>' +
             '<div class="text-center"><button type="button" class="btn-paw" onclick="DG.showCatStep()">Next: Cat driver →</button></div>';
@@ -441,7 +952,7 @@ const DG = {
                 '</div></div>';
         };
         content.innerHTML =
-            '<div class="dg-step-dots"><span class="done"></span><span class="active"></span><span></span><span></span></div>' +
+            DG.stepDots(1) +
             '<h3 class="text-2xl font-bold text-green-600 text-center mb-4">2. Customize your cat driver</h3>' +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
             row('Cat', 'cat', DG.CATS, s.cat) +
@@ -502,18 +1013,18 @@ const DG = {
             : (DG.tiltPermission === 'granted'
                 ? '<div class="dg-note ok">Tilt is ready. Hold your phone level when the race starts.</div>' : '');
         content.innerHTML =
-            '<div class="dg-step-dots"><span class="done"></span><span class="done"></span><span class="active"></span><span></span></div>' +
+            DG.stepDots(2) +
             '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">3. Choose your controls</h3>' +
             '<p class="text-center text-gray-500 font-bold mb-4">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
             note +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
-            card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to change lane') +
+            card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +
             card('swipe', '👆', 'Swipe', 'Swipe left or right on the track') +
             card('buttons', '🔘', 'LEFT / CENTER / RIGHT', 'Tap the on-screen buttons') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCatStep()">← Cat</button>' +
-            '<button type="button" class="btn-paw" onclick="DG.showModeStep()">Next: Game mode →</button></div>';
+            '<button type="button" class="btn-paw" onclick="DG.showCountStep()">Next: Questions →</button></div>';
     },
 
     chooseControls(value) {
@@ -542,6 +1053,64 @@ const DG = {
         return Promise.resolve(typeof window !== 'undefined' && 'DeviceOrientationEvent' in window);
     },
 
+    showCountStep() {
+        DG.menuStep = 'count';
+        const s = DG.readSettings();
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const cards = DG.QUESTION_COUNTS.map(n => {
+            const active = s.questionCount === n ? ' active' : '';
+            return '<button type="button" class="dg-choice' + active + '" onclick="DG.setQuestionCount(' + n + ')">' +
+                '<span class="dg-choice-title">' + n + '</span>' +
+                '<span class="dg-choice-sub">questions</span></button>';
+        }).join('');
+        content.innerHTML =
+            DG.stepDots(3) +
+            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">4. How many questions?</h3>' +
+            '<p class="text-center text-gray-500 font-bold mb-4">A run ends when you get this many answers correct. Wrong answers do not count toward the total.</p>' +
+            '<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
+            '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showControlsStep()">← Controls</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.showSceneStep()">Next: Choose a course →</button></div>';
+    },
+
+    setQuestionCount(value) {
+        const n = DG.normalizeQuestionCount(value);
+        DG.readSettings().questionCount = n;
+        DG.saveSettings();
+        DG.showCountStep();
+    },
+
+    showSceneStep() {
+        DG.menuStep = 'scene';
+        const s = DG.readSettings();
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const cards = DG.SCENES.map(id => {
+            const active = DG.normalizeScene(s.scene) === id ? ' active' : '';
+            return '<button type="button" class="dg-choice' + active + '" onclick="DG.setScene(\'' + id + '\')">' +
+                '<span class="dg-choice-emoji">' + DG.SCENE_EMOJI[id] + '</span>' +
+                '<span class="dg-choice-title">' + DG.esc(DG.SCENE_LABEL[id]) + '</span>' +
+                '<span class="dg-choice-sub">' + DG.esc(DG.SCENE_FLAVOUR[id]) + '</span></button>';
+        }).join('');
+        content.innerHTML =
+            DG.stepDots(4) +
+            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">5. Choose a course</h3>' +
+            '<p class="text-center text-gray-500 font-bold mb-4">Same track, three different worlds. In multiplayer the host picks the course for everyone.</p>' +
+            '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
+            '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.showModeStep()">Next: Game mode →</button></div>';
+    },
+
+    setScene(value) {
+        DG.readSettings().scene = DG.normalizeScene(value);
+        DG.saveSettings();
+        DG.showSceneStep();
+    },
+
     showModeStep() {
         DG.menuStep = 'mode';
         const content = DG.menuContent();
@@ -549,30 +1118,129 @@ const DG = {
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
         const s = DG.readSettings();
         const modeText = DG.MODE_LABEL[s.bankMode] || '';
+        const n = DG.normalizeQuestionCount(s.questionCount);
+        const sceneText = DG.sceneLabel(s.scene);
         content.innerHTML =
-            '<div class="dg-step-dots"><span class="done"></span><span class="done"></span><span class="done"></span><span class="active"></span></div>' +
-            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">4. Choose a game mode</h3>' +
-            '<p class="text-center text-gray-500 font-bold mb-5">Challenge: <span class="text-orange-600">' + DG.esc(modeText) + '</span></p>' +
+            DG.stepDots(5) +
+            '<h3 class="text-2xl font-bold text-green-600 text-center mb-2">6. Choose a game mode</h3>' +
+            '<p class="text-center text-gray-500 font-bold mb-5">Challenge: <span class="text-orange-600">' + DG.esc(modeText) + '</span> · <span class="text-orange-600">' + n + ' questions</span> · <span class="text-orange-600">' + DG.esc(sceneText) + '</span></p>' +
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">' +
             '<button type="button" class="dg-choice" onclick="DG.startSingle()"><span class="dg-choice-emoji">🏁</span>' +
-            '<span class="dg-choice-title">Single Player</span><span class="dg-choice-sub">Endless race. Beat your best score and distance.</span></button>' +
+            '<span class="dg-choice-title">Single Player</span><span class="dg-choice-sub">Finish when you get ' + n + ' correct. Beat your best composite score and time.</span></button>' +
             '<button type="button" class="dg-choice" onclick="DG.openMultiplayer()"><span class="dg-choice-emoji">🏎️</span>' +
-            '<span class="dg-choice-title">Multiplayer</span><span class="dg-choice-sub">2–5 players. First to the finish line wins (3 minute limit).</span></button>' +
+            '<span class="dg-choice-title">Multiplayer</span><span class="dg-choice-sub">2–5 players. First to ' + n + ' correct, then highest composite score wins.</span></button>' +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showControlsStep()">← Controls</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.showCatStep()">← Cat</button></div>';
+            '<button type="button" class="dg-menu-button" onclick="DG.showSceneStep()">← Course</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button></div>';
     },
 
     startSingle() {
-        const mode = DG.readSettings().bankMode;
+        const settings = DG.readSettings();
+        const mode = settings.bankMode;
         DG.showLoading('Loading ' + (DG.MODE_LABEL[mode] || '') + ' questions…');
         DG.loadBank(mode).then(() => {
-            DG.startRace({ mode: 'single', bankMode: mode });
+            DG.startRace({
+                mode: 'single',
+                bankMode: mode,
+                questionCount: settings.questionCount,
+                scene: settings.scene
+            });
         }).catch(err => DG.showLoadError(mode, err));
     },
 
-    /* ---------------- best score helpers ---------------- */
+    /* ---------------- scoring / personal bests ---------------- */
+
+    // Composite = existing race score + a time bonus that is higher when the
+    // player finishes faster.
+    //   timeBonus = max(0, round(TIME_BONUS_FACTOR * N / max(elapsedSeconds, 1)))
+    // so the bonus is proportional to N / elapsed (questions per second).
+    // With TIME_BONUS_FACTOR = 4000: 20 questions in 100s → 800 bonus;
+    // 20 questions in 200s → 400 bonus. Wrong answers do not count toward N
+    // but they still lower the race score (and therefore the composite).
+    timeBonus(elapsedSeconds, questionCount) {
+        const n = DG.normalizeQuestionCount(questionCount);
+        const elapsed = Math.max(1, Number(elapsedSeconds) || 0);
+        return Math.max(0, Math.round(DG.TIME_BONUS_FACTOR * n / elapsed));
+    },
+
+    scoreRun(stats, elapsedSeconds, questionCount) {
+        const s = stats || {};
+        const raceScore = Math.max(0, Math.floor(Number(s.score) || 0));
+        const correct = Math.max(0, Math.floor(Number(s.correct) || 0));
+        const wrong = Math.max(0, Math.floor(Number(s.wrong) || 0));
+        const attempts = correct + wrong;
+        const accuracy = attempts ? correct / attempts : 0;
+        const n = DG.normalizeQuestionCount(questionCount);
+        const elapsed = Math.max(0, Number(elapsedSeconds) || 0);
+        const bonus = DG.timeBonus(elapsed, n);
+        return {
+            raceScore,
+            timeBonus: bonus,
+            composite: raceScore + bonus,
+            accuracy,
+            correct,
+            wrong,
+            attempts,
+            elapsed,
+            questionCount: n
+        };
+    },
+
+    formatRaceTime(seconds) {
+        const t = Math.max(0, Number(seconds) || 0);
+        const m = Math.floor(t / 60);
+        const s = Math.floor(t % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    },
+
+    formatAccuracy(accuracy) {
+        return Math.round((Number(accuracy) || 0) * 100) + '%';
+    },
+
+    bestRunStorageKey(bankMode, questionCount) {
+        return String(bankMode || 'av') + ':' + DG.normalizeQuestionCount(questionCount);
+    },
+
+    readBestRuns() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(DG.BEST_RUNS_KEY) || 'null');
+            return raw && typeof raw === 'object' ? raw : {};
+        } catch (e) {
+            return {};
+        }
+    },
+
+    readBestRun(bankMode, questionCount) {
+        const row = DG.readBestRuns()[DG.bestRunStorageKey(bankMode, questionCount)];
+        if (!row || typeof row !== 'object') return null;
+        const composite = Number(row.composite);
+        const time = Number(row.time);
+        if (!isFinite(composite) || composite <= 0) return null;
+        return {
+            composite: Math.floor(composite),
+            time: isFinite(time) && time > 0 ? time : 0,
+            score: Math.max(0, Math.floor(Number(row.score) || 0))
+        };
+    },
+
+    recordBestRun(bankMode, questionCount, result) {
+        if (!result || !result.composite) return false;
+        const key = DG.bestRunStorageKey(bankMode, questionCount);
+        const all = DG.readBestRuns();
+        const prev = all[key];
+        const better = !prev
+            || result.composite > prev.composite
+            || (result.composite === prev.composite && result.elapsed < (prev.time || Infinity));
+        if (!better) return false;
+        all[key] = {
+            composite: Math.floor(result.composite),
+            time: Number(result.elapsed) || 0,
+            score: Math.floor(result.raceScore || 0)
+        };
+        try { localStorage.setItem(DG.BEST_RUNS_KEY, JSON.stringify(all)); } catch (e) {}
+        return true;
+    },
 
     readBestScore() {
         const n = Number(localStorage.getItem(DG.BEST_SCORE_KEY) || 0);
@@ -595,6 +1263,75 @@ const DG = {
             changed = true;
         }
         return changed;
+    },
+
+    /* ---------------- cloud boards (Drive & Go! Solo / Multi) ---------------- */
+
+    // Both boards are separate Supabase tables + views created by
+    // supabase/drive_and_go_scenes_and_boards.sql. Single Player itself never
+    // needs the SQL: a failed insert just skips the cloud board.
+    cloudBoardTable(kind) {
+        return kind === 'multi' ? 'drive_and_go_multi_scores' : 'drive_and_go_solo_scores';
+    },
+
+    cloudRunRow(result, extra) {
+        if (typeof previewStudentForm === 'function' && previewStudentForm()) return null;
+        if (typeof canUseCloud !== 'function' || !canUseCloud()) return null;
+        if (typeof sb === 'undefined' || !sb) return null;
+        if (typeof currentUser === 'undefined' || !currentUser || !currentUser.id) return null;
+        const r = result || {};
+        const s = DG.readSettings();
+        const n = DG.normalizeQuestionCount(r.questionCount || s.questionCount);
+        const bankMode = DG.TAB_FOR_MODE[r.bankMode] ? r.bankMode : (DG.TAB_FOR_MODE[s.bankMode] ? s.bankMode : 'av');
+        const accuracy = isFinite(Number(r.accuracy)) ? Math.max(0, Math.min(1, Number(r.accuracy))) : 0;
+        const row = {
+            user_id: currentUser.id,
+            email: currentUser.email || '',
+            nickname: (currentUser.user_metadata && currentUser.user_metadata.full_name) ||
+                String(currentUser.email || '').split('@')[0] || 'Player',
+            bank_mode: bankMode,
+            question_count: n,
+            scene: DG.normalizeScene(r.scene || s.scene),
+            composite: Math.max(0, Math.floor(Number(r.composite) || 0)),
+            race_score: Math.max(0, Math.floor(Number(r.raceScore) || 0)),
+            time_bonus: Math.max(0, Math.floor(Number(r.timeBonus) || 0)),
+            correct: Math.max(0, Math.floor(Number(r.correct) || 0)),
+            wrong: Math.max(0, Math.floor(Number(r.wrong) || 0)),
+            accuracy: Math.round(accuracy * 10000) / 10000,
+            elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
+        };
+        if (extra && extra.room_id) {
+            row.room_id = extra.room_id;
+            row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
+            row.player_count = extra.player_count == null ? null : Math.max(2, Math.floor(extra.player_count));
+        }
+        return row;
+    },
+
+    // Fire-and-forget: never blocks the results screen. A missing table only
+    // shows a short SQL hint (once a minute).
+    submitCloudRun(kind, result, extra) {
+        const row = DG.cloudRunRow(result, extra);
+        if (!row) return;
+        try {
+            sb.from(DG.cloudBoardTable(kind)).insert(row).then(({ error }) => {
+                if (!error) return;
+                console.warn('Drive & Go! ' + kind + ' score not saved:', error.message);
+                const text = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
+                if (/does not exist|Could not find|42P01|PGRST20|schema cache|relation/i.test(text)) {
+                    DG.cloudBoardSqlHint();
+                }
+            }, () => {});
+        } catch (e) {}
+    },
+
+    cloudBoardSqlHint() {
+        const now = Date.now();
+        if (DG._cloudBoardHintAt && now - DG._cloudBoardHintAt < 60000) return;
+        DG._cloudBoardHintAt = now;
+        if (typeof DG.toastSafe === 'function') {
+            DG.toastSafe('Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
+        }
     },
 
     /* ---------------- small helpers used by all three files ---------------- */

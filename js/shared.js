@@ -1331,6 +1331,18 @@
             });
         }
 
+        // Calendar-relative label in Hong Kong time: Today / Yesterday / N days ago.
+        function hkRelativeDay(iso) {
+            if (!iso) return '—';
+            const text = String(iso).slice(0, 10);
+            const key = /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : hkDayKey(iso);
+            const gap = streakGapDays(key, hkDayKey(new Date().toISOString()));
+            if (!Number.isFinite(gap)) return '—';
+            if (gap <= 0) return 'Today';
+            if (gap === 1) return 'Yesterday';
+            return gap + ' days ago';
+        }
+
         function hkDayKey(iso) {
             return new Intl.DateTimeFormat('en-CA', {
                 timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit'

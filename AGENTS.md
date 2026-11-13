@@ -1236,7 +1236,8 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   一句提示，唔會令個人頁爆。
 - **老師 dashboard**：Admin「Student Logins」每行加 `🔥 N days`（用
   `streakCurrentCount()` 計 effective current streak；hover 顯示 best／last），
-  另外有一行細字 `best N · last 13 Nov 2026`，手機都睇到。
+  另外有一行細字 `best N · last 3 days ago`（`hkRelativeDay()`：Today／
+  Yesterday／N days ago），手機都睇到。
   stats 由 3 格變 4 格，加「Active Streaks」。`loadLoginAdmin()` 會一齊讀
   `user_streaks`；未跑 SQL 時該格顯示 `—`，login 名單照出。
 - **Hub Leaderboard**：新增 **🔥 Streaks** tab，顯示 top 10 當前連勝。

@@ -1239,6 +1239,7 @@ const DG = {
 
     backToTenses() {
         DG.stopRace();
+        if (typeof DG.exitRaceFullscreen === 'function') DG.exitRaceFullscreen();
         if (typeof DG.mpStopPoll === 'function') DG.mpAbandon();
         changeView('grammar-revision-view');
     },
@@ -1249,6 +1250,7 @@ const DG = {
     onLeaveView(viewId) {
         if (viewId === 'drive-and-go-view') return;
         if (typeof DG.stopRace === 'function') DG.stopRace();
+        if (typeof DG.exitRaceFullscreen === 'function') DG.exitRaceFullscreen();
         if (viewId !== 'grammar-detail-view') {
             if (typeof DG.mpStopPoll === 'function') DG.mpStopPoll();
             // A freshly joined racer keeps their seat for a short settle
@@ -1569,7 +1571,7 @@ const DG = {
             DG.stepDots('controls') +
             DG.stepHeading('controls', 'Choose your controls') +
             '<p class="text-center text-gray-500 font-bold mb-2">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
-            '<p class="text-center text-gray-400 text-sm font-bold mb-4">📱 Turn your phone sideways for a wider track — the race screen adapts on its own.</p>' +
+            '<p class="text-center text-gray-400 text-sm font-bold mb-4">📱 Turn your phone sideways for a wider track. Tap ⛶ during the race for full screen — on iPhone, add this page to your Home Screen to hide the browser bar.</p>' +
             note +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
             card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +

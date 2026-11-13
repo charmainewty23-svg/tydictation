@@ -88,10 +88,12 @@
             itemEmoji: document.getElementById('dg-item-emoji'),
             itemName: document.getElementById('dg-item-name'),
             progress: document.getElementById('dg-stat-progress'),
-            accelBtn: document.getElementById('dg-accel-btn')
+            accelBtn: document.getElementById('dg-accel-btn'),
+            fsBtn: document.getElementById('dg-fs-btn')
         };
         DG.resizeCanvas();
         DG.bindRaceInput();
+        DG.syncRaceFsUi();
         return true;
     };
 
@@ -246,6 +248,7 @@
     };
 
     DG.exitRace = function () {
+        DG.exitRaceFullscreen();
         DG.stopRace();
         changeView('grammar-revision-view');
     };
@@ -626,6 +629,7 @@
         else if (key === 'ArrowRight' || key === 'd' || key === 'D') { DG.steer(1); e.preventDefault(); }
         else if (key === 'ArrowDown' || key === 's' || key === 'S') { DG.setLane(1); e.preventDefault(); }
         else if (key === 'Enter') { DG.useItem(); e.preventDefault(); }
+        else if (key === 'f' || key === 'F') { DG.toggleRaceFullscreen(); e.preventDefault(); }
         else if (key === 'p' || key === 'P' || key === 'Escape') { DG.togglePause(); e.preventDefault(); }
     };
 
@@ -713,6 +717,8 @@
         add(window, 'blur', DG.onWindowBlur);
         add(document, 'visibilitychange', DG.onWindowBlur);
         add(window, 'resize', DG.onResize);
+        add(document, 'fullscreenchange', DG.onRaceFsChange);
+        add(document, 'webkitfullscreenchange', DG.onRaceFsChange);
         if (DG.raceEls) {
             add(DG.raceEls.stage, 'pointerdown', DG.onPointerDown);
             add(DG.raceEls.stage, 'pointerup', DG.onPointerUp);
@@ -944,6 +950,8 @@
                 '<p class="text-gray-500 font-bold mb-5">' + (S.mode === 'multi' ? 'Other racers keep going. Accel is released until you resume.' : 'Take a breath. Your run is waiting. Accel is released.') + '</p>' +
                 '<div class="flex gap-3 justify-center flex-wrap">' +
                 '<button type="button" class="btn-paw" onclick="DG.togglePause()">Resume</button>' +
+                '<button type="button" class="dg-menu-button" onclick="DG.toggleRaceFullscreen()">' +
+                '<span id="dg-pause-fs">' + (DG.raceFsOn() ? '✕ Exit full screen' : '⛶ Full screen') + '</span></button>' +
                 (S.mode === 'multi'
                     ? '<button type="button" class="dg-menu-button" onclick="DG.mpLeaveRace()">Leave race</button>'
                     : '<button type="button" class="dg-menu-button" onclick="DG.endRun()">End run</button>') +
@@ -1974,6 +1982,157 @@
     DG.playerKartY = function () {
         const v = DG.view || { w: 430, h: 700 };
         return DG.sideways() ? v.h - 88 : v.h - 138;
+    };
+
+    /* ---------------- full screen ---------------- */
+
+    // A phone held sideways loses 44-60px to the browser's own bars. Element
+    // fullscreen hides those on Chrome / Edge / desktop Safari (and Android),
+    // but iPhone Safari has no Element.requestFullscreen, so a CSS fallback
+    // pins the page and locks scrolling instead (the bars stay, because no
+    // web page can remove them there — the Controls step tells players to add
+    // the page to their Home Screen for that).
+    DG.raceFsPending = false;
+    DG.raceFsTimer = 0;
+    DG.raceFsResizeTimer = 0;
+    DG.raceFsScrollY = 0;
+
+    DG.raceFsTarget = function () {
+        return document.getElementById('drive-and-go-view') ||
+            (DG.raceEls && DG.raceEls.stage) || null;
+    };
+
+    DG.nativeRaceFsOn = function () {
+        const el = DG.raceFsTarget();
+        const cur = document.fullscreenElement || document.webkitFullscreenElement || null;
+        if (!cur) return false;
+        return !el || cur === el || (!!cur.contains && cur.contains(el));
+    };
+
+    DG.raceFsOn = function () {
+        return DG.nativeRaceFsOn() || document.body.classList.contains('dg-fs');
+    };
+
+    DG.syncRaceFsUi = function () {
+        const btn = (DG.raceEls && DG.raceEls.fsBtn) || document.getElementById('dg-fs-btn');
+        const on = DG.raceFsOn();
+        if (btn) {
+            btn.textContent = on ? '✕' : '⛶';
+            btn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+            btn.title = on ? 'Exit full screen' : 'Full screen';
+            btn.classList.toggle('on', on);
+        }
+        const pauseFs = document.getElementById('dg-pause-fs');
+        if (pauseFs) pauseFs.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
+        return on;
+    };
+
+    // The new viewport only lands a frame or two after the request settles,
+    // so the canvas is measured once now and again when it has.
+    DG.scheduleRaceResize = function () {
+        DG.resizeCanvas();
+        if (DG.raceFsResizeTimer) clearTimeout(DG.raceFsResizeTimer);
+        DG.raceFsResizeTimer = setTimeout(() => {
+            DG.raceFsResizeTimer = 0;
+            DG.resizeCanvas();
+            if (DG.raceEls && S.player) DG.drawRace();
+        }, 260);
+    };
+
+    DG.enterCssFullscreen = function () {
+        DG.raceFsPending = false;
+        if (DG.raceFsTimer) { clearTimeout(DG.raceFsTimer); DG.raceFsTimer = 0; }
+        if (!document.body.classList.contains('dg-fs')) {
+            DG.raceFsScrollY = window.scrollY || window.pageYOffset || 0;
+            document.body.classList.add('dg-fs');
+        }
+        DG.syncRaceFsUi();
+        DG.scheduleRaceResize();
+    };
+
+    DG.exitRaceFullscreen = function () {
+        DG.raceFsPending = false;
+        if (DG.raceFsTimer) { clearTimeout(DG.raceFsTimer); DG.raceFsTimer = 0; }
+        if (DG.nativeRaceFsOn()) {
+            try {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } catch (e) {}
+        }
+        if (document.body.classList.contains('dg-fs')) {
+            document.body.classList.remove('dg-fs');
+            try { window.scrollTo(0, DG.raceFsScrollY || 0); } catch (e) {}
+        }
+        DG.syncRaceFsUi();
+        DG.scheduleRaceResize();
+    };
+
+    // iPhone Safari cannot hide its own bars; the Home Screen app can.
+    DG.raceFsHint = function () {
+        const ua = navigator.userAgent || '';
+        const iphone = /iPhone|iPod/.test(ua);
+        const standalone = (window.navigator.standalone === true) ||
+            (!!window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+        if (iphone && !standalone) {
+            DG.toast('On iPhone, add this page to your Home Screen to hide the browser bar.', 4200);
+        } else {
+            DG.toast('Full screen is not available in this browser.', 2600);
+        }
+    };
+
+    DG.enterRaceFullscreen = function () {
+        if (DG.raceFsOn()) { DG.syncRaceFsUi(); return true; }
+        const el = DG.raceFsTarget();
+        if (!el) return false;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) {
+            DG.enterCssFullscreen();
+            DG.raceFsHint();
+            return false;
+        }
+        DG.raceFsPending = true;
+        let settled = false;
+        const done = (ok) => {
+            if (settled) return;
+            settled = true;
+            DG.raceFsPending = false;
+            if (ok) {
+                DG.syncRaceFsUi();
+                DG.scheduleRaceResize();
+            } else {
+                // iOS ignores the promise or rejects it; fall back quietly.
+                DG.enterCssFullscreen();
+                DG.raceFsHint();
+            }
+        };
+        try {
+            const p = req.call(el, { navigationUI: 'hide' });
+            if (p && typeof p.then === 'function') {
+                p.then(() => done(true)).catch(() => done(false));
+            }
+        } catch (e) {
+            done(false);
+            return false;
+        }
+        if (DG.raceFsTimer) clearTimeout(DG.raceFsTimer);
+        DG.raceFsTimer = setTimeout(() => {
+            DG.raceFsTimer = 0;
+            if (settled) return;
+            if (DG.nativeRaceFsOn()) done(true);
+            else done(false);
+        }, 700);
+        return true;
+    };
+
+    DG.toggleRaceFullscreen = function () {
+        if (DG.raceFsOn()) DG.exitRaceFullscreen();
+        else DG.enterRaceFullscreen();
+    };
+
+    DG.onRaceFsChange = function () {
+        DG.raceFsPending = false;
+        DG.syncRaceFsUi();
+        DG.scheduleRaceResize();
     };
 
     DG.drawRace = function () {

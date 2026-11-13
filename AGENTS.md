@@ -503,9 +503,31 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
     `sideways ? h - 88 : h - 138`。`DG.drawRace` 同 `DG.drawRival` 都改讀呢三個，
     唔好再喺裡面寫死 `h - 138`／`1.12`／`0.96`。
   - Controls 步驟（`showControlsStep()`）加咗一句英文提示
-    「📱 Turn your phone sideways for a wider track — the race screen adapts on its own.」
+    「📱 Turn your phone sideways for a wider track. Tap ⛶ during the race for full screen — on iPhone, add this page to your Home Screen to hide the browser bar.」
   - 中置（CENTER） lane 閘喺橫向會被 kart 遮住最後約 1.2 秒，但 HUD chips 已經列出
     LEFT／CENTER／RIGHT 答案，所以冇再改 kart 位置。
+- **Full screen（2026-11）**：橫向時瀏覽器 URL／link bar 會食位，所以 race HUD 嘅
+  stats row 加咗 `#dg-fs-btn`（⛶／✕），暫停選單亦有 `#dg-pause-fs`（跟狀態轉字），
+  鍵盤 `f`／`F` 亦可 toggle。`DG.enterRaceFullscreen()` 先試
+  `#drive-and-go-view.requestFullscreen({ navigationUI: 'hide' })`（Chrome／Edge／
+  Android／桌面 Safari）；如果 browser 冇 `requestFullscreen`、promise reject、
+  或者 700ms 內都未見到 `fullscreenElement`（iPhone Safari 會靜靜咁唔 settle），
+  就 fallback 落 `DG.enterCssFullscreen()`：`body.dg-fs`（`position:fixed; inset:0;
+  overflow:hidden; overscroll-behavior:none; touch-action:none`）令 race view
+  （`z-index:9999`）霸滿可用空間。CSS 仲有 `#drive-and-go-view:fullscreen` 同
+  `:-webkit-full-screen` 設 `100vw×100dvh`。
+  - iPhone Safari 冇 element fullscreen，瀏覽器 bar 永遠唔會消失；fallback 會 toast
+    「On iPhone, add this page to your Home Screen to hide the browser bar.」
+    其他唔支援嘅 browser 就 toast「Full screen is not available in this browser.」。
+  - `fullscreenchange`／`webkitfullscreenchange` → `DG.onRaceFsChange()` 更新掣字
+    （⛶ ↔ ✕）、`#dg-pause-fs` 同 resize canvas（`DG.scheduleRaceResize()` 會即刻
+    resize 再 260ms 後 resize 一次，等新 viewport settle）。
+  - 離開賽道（`DG.exitRace()`、`DG.backToTenses()`、`changeView` 嘅 `DG.onLeaveView()`）
+    會 `DG.exitRaceFullscreen()`，所以唔會困住喺 full screen；`DG.stopRace()`
+    （Race again／多人完賽）**唔會**退出，full screen 會保留。
+  - 全屏時 canvas 仍然係 `100vw×100dvh`；橫向 CSS 照樣套用，HUD 61px 不變
+    （844×390 實測 hud 61、qcard 4–39、stats 42–61）。冇加 manifest／
+    `apple-mobile-web-app-capable`。
 - **SQL（Agreement）**：已有 Drive & Go! 嘅老師只需要喺 live project
   `mggnwzirjmibreimrwiq` 嘅 SQL editor 貼
   `supabase/drive_and_go_agreement_topic.sql`（可重複跑）。**唔好**為呢個改動再貼

@@ -497,6 +497,38 @@
             white-space: nowrap;
         }
         .dg-stat.hidden { display: none; }
+        /* Full screen toggle: a stat-sized pill so it never covers the track,
+           the steering buttons or the multiplayer board. */
+        .dg-fs-btn {
+            pointer-events: auto;
+            border: 0;
+            font-family: inherit;
+            line-height: 1;
+            min-width: 26px;
+            padding: 3px 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .dg-fs-btn.on { background: rgba(249, 115, 22, 0.92); }
+        /* Native fullscreen of the race view (Android / Chrome / desktop). */
+        #drive-and-go-view:fullscreen,
+        #drive-and-go-view:-webkit-full-screen {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            background: #0b1020;
+        }
+        /* iPhone Safari has no element fullscreen: pin the page, lock the
+           scroll, and let the race view (already fixed) own the viewport. */
+        body.dg-fs {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            background: #0b1020;
+        }
+        body.dg-fs #drive-and-go-view.dg-live { z-index: 9999; }
         /* Multiplayer-only corner board: every remaining racer, name +
            correct answers / N + a progress bar (track distance is a secondary
            cue). It sits under the question HUD on the left and never takes
@@ -949,6 +981,7 @@
             .dg-option-chip b { display: inline; margin-right: 4px; font-size: 9px; letter-spacing: 0.04em; }
             .dg-stats { margin-top: 3px; gap: 4px; }
             .dg-stat { font-size: 10px; padding: 2px 7px; }
+            .dg-fs-btn { min-width: 30px; padding: 2px 8px; font-size: 13px; }
             /* Answers / item pickups: above the steering buttons, clear of the
                question card and of the gates higher up the road. */
             .dg-toast {
@@ -1305,6 +1338,7 @@
                             <span id="dg-stat-pos" class="dg-stat">1st</span>
                             <span id="dg-stat-progress" class="dg-stat">0/20</span>
                             <span id="dg-stat-time" class="dg-stat">0:00</span>
+                            <button id="dg-fs-btn" type="button" class="dg-stat dg-fs-btn" onclick="DG.toggleRaceFullscreen()" aria-label="Full screen" title="Full screen">⛶</button>
                         </div>
                     </div>
                     <div id="dg-mp-progress" class="dg-mp-progress hidden" aria-live="polite" aria-label="Racer progress"></div>

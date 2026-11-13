@@ -629,6 +629,17 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   用 `DG.catPalette` + hat/glasses/outfit；gates 用 canvas text banner；
   scenery 用簡單 box/cone/cylinder；bananas 用黃色球；camera 跟 player lane
   同前方彎位。`DG.drawThree()` 每幀 update 再 render。
+- **道具 3D 效果**：`DG.useItem()` 會叫 `DG.spawnThreeProjectile()`：
+  - 🔴 Red shell：紅色 shell mesh 由玩家飛向前面目標（lane 會 interpolate），
+    到目標時 `spawnThreeBurst()` 紅色 ring。
+  - 🍌 Banana：黃色香蕉向後上方拋出，消失時黃色 ring；真正嘅 banana
+    障礙照舊加入 `S.bananas`。
+  - 🍄 Mushroom／⭐ Star：玩家位置綠色／黃色 ring burst。
+  - ⚡ Lightning：每個可見 rival 位置黃色 ring burst。
+  - 全部 effect 只係本地視覺；多人時對手仍然靠 `remoteEffect('spin'/'slow')`
+    收到實際效果，唔會見到你嗰個 shell／banana 飛過去。
+  - 2D fallback 完全唔受影響（`spawnThreeProjectile`／`spawnThreeBurst`
+    見 `DG.three` 為 null 就 return）。
 - **Fallback**：如果 `THREE` 未載入、WebGL 失敗、或者 `DG.THREE_ENABLED=false`，
   `DG.three` 保持 null，原有 2D renderer 照用。`DG.disposeThree()` 喺
   `stopRace()` 清 canvas／renderer；restart／exit 都安全。

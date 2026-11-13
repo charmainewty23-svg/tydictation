@@ -848,10 +848,31 @@
             p.item = null;
             target.spinUntil = Math.max(target.spinUntil || 0, now + 2);
             DG.remoteEffect(target, 'spin', 2000);
+            if (typeof DG.spawnThreeProjectile === 'function') {
+                const rel = Math.max(18, target.dist - p.dist);
+                DG.spawnThreeProjectile('redshell', {
+                    fromRel: 2,
+                    toRel: rel,
+                    fromLane: p.laneX,
+                    toLane: target.laneX,
+                    duration: 0.45 + Math.min(0.4, rel / 1100),
+                    arc: 1.0
+                });
+            }
             DG.toast('🔴 Red shell hit ' + target.name + '!', 1600);
         } else if (kind === 'banana') {
             p.item = null;
             S.bananas.push({ dist: Math.max(0, p.dist - 18), lane: p.lane, hit: false });
+            if (typeof DG.spawnThreeProjectile === 'function') {
+                DG.spawnThreeProjectile('banana', {
+                    fromRel: 0,
+                    toRel: -5,
+                    fromLane: p.laneX,
+                    toLane: p.laneX,
+                    duration: 0.5,
+                    arc: 3.0
+                });
+            }
             const target = DG.raceTarget('behind');
             if (target) {
                 target.spinUntil = Math.max(target.spinUntil || 0, now + DG.SPIN_TIME);
@@ -870,16 +891,26 @@
                 if (r.remote) DG.remoteEffect(r, 'slow', 4500);
                 hit++;
             });
+            if (typeof DG.spawnThreeBurst === 'function') {
+                S.rivals.forEach(r => {
+                    const rel = r.dist - p.dist;
+                    if (rel > -20 && rel < 1200) {
+                        DG.spawnThreeBurst(DG.threeLaneX(rel, r.laneX), DG.threeRoadY(rel) + 1.0, -rel, 0xfacc15);
+                    }
+                });
+            }
             DG.toast('⚡ Lightning! ' + hit + ' rival' + (hit === 1 ? '' : 's') + ' slowed.', 1800);
         } else if (kind === 'star') {
             p.item = null;
             p.starUntil = Math.max(p.starUntil, now + 6);
             p.boostUntil = Math.max(p.boostUntil, now + 5);
+            if (typeof DG.threePlayerBurst === 'function') DG.threePlayerBurst(0xfde047);
             DG.toast('⭐ Star power! Invincible + boost.', 1600);
         } else if (kind === 'mushroom') {
             p.item = null;
             p.boostUntil = Math.max(p.boostUntil, now + 3);
             p.speed = Math.min(DG.SPEED_CAP || 340, p.speed + 18);
+            if (typeof DG.threePlayerBurst === 'function') DG.threePlayerBurst(0x22c55e);
             DG.toast('🍄 Mushroom boost!', 1400);
         }
         DG.updateItemSlot();
@@ -2453,6 +2484,132 @@
         return g;
     };
 
+    DG.makeThreeShell = function () {
+        const g = new THREE.Group();
+        const red = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+        const dark = new THREE.MeshBasicMaterial({ color: 0x991b1b });
+        const white = new THREE.MeshBasicMaterial({ color: 0xfef3c7 });
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.58, 12, 8), red);
+        body.scale.y = 0.82;
+        g.add(body);
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.12, 6, 14), dark);
+        band.rotation.x = Math.PI / 2;
+        g.add(band);
+        [[-0.25, 0.55, 0.25], [0.3, 0.5, 0.15], [0, 0.2, 0.55]].forEach(sp => {
+            const spot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), white);
+            spot.position.set(sp[0], sp[1], sp[2]);
+            g.add(spot);
+        });
+        return g;
+    };
+
+    DG.makeThreeBanana = function () {
+        const g = new THREE.Group();
+        const yellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        const brown = new THREE.MeshBasicMaterial({ color: 0x92400e });
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.18, 6, 12, Math.PI * 0.92), yellow);
+        arc.rotation.z = -0.45;
+        g.add(arc);
+        const tip1 = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), brown);
+        tip1.position.set(-0.55, 0.05, 0);
+        g.add(tip1);
+        const tip2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), brown);
+        tip2.position.set(0.5, 0.35, 0);
+        g.add(tip2);
+        return g;
+    };
+
+    DG.spawnThreeProjectile = function (kind, opts) {
+        const t = DG.three;
+        if (!t || !S.player) return;
+        const o = opts || {};
+        const mesh = kind === 'redshell' ? DG.makeThreeShell() : DG.makeThreeBanana();
+        t.projectileGroup.add(mesh);
+        t.projectiles.push({
+            kind,
+            mesh,
+            startClock: S.clock,
+            duration: Math.max(0.2, Number(o.duration) || 0.6),
+            fromRel: Number(o.fromRel) || 0,
+            toRel: Number(o.toRel) || 0,
+            fromLane: o.fromLane == null ? S.player.laneX : o.fromLane,
+            toLane: o.toLane == null ? S.player.laneX : o.toLane,
+            arc: Number(o.arc) || 0
+        });
+    };
+
+    DG.spawnThreeBurst = function (x, y, z, color) {
+        const t = DG.three;
+        if (!t) return;
+        const mat = new THREE.MeshBasicMaterial({
+            color: color || 0xfde047,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const mesh = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.65, 20), mat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(x, y, z);
+        t.burstGroup.add(mesh);
+        t.bursts.push({ mesh, startClock: S.clock, duration: 0.6 });
+    };
+
+    DG.threePlayerBurst = function (color) {
+        if (!DG.three || !S.player) return;
+        const p = S.player;
+        DG.spawnThreeBurst(DG.threeLaneX(0, p.laneX), DG.threeRoadY(0) + 1.0, 0, color);
+    };
+
+    DG.updateThreeProjectiles = function () {
+        const t = DG.three;
+        if (!t || !S.player) return;
+        for (let i = t.projectiles.length - 1; i >= 0; i--) {
+            const pr = t.projectiles[i];
+            const raw = (S.clock - pr.startClock) / pr.duration;
+            if (raw >= 1) {
+                const rel = pr.toRel;
+                DG.spawnThreeBurst(
+                    DG.threeLaneX(rel, pr.toLane),
+                    DG.threeRoadY(rel) + 0.8,
+                    -rel,
+                    pr.kind === 'redshell' ? 0xef4444 : 0xfacc15
+                );
+                t.projectileGroup.remove(pr.mesh);
+                DG.disposeObject(pr.mesh);
+                t.projectiles.splice(i, 1);
+                continue;
+            }
+            const k = Math.max(0, Math.min(1, raw));
+            const rel = pr.fromRel + (pr.toRel - pr.fromRel) * k;
+            const lane = pr.fromLane + (pr.toLane - pr.fromLane) * k;
+            pr.mesh.position.set(
+                DG.threeLaneX(rel, lane),
+                DG.threeRoadY(rel) + 0.8 + Math.sin(Math.PI * k) * pr.arc,
+                -rel
+            );
+            pr.mesh.rotation.y += 0.22;
+            pr.mesh.rotation.z += 0.14;
+        }
+    };
+
+    DG.updateThreeBursts = function () {
+        const t = DG.three;
+        if (!t) return;
+        for (let i = t.bursts.length - 1; i >= 0; i--) {
+            const b = t.bursts[i];
+            const k = (S.clock - b.startClock) / b.duration;
+            if (k >= 1) {
+                t.burstGroup.remove(b.mesh);
+                DG.disposeObject(b.mesh);
+                t.bursts.splice(i, 1);
+                continue;
+            }
+            b.mesh.scale.setScalar(1 + k * 2.2);
+            b.mesh.material.opacity = Math.max(0, 0.9 * (1 - k));
+        }
+    };
+
     DG.disposeObject = function (obj) {
         if (!obj) return;
         obj.traverse(o => {
@@ -2548,12 +2705,15 @@
             const gateGroup = new THREE.Group();
             const sceneryGroup = new THREE.Group();
             const bananaGroup = new THREE.Group();
-            scene.add(kartGroup, gateGroup, sceneryGroup, bananaGroup);
+            const projectileGroup = new THREE.Group();
+            const burstGroup = new THREE.Group();
+            scene.add(kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup);
 
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
-                kartGroup, gateGroup, sceneryGroup, bananaGroup
+                projectiles: [], bursts: [],
+                kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup
             };
             DG.updateThreeRoad();
             DG.drawThree();
@@ -2734,6 +2894,8 @@
         DG.updateThreeKarts();
         DG.updateThreeGates();
         DG.updateThreeBananas();
+        DG.updateThreeProjectiles();
+        DG.updateThreeBursts();
         DG.updateThreeScenery();
         DG.updateThreeCamera();
         t.renderer.render(t.scene, t.camera);

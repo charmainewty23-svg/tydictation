@@ -988,6 +988,15 @@
             width: 100%;
             height: 100%;
             display: block;
+            z-index: 1;
+        }
+        #dg-three-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 0;
         }
         .dg-hud {
             position: absolute;
@@ -1097,6 +1106,7 @@
             border-radius: 999px;
         }
         .dg-fs-btn.on { background: rgba(249, 115, 22, 0.92); }
+        .dg-music-btn.on { background: rgba(34, 197, 94, 0.92); }
         /* Native fullscreen of the race view (Android / Chrome / desktop). */
         #drive-and-go-view:fullscreen,
         #drive-and-go-view:-webkit-full-screen {
@@ -1927,6 +1937,7 @@
                             <span id="dg-stat-progress" class="dg-stat">0/20</span>
                             <span id="dg-stat-time" class="dg-stat">0:00</span>
                             <button id="dg-fs-btn" type="button" class="dg-stat dg-fs-btn" onclick="DG.toggleRaceFullscreen()" aria-label="Full screen" title="Full screen">⛶</button>
+                            <button id="dg-music-btn" type="button" class="dg-stat dg-fs-btn dg-music-btn" onclick="DG.toggleMusic()" aria-label="Mute music" title="Mute music">🔊</button>
                         </div>
                     </div>
                     <div id="dg-mp-progress" class="dg-mp-progress hidden" aria-live="polite" aria-label="Racer progress"></div>
@@ -2547,6 +2558,7 @@
     <script src="js/new-vocab.js"></script>
     <script src="js/grammar-quest.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>
     <script src="js/grammar/drive-and-go-multiplayer.js"></script>
     <script src="js/leaderboard.js"></script>

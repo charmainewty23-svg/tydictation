@@ -1272,6 +1272,7 @@ const DG = {
     },
 
     showLoadError(topic, mode, err) {
+        if (typeof DG.stopMusic === 'function') DG.stopMusic();
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
@@ -1717,6 +1718,8 @@ const DG = {
         const settings = DG.readSettings();
         const topic = DG.normalizeTopic(settings.topic);
         const mode = DG.normalizeBankMode(topic, settings.bankMode);
+        // Called from the Start race tap, so this is a valid audio gesture.
+        if (typeof DG.startMusic === 'function') DG.startMusic();
         DG.showLoading('Loading ' + DG.modeLabel(topic, mode) + ' questions…');
         DG.loadBank(topic, mode).then(() => {
             DG.startRace({

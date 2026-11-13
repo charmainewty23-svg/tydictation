@@ -610,6 +610,38 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
+### 9.11 Drive & Go! 背景音樂＋three.js 3D 畫面（2026-11 加）
+
+- **音樂**：`music/battlemusic.mp3`（3.6MB）用 `new Audio('/music/battlemusic.mp3')`，
+  loop、volume 0.35。`DG.startMusic()` 喺 `startSingle()`／`mpBeginRace()` 嘅
+  用戶手勢內先叫一次，`DG.startRace()` 再確保播放；`stopRace()`、
+  `finishPlayer()`、`freezeRaceLoop()`、`showLoadError()` 會停。
+  HUD 有 `#dg-music-btn`（🔊／🔇），記住 `localStorage['learniTY_dg_music']`。
+  音樂**唔入** `sw.js` CORE_ASSETS（3.6MB 太大），第一次播時由 network-first
+  SW 自己 cache；未 cache 時斷網會冇音樂，2D/3D 遊戲照玩。
+- **three.js**：`index.html` 喺 `drive-and-go.js` 同 `drive-and-go-race.js`
+  之間載入 `https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js`
+  （jsDelivr 已在 SW CDN allowlist）。`DG.initThree()` 喺 `startRace()` 建
+  `#dg-three-canvas`（z-index 0，喺 `#dg-canvas` 後面）；`#dg-canvas` 喺 3D
+  模式只畫 countdown／lightning／speed lines overlay。
+- **場景**：`DG.threeRoadX/Y` 用現有 `trackLateral`／`trackCurve`／`trackHill`
+  砌 curved road ribbon；road texture 有 edge lines、dashed lanes；3D karts
+  用 `DG.catPalette` + hat/glasses/outfit；gates 用 canvas text banner；
+  scenery 用簡單 box/cone/cylinder；bananas 用黃色球；camera 跟 player lane
+  同前方彎位。`DG.drawThree()` 每幀 update 再 render。
+- **Fallback**：如果 `THREE` 未載入、WebGL 失敗、或者 `DG.THREE_ENABLED=false`，
+  `DG.three` 保持 null，原有 2D renderer 照用。`DG.disposeThree()` 喺
+  `stopRace()` 清 canvas／renderer；restart／exit 都安全。
+- **效能**：實測 499×810、pixel ratio 1.5、130 draw calls、5,141 triangles；
+  no shadows、no antialias、scenery 用簡單 geometry。手機如果太慢，可以
+  將 `DG.THREE_ENABLED=false` 或喺 `initThree` 加 device check。
+- **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅 z/y/lookY 同
+  `updateThreeKarts()` 嘅 scale；路面彎度改 `threeRoadX()` 個 `0.05`；
+  想加新 scenery kind 喺 `makeThreeScenery()` 加 branch。2D 同 3D 兩邊嘅
+  遊戲狀態（`DG.raceState`）係同一份，唔好喺 3D 另外改遊戲邏輯。
+
+---
+
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
 
 入口：Hub 嘅「🦘 Word Jump」卡，或者 `battle-view` 頂部嘅同一張卡 → `openWordJump(...)` → `wordjump-view`。返回會返去撳入嚟嗰一頁（Hub 或 Word Battle）。

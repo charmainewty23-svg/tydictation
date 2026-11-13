@@ -775,6 +775,7 @@
         DG.showLoading('Loading the race questions…');
         const topic = DG.normalizeTopic(room.topic);
         const mode = DG.normalizeBankMode(topic, room.question_mode);
+        if (typeof DG.startMusic === 'function') DG.startMusic();
         DG.loadBank(topic, mode, !!force).then(() => {
             MP.beginning = false;
             DG.startRace({

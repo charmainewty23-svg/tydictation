@@ -701,6 +701,8 @@ async function loadFriendSocial(userId) {
     };
     setCount('social-count-following', '…');
     setCount('social-count-followers', '…');
+    const noteEl = document.getElementById('profile-social-note');
+    if (noteEl) { noteEl.classList.add('hidden'); noteEl.innerText = ''; }
     profileSocialOwner = String(userId);
     profileSocialRows = [];
     try {
@@ -711,12 +713,17 @@ async function loadFriendSocial(userId) {
         profileSocialRows = [];
         setCount('social-count-following', '—');
         setCount('social-count-followers', '—');
+        if (noteEl) {
+            noteEl.classList.remove('hidden');
+            noteEl.innerText = 'Connections need the teacher to run supabase/friends_social.sql (or the latest friends.sql).';
+        }
         const listEl = document.getElementById('profile-social-list');
-        if (listEl) listEl.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Run supabase/friends.sql to enable connection lists.</p>';
+        if (listEl) listEl.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Run supabase/friends_social.sql to enable connection lists.</p>';
         return;
     }
     setCount('social-count-following', profileSocialRows.filter(r => r.direction === 'following').length);
     setCount('social-count-followers', profileSocialRows.filter(r => r.direction === 'follower').length);
+    if (noteEl) { noteEl.classList.add('hidden'); noteEl.innerText = ''; }
     if (profileSocialListKind) profileRenderSocialList();
     if (profileReopenSocialKind) {
         const kind = profileReopenSocialKind;

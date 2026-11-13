@@ -1579,6 +1579,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     對方嘅 Following／Followers 數量，撳入去先開名單，名單同樣有
     搜尋／排序；撳名可以再去嗰個人 profile 再 Follow。
     `friend_social(p_user_id)` 提供對方嘅 following／follower rows。
+    未跑 `friends_social.sql` 時 counts 會顯示 `—`，下面有
+    「Connections need the teacher to run supabase/friends_social.sql…」提示。
     `profileShowOwn()` 返自己 profile（底部 Me tab 亦已改為 call 佢）。
   - **Back 掣**：朋友 profile 頂部 `#profile-back-own` 係 **sticky**，
     會跟來源顯示 **Back to Leaderboard／Back to Word Jump／Back to profile／

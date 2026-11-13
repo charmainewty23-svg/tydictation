@@ -1060,3 +1060,58 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 已知限制：`canvas` 內容喺 OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>`），
   同 PWA 無關；iPhone Safari 的瀏覽器 bar 喺 standalone 以外仍然存在，
   要 Add to Home Screen 才會消失。
+
+### 12.4 底部 tab bar（2026-11 加）
+
+手機同 iPad 用 Instagram 式固定底欄，**五個 tab，次序固定**：
+
+| Tab | Icon | 開啟 view | Active 範圍 |
+|---|---|---|---|
+| Home | 🏠 | `hub-view` | hub、grammar 系列、my-records、leaderboard |
+| Dictation | ✍️ | `home-view` | home、sub-category、word-list、quiz |
+| Jump | 🦘 | `wordjump-view` | wordjump |
+| Battle | ⚔️ | `battle-view` | battle |
+| Error | 📕 | `error-book-view` | error-book |
+
+- Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；五個
+  `[data-nav-view]` button 直接 call `changeView(...)`，所以每個 tab 永遠返到該區根頁。
+  冇 Admin shortcut。Active tab 用深橙（`#c2410c`，11px 字過 4.5:1）＋底線；`updateBottomNav()`
+  會設 `aria-current="page"`。
+- CSS 喺 `index.html` `<style>` 的 `/* ---- Bottom tab bar ---- */`：
+  `position:fixed`、`z-index:900`、56px 高 tab、`env(safe-area-inset-bottom)`、
+  半透明白底＋blur。內層 `.bottom-nav-inner` 在 iPad／桌面固定 **max-width 720px
+  居中**，唔會變成左邊 rail。`body.has-bottom-nav #app` 加
+  `padding-bottom: calc(4.5rem + env(safe-area-inset-bottom))`，所以最後一張卡
+  唔會被 bar 蓋住。
+- 顯示規則（`js/shared.js`）：
+  - `NAV_TABS`（5 個 root view）、`NAV_HIDDEN_VIEWS = ['quiz-view',
+    'wordjump-view', 'drive-and-go-view', 'admin-view']`。
+  - `navTabForView(viewId)` 決定 active tab；grammar 樹／records／leaderboard
+    都 highlight Home。
+  - `navShouldShow(viewId)`：上面四個隱藏 view 唔出 bar；`battle-view` 只在
+    lobby／result 出，`waiting`／`play`／`class` 進行中會收埋（避免蓋住計分板／輸入）。
+  - `currentView` 喺 `changeView()` 更新，之後 call `updateBottomNav()`；
+    `showApp()`／`showLogin()` 亦會更新（未登入一定冇 bar）。
+  - Battle 面板切換經 `battleShowPanel()` 寫 `window.navBattlePanel` 再
+    call `updateBottomNav()`。**加新 battle 面板時要記住呢步**，否則 bar
+    可能喺進行中仍然出現。
+  - 進行中 bar 收埋時，`#battle-back-btn`（top Back to Hub）會自動顯示返；
+    bar 出現時 CSS `body.has-bottom-nav #battle-back-btn { display:none; }`
+    收埋佢。呢個係「bar 或 back 掣，任何時候都有一個出口」的做法。
+- 重複的頂層返回掣已移除：`grammar-view`、`home-view`、`sub-category-view`、
+  `error-book-view`、`my-records-view`、`leaderboard-view` 的 Back to Hub／Topics。
+  **保留** section 內的 breadcrumb（sentence structures → grammar、detail → list、
+  tenses → revision、tense list → tenses、word list → activities），以及
+  quiz／Word Jump／Admin／active battle 的退出掣。因為 bar 已提供根頁導航，
+  移除的只係重複的根頁返回。
+- 加新 view／tab 時：
+  1. 如果係新 tab，`NAV_TABS`／`NAV_HIDDEN_VIEWS`／`navTabForView()` 同
+     HTML button 要一齊改（而家固定 5 格，唔好加到 6 格以上）。
+  2. 新 view 預設會出 bar；如果係全屏遊戲或需要沉浸，加入 `NAV_HIDDEN_VIEWS`，
+     並確保該 view 有自己嘅退出掣。
+  3. `sw.js` 的 `CORE_ASSETS` 唔使改（呢個改動冇新 JS 檔）。
+- 實測（iframe 載入真 `index.html`，模擬登入後量度）：375×667、390×844、
+  430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`；tab 高度 56px、
+  nav 高度 58px、iPad／橫向內層 720px；lobby／result 出 bar，
+  waiting／play／class／quiz／wordjump／admin 收埋；`#app` 底部 padding 72px
+  （bar 58px ＋ 14px 空隙）。

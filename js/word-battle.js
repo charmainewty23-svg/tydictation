@@ -154,6 +154,10 @@
                 const el = document.getElementById('battle-' + p);
                 if (el) el.classList.toggle('hidden', p !== name);
             });
+            // The bottom tab bar hides while a room is live, so the top
+            // "Back to Hub" button becomes the exit again.
+            window.navBattlePanel = name;
+            if (typeof updateBottomNav === 'function') updateBottomNav();
         }
 
         function battlePopulateTopics() {

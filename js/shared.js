@@ -28,6 +28,48 @@
         const GUEST_BLOCKED_VIEWS = ['leaderboard-view', 'admin-view', 'my-records-view'];
         let guestSession = false;
 
+        // --- Bottom tab bar -------------------------------------------------
+        // Exactly five tabs. Each tab always returns to its section root.
+        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'error-book-view'];
+        // Views that keep the screen immersive: the bar would cover controls or
+        // compete with the game HUD, so it hides and the view keeps its own exit.
+        const NAV_HIDDEN_VIEWS = ['quiz-view', 'wordjump-view', 'drive-and-go-view', 'admin-view'];
+        let currentView = 'hub-view';
+
+        function navTabForView(viewId) {
+            if (viewId === 'home-view' || viewId === 'sub-category-view' || viewId === 'word-list-view' || viewId === 'quiz-view') return 'home-view';
+            if (viewId === 'wordjump-view') return 'wordjump-view';
+            if (viewId === 'battle-view') return 'battle-view';
+            if (viewId === 'error-book-view') return 'error-book-view';
+            return 'hub-view'; // hub, grammar tree, records, leaderboard
+        }
+
+        function navShouldShow(viewId) {
+            if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
+            if (viewId === 'battle-view') {
+                // Lobby and result screens can use the bar; a live room cannot.
+                const panel = window.navBattlePanel || 'lobby';
+                return panel === 'lobby' || panel === 'result';
+            }
+            return true;
+        }
+
+        function updateBottomNav() {
+            const nav = document.getElementById('bottom-nav');
+            if (!nav) return;
+            const app = document.getElementById('app');
+            const appOpen = !!(app && app.classList.contains('logged-in'));
+            const show = appOpen && navShouldShow(currentView);
+            document.body.classList.toggle('has-bottom-nav', show);
+            const active = navTabForView(currentView);
+            nav.querySelectorAll('[data-nav-view]').forEach(btn => {
+                const on = btn.getAttribute('data-nav-view') === active;
+                btn.classList.toggle('active', on);
+                if (on) btn.setAttribute('aria-current', 'page');
+                else btn.removeAttribute('aria-current');
+            });
+        }
+
         function isGuestUser() { return !!guestSession; }
         function isTeacherAccount() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
         const PREVIEW_FORM_KEY = 'learniTY_preview_form';
@@ -676,11 +718,13 @@
             // current panel back to the Hub, so the teacher had to click in again
             // while adding New Vocab words (and students lost their place too).
             if (!alreadyOpen) changeView('hub-view');
+            else updateBottomNav();
         }
 
         function showLogin() {
             document.getElementById('app').classList.remove('logged-in');
             document.getElementById('login-view').style.display = '';
+            updateBottomNav();
         }
 
         // --- Login tracking (admin dashboard) ---
@@ -908,7 +952,9 @@
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
             const target = document.getElementById(viewId);
             if(target) target.classList.remove('hidden');
+            currentView = viewId;
             window.scrollTo(0,0);
+            updateBottomNav();
             
             if (viewId === 'hub-view') {
                 updateMascot("Awesome! What would you like to learn next?");

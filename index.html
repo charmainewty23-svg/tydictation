@@ -232,6 +232,85 @@
             min-height: 44px;
         }
 
+        /* ---- Bottom tab bar ---- */
+        /* Five fixed tabs on phones. On iPad / desktop the inner row stays
+           centred at 720px instead of stretching into a left rail. */
+        #bottom-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 900;
+            display: none;
+            background: rgba(255, 255, 255, 0.97);
+            border-top: 2px solid #ffe8d6;
+            box-shadow: 0 -6px 18px rgba(107, 90, 81, 0.08);
+            padding-bottom: env(safe-area-inset-bottom);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+        }
+        body.has-bottom-nav #bottom-nav {
+            display: block;
+        }
+        .bottom-nav-inner {
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            padding: 0 6px;
+        }
+        .bottom-nav-tab {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            min-height: 56px;
+            padding: 6px 2px 7px;
+            border: 0;
+            background: transparent;
+            color: #6b7280;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 11px;
+            line-height: 1.1;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.15s ease;
+        }
+        .bottom-nav-tab:hover {
+            color: #c2410c;
+        }
+        .bottom-nav-tab .bottom-nav-icon {
+            font-size: 21px;
+            line-height: 1;
+            transition: transform 0.15s ease;
+        }
+        .bottom-nav-tab.active {
+            color: #c2410c;
+        }
+        .bottom-nav-tab.active .bottom-nav-icon {
+            transform: translateY(-1px);
+        }
+        .bottom-nav-tab.active::after {
+            content: "";
+            width: 18px;
+            height: 3px;
+            border-radius: 999px;
+            background: #c2410c;
+            margin-top: 1px;
+        }
+        /* Reserve room for the fixed bar so it never covers the last card. */
+        body.has-bottom-nav #app {
+            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+        }
+        /* In the battle lobby the bar is the way home. During a live battle
+           the bar hides, so this top button comes back as the exit. */
+        body.has-bottom-nav #battle-back-btn {
+            display: none;
+        }
+
         .grammar-card {
             background: white;
             border: 3px solid #dee2e6;
@@ -1325,9 +1404,6 @@
 
             <!-- Grammar Views -->
             <div id="grammar-view" class="view hidden w-full">
-                <button onclick="changeView('hub-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Hub
-                </button>
                 <div class="grid grid-cols-2 gap-6">
                     <div class="category-box shadow-sm border-green-200" onclick="changeView('sentence-structures-view')">
                         <div class="text-5xl mb-4">📖</div>
@@ -1447,9 +1523,6 @@
 
             <!-- Dictation Master Views -->
             <div id="home-view" class="view hidden w-full">
-                <button onclick="changeView('hub-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Hub
-                </button>
                 <div id="categories-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
                     <div class="col-span-full flex flex-col items-center py-20">
                         <div class="loader mb-4"></div>
@@ -1459,9 +1532,6 @@
             </div>
 
             <div id="sub-category-view" class="view hidden w-full">
-                <button onclick="changeView('home-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Topics
-                </button>
                 <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-4 px-2 capitalize">Topic Name</h2>
                 <div id="nv-panel" class="hidden mb-8">
                     <div id="nv-scope" class="flex gap-2 flex-wrap mb-4">
@@ -1554,7 +1624,7 @@
 
             <!-- Word Battle View -->
             <div id="battle-view" class="view hidden w-full">
-                <button onclick="battleBackToHub()" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
+                <button id="battle-back-btn" onclick="battleBackToHub()" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Hub
                 </button>
                 <div class="cat-card p-8 md:p-10">
@@ -1736,9 +1806,6 @@
             </div>
 
             <div id="error-book-view" class="view hidden w-full">
-                <button onclick="changeView('home-view')" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Topics
-                </button>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">📒 Error Book</h2>
                     <p class="text-gray-400 mb-6">Words you missed. Answer one correctly here and it leaves the book.</p>
@@ -1762,9 +1829,6 @@
             </div>
 
             <div id="my-records-view" class="view hidden w-full">
-                <button onclick="changeView('hub-view')" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Hub
-                </button>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-6">📋 My Records</h2>
                     <div id="cloud-records-container">
@@ -1777,9 +1841,6 @@
             </div>
 
             <div id="leaderboard-view" class="view hidden w-full">
-                <button onclick="changeView('hub-view')" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Hub
-                </button>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">🏆 Leaderboard</h2>
                     <p id="leaderboard-blurb" class="text-gray-400 mb-4">Cumulative scores — practice more to rank higher!</p>
@@ -1942,6 +2003,31 @@
                 </div>
             </div>
         </main>
+
+        <nav id="bottom-nav" aria-label="Main navigation">
+            <div class="bottom-nav-inner">
+                <button type="button" class="bottom-nav-tab" data-nav-view="hub-view" onclick="changeView('hub-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">🏠</span>
+                    <span>Home</span>
+                </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="home-view" onclick="changeView('home-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">✍️</span>
+                    <span>Dictation</span>
+                </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="wordjump-view" onclick="changeView('wordjump-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">🦘</span>
+                    <span>Jump</span>
+                </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="battle-view" onclick="changeView('battle-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">⚔️</span>
+                    <span>Battle</span>
+                </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="error-book-view" onclick="changeView('error-book-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">📕</span>
+                    <span>Error</span>
+                </button>
+            </div>
+        </nav>
     </div>
 
     <!-- App scripts: classic script tags, loaded synchronously in dependency order.

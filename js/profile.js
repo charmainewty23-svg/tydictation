@@ -227,6 +227,10 @@ function profileRenderWj(best) {
 let profileFriendId = '';
 let profileFriendRow = null;
 let profileFriendList = [];
+let profileFriendListKind = '';
+let profileReopenListKind = '';
+let profileReturnView = '';
+let profileFriendsLoaded = false;
 
 function profileFriendsAvailable() {
     return canUseCloud() && !previewStudentForm() && !isGuestUser();
@@ -240,7 +244,7 @@ function profileFriendStreakText(row) {
 
 function profileFriendRowHTML(row) {
     const form = row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned';
-    const practice = row.mutual && row.practiced_today != null
+    const practice = row.practiced_today != null
         ? (row.practiced_today ? ' · ✅ today' : ' · ⏳ not yet today')
         : '';
     return '<button type="button" class="friend-row" onclick="openFriendProfile(\'' + escapeHtml(row.user_id) + '\')">' +
@@ -269,6 +273,16 @@ function profileRenderFriendChrome(friend) {
     if (follow) follow.classList.toggle('hidden', !friend);
     if (banner) banner.classList.toggle('hidden', !friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
+    const backLabel = document.getElementById('profile-back-label');
+    if (backLabel) {
+        const labels = {
+            'leaderboard-view': 'Back to Leaderboard',
+            'wordjump-view': 'Back to Word Jump',
+            'hub-view': 'Back to Hub',
+            'battle-view': 'Back to Battle'
+        };
+        backLabel.innerText = labels[profileReturnView] || 'Back to my profile';
+    }
     // The achievement list belongs to the profile currently open. Hide the
     // old friend list while the own profile reloads it.
     const achCard = document.getElementById('profile-achievements-card');
@@ -278,15 +292,34 @@ function profileRenderFriendChrome(friend) {
 function profileShowOwn() {
     profileFriendId = '';
     profileFriendRow = null;
+    profileReturnView = '';
+    profileReopenListKind = '';
     if (currentView === 'profile-view') loadProfile();
     else changeView('profile-view');
 }
 
 function openFriendProfile(userId) {
     if (!userId || !profileFriendsAvailable()) return;
+    profileReturnView = (currentView && currentView !== 'profile-view') ? currentView : 'profile-view';
+    profileReopenListKind = (currentView === 'profile-view' && profileFriendListKind) ? profileFriendListKind : '';
     profileFriendId = String(userId);
     profileFriendRow = null;
     changeView('profile-view');
+}
+
+function profileBack() {
+    const back = profileReturnView;
+    const reopen = profileReopenListKind;
+    profileFriendId = '';
+    profileFriendRow = null;
+    profileReturnView = '';
+    profileReopenListKind = '';
+    if (back && back !== 'profile-view') {
+        changeView(back);
+        return;
+    }
+    profileShowOwn();
+    if (reopen) profileReopenListKind = reopen;
 }
 
 function profileFriendInitial(name) {
@@ -381,18 +414,78 @@ async function loadFriendProfile(userId) {
     }
 }
 
+function profileFriendRowsFor(kind) {
+    const rows = profileFriendList || [];
+    if (kind === 'friends') {
+        return rows.filter(r => r.mutual)
+            .sort((a, b) => (Number(b.friend_streak) || 0) - (Number(a.friend_streak) || 0));
+    }
+    if (kind === 'following') {
+        return rows.filter(r => r.following)
+            .sort((a, b) => String(a.nickname || '').localeCompare(String(b.nickname || '')));
+    }
+    if (kind === 'followers') {
+        return rows.filter(r => r.follows_me)
+            .sort((a, b) => String(a.nickname || '').localeCompare(String(b.nickname || '')));
+    }
+    return [];
+}
+
+function profileRenderFriendList() {
+    const listEl = document.getElementById('profile-friend-list');
+    if (!listEl || !profileFriendListKind) return;
+    const kind = profileFriendListKind;
+    const title = document.getElementById('profile-friend-list-title');
+    if (title) {
+        title.innerText = kind === 'friends' ? 'Friends' : (kind === 'following' ? 'Following' : 'Followers');
+    }
+    if (!profileFriendsLoaded) {
+        listEl.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Loading friends…</p>';
+        return;
+    }
+    const rows = profileFriendRowsFor(kind);
+    const empty = kind === 'friends'
+        ? 'No friends yet. Follow each other to become friends.'
+        : (kind === 'following' ? 'You are not following anyone yet.' : 'No one follows you yet.');
+    listEl.innerHTML = rows.length
+        ? rows.map(profileFriendRowHTML).join('')
+        : '<p class="text-sm font-bold text-gray-400 py-2">' + empty + '</p>';
+}
+
+function profileShowFriendList(kind) {
+    if (['friends', 'following', 'followers'].indexOf(kind) === -1) return;
+    profileFriendListKind = kind;
+    const panel = document.getElementById('profile-friend-list-panel');
+    if (panel) panel.classList.remove('hidden');
+    profileRenderFriendList();
+}
+
+function profileCloseFriendList() {
+    profileFriendListKind = '';
+    const panel = document.getElementById('profile-friend-list-panel');
+    if (panel) panel.classList.add('hidden');
+    const listEl = document.getElementById('profile-friend-list');
+    if (listEl) listEl.innerHTML = '';
+}
+
 async function profileLoadFriends() {
     const card = document.getElementById('profile-friends-card');
     if (!card) return;
     if (!profileFriendsAvailable()) {
         card.classList.add('hidden');
+        profileFriendsLoaded = false;
         return;
     }
     card.classList.remove('hidden');
-    const listEl = document.getElementById('profile-friend-list');
-    const countsEl = document.getElementById('profile-friend-counts');
     const noteEl = document.getElementById('profile-friend-note');
-    if (listEl) listEl.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Loading friends…</p>';
+    const waitingEl = document.getElementById('profile-friend-waiting');
+    const setCount = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = String(value);
+    };
+    profileFriendsLoaded = false;
+    if (waitingEl) waitingEl.classList.add('hidden');
+    if (profileFriendListKind) profileRenderFriendList();
     // Best-effort: if both of you practised today, grow the shared flame.
     try { sb.rpc('bump_friend_streaks').then(() => {}, () => {}); } catch (e) {}
     let rows = [];
@@ -402,32 +495,35 @@ async function profileLoadFriends() {
         rows = Array.isArray(data) ? data : (data ? [data] : []);
     } catch (e) {
         profileFriendList = [];
-        if (listEl) listEl.innerHTML = '';
-        if (countsEl) countsEl.innerText = '';
+        profileFriendsLoaded = true;
+        setCount('friend-count-friends', '—');
+        setCount('friend-count-following', '—');
+        setCount('friend-count-followers', '—');
+        if (waitingEl) waitingEl.classList.add('hidden');
+        profileCloseFriendList();
         if (noteEl) noteEl.innerText = 'Run supabase/friends.sql in the Supabase SQL editor to enable friends.';
         return;
     }
     profileFriendList = rows;
+    profileFriendsLoaded = true;
     const friends = rows.filter(r => r.mutual);
-    const following = rows.filter(r => r.following && !r.mutual);
-    const followers = rows.filter(r => r.follows_me && !r.following);
-    if (countsEl) {
-        const waiting = friends.filter(r => r.practiced_today === false).length;
-        countsEl.innerText = friends.length + ' friend' + (friends.length === 1 ? '' : 's') +
-            ' · ' + following.length + ' following · ' + followers.length + ' follower' + (followers.length === 1 ? '' : 's') +
-            (waiting ? ' · ⏳ ' + waiting + ' not practised today' : '');
+    const following = rows.filter(r => r.following);
+    const followers = rows.filter(r => r.follows_me);
+    setCount('friend-count-friends', friends.length);
+    setCount('friend-count-following', following.length);
+    setCount('friend-count-followers', followers.length);
+    const waiting = friends.filter(r => r.practiced_today === false);
+    if (waitingEl) {
+        waitingEl.classList.toggle('hidden', !waiting.length);
+        waitingEl.innerText = waiting.length
+            ? '⏳ ' + waiting.length + ' friend' + (waiting.length === 1 ? '' : 's') + ' not practised today — tap to see'
+            : '';
     }
-    const section = (title, list, empty) => {
-        if (!list.length) return empty ? '<p class="text-xs font-bold text-gray-400 mt-2">' + empty + '</p>' : '';
-        return '<p class="text-xs font-bold uppercase tracking-wide text-gray-400 mt-3 mb-1">' + title + '</p>' +
-            list.map(profileFriendRowHTML).join('');
-    };
-    if (listEl) {
-        listEl.innerHTML =
-            section('Friends', friends.sort((a, b) => (Number(b.friend_streak) || 0) - (Number(a.friend_streak) || 0)), '') +
-            section('You follow', following, '') +
-            section('Follows you', followers, '') +
-            (!rows.length ? '<p class="text-sm font-bold text-gray-400 py-3">No friends yet. Add a classmate by school email above.</p>' : '');
+    if (profileFriendListKind) profileRenderFriendList();
+    if (profileReopenListKind) {
+        const kind = profileReopenListKind;
+        profileReopenListKind = '';
+        profileShowFriendList(kind);
     }
     if (noteEl) noteEl.innerText = 'A friend streak grows when both of you finish a practice on the same Hong Kong day.';
 }

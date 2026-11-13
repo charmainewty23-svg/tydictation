@@ -1053,6 +1053,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     profile 可以 Follow；自己嗰行就 `profileShowOwn()`。Dictation 查詢
     已加 `user_id`，aggregate 時每個 email 保留第一個 `user_id`。
     Guest／老師 preview 保持純文字，唔會出 link。
+  - **Word Jump 完場 Top 7**：`WJ.rankName()` 將 `WJ.rankRow()` 個名變成
+    `.lb-name` 按鈕，同樣去 profile／Follow；click 有
+    `event.stopPropagation()`，唔會當成射擊。Back 掣會寫
+    **Back to Word Jump**。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，Hub Leaderboard 嘅 Word Jump 分頁同 admin 卡顯示同一句提示，遊戲照玩。
 - 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；Hub Leaderboard Word Jump 分頁 `.limit(10)`；
@@ -1219,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v5`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v6`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v6`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v7`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1560,15 +1564,22 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `bump_friend_streaks`；`js/profile.js` `profileLoadFriends()` 載入時
     亦會 call 一次，等双方都做咗今日練習時可以補上。
   - 「Me」頁新增 **💛 Friends** 卡（`#profile-friends-card`）：
-    counts（friends／following／followers）、school email 輸入＋
-    **Add friend**、Friends／You follow／Follows you 三組列表、Refresh。
-    每行顯示 form 同 mutual friend streak `💛🔥 N`，撳一行去
-    `openFriendProfile(user_id)`。
+    三個 count 掣 **Friends／Following／Followers**，**預設只顯示數字**；
+    撳邊個先開 `#profile-friend-list-panel` 顯示該名單（再撳 ✕ 收埋）。
+    `⏳ N friends not practised today` 係一個掣，撳開 Friends 名單睇邊個。
+    School email 輸入＋ **Add friend** 仍然喺 count 下面。每行顯示 form、
+    `✅ today／⏳ not yet today` 同 mutual friend streak `💛🔥 N`，
+    撳一行去 `openFriendProfile(user_id)`。
   - 朋友 profile 用同一個 `profile-view`：`loadFriendProfile()` 讀
     `friend_public_profile`，顯示對方 daily streak、7 日圓點、best、
     dictation 次數／平均正確率、Word Jump best、first practice、
     「Friend streak」格＋banner，同 **Follow／Following** 掣。
     `profileShowOwn()` 返自己 profile（底部 Me tab 亦已改為 call 佢）。
+  - **Back 掣**：朋友 profile 頂部 `#profile-back-own` 會跟來源顯示
+    **Back to Leaderboard／Back to Word Jump／Back to my profile**。
+    `openFriendProfile()` 記住 `profileReturnView`；`profileBack()` 返去
+    原本個 view。如果係由 Friends 名單入去，返自己 profile 時會自動
+    再開返同一個名單（`profileReopenListKind`）。
   - Guest／老師 preview：Friends 卡同朋友 profile 全部隱藏；唔會寫
     follow／friend streak。未登入／未跑 SQL 都唔會壞，Me 頁顯示提示
     「Run supabase/friends.sql…」。

@@ -670,13 +670,25 @@
             });
         };
 
+        WJ.rankName = function (row, meId) {
+            const name = String((row && (row.nickname || (row.email || '').split('@')[0])) || 'student');
+            const uid = row && row.user_id ? String(row.user_id) : '';
+            if (!uid || isGuestUser() || previewStudentForm()) return escapeHtml(name);
+            const me = meId && uid === meId;
+            const handler = me
+                ? 'profileShowOwn()'
+                : "openFriendProfile('" + escapeHtml(uid) + "')";
+            return '<button type="button" class="lb-name" onclick="event.stopPropagation();' + handler +
+                '" title="' + (me ? 'Open my profile' : 'Open profile and follow') + '">' +
+                escapeHtml(name) + '</button>';
+        };
+
         WJ.rankRow = function (i, row, meId) {
             const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
-            const name = row.nickname || (row.email || '').split('@')[0] || 'student';
             const mine = meId && row.user_id === meId;
             return `<div class="flex items-center gap-2 py-1 ${mine ? 'rounded-lg bg-emerald-50 px-1' : ''}">
                 <span class="w-6 text-center text-sm">${medal}</span>
-                <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${escapeHtml(name)}${mine ? ' (you)' : ''}</span>
+                <span class="flex-1 truncate text-xs font-bold ${mine ? 'text-emerald-700' : 'text-gray-600'}">${WJ.rankName(row, meId)}${mine ? ' (you)' : ''}</span>
                 <span class="text-xs font-bold text-indigo-600">${row.score || 0} pts</span>
                 <span class="w-14 text-right text-[10px] text-gray-400">${row.words || 0} words</span>
             </div>`;

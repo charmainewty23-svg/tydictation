@@ -632,6 +632,41 @@
             font-size: 18px;
             line-height: 1;
         }
+        .friend-count-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .friend-count-btn {
+            min-height: 56px;
+            padding: 7px 4px;
+            border: 2px solid #ffe8d6;
+            border-radius: 14px;
+            background: #fff;
+            color: #9a3412;
+            font-family: inherit;
+            font-weight: 800;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .friend-count-btn:hover {
+            background: #fff7ef;
+            border-color: #fdba74;
+        }
+        .friend-count-btn b {
+            display: block;
+            font-size: 1.3rem;
+            line-height: 1.1;
+        }
+        .friend-count-btn span {
+            display: block;
+            margin-top: 2px;
+            font-size: 10px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
         /* Leaderboard names open that student's profile / follow screen. */
         .lb-name {
             background: none;
@@ -2661,8 +2696,8 @@
             </div>
         <div id="profile-view" class="view hidden">
             <div class="cat-card p-6 md:p-10 w-full">
-                <button type="button" id="profile-back-own" onclick="profileShowOwn()" class="nav-back hidden mb-4 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-lg font-bold">
-                    <span>←</span> Back to my profile
+                <button type="button" id="profile-back-own" onclick="profileBack()" class="nav-back hidden mb-4 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-lg font-bold">
+                    <span>←</span> <span id="profile-back-label">Back to my profile</span>
                 </button>
                 <div class="flex items-center gap-4 mb-6">
                     <div class="profile-avatar" aria-hidden="true">🐱</div>
@@ -2733,7 +2768,18 @@
                         <h3 class="text-xl font-bold text-orange-700">💛 Friends</h3>
                         <button type="button" onclick="profileLoadFriends()" class="px-3 py-2 bg-orange-50 text-orange-700 rounded-xl font-bold text-xs hover:bg-orange-100 transition-colors">Refresh</button>
                     </div>
-                    <p id="profile-friend-counts" class="text-sm font-bold text-gray-500 mb-3"></p>
+                    <div class="friend-count-row">
+                        <button type="button" class="friend-count-btn" onclick="profileShowFriendList('friends')">
+                            <b id="friend-count-friends">0</b><span>Friends</span>
+                        </button>
+                        <button type="button" class="friend-count-btn" onclick="profileShowFriendList('following')">
+                            <b id="friend-count-following">0</b><span>Following</span>
+                        </button>
+                        <button type="button" class="friend-count-btn" onclick="profileShowFriendList('followers')">
+                            <b id="friend-count-followers">0</b><span>Followers</span>
+                        </button>
+                    </div>
+                    <button type="button" id="profile-friend-waiting" class="hidden w-full text-left text-xs font-bold text-amber-700 mb-2" onclick="profileShowFriendList('friends')"></button>
                     <div class="flex gap-2 flex-wrap mb-3">
                         <input id="friend-email" type="email" inputmode="email" autocomplete="off" placeholder="classmate@lstyoungkhl.edu.hk" aria-label="Classmate school email"
                             class="flex-1 min-w-[180px] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700 text-sm"
@@ -2741,7 +2787,13 @@
                         <button type="button" onclick="profileAddFriend()" class="px-4 py-3 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors">Add friend</button>
                     </div>
                     <div id="friend-add-status" class="hidden text-sm font-bold mb-2"></div>
-                    <div id="profile-friend-list"></div>
+                    <div id="profile-friend-list-panel" class="hidden">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <h4 id="profile-friend-list-title" class="text-sm font-bold text-orange-700"></h4>
+                            <button type="button" onclick="profileCloseFriendList()" class="px-3 py-2 bg-orange-50 text-orange-700 rounded-xl font-bold text-xs">✕</button>
+                        </div>
+                        <div id="profile-friend-list"></div>
+                    </div>
                     <p id="profile-friend-note" class="text-xs text-gray-400 mt-2"></p>
                 </div>
 

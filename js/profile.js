@@ -138,12 +138,15 @@ function profileRenderStreak() {
     const unit = document.getElementById('profile-streak-unit');
     const cards = document.getElementById('profile-cards');
     const best = document.getElementById('profile-best');
+    const bestUnit = document.getElementById('profile-best-unit');
     const note = document.getElementById('profile-streak-note');
     const first = document.getElementById('profile-first');
     if (count) count.innerText = String(snap.count);
     if (unit) unit.innerText = 'day streak';
     if (cards) cards.innerText = String(snap.cards);
-    if (best) best.innerText = String(Math.max(snap.best, snap.count));
+    const bestValue = Math.max(snap.best, snap.count);
+    if (best) best.innerText = String(bestValue);
+    if (bestUnit) bestUnit.innerText = bestValue === 1 ? 'day' : 'days';
     if (first) first.innerText = snap.firstSeen ? hkDateOnly(snap.firstSeen) : 'Not yet';
     profileRenderDots(snap);
     if (!note) return;
@@ -453,6 +456,7 @@ async function loadFriendProfile(userId) {
     const unitEl = document.getElementById('profile-streak-unit');
     const streakNoteEl = document.getElementById('profile-streak-note');
     const bestEl = document.getElementById('profile-best');
+    const bestUnitEl = document.getElementById('profile-best-unit');
     const cardsEl = document.getElementById('profile-cards');
     const dictEl = document.getElementById('profile-dict-count');
     const avgEl = document.getElementById('profile-dict-avg');
@@ -460,8 +464,13 @@ async function loadFriendProfile(userId) {
     if (streakEl) streakEl.innerText = String(Number(row.streak_count) || 0);
     if (unitEl) unitEl.innerText = 'day streak';
     if (streakNoteEl) streakNoteEl.innerText = 'Their current daily practice streak.';
-    if (bestEl) bestEl.innerText = String(Number(row.streak_best) || 0);
-    if (cardsEl) cardsEl.innerText = row.mutual ? String(Number(row.friend_streak) || 0) + ' days' : '—';
+    const friendBest = Number(row.streak_best) || 0;
+    if (bestEl) bestEl.innerText = String(friendBest);
+    if (bestUnitEl) bestUnitEl.innerText = friendBest === 1 ? 'day' : 'days';
+    const friendStreak = Number(row.friend_streak) || 0;
+    if (cardsEl) cardsEl.innerText = row.mutual
+        ? String(friendStreak) + (friendStreak === 1 ? ' day' : ' days')
+        : '—';
     if (dictEl) dictEl.innerText = row.dict_count == null ? '—' : String(Number(row.dict_count) || 0);
     if (avgEl) avgEl.innerText = row.dict_accuracy == null ? '—' : profilePercentLabel(Number(row.dict_accuracy));
     if (firstEl) firstEl.innerText = row.first_seen ? hkDateOnly(row.first_seen) : 'Not yet';
@@ -797,9 +806,10 @@ let profileAchievementOwn = true;
 
 function profileAchievementLabel(row) {
     if (!row) return '';
+    const n = Number(row.value) || 0;
     return row.kind === 'record'
-        ? '🏆 Personal best · ' + (Number(row.value) || 0) + ' days'
-        : '🏅 ' + (Number(row.value) || 0) + '-day streak';
+        ? '🏆 Personal best · ' + n + (n === 1 ? ' day' : ' days')
+        : '🏅 ' + n + '-day streak';
 }
 
 function profileRenderAchievements() {

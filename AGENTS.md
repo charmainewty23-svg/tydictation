@@ -1223,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v9`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v10`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v10`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v11`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1665,3 +1665,20 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   **Back to Battle**。Admin profile 返去會保留 dashboard 原本內容。
 - 排行榜本身已經用 `leaderboardNameHTML()`；admin dashboard 只係補齊
   其他名單。
+
+#### 12.7c Bell announcement + 「1 day」修正（2026-11）
+
+- `supabase/friend_announcement.sql`（可重跑）：
+  - `friend_notifications` 加 `message text`，`kind` 加 `announcement`。
+  - 重建 `friend_notification_feed()`，announcement 嘅 sender 顯示
+    **LearniTY**，回傳 `message`。
+  - 檔案最後會 insert 一條短訊息俾 **所有 `auth.users`**：
+    「New: 💛 Add friends in Me → Friends, and 🔥 grow a friend streak…」
+    同一個 message 重跑唔會重複。老師喺 SQL editor 跑一次，所有用戶個
+    🔔 會有 unread announcement。
+  - 前端 `notifRowHTML()` 見到 `kind === 'announcement'` 會顯示 📣、
+    **LearniTY** 同 message；`mark_notifications_read()` 照樣清 unread。
+- **「1 day」修正**：profile Best streak 嘅單位由 static `days` 改做
+  `#profile-best-unit`，1 顯示 **1 day**、其他 **N days**。朋友 profile
+  嘅 Friend streak 同 record achievement 亦用 `1 day / N days`。
+- 真正 OS push 仍未做；呢個係 app 內 bell notification＋一次性 modal。

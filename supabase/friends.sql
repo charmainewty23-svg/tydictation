@@ -97,8 +97,9 @@ create table if not exists public.friend_notifications (
     id             uuid primary key default gen_random_uuid(),
     user_id        uuid not null references auth.users(id) on delete cascade,
     actor_id       uuid not null references auth.users(id) on delete cascade,
-    kind           text not null check (kind in ('follow', 'like')),
+    kind           text not null check (kind in ('follow', 'like', 'announcement')),
     achievement_id uuid references public.streak_achievements(id) on delete cascade,
+    message        text,
     created_at     timestamptz not null default now(),
     read_at        timestamptz
 );
@@ -560,6 +561,8 @@ end;
 $fn$;
 
 -- ---------- notifications ----------
+drop function if exists public.friend_notification_feed();
+
 create or replace function public.friend_notification_feed()
 returns table (
     id uuid,
@@ -567,6 +570,7 @@ returns table (
     actor_name text,
     achievement_kind text,
     achievement_value int,
+    message text,
     created_at timestamptz,
     read_at timestamptz
 )
@@ -576,11 +580,14 @@ set search_path = public
 as $fn$
     select n.id,
         n.kind,
-        coalesce(nullif(sl.nickname, ''),
-                 nullif(split_part(au.email, '@', 1), ''),
-                 'Student') as actor_name,
+        case when n.kind = 'announcement' then 'LearniTY'
+             else coalesce(nullif(sl.nickname, ''),
+                           nullif(split_part(au.email, '@', 1), ''),
+                           'Student')
+        end as actor_name,
         a.kind as achievement_kind,
         a.value as achievement_value,
+        n.message,
         n.created_at,
         n.read_at
       from public.friend_notifications n

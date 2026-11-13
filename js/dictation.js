@@ -9,6 +9,54 @@
         let sheetCategoriesReady = false;
         let sheetCategoriesLoading = false;
         let currentTopic = '';
+
+        // The Sheet is 20 tabs fetched in parallel; a reload used to pay that
+        // full cost again. Cache the parsed words for 10 minutes per tab.
+        const SHEET_CACHE_KEY = 'learniTY_sheet_cache_v1';
+        const SHEET_CACHE_TTL = 10 * 60 * 1000;
+
+        function readSheetCache(allowStale) {
+            try {
+                const raw = sessionStorage.getItem(SHEET_CACHE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object' || !parsed.data) return null;
+                const age = Date.now() - (Number(parsed.t) || 0);
+                if (!allowStale && age > SHEET_CACHE_TTL) return null;
+                return parsed;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function writeSheetCache() {
+            try {
+                const data = {};
+                SHEET_NAMES.forEach(name => {
+                    if ((categories[name] || []).length) data[name] = categories[name];
+                });
+                if (Object.keys(data).length) {
+                    sessionStorage.setItem(SHEET_CACHE_KEY, JSON.stringify({ t: Date.now(), data: data }));
+                }
+            } catch (e) {}
+        }
+
+        function applySheetCategories(data) {
+            let any = false;
+            Object.keys(data || {}).forEach(name => {
+                if (Array.isArray(data[name]) && data[name].length) {
+                    categories[name] = data[name];
+                    any = true;
+                }
+            });
+            if (!any) return false;
+            sheetCategoriesReady = true;
+            renderCategories();
+            renderTenseGrid();
+            if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
+            if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
+            return true;
+        }
         
         // Quiz State
         let quizMode = 'listening'; // 'listening' or 'recitation'
@@ -23,6 +71,9 @@
 
         async function loadAllCategoriesFromSheet() {
             if (sheetCategoriesLoading) return;
+            const fresh = readSheetCache(false);
+            if (fresh && applySheetCategories(fresh.data)) return;
+            const stale = fresh ? null : readSheetCache(true);
             sheetCategoriesLoading = true;
             try {
                 const promises = SHEET_NAMES.map(async (name) => {
@@ -34,16 +85,24 @@
                     return { name, words };
                 });
                 const results = await Promise.all(promises);
-                results.forEach(res => { if (res.words.length > 0) categories[res.name] = res.words; });
-                sheetCategoriesReady = true;
-                renderCategories();
-                renderTenseGrid();
-                if (typeof battlePopulateTopics === 'function') battlePopulateTopics();
-                if (typeof WJ !== 'undefined' && WJ.mounted) { WJ.populateTopics(); WJ.setTopicDefault(); }
+                const fetched = {};
+                results.forEach(res => { if (res.words.length > 0) fetched[res.name] = res.words; });
+                if (applySheetCategories(fetched)) {
+                    writeSheetCache();
+                } else if (stale && applySheetCategories(stale.data)) {
+                    updateMascot("Using saved words — the Google Sheet could not be reached.");
+                } else {
+                    sheetCategoriesReady = true;
+                    renderCategories();
+                }
             } catch (e) {
-                sheetCategoriesReady = true;
-                updateMascot("Oh no, connection lost!");
-                renderCategories();
+                if (stale && applySheetCategories(stale.data)) {
+                    updateMascot("Using saved words — the Google Sheet could not be reached.");
+                } else {
+                    sheetCategoriesReady = true;
+                    updateMascot("Oh no, connection lost!");
+                    renderCategories();
+                }
             } finally {
                 sheetCategoriesLoading = false;
             }

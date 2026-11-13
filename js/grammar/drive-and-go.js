@@ -1397,8 +1397,8 @@ const DG = {
             (teacher
                 ? '<button type="button" class="dg-choice" onclick="DG.chooseMultiRole(\'class\')">' +
                   '<span class="dg-choice-emoji">👩‍🏫</span>' +
-                  '<span class="dg-choice-title">Class room (up to 30)</span>' +
-                  '<span class="dg-choice-sub">Teacher only. One code for the whole class; you race too and watch the live board.</span></button>'
+                  '<span class="dg-choice-title">Class room (30 students)</span>' +
+                  '<span class="dg-choice-sub">Teacher only. You plus 30 students share one code; you race too and watch the live board.</span></button>'
                 : '') +
             '</div>' +
             '<div class="text-center"><button type="button" class="dg-menu-button" onclick="DG.showSessionStep()">← Solo / Multiplayer</button></div>';

@@ -1,10 +1,10 @@
--- LearniTY — Drive & Go! teacher class room (up to 30 players).
+-- LearniTY — Drive & Go! teacher class room (30 students + the teacher).
 -- Run once in the Supabase SQL editor of the live project. Safe to re-run.
 --
--- Existing rooms default to 5 players. The new
--- create_drive_and_go_class_room() RPC is teacher-only and sets
--- max_players = 30. join / start now use the room's own max_players, so old
--- 5-player rooms keep working.
+-- The room has 31 seats: 30 students plus the host/teacher. Existing rooms
+-- default to 5 players. The new create_drive_and_go_class_room() RPC is
+-- teacher-only and sets max_players = 31. join / start now use the room's own
+-- max_players, so old 5-player rooms keep working.
 
 alter table public.drive_and_go_rooms
     add column if not exists max_players int not null default 5;
@@ -140,7 +140,7 @@ begin
 end;
 $dg$;
 
--- ---------- teacher-only class room: same settings, max 30 ----------
+-- ---------- teacher-only class room: 30 students + teacher (31 seats) ----------
 create or replace function public.create_drive_and_go_class_room(
     p_question_mode text default 'av',
     p_cat text default null,
@@ -218,7 +218,7 @@ begin
         (code, host_id, topic, question_mode, question_count, seed, scene, max_players)
     values
         (v_code, auth.uid(), v_topic, v_mode, v_count,
-         floor(random() * 2147483646)::bigint + 1, v_scene, 30)
+         floor(random() * 2147483646)::bigint + 1, v_scene, 31)
     returning * into v_room;
 
     insert into public.drive_and_go_players

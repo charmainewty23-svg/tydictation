@@ -584,7 +584,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
-### 9.9a Drive & Go! 山路／彎道＋老師 30 人房（2026-11 加）
+### 9.9a Drive & Go! 山路／彎道＋老師 30 學生房（2026-11 加）
 
 - **賽道曲線／山坡**：`DG.trackCurve()`／`DG.trackLateral()` 加大振幅同頻率
   （0.68／0.28／0.11，0.0019／0.0044／0.0102），`DG.trackHill()` 改成
@@ -601,17 +601,17 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - **多人規模**：3D 只畫最近 **6** 部對手 kart（`visibleRival`），2D canvas 只畫
   最近 **10** 部；賽道進度板最多顯示 **8** 行，自己一定顯示，其餘顯示
   `… +N more racing`。scenery 仍 cap 40。實測 3D ~126 draw calls（1 個對手）、
-  30 人房 6 部對手約 210 calls、~6k tris。
-- **老師 30 人房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
+  30 個對手時 6 部對手約 200 calls、~9k tris。
+- **老師 30 學生房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
   - `drive_and_go_rooms.max_players` 新欄，default **5**（舊房保持 5）。
   - `create_drive_and_go_class_room()` 只限 `is_drive_and_go_teacher()`
     （老師 email），同 `create_drive_and_go_room()` 同樣參數，但寫入
-    `max_players = 30`，並照樣插入老師做玩家。
+    `max_players = 31`（30 個學生＋老師自己），並照樣插入老師做玩家。
   - `join_drive_and_go_room()` 同 `start_drive_and_go_room()` 改用
-    `coalesce(v_room.max_players, 5)` 做上限，所以 5 人房同 30 人房並存。
-  - 前端 Multiplayer → Create 多一個 **Class room (up to 30)** 掣（只老師見到）；
+    `coalesce(v_room.max_players, 5)` 做上限，所以 5 人房同 31 人房並存。
+  - 前端 Multiplayer → Create 多一個 **Class room (30 students)** 掣（只老師見到）；
     `DG.mpClassRoom` 記住選擇，`DG.mpCreate()` 揀
-    `create_drive_and_go_class_room`。Lobby 顯示 `Players n/30`，房主 Start
+    `create_drive_and_go_class_room`。Lobby 顯示 `Players n/31`，房主 Start
     上限跟 `room.max_players`。加入者照用 4 位房碼，Topic／Challenge／題數／場地
     跟房主。
   - 未跑 SQL：Class room 會顯示 `DG.mpShowSqlHint('class')`，提示貼

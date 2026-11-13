@@ -35,7 +35,7 @@ function profileLocalDictStats() {
     try { rows = JSON.parse(src.store.getItem(src.key) || '[]'); } catch (e) {}
     if (!Array.isArray(rows)) rows = [];
     const valid = rows.filter(r => r && Number.isFinite(Number(r.score)));
-    const accRows = rows.filter(r => r && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
+    const accRows = rows.filter(r => r && r.correct != null && r.correct !== '' && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
     const sumCorrect = accRows.reduce((a, r) => a + Number(r.correct), 0);
     const sumTotal = accRows.reduce((a, r) => a + Number(r.total), 0);
     return {
@@ -68,7 +68,7 @@ async function profileCloudDictStats() {
     if (res.error) throw res.error;
     const rows = Array.isArray(res.data) ? res.data : [];
     const total = (typeof res.count === 'number') ? res.count : rows.length;
-    const accRows = accuracyUnavailable ? [] : rows.filter(r => r && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
+    const accRows = accuracyUnavailable ? [] : rows.filter(r => r && r.correct != null && r.correct !== '' && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
     const sumCorrect = accRows.reduce((a, r) => a + Number(r.correct), 0);
     const sumTotal = accRows.reduce((a, r) => a + Number(r.total), 0);
     return {

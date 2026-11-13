@@ -389,11 +389,22 @@
                     delete legacy.recent_days;
                     sb.from(STREAK_CLOUD_TABLE).upsert(legacy, { onConflict: 'user_id' }).then(({ error: retryError }) => {
                         if (retryError) console.warn('Streak cloud save failed:', retryError.message);
+                        else bumpFriendStreaks();
                     });
                     return;
                 }
                 if (error) console.warn('Streak cloud save failed:', error.message);
+                else bumpFriendStreaks();
             });
+        }
+
+        // Both users must have practised today before a mutual friend streak
+        // can grow. The RPC checks both rows and is a no-op otherwise.
+        function bumpFriendStreaks() {
+            if (!canUseCloud() || previewStudentForm() || !currentUser) return;
+            try {
+                sb.rpc('bump_friend_streaks').then(() => {}, () => {});
+            } catch (e) {}
         }
 
         // Called from every "finished a practice" hook. Only the first finished

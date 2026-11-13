@@ -584,6 +584,37 @@
             font-weight: 800;
             line-height: 1.15;
         }
+        .friend-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border: 2px solid #ffe8d6;
+            border-radius: 14px;
+            background: #fff;
+            text-align: left;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .friend-row:hover {
+            background: #fff7ef;
+            border-color: #fdba74;
+        }
+        .friend-avatar {
+            flex: 0 0 auto;
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: #fff1e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
+        }
         .profile-dots {
             display: flex;
             gap: 6px;
@@ -2459,12 +2490,16 @@
             </div>
         <div id="profile-view" class="view hidden">
             <div class="cat-card p-6 md:p-10 w-full">
+                <button type="button" id="profile-back-own" onclick="profileShowOwn()" class="nav-back hidden mb-4 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-lg font-bold">
+                    <span>←</span> Back to my profile
+                </button>
                 <div class="flex items-center gap-4 mb-6">
                     <div class="profile-avatar" aria-hidden="true">🐱</div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <h2 id="profile-name" class="text-3xl font-bold text-orange-600 truncate">Your profile</h2>
                         <p id="profile-sub" class="text-gray-400 font-bold text-sm truncate">LearniTY learner</p>
                     </div>
+                    <button type="button" id="profile-follow-btn" onclick="profileToggleFollow()" class="hidden px-4 py-2 bg-orange-500 text-white rounded-full font-bold text-sm hover:bg-orange-600 transition-colors" aria-pressed="false">Follow</button>
                 </div>
 
                 <div class="profile-hero mb-4">
@@ -2478,6 +2513,8 @@
                     </div>
                 </div>
 
+                <div id="profile-friend-banner" class="hidden mb-5 px-4 py-3 rounded-2xl border-2 border-amber-200 bg-amber-50 text-sm font-bold text-amber-800"></div>
+
                 <div class="mb-5">
                     <div class="flex items-center justify-between mb-2 gap-3">
                         <p class="profile-stat-label" style="margin:0">Last 7 days</p>
@@ -2488,7 +2525,7 @@
 
                 <div class="grid grid-cols-2 gap-3 mb-6">
                     <div class="profile-stat">
-                        <p class="profile-stat-label">Repair cards</p>
+                        <p class="profile-stat-label" id="profile-cards-label">Repair cards</p>
                         <p class="profile-stat-value" id="profile-cards">3</p>
                     </div>
                     <div class="profile-stat">
@@ -2515,7 +2552,24 @@
 
                 <p id="profile-note" class="text-xs text-gray-400 leading-relaxed mb-6"></p>
 
-                <div class="flex flex-wrap gap-3">
+                <div id="profile-friends-card" class="mb-6 border-t-2 border-orange-100 pt-5">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <h3 class="text-xl font-bold text-orange-700">💛 Friends</h3>
+                        <button type="button" onclick="profileLoadFriends()" class="px-3 py-2 bg-orange-50 text-orange-700 rounded-xl font-bold text-xs hover:bg-orange-100 transition-colors">Refresh</button>
+                    </div>
+                    <p id="profile-friend-counts" class="text-sm font-bold text-gray-500 mb-3"></p>
+                    <div class="flex gap-2 flex-wrap mb-3">
+                        <input id="friend-email" type="email" inputmode="email" autocomplete="off" placeholder="classmate@lstyoungkhl.edu.hk" aria-label="Classmate school email"
+                            class="flex-1 min-w-[180px] p-3 rounded-xl border-2 border-orange-100 bg-white font-bold text-gray-700 text-sm"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();profileAddFriend();}">
+                        <button type="button" onclick="profileAddFriend()" class="px-4 py-3 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors">Add friend</button>
+                    </div>
+                    <div id="friend-add-status" class="hidden text-sm font-bold mb-2"></div>
+                    <div id="profile-friend-list"></div>
+                    <p id="profile-friend-note" class="text-xs text-gray-400 mt-2"></p>
+                </div>
+
+                <div id="profile-own-actions" class="flex flex-wrap gap-3">
                     <button type="button" onclick="changeView('error-book-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">📕 Error Book</button>
                     <button type="button" id="profile-records-btn" onclick="changeView('my-records-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">☁️ My Records</button>
                     <button type="button" id="profile-lb-btn" onclick="changeView('leaderboard-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">🏆 Leaderboard</button>
@@ -2542,7 +2596,7 @@
                     <span class="bottom-nav-icon" aria-hidden="true">⚔️</span>
                     <span>Battle</span>
                 </button>
-                <button type="button" class="bottom-nav-tab" data-nav-view="profile-view" onclick="changeView('profile-view')">
+                <button type="button" class="bottom-nav-tab" data-nav-view="profile-view" onclick="profileShowOwn()">
                     <span class="bottom-nav-icon" aria-hidden="true">🐱</span>
                     <span>Me</span>
                 </button>

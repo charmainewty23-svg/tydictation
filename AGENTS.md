@@ -604,7 +604,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   因為相機、玩家、look target 三點一線，**自己架車永遠喺畫面正中間**
   （實測 392/784），y 亦固定（691/907），轉彎／上山／落山都唔會消失。
   14（原本 16.5）令架車大啲、車後空白由 169px 減到約 **110px**，
-  仍然留返約 110px 俾底部控制掣，唔會遮住架車。
+  仍然留返約 110px 俾底部控制掣，唔會遮住架車。手機短橫向
+  （`DG.view.h < 560 && w > h`）會用返 **16.5**，令車輪離底部控制掣約
+  19px（實測 844×390：kart bottom 317、controls top 336）。
   彎道同山坡照樣見到，因為係條路（唔係相機）喺畫面內升跌同擺動。
   閘門 420 units 喺 dist 900 時仍然喺 351–531／784 之內。
 - **2D fallback 都跟車**：`DG.projectRel()` 加 `camShift`（
@@ -1182,7 +1184,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1212,8 +1214,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v3`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v4`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v4`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v5`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1432,6 +1434,11 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
     `Not yet`。新 row 會先同最早 `dictation_results`／`wj_scores` 比較，
     所以舊學生都補到最早做功課日期。格式 `13 Nov 2026`（香港時區）。
   - 底部有 Error Book、My Records、Leaderboard 掣；訪客會收埋後兩者。
+  - **💛 Friends 卡**（`#profile-friends-card`，見 §12.7）：學校帳戶先見到，
+    可以輸入同學學校 email add friend、睇 Friends／Following／Followers、
+    撳人哋名去對方 profile，同埋睇 mutual friend streak `💛🔥 N`。
+    朋友 profile 會用同一個 `profile-view`，有 Follow／Following 掣同
+    「Back to my profile」。
 - **資料來源**：學校帳戶讀 cloud；訪客／preview 讀 `dict_history_guest`／
   `dict_history:preview:<form>` 同 `wj_best`。雲端暫時失敗時顯示 `—` 同
   一句提示，唔會令個人頁爆。
@@ -1501,3 +1508,60 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   未跑 `dictation_accuracy.sql` 時真學生 profile 顯示 `—` 同提示，唔會壞。
   Lighthouse（guest profile）Accessibility／Best Practices／SEO 全部 1.0。
   未用真實 Gmail 帳戶 + live `user_streaks` row 測過。
+
+### 12.7 朋友、Following／Followers、友情 streak（`supabase/friends.sql`）
+
+- **模型**：`friend_follows` 係**單向 follow**。你 follow 人 → 對方喺你
+  「Following」；對方 follow 你 → 佢喺你「Followers」。兩邊都 follow 就係
+  **朋友（mutual）**。冇 friend request／accept，一撳 Follow 即生效。
+- **表**：
+  - `friend_follows(follower_id, following_id, created_at)`，primary key
+    `(follower_id, following_id)`，`check (follower_id <> following_id)`。
+  - `friend_streaks(user_a, user_b, count, best, last_day, updated_at)`，
+    `user_a < user_b`（canonical pair），只由 security definer RPC 寫。
+- **RLS**：
+  - `friend_follows`：只可以 SELECT 同自己有關嘅 row；INSERT 只准
+    `auth.uid() = follower_id`；DELETE 准 follower 或 following（unfollow／
+    remove follower）。
+  - `friend_streaks`：只可以 SELECT 自己喺 pair 入面嘅 row；冇 client
+    INSERT／UPDATE policy。
+- **RPC**（全部 `security definer`，只 grant `authenticated`）：
+  - `follow_friend(p_user_id)`／`unfollow_friend(p_user_id)`／
+    `remove_follower(p_user_id)`。
+  - `friend_overview()`：回傳同自己有連結嘅 user（nickname、form、
+    following、follows_me、mutual、friend_streak、friend_best）；nickname
+    由 `student_logins` 或 email local-part fallback，**唔會**回傳 email。
+  - `find_friend(p_email)`：**只限 exact email**，回傳 user_id／nickname／
+    form／following／follows_me；唔可以列舉學生。用嚟「Add friend」。
+  - `friend_public_profile(p_user_id)`：回傳對方 nickname、form、
+    `recent_days`、daily streak／best、first_seen、dictation count／平均
+    正確率、Word Jump best、following／follows_me、同你嘅 friend streak。
+    只回傳共享學習數據，冇 email。
+  - `bump_friend_streaks()`：當**雙方** `user_streaks.last_practice_date`
+    都係今日（HK）時，為每個 mutual friend 更新 `friend_streaks`：
+    上次係今日 → 唔變；上次係昨日 → +1；斷日 → reset 1；`best` 取 max。
+    如果 `last_day` 已經唔係今日／昨日，前端顯示 0。
+- **前端**：
+  - `js/shared.js` `saveCloudStreak()` upsert 成功後會 fire-and-forget
+    `bump_friend_streaks`；`js/profile.js` `profileLoadFriends()` 載入時
+    亦會 call 一次，等双方都做咗今日練習時可以補上。
+  - 「Me」頁新增 **💛 Friends** 卡（`#profile-friends-card`）：
+    counts（friends／following／followers）、school email 輸入＋
+    **Add friend**、Friends／You follow／Follows you 三組列表、Refresh。
+    每行顯示 form 同 mutual friend streak `💛🔥 N`，撳一行去
+    `openFriendProfile(user_id)`。
+  - 朋友 profile 用同一個 `profile-view`：`loadFriendProfile()` 讀
+    `friend_public_profile`，顯示對方 daily streak、7 日圓點、best、
+    dictation 次數／平均正確率、Word Jump best、first practice、
+    「Friend streak」格＋banner，同 **Follow／Following** 掣。
+    `profileShowOwn()` 返自己 profile（底部 Me tab 亦已改為 call 佢）。
+  - Guest／老師 preview：Friends 卡同朋友 profile 全部隱藏；唔會寫
+    follow／friend streak。未登入／未跑 SQL 都唔會壞，Me 頁顯示提示
+    「Run supabase/friends.sql…」。
+- **SQL 順序**：`friends.sql` 喺 `login_tracking.sql` → `student_forms.sql`
+  → `user_streaks.sql` → `wj_scores.sql` → `dictation_accuracy.sql` 之後跑
+  （因為 RPC 會讀 `student_logins`、`user_streaks`、`dictation_results`、
+  `wj_leaderboard`、`wj_scores`）。可重複跑；唔會改舊 data。
+- **改動提示**：加 friend 相關 UI 要保留 `profileFriendsAvailable()`
+  （guest／preview 隱藏）同唔好直接 select `student_logins`；所有跨用戶
+  資料經上面啲 RPC。`friend_streaks` 只可以經 `bump_friend_streaks` 寫。

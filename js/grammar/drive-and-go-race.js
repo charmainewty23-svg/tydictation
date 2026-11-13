@@ -3018,7 +3018,12 @@
         const dx = lookX - px;
         const dz = lookZ;
         const len = Math.hypot(dx, dz) || 1;
-        const camDist = 14;
+        // Phones in landscape have only ~390px of height and the steering
+        // controls sit at the bottom. Pull the camera back there so the kart's
+        // wheels clear the buttons instead of sitting underneath them.
+        const v = DG.view || { w: 0, h: 0 };
+        const shortLandscape = v.h < 560 && v.w > v.h;
+        const camDist = shortLandscape ? 16.5 : 14;
         t.camera.position.x = px - (dx / len) * camDist;
         t.camera.position.y = DG.threeRoadY(0) + 4.8;
         t.camera.position.z = -(dz / len) * camDist;

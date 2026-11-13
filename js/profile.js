@@ -219,8 +219,272 @@ function profileRenderWj(best) {
     el.title = bits.length ? bits.join(' · ') : '';
 }
 
+/* ---------------- friends / following / friend streaks ----------------
+   Follows are directional; a mutual pair is a "friend". Friend streaks are
+   written only by the security-definer bump_friend_streaks() RPC in
+   supabase/friends.sql. Guests and teacher previews never see this card. */
+
+let profileFriendId = '';
+let profileFriendRow = null;
+let profileFriendList = [];
+
+function profileFriendsAvailable() {
+    return canUseCloud() && !previewStudentForm() && !isGuestUser();
+}
+
+function profileFriendStreakText(row) {
+    if (!row || !row.mutual) return '';
+    const n = Number(row.friend_streak) || 0;
+    return n > 0 ? ' · 💛🔥 ' + n : '';
+}
+
+function profileFriendRowHTML(row) {
+    const form = row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned';
+    return '<button type="button" class="friend-row" onclick="openFriendProfile(\'' + escapeHtml(row.user_id) + '\')">' +
+        '<span class="friend-avatar" aria-hidden="true">🐱</span>' +
+        '<span class="min-w-0 flex-1 text-left">' +
+        '<span class="block font-bold text-gray-700 truncate">' + escapeHtml(row.nickname || 'Student') + '</span>' +
+        '<span class="block text-xs text-gray-400 truncate">' + escapeHtml(form) + profileFriendStreakText(row) + '</span>' +
+        '</span>' +
+        '<span class="text-xs font-bold text-orange-600">View →</span>' +
+        '</button>';
+}
+
+function profileRenderFriendChrome(friend) {
+    const card = document.getElementById('profile-friends-card');
+    const own = document.getElementById('profile-own-actions');
+    const back = document.getElementById('profile-friend-back');
+    const follow = document.getElementById('profile-follow-btn');
+    const banner = document.getElementById('profile-friend-banner');
+    const cardsLabel = document.getElementById('profile-cards-label');
+    // The Friends card and the personal action buttons are for your own
+    // profile only; the back / follow / friend-streak controls only appear
+    // while visiting someone else.
+    if (card) card.classList.toggle('hidden', friend || !profileFriendsAvailable());
+    if (own) own.classList.toggle('hidden', friend);
+    if (back) back.classList.toggle('hidden', !friend);
+    if (follow) follow.classList.toggle('hidden', !friend);
+    if (banner) banner.classList.toggle('hidden', !friend);
+    if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
+}
+
+function profileShowOwn() {
+    profileFriendId = '';
+    profileFriendRow = null;
+    if (currentView === 'profile-view') loadProfile();
+    else changeView('profile-view');
+}
+
+function openFriendProfile(userId) {
+    if (!userId || !profileFriendsAvailable()) return;
+    profileFriendId = String(userId);
+    profileFriendRow = null;
+    changeView('profile-view');
+}
+
+function profileFriendInitial(name) {
+    return String(name || 'S').trim().slice(0, 1).toUpperCase() || 'S';
+}
+
+function profileRenderFriendBanner(row) {
+    const el = document.getElementById('profile-friend-banner');
+    if (!el) return;
+    if (!row) { el.innerText = ''; return; }
+    if (!row.mutual) {
+        el.innerText = 'Follow each other to become friends and start a friend streak.';
+        return;
+    }
+    const n = Number(row.friend_streak) || 0;
+    const best = Number(row.friend_best) || 0;
+    el.innerText = n > 0
+        ? '💛 ' + n + '-day friend streak with you' + (best > n ? ' · best ' + best : '')
+        : '💛 You are friends — practise on the same day to light the friend flame.';
+}
+
+function profileRenderFollowButton(row) {
+    const btn = document.getElementById('profile-follow-btn');
+    if (!btn) return;
+    if (!row) { btn.classList.add('hidden'); return; }
+    btn.classList.remove('hidden');
+    btn.innerText = row.following ? '✅ Following' : '➕ Follow';
+    btn.style.background = row.following ? '#059669' : '#f97316';
+    btn.setAttribute('aria-pressed', row.following ? 'true' : 'false');
+}
+
+async function loadFriendProfile(userId) {
+    profileRenderFriendChrome(true);
+    profileRenderFollowButton(null);
+    profileRenderFriendBanner(null);
+    const nameEl = document.getElementById('profile-name');
+    const subEl = document.getElementById('profile-sub');
+    if (nameEl) nameEl.innerText = 'Friend';
+    if (subEl) subEl.innerText = 'Loading profile…';
+    const noteEl = document.getElementById('profile-note');
+    if (!profileFriendsAvailable()) {
+        if (noteEl) noteEl.innerText = 'Friends need a school Google account.';
+        return;
+    }
+    let row = null;
+    try {
+        const { data, error } = await sb.rpc('friend_public_profile', { p_user_id: userId });
+        if (error) throw error;
+        row = Array.isArray(data) ? data[0] : data;
+    } catch (e) {
+        if (nameEl) nameEl.innerText = 'Friend profile';
+        if (subEl) subEl.innerText = 'Unavailable';
+        if (noteEl) noteEl.innerText = 'Run supabase/friends.sql in the Supabase SQL editor to enable friend profiles.';
+        return;
+    }
+    if (!row) {
+        if (nameEl) nameEl.innerText = 'Profile not found';
+        if (subEl) subEl.innerText = '';
+        if (noteEl) noteEl.innerText = 'That student profile is no longer available.';
+        return;
+    }
+    row.mutual = !!(row.following && row.follows_me);
+    profileFriendRow = row;
+    if (nameEl) nameEl.innerText = row.nickname || 'Student';
+    if (subEl) subEl.innerText = (row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned') + ' · friend profile';
+    const streakEl = document.getElementById('profile-streak');
+    const unitEl = document.getElementById('profile-streak-unit');
+    const streakNoteEl = document.getElementById('profile-streak-note');
+    const bestEl = document.getElementById('profile-best');
+    const cardsEl = document.getElementById('profile-cards');
+    const dictEl = document.getElementById('profile-dict-count');
+    const avgEl = document.getElementById('profile-dict-avg');
+    const firstEl = document.getElementById('profile-first');
+    if (streakEl) streakEl.innerText = String(Number(row.streak_count) || 0);
+    if (unitEl) unitEl.innerText = 'day streak';
+    if (streakNoteEl) streakNoteEl.innerText = 'Their current daily practice streak.';
+    if (bestEl) bestEl.innerText = String(Number(row.streak_best) || 0);
+    if (cardsEl) cardsEl.innerText = row.mutual ? String(Number(row.friend_streak) || 0) + ' days' : '—';
+    if (dictEl) dictEl.innerText = row.dict_count == null ? '—' : String(Number(row.dict_count) || 0);
+    if (avgEl) avgEl.innerText = row.dict_accuracy == null ? '—' : profilePercentLabel(Number(row.dict_accuracy));
+    if (firstEl) firstEl.innerText = row.first_seen ? hkDateOnly(row.first_seen) : 'Not yet';
+    profileRenderDots({ recentDays: Array.isArray(row.recent_days) ? row.recent_days : [] });
+    profileRenderWj(row.wj_best ? { score: Number(row.wj_best) } : null);
+    profileRenderFriendBanner(row);
+    profileRenderFollowButton(row);
+    if (noteEl) {
+        noteEl.innerText = 'You are viewing ' + (row.nickname || 'this student') +
+            '\u2019s shared practice stats.' +
+            (row.follows_me && !row.following ? ' They follow you — follow back to become friends.' : '') +
+            (row.follows_me && row.following ? ' You are friends.' : '');
+    }
+}
+
+async function profileLoadFriends() {
+    const card = document.getElementById('profile-friends-card');
+    if (!card) return;
+    if (!profileFriendsAvailable()) {
+        card.classList.add('hidden');
+        return;
+    }
+    card.classList.remove('hidden');
+    const listEl = document.getElementById('profile-friend-list');
+    const countsEl = document.getElementById('profile-friend-counts');
+    const noteEl = document.getElementById('profile-friend-note');
+    if (listEl) listEl.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Loading friends…</p>';
+    // Best-effort: if both of you practised today, grow the shared flame.
+    try { sb.rpc('bump_friend_streaks').then(() => {}, () => {}); } catch (e) {}
+    let rows = [];
+    try {
+        const { data, error } = await sb.rpc('friend_overview');
+        if (error) throw error;
+        rows = Array.isArray(data) ? data : (data ? [data] : []);
+    } catch (e) {
+        profileFriendList = [];
+        if (listEl) listEl.innerHTML = '';
+        if (countsEl) countsEl.innerText = '';
+        if (noteEl) noteEl.innerText = 'Run supabase/friends.sql in the Supabase SQL editor to enable friends.';
+        return;
+    }
+    profileFriendList = rows;
+    const friends = rows.filter(r => r.mutual);
+    const following = rows.filter(r => r.following && !r.mutual);
+    const followers = rows.filter(r => r.follows_me && !r.following);
+    if (countsEl) {
+        countsEl.innerText = friends.length + ' friend' + (friends.length === 1 ? '' : 's') +
+            ' · ' + following.length + ' following · ' + followers.length + ' follower' + (followers.length === 1 ? '' : 's');
+    }
+    const section = (title, list, empty) => {
+        if (!list.length) return empty ? '<p class="text-xs font-bold text-gray-400 mt-2">' + empty + '</p>' : '';
+        return '<p class="text-xs font-bold uppercase tracking-wide text-gray-400 mt-3 mb-1">' + title + '</p>' +
+            list.map(profileFriendRowHTML).join('');
+    };
+    if (listEl) {
+        listEl.innerHTML =
+            section('Friends', friends.sort((a, b) => (Number(b.friend_streak) || 0) - (Number(a.friend_streak) || 0)), '') +
+            section('You follow', following, '') +
+            section('Follows you', followers, '') +
+            (!rows.length ? '<p class="text-sm font-bold text-gray-400 py-3">No friends yet. Add a classmate by school email above.</p>' : '');
+    }
+    if (noteEl) noteEl.innerText = 'A friend streak grows when both of you finish a practice on the same Hong Kong day.';
+}
+
+async function profileAddFriend() {
+    const input = document.getElementById('friend-email');
+    const status = document.getElementById('friend-add-status');
+    const email = String((input && input.value) || '').trim();
+    const say = (text, bad) => {
+        if (!status) return;
+        status.innerText = text;
+        status.classList.remove('hidden');
+        status.classList.toggle('text-red-600', !!bad);
+        status.classList.toggle('text-emerald-600', !bad);
+    };
+    if (!profileFriendsAvailable()) { say('Sign in with a school account first.', true); return; }
+    if (!email) { say('Type the classmate\u2019s school email.', true); return; }
+    if (currentUser && email.toLowerCase() === String(currentUser.email || '').toLowerCase()) {
+        say('That is your own email.', true);
+        return;
+    }
+    say('Looking up ' + email + '…', false);
+    let found = null;
+    try {
+        const { data, error } = await sb.rpc('find_friend', { p_email: email });
+        if (error) throw error;
+        found = Array.isArray(data) ? data[0] : data;
+    } catch (e) {
+        say('Run supabase/friends.sql in the Supabase SQL editor to enable friends.', true);
+        return;
+    }
+    if (!found) { say('No student with that school email.', true); return; }
+    try {
+        const { error } = await sb.rpc('follow_friend', { p_user_id: found.user_id });
+        if (error) throw error;
+    } catch (e) {
+        say('Could not add that friend. Please try again.', true);
+        return;
+    }
+    if (input) input.value = '';
+    say('Now following ' + (found.nickname || 'that student') + '.', false);
+    await profileLoadFriends();
+}
+
+async function profileToggleFollow() {
+    if (!profileFriendRow || !profileFriendsAvailable()) return;
+    const row = profileFriendRow;
+    try {
+        const { error } = row.following
+            ? await sb.rpc('unfollow_friend', { p_user_id: row.user_id })
+            : await sb.rpc('follow_friend', { p_user_id: row.user_id });
+        if (error) throw error;
+    } catch (e) {
+        const note = document.getElementById('profile-note');
+        if (note) note.innerText = 'Could not update that follow. Please try again.';
+        return;
+    }
+    await loadFriendProfile(row.user_id);
+}
+
 async function loadProfile() {
     if (!document.getElementById('profile-name')) return;
+    if (profileFriendId) {
+        await loadFriendProfile(profileFriendId);
+        return;
+    }
+    profileRenderFriendChrome(false);
     profileRenderIdentity();
     profileRenderStreak();
 
@@ -257,4 +521,5 @@ async function loadProfile() {
     if (extra) note += ' ' + extra;
     profileRenderWj(wj);
     if (noteEl) noteEl.innerText = note;
+    profileLoadFriends();
 }

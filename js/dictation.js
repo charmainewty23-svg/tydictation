@@ -432,15 +432,29 @@
             // Sync to Supabase if a school account is signed in (never for guests or teacher preview)
             let cloudSynced = false;
             if (canUseCloud() && !previewStudentForm()) {
-                sb.from("dictation_results").insert({
+                const payload = {
                     user_id: currentUser.id,
                     email: currentUser.email,
                     nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
                     topic: currentTopic,
                     mode: quizMode,
                     score: quizScore,
-                    total: total
-                }).then(({ error }) => {
+                    total: total,
+                    correct: correctCount
+                };
+                const insertRow = (row) => sb.from("dictation_results").insert(row);
+                insertRow(payload).then(({ error }) => {
+                    // Older tables have no correct column; save the rest so the
+                    // quiz still syncs until supabase/dictation_accuracy.sql is run.
+                    if (error && /correct|column .* does not exist|42703|PGRST204/i.test(String(error.message || ''))) {
+                        const legacy = Object.assign({}, payload);
+                        delete legacy.correct;
+                        insertRow(legacy).then(({ error: retryError }) => {
+                            if (retryError) console.error("Dictation save failed:", retryError);
+                            else cloudSynced = true;
+                        });
+                        return;
+                    }
                     if (error) console.error("Dictation save failed:", error);
                     else cloudSynced = true;
                 });

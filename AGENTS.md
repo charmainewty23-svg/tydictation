@@ -91,7 +91,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
-| `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均分、Word Jump 最佳、首次加入日期（見 §12.6） |
+| `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均正確率、Word Jump 最佳、首次練習日期（見 §12.6） |
 
 ### Grammar Quest tenses
 - `grammar-revision-view` 只有 2 張卡：`let's revise!`（開 `grammar-tense-list-view`）同
@@ -158,11 +158,12 @@ GAS＋Sheet 方案喺其他專案已退役：quota＋維護成本高）。
 ```sql
 create table dictation_results(
   user_id uuid, email text, nickname text, topic text,
-  mode text, score int, total int, created_at timestamptz default now());
+  mode text, score int, total int, correct int, created_at timestamptz default now());
 alter table dictation_results enable row level security;
 create policy "read all" on dictation_results for select using (true);
 create policy "insert own" on dictation_results for insert with check (auth.uid() = user_id);
 ```
+> 舊 project 如果未有 `correct` 欄，跑 `supabase/dictation_accuracy.sql`（可重跑）。舊 row 會留 NULL，Me 頁平均正確率只用之後新 quiz 嘅數據。
 
 ### Phase 3 — 登入＋學校域名閘（~40 行，inline）
 ```html
@@ -993,7 +994,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1222,8 +1223,11 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
     今日多一圈 outline；下面寫 `3 / 7 days`。≤360px 圓點縮到 24px，
     320px 都唔會橫向爆版。
   - **Dictation quizzes**：做過幾多次（`dictation_results` 的 exact count）。
-  - **Average score**：平均分（`score` 平均，保留 1 位小數）。
-    超過 1,000 次時只抽最新 1,000 次計平均，畫面會註明。
+  - **Average accuracy**：`sum(correct) / sum(total)`，顯示整數 `%`。
+    舊 `dictation_results` row 冇 `correct`（NULL）會跳過；如果全部舊 row
+    都冇，顯示 `—` 同「Accuracy starts from new quizzes」。未跑
+    `supabase/dictation_accuracy.sql` 時查詢會 fallback，顯示 `—` 同提示。
+    超過 1,000 次時只抽最新 1,000 次計。
   - **Word Jump best**：`wj_leaderboard` 的個人最佳（冇就用 `wj_scores` 最高分）；
     hover 有 words／height。訪客／preview 用 `wj_best`。
   - **First practice**：`user_streaks.first_seen`，意思係**第一次完成練習**
@@ -1254,10 +1258,12 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   先畫本機／session 數字，再 `await loadCloudStreak()` 和
   `dictation_results`／`wj_leaderboard` 更新。`currentView` 已離開 profile 時
   遲來的 response 會直接丟棄。
-- **SQL**：只需要 `supabase/user_streaks.sql`（連勝／補救卡／first_seen）。
+- **SQL**：需要 `supabase/user_streaks.sql`（連勝／補救卡／first_seen）
+  同 `supabase/dictation_accuracy.sql`（`dictation_results.correct`，平均正確率用）。
   Dictation 統計用返現有 `dictation_results`（§5），Word Jump 用返
   `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
-  first practice 只計本機、連勝唔跨裝置。
+  first practice 只計本機、連勝唔跨裝置；未跑 `dictation_accuracy.sql`
+  時平均正確率顯示 `—`，其他照用。
 - **實測**：320、375、390 profile 卡同 7 日圓點全部 `overflowX = 0`
   （≤360px 圓點 24px）；Error Book 掣 44px 高；guest 隱藏
   My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日
@@ -1265,5 +1271,7 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   Admin Student Logins 第 4 格「Active Streaks」、每行 `🔥 N days`＋
   `best · last` 細字、Last login／🔥 Streak 排序（按連勝／登入時間）用假
   data 測過；320 admin 亦 `overflowX = 0`（順手加咗 Grammar admin 按鈕
-  `flex-wrap`）。Lighthouse（guest profile）Accessibility／Best Practices／
-  SEO 全部 1.0。未用真實 Gmail 帳戶 + live `user_streaks` row 測過。
+  `flex-wrap`）。平均正確率用 guest 3 個 quiz（220/300）測到 **73%**；
+  未跑 `dictation_accuracy.sql` 時真學生 profile 顯示 `—` 同提示，唔會壞。
+  Lighthouse（guest profile）Accessibility／Best Practices／SEO 全部 1.0。
+  未用真實 Gmail 帳戶 + live `user_streaks` row 測過。

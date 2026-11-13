@@ -1,5 +1,5 @@
 /* LearniTY — the "Me" profile page.
-   Shows the daily streak, repair cards, dictation attempts / average score,
+   Shows the daily streak, repair cards, dictation attempts / average accuracy,
    personal-best Word Jump run and the first day the student joined.
    Signed-in students read cloud records; guests and teacher previews read the
    current browser session only. Loaded after shared.js, before word-jump.js. */
@@ -22,6 +22,12 @@ function profilePointsLabel(value) {
     return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + ' pts';
 }
 
+function profilePercentLabel(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return Math.round(n * 100) + '%';
+}
+
 function profileLocalDictStats() {
     const src = profileHistorySource();
     if (!src) return null;
@@ -29,10 +35,13 @@ function profileLocalDictStats() {
     try { rows = JSON.parse(src.store.getItem(src.key) || '[]'); } catch (e) {}
     if (!Array.isArray(rows)) rows = [];
     const valid = rows.filter(r => r && Number.isFinite(Number(r.score)));
-    const sum = valid.reduce((a, r) => a + Number(r.score), 0);
+    const accRows = rows.filter(r => r && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
+    const sumCorrect = accRows.reduce((a, r) => a + Number(r.correct), 0);
+    const sumTotal = accRows.reduce((a, r) => a + Number(r.total), 0);
     return {
         attempts: valid.length,
-        avg: valid.length ? (sum / valid.length) : null,
+        accuracy: sumTotal > 0 ? (sumCorrect / sumTotal) : null,
+        accuracyCount: accRows.length,
         sampled: valid.length,
         total: valid.length,
         note: src.note
@@ -41,18 +50,32 @@ function profileLocalDictStats() {
 
 async function profileCloudDictStats() {
     if (!currentUser) return null;
-    const { data, error, count } = await sb.from('dictation_results')
-        .select('score,total,created_at', { count: 'exact' })
+    const base = 'score,total,created_at';
+    let res = await sb.from('dictation_results')
+        .select('correct,' + base, { count: 'exact' })
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false })
         .limit(1000);
-    if (error) throw error;
-    const rows = Array.isArray(data) ? data : [];
-    const total = (typeof count === 'number') ? count : rows.length;
-    const sum = rows.reduce((a, r) => a + (Number(r.score) || 0), 0);
+    let accuracyUnavailable = false;
+    if (res.error && /correct|column .* does not exist|42703|PGRST204/i.test(String(res.error.message || ''))) {
+        accuracyUnavailable = true;
+        res = await sb.from('dictation_results')
+            .select(base, { count: 'exact' })
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+    }
+    if (res.error) throw res.error;
+    const rows = Array.isArray(res.data) ? res.data : [];
+    const total = (typeof res.count === 'number') ? res.count : rows.length;
+    const accRows = accuracyUnavailable ? [] : rows.filter(r => r && Number(r.total) > 0 && Number.isFinite(Number(r.correct)));
+    const sumCorrect = accRows.reduce((a, r) => a + Number(r.correct), 0);
+    const sumTotal = accRows.reduce((a, r) => a + Number(r.total), 0);
     return {
         attempts: total,
-        avg: rows.length ? (sum / rows.length) : null,
+        accuracy: (!accuracyUnavailable && sumTotal > 0) ? (sumCorrect / sumTotal) : null,
+        accuracyCount: accRows.length,
+        accuracyUnavailable: accuracyUnavailable,
         sampled: rows.length,
         total: total
     };
@@ -164,10 +187,21 @@ function profileRenderDict(stats, fallbackNote) {
     const countEl = document.getElementById('profile-dict-count');
     const avgEl = document.getElementById('profile-dict-avg');
     if (countEl) countEl.innerText = stats ? String(stats.attempts) : '—';
-    if (avgEl) avgEl.innerText = stats && stats.avg != null ? profilePointsLabel(stats.avg) : '—';
-    return (stats && stats.sampled && stats.total && stats.sampled < stats.total)
-        ? 'Average is based on the latest ' + stats.sampled + ' quizzes.'
-        : (fallbackNote || '');
+    if (avgEl) avgEl.innerText = stats && stats.accuracy != null ? profilePercentLabel(stats.accuracy) : '—';
+    if (!stats) return fallbackNote || '';
+    if (stats.accuracyUnavailable) {
+        return 'Run supabase/dictation_accuracy.sql to enable average accuracy.';
+    }
+    if (stats.attempts > 0 && !stats.accuracyCount) {
+        return 'Accuracy starts from new quizzes; older quizzes did not record correct answers.';
+    }
+    if (stats.accuracyCount > 0 && stats.accuracyCount < stats.attempts) {
+        return 'Accuracy uses ' + stats.accuracyCount + ' of ' + stats.attempts + ' quizzes; older quizzes did not record correct answers.';
+    }
+    if (stats.sampled && stats.total && stats.sampled < stats.total) {
+        return 'Accuracy is based on the latest ' + stats.sampled + ' quizzes.';
+    }
+    return fallbackNote || '';
 }
 
 function profileRenderWj(best) {

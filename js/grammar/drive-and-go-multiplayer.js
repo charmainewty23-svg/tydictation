@@ -60,6 +60,11 @@
     };
 
     DG.mpSqlHintHTML = function (kind) {
+        if (kind === 'class') {
+            return '<div class="dg-note warn text-left"><b>The class room needs one SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_class_room.sql</code> in the Supabase SQL editor. ' +
+                'It adds the 30-player class room. Normal 5-player rooms and Single Player keep working without it.</div>';
+        }
         if (kind === 'agreement') {
             return '<div class="dg-note warn text-left"><b>Agreement multiplayer needs one SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_agreement_topic.sql</code> in the Supabase SQL editor. ' +
@@ -85,6 +90,12 @@
             'If rooms already exist and question counts / courses fail, also run ' +
             '<code>supabase/drive_and_go_question_count.sql</code> then <code>supabase/drive_and_go_scenes_and_boards.sql</code>. ' +
             'Single Player works without it.</div>';
+    };
+
+    DG.mpIsClassRoomSqlMissing = function (error) {
+        const text = [error && error.code, error && error.message, error && error.details, error && error.hint]
+            .filter(Boolean).join(' ');
+        return /create_drive_and_go_class_room|class_room/i.test(text);
     };
 
     DG.mpIsSceneSqlMissing = function (error) {
@@ -174,14 +185,24 @@
 
     DG.mpProgressHTML = function (board) {
         if (!board || !board.visible || !board.rows.length) return '';
+        // A 30-player class room cannot list 29 rows in a corner card. Show the
+        // leading 8 and always keep the local player visible.
+        const maxRows = 8;
+        let rows = board.rows.slice(0, maxRows);
+        const me = board.rows.find(r => r.isMe);
+        if (me && rows.indexOf(me) === -1) rows = rows.slice(0, maxRows - 1).concat(me);
+        const hidden = board.rows.length - rows.length;
         return '<h4>Race to ' + board.total + ' correct</h4>' +
-            board.rows.map(r =>
+            rows.map(r =>
                 '<div class="dg-race-row' + (r.isMe ? ' me' : '') + '">' +
                 '<span class="dg-race-name">' + DG.esc(r.name) + (r.isMe ? ' (you)' : '') + '</span>' +
                 '<span class="dg-race-count">' + r.correct + '/' + r.total + '</span>' +
                 '<span class="dg-race-bar"><i style="width:' + Math.max(0, Math.min(100, r.barWidth)) + '%"></i></span>' +
                 '<span class="dg-race-dist">' + r.distance + ' m</span>' +
                 '</div>').join('') +
+            (hidden > 0
+                ? '<div class="dg-race-more">… +' + hidden + ' more racing</div>'
+                : '') +
             (board.finishedCount
                 ? '<div class="dg-race-more">' + board.finishedCount + ' finished</div>'
                 : '');
@@ -256,6 +277,7 @@
         if (!MP.room || MP.leaving || MP.closed) return false;
         DG.mpCancelDetach();
         DG.sessionMode = 'multi';
+        DG.mpClassRoom = (Number(MP.room.max_players) || 5) > 5;
         const me = currentUser && currentUser.id;
         DG.mpRole = MP.room.host_id === me ? 'create' : 'join';
         DG.mpStartLobbyPoll();
@@ -320,26 +342,29 @@
     };
 
     DG.mpShowSqlHint = function (error) {
-        const kind = DG.mpIsAgreementSqlMissing(error) ? 'agreement'
-            : (DG.mpIsSceneSqlMissing(error) ? 'scene'
-                : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : ''));
+        const kind = (DG.mpClassRoom && DG.mpIsClassRoomSqlMissing(error)) ? 'class'
+            : (DG.mpIsAgreementSqlMissing(error) ? 'agreement'
+                : (DG.mpIsSceneSqlMissing(error) ? 'scene'
+                    : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '')));
         const content = DG.menuContent();
         const status = document.getElementById('dg-mp-status');
         if (status && content) status.outerHTML = DG.mpSqlHintHTML(kind);
         else if (typeof DG.toastSafe === 'function') {
-            DG.toastSafe(kind === 'agreement'
-                ? 'Run supabase/drive_and_go_agreement_topic.sql in the Supabase SQL editor.'
-                : (kind === 'scene'
-                    ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
-                    : (kind === 'question_count'
-                        ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                        : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.')));
+            DG.toastSafe(kind === 'class'
+                ? 'Run supabase/drive_and_go_class_room.sql in the Supabase SQL editor.'
+                : (kind === 'agreement'
+                    ? 'Run supabase/drive_and_go_agreement_topic.sql in the Supabase SQL editor.'
+                    : (kind === 'scene'
+                        ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                        : (kind === 'question_count'
+                            ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                            : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'))));
         }
     };
 
     DG.mpErrorText = function (error) {
         const msg = clean(error && (error.message || error.error_description || error.details));
-        if (/ROOM_FULL/i.test(msg)) return 'That room is full (5 players max).';
+        if (/ROOM_FULL/i.test(msg)) return 'That room is full.';
         if (/ROOM_ALREADY_STARTED/i.test(msg)) return 'That race has already started.';
         if (/ROOM_NOT_FOUND/i.test(msg)) return 'No room with that code.';
         if (/START_NEEDS_TWO/i.test(msg)) return 'A race needs at least 2 players.';
@@ -424,7 +449,8 @@
         // Tenses rooms deliberately omit p_topic so the existing 7-argument
         // function keeps working before the new SQL is pasted.
         if (topic === 'agreement') args.p_topic = 'agreement';
-        sb.rpc('create_drive_and_go_room', args).then(({ data, error }) => {
+        const rpc = DG.mpClassRoom ? 'create_drive_and_go_class_room' : 'create_drive_and_go_room';
+        sb.rpc(rpc, args).then(({ data, error }) => {
             if (error) {
                 if (DG.mpIsSqlMissing(error) || DG.mpIsSceneSqlMissing(error) || DG.mpIsQuestionCountSqlMissing(error) || DG.mpIsAgreementSqlMissing(error)) {
                     DG.mpSetStatus('', false);
@@ -447,6 +473,7 @@
             MP.missingMePolls = 0;
             MP.rejoining = false;
             MP.joinCode = clean(room.code) || MP.joinCode;
+            DG.mpClassRoom = (Number(room.max_players) || 5) > 5;
             // Same settle window as a joiner: a passive view change just after
             // creating the room must not delete the host's seat.
             MP.joinedAt = Date.now();
@@ -494,6 +521,7 @@
             MP.missingMePolls = 0;
             MP.rejoining = false;
             MP.joinCode = clean(room.code) || code;
+            DG.mpClassRoom = (Number(room.max_players) || 5) > 5;
             // A joiner owns this seat for the next few seconds: a passive
             // view change must not delete the row and eject them.
             MP.joinedAt = Date.now();
@@ -706,7 +734,9 @@
         const players = MP.players || [];
         const me = currentUser && currentUser.id;
         const isHost = room.host_id === me;
-        const canStart = players.length >= 2 && players.length <= 5;
+        const maxPlayers = Math.max(2, Number(room.max_players) || 5);
+        const isClass = maxPlayers > 5;
+        const canStart = players.length >= 2 && players.length <= maxPlayers;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
         const cards = players.map(p => {
             const look = DG.normalizeLook({ cat: p.cat, glasses: p.glasses, hat: p.hat, outfit: p.outfit });
@@ -718,11 +748,14 @@
         }).join('');
         content.innerHTML =
             '<div class="text-center mb-4"><div class="text-7xl mb-1">🏁</div>' +
-            '<h3 class="text-3xl font-bold text-green-600">Race lobby</h3>' +
+            '<h3 class="text-3xl font-bold text-green-600">' + (isClass ? 'Class race lobby' : 'Race lobby') + '</h3>' +
             '<p class="text-gray-500 font-bold">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
             '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
-            '<p class="text-center text-sm font-bold text-gray-500 mb-4">Players ' + players.length + '/5 · share this code with 1–4 friends</p>' +
+            '<p class="text-center text-sm font-bold text-gray-500 mb-4">Players ' + players.length + '/' + maxPlayers + ' · ' +
+            (isClass
+                ? 'share this code with the class (up to ' + (maxPlayers - 1) + ' students)'
+                : 'share this code with 1–' + (maxPlayers - 1) + ' friends') + '</p>' +
             '<div class="dg-lobby-grid mb-5">' + cards + '</div>' +
             (isHost
                 ? '<div class="text-center"><button type="button" class="btn-paw' + (canStart ? '' : ' opacity-50') + '" ' +
@@ -748,12 +781,13 @@
 
     DG.mpStart = function () {
         if (!MP.room || MP.room.host_id !== (currentUser && currentUser.id)) return;
+        const maxPlayers = Math.max(2, Number(MP.room.max_players) || 5);
         if (MP.players.length < 2) {
             DG.mpSetStatus('A race needs at least 2 players.', true);
             return;
         }
-        if (MP.players.length > 5) {
-            DG.mpSetStatus('A race can have at most 5 players.', true);
+        if (MP.players.length > maxPlayers) {
+            DG.mpSetStatus('This room can have at most ' + maxPlayers + ' players.', true);
             return;
         }
         DG.mpSetStatus('Starting race…', false);

@@ -584,6 +584,43 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
+### 9.9a Drive & Go! 山路／彎道＋老師 30 人房（2026-11 加）
+
+- **賽道曲線／山坡**：`DG.trackCurve()`／`DG.trackLateral()` 加大振幅同頻率
+  （0.68／0.28／0.11，0.0019／0.0044／0.0102），`DG.trackHill()` 改成
+  `36 sin(0.0016z) + 18 sin(0.0038z) + 6 sin(0.0085z)`，令上山／落山同彎道更密。
+  `DG.trackHorizonY()` 嘅 pitch multiplier 由 `900` 改做 `14`，2D 地平線唔再
+  長期飽和，會跟山坡平滑升降。
+- **3D 賽道**：`DG.threeRoadX()` scale `0.6`、`DG.threeRoadY()` scale `0.5`。
+  新增 **terrain ribbon**（`DG.three.terrain`，跟 `threeRoadY(rel)` 起伏的
+  1500×2200 地面）＋遠低處 fallback floor；`DG.updateThreeScenery()` 將景物
+  y 跟 terrain（`THREE_GROUND_Y + threeRoadY(rel)`），所以山坡唔會穿過平地。
+- **3D 相機**：`DG.updateThreeCamera()` 的 lookX 用 `threeRoadX(260) * 0.75`
+  （跟彎道轉向），lookY 加 local hill pitch `pitch * 6`（上斜望高、落斜望低），
+  令彎道同山坡在畫面上明顯。相機 pitch 用 `trackHill(dist+260)` 的 slope。
+- **多人規模**：3D 只畫最近 **6** 部對手 kart（`visibleRival`），2D canvas 只畫
+  最近 **10** 部；賽道進度板最多顯示 **8** 行，自己一定顯示，其餘顯示
+  `… +N more racing`。scenery 仍 cap 40。實測 3D ~126 draw calls（1 個對手）、
+  30 人房 6 部對手約 210 calls、~6k tris。
+- **老師 30 人房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
+  - `drive_and_go_rooms.max_players` 新欄，default **5**（舊房保持 5）。
+  - `create_drive_and_go_class_room()` 只限 `is_drive_and_go_teacher()`
+    （老師 email），同 `create_drive_and_go_room()` 同樣參數，但寫入
+    `max_players = 30`，並照樣插入老師做玩家。
+  - `join_drive_and_go_room()` 同 `start_drive_and_go_room()` 改用
+    `coalesce(v_room.max_players, 5)` 做上限，所以 5 人房同 30 人房並存。
+  - 前端 Multiplayer → Create 多一個 **Class room (up to 30)** 掣（只老師見到）；
+    `DG.mpClassRoom` 記住選擇，`DG.mpCreate()` 揀
+    `create_drive_and_go_class_room`。Lobby 顯示 `Players n/30`，房主 Start
+    上限跟 `room.max_players`。加入者照用 4 位房碼，Topic／Challenge／題數／場地
+    跟房主。
+  - 未跑 SQL：Class room 會顯示 `DG.mpShowSqlHint('class')`，提示貼
+    `supabase/drive_and_go_class_room.sql`；普通 5 人房、Solo 照用。
+  - 呢份 SQL 喺 `drive_and_go.sql` 之後跑；fresh install 都要跑埋呢份，
+    除非老師只想 5 人房。
+
+---
+
 ### 9.10 Word Battle 班際：自訂貓＋頒獎台（2026-11 加）
 
 - **SQL**：`supabase/battle_cat.sql`（可重跑）為 `battle_players` 加
@@ -1114,7 +1151,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1218,12 +1255,14 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     都 highlight Home；`error-book-view` highlight Dictation；`profile-view`
     highlight Me。
   - `navShouldShow(viewId)`：上面三個隱藏 view 唔出 bar；`wordjump-view`
-    喺 intro／pause／game-over 出 bar，但 `WJ.state === 'playing' && !paused`
-    時收埋，避免蓋住左右方向 pad；`battle-view` 只在 lobby／result／class 出，
+    喺 intro／pause／game-over **同 windowed 遊玩中都出 bar**，只有
+    `WJ.fsOn()`（原生全屏或 CSS 全屏）時收埋。windowed 時頁面會 scroll，
+    `WJ.revealStage()` 會將成個 stage（連左右方向 pad）拉到 bar 之上；
+    `battle-view` 只在 lobby／result／class 出，
     `waiting`／`play` 進行中會收埋（避免蓋住計分板／輸入）。
     `class` 係老師嘅班際直播板（`battleRenderClassHost()` 只俾 host／老師），
     保留 bar 方便老師一撳返 Home；學生喺 `waiting`／`play` 仍然收埋。
-    Word Jump 每次 start／stop／pause／restart／gameOver 都會 call
+    Word Jump 每次 start／stop／pause／restart／gameOver 同全屏切換都會 call
     `WJ.updateNav()` 同步 bar。
   - `currentView` 喺 `changeView()` 更新，之後 call `updateBottomNav()`；
     `showApp()`／`showLogin()` 亦會更新（未登入一定冇 bar）。
@@ -1248,7 +1287,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 實測（iframe 載入真 `index.html`，模擬登入後量度）：320×568、375×667、390×844、
   430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`；tab 高度 56px、
   nav 高度 58px、iPad／橫向內層 720px；lobby／result／class／profile／error-book 出 bar，
-  wordjump 喺 intro／pause／game-over 出 bar（live playing 收埋），
+  wordjump 喺 intro／pause／game-over 同 windowed 遊玩出 bar（只有全屏收埋），
   waiting／play／quiz／admin 收埋；`#app` 底部 padding 72px
   （bar 58px ＋ 14px 空隙）。320px 時 header 會縮細 wordmark、收埋副標題同減
   Logout padding（`@media (max-width:360px)`），避免橫向爆版。

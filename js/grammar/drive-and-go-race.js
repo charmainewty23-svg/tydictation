@@ -1408,28 +1408,31 @@
         return cache.phases;
     };
 
-    // Track heading (radians) relative to a straight road.
+    // Track heading (radians) relative to a straight road. More pronounced
+    // and slightly quicker than the first version so the course visibly bends.
     DG.trackCurve = function (z) {
         const ph = DG.trackPhases();
-        return 0.62 * Math.sin(z * 0.0016 + ph[0]) +
-            0.26 * Math.sin(z * 0.0038 + ph[1]) +
-            0.10 * Math.sin(z * 0.0091 + ph[2]);
+        return 0.68 * Math.sin(z * 0.0019 + ph[0]) +
+            0.28 * Math.sin(z * 0.0044 + ph[1]) +
+            0.11 * Math.sin(z * 0.0102 + ph[2]);
     };
 
     // Antiderivative of trackCurve(): lateral road position at world Z.
     DG.trackLateral = function (z) {
         const ph = DG.trackPhases();
-        return -0.62 / 0.0016 * Math.cos(z * 0.0016 + ph[0]) -
-            0.26 / 0.0038 * Math.cos(z * 0.0038 + ph[1]) -
-            0.10 / 0.0091 * Math.cos(z * 0.0091 + ph[2]);
+        return -0.68 / 0.0019 * Math.cos(z * 0.0019 + ph[0]) -
+            0.28 / 0.0044 * Math.cos(z * 0.0044 + ph[1]) -
+            0.11 / 0.0102 * Math.cos(z * 0.0102 + ph[2]);
     };
 
-    // Road elevation (world units) at world Z.
+    // Road elevation (world units) at world Z. Taller and more frequent
+    // crests / dips than the first version, so uphill and downhill sections
+    // arrive regularly instead of one long gentle rise.
     DG.trackHill = function (z) {
         const ph = DG.trackPhases();
-        return 34 * Math.sin(z * 0.0011 + ph[0] * 0.7) +
-            15 * Math.sin(z * 0.0027 + ph[1] * 1.4) +
-            5 * Math.sin(z * 0.0063 + ph[2] * 2.1);
+        return 36 * Math.sin(z * 0.0016 + ph[0] * 0.7) +
+            18 * Math.sin(z * 0.0038 + ph[1] * 1.4) +
+            6 * Math.sin(z * 0.0085 + ph[2] * 2.1);
     };
 
     DG.trackHorizonY = function () {
@@ -1438,7 +1441,7 @@
         const cache = DG._horizonCache || (DG._horizonCache = { camZ: null, h: 0, y: 0 });
         if (cache.camZ === camZ && cache.h === h) return cache.y;
         const slope = (DG.trackHill(camZ + 260) - DG.trackHill(camZ)) / 260;
-        const pitch = Math.max(-1, Math.min(1, slope * 900));
+        const pitch = Math.max(-1, Math.min(1, slope * 14));
         cache.camZ = camZ;
         cache.h = h;
         cache.y = h * HORIZON_BASE - pitch * h * 0.04;
@@ -2320,12 +2323,12 @@
     DG.threeRoadX = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
         const lat = (DG.trackLateral(camZ + rel) - DG.trackLateral(camZ)) - DG.trackCurve(camZ) * rel;
-        return lat * 0.05;
+        return lat * 0.6;
     };
 
     DG.threeRoadY = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
-        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.012;
+        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.5;
     };
 
     DG.threeLaneX = function (rel, laneX) {
@@ -2897,13 +2900,33 @@
             const kerbL = makeKerb(-1);
             const kerbR = makeKerb(1);
 
-            const ground = new THREE.Mesh(
-                new THREE.PlaneGeometry(1800, THREE_ROAD_LEN + 800),
+            // A wide terrain ribbon follows the same hill profile as the road,
+            // so uphill / downhill sections roll instead of clipping through a
+            // flat plane. Scenery sits on this ribbon.
+            const terrainGeo = new THREE.BufferGeometry();
+            const terrainPos = new Float32Array((THREE_SEGMENTS + 1) * 2 * 3);
+            const terrainIdx = [];
+            for (let i = 0; i < THREE_SEGMENTS; i++) {
+                const a = i * 2;
+                terrainIdx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+            }
+            terrainGeo.setAttribute('position', new THREE.BufferAttribute(terrainPos, 3));
+            terrainGeo.setIndex(terrainIdx);
+            const terrain = new THREE.Mesh(
+                terrainGeo,
                 new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
-            ground.rotation.x = -Math.PI / 2;
-            ground.position.set(0, THREE_GROUND_Y, -THREE_ROAD_LEN / 2);
-            scene.add(ground);
+            terrain.frustumCulled = false;
+            scene.add(terrain);
+
+            // Fallback floor far below the deepest dip; fog hides it.
+            const under = new THREE.Mesh(
+                new THREE.PlaneGeometry(2600, THREE_ROAD_LEN + 1600),
+                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+            );
+            under.rotation.x = -Math.PI / 2;
+            under.position.set(0, -140, -THREE_ROAD_LEN / 2);
+            scene.add(under);
 
             DG.addThreeBackdrop(scene, style);
 
@@ -2917,7 +2940,7 @@
 
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
-                kerbL, kerbR,
+                kerbL, kerbR, terrain,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
                 projectiles: [], bursts: [],
                 kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup
@@ -2938,12 +2961,17 @@
         const pos = t.road.geometry.attributes.position;
         const leftPos = t.kerbL ? t.kerbL.geometry.attributes.position : null;
         const rightPos = t.kerbR ? t.kerbR.geometry.attributes.position : null;
+        const terrainPos = t.terrain ? t.terrain.geometry.attributes.position : null;
         for (let i = 0; i <= THREE_SEGMENTS; i++) {
             const rel = (i / THREE_SEGMENTS) * THREE_ROAD_LEN;
             const x = DG.threeRoadX(rel);
             const y = DG.threeRoadY(rel);
             pos.setXYZ(i * 2, x - THREE_ROAD_W / 2, y, -rel);
             pos.setXYZ(i * 2 + 1, x + THREE_ROAD_W / 2, y, -rel);
+            if (terrainPos) {
+                terrainPos.setXYZ(i * 2, x - 1500, y + THREE_GROUND_Y, -rel);
+                terrainPos.setXYZ(i * 2 + 1, x + 1500, y + THREE_GROUND_Y, -rel);
+            }
             if (leftPos) {
                 leftPos.setXYZ(i * 2, x - THREE_ROAD_W / 2 - 0.35, y + 0.06, -rel);
                 leftPos.setXYZ(i * 2 + 1, x - THREE_ROAD_W / 2 - 1.55, y + 0.06, -rel);
@@ -2954,6 +2982,7 @@
             }
         }
         pos.needsUpdate = true;
+        if (terrainPos) terrainPos.needsUpdate = true;
         if (leftPos) leftPos.needsUpdate = true;
         if (rightPos) rightPos.needsUpdate = true;
         t.roadTex.offset.y = (S.player.dist / 40) % 1;
@@ -2968,8 +2997,13 @@
         t.camera.position.x += (targetX - t.camera.position.x) * 0.18;
         t.camera.position.y += (targetY - t.camera.position.y) * 0.18;
         t.camera.position.z = 16.5;
-        const lookX = DG.threeLaneX(40, 1) * 0.8 + targetX * 0.2;
-        const lookY = DG.threeRoadY(40) + 7.8;
+        const lookX = DG.threeRoadX(260) * 0.75 + targetX * 0.25;
+        // Pitch the camera with the local hill slope. Climbing tilts the view
+        // up (the horizon drops), descending tilts it down — a strong hill cue
+        // that does not depend on the road geometry being huge.
+        const slope = (DG.trackHill(p.dist + 260) - DG.trackHill(p.dist)) / 260;
+        const pitch = Math.max(-1, Math.min(1, slope * 14));
+        const lookY = DG.threeRoadY(40) + 7.8 + pitch * 6;
         t.camera.lookAt(lookX, lookY, -40);
     };
 
@@ -2990,6 +3024,14 @@
         entry.group.rotation.z = S.clock < p.spinUntil ? (S.clock * 3) % (Math.PI * 2) : 0;
         entry.group.rotation.y = (p.laneX - 1) * 0.06;
 
+        // A class room can hold 30 racers. Draw only the nearest 6 in 3D so
+        // the extra kart meshes cannot drag the frame rate down.
+        const nearby = S.rivals
+            .map((r, i) => ({ i: i, rel: r.dist - p.dist }))
+            .filter(o => o.rel >= -15 && o.rel <= 1600)
+            .sort((a, b) => a.rel - b.rel)
+            .slice(0, 6);
+        const visibleRival = new Set(nearby.map(o => o.i));
         S.rivals.forEach((r, i) => {
             const key = 'r' + i;
             seen.add(key);
@@ -3000,7 +3042,7 @@
                 t.karts.set(key, k);
             }
             const rel = r.dist - p.dist;
-            if (rel < -15 || rel > 1600) {
+            if (!visibleRival.has(i)) {
                 k.group.visible = false;
                 return;
             }
@@ -3101,7 +3143,7 @@
             seen.add(it);
             entry.group.visible = keep.has(it);
             const x = DG.threeRoadX(rel) + it.side * (THREE_ROAD_W / 2 + it.offset * 10);
-            entry.group.position.set(x, THREE_GROUND_Y, -rel);
+            entry.group.position.set(x, THREE_GROUND_Y + DG.threeRoadY(rel), -rel);
             const scale = it.size * 1.2;
             entry.group.scale.setScalar(scale);
         });
@@ -3179,9 +3221,14 @@
         S.gates.forEach(g => {
             drawables.push({ kind: 'gate', z: g.dist - p.dist, gate: g });
         });
-        S.rivals.forEach(r => {
-            drawables.push({ kind: 'rival', z: r.dist - p.dist, rival: r });
-        });
+        // Cap the canvas karts too: in a 30-player class the far ones are a
+        // few pixels tall and would only add clutter.
+        S.rivals
+            .map(r => ({ r: r, z: r.dist - p.dist }))
+            .filter(o => o.z > -40 && o.z <= FAR_REL)
+            .sort((a, b) => a.z - b.z)
+            .slice(0, 10)
+            .forEach(o => drawables.push({ kind: 'rival', z: o.z, rival: o.r }));
         drawables.sort((a, b) => b.z - a.z);
         drawables.forEach(d => {
             if (d.z > FAR_REL) return;

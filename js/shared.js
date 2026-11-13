@@ -47,9 +47,10 @@
         function navShouldShow(viewId) {
             if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
             if (viewId === 'wordjump-view') {
-                // The bar is available on the intro / pause / game-over screens,
-                // but hides during live play so it never covers the direction pads.
-                return !(typeof WJ !== 'undefined' && WJ.state === 'playing' && !WJ.paused);
+                // Show the bar on the intro / pause / game-over screens and
+                // during windowed play. Only full screen hides it, because the
+                // stage then covers the whole page.
+                return !(typeof WJ !== 'undefined' && typeof WJ.fsOn === 'function' && WJ.fsOn());
             }
             if (viewId === 'battle-view') {
                 // Lobby, result and the teacher's class live board can use the

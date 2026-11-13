@@ -87,6 +87,9 @@ const DG = {
     menuStep: 'session',
     sessionMode: '',
     mpRole: '',
+    // Teacher-only 30-player room. Set by chooseMultiRole('class'); create
+    // then calls create_drive_and_go_class_room instead of the 5-player RPC.
+    mpClassRoom: false,
     tiltPermission: 'unknown',
 
     /* ---------------- preferences ---------------- */
@@ -1324,6 +1327,7 @@ const DG = {
         DG.menuStep = 'session';
         DG.sessionMode = '';
         DG.mpRole = '';
+        DG.mpClassRoom = false;
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
@@ -1373,6 +1377,8 @@ const DG = {
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const teacher = (typeof isTeacherAccount === 'function') && isTeacherAccount()
+            && !(typeof previewStudentForm === 'function' && previewStudentForm());
         content.innerHTML =
             '<div class="text-center mb-5"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-3xl font-bold text-green-600">Multiplayer</h2>' +
@@ -1388,14 +1394,22 @@ const DG = {
             '<span class="dg-choice-emoji">🔑</span>' +
             '<span class="dg-choice-title">Join someone\'s room</span>' +
             '<span class="dg-choice-sub">Enter the host\'s 4-character code. Challenge, questions and course are set by the host.</span></button>' +
+            (teacher
+                ? '<button type="button" class="dg-choice" onclick="DG.chooseMultiRole(\'class\')">' +
+                  '<span class="dg-choice-emoji">👩‍🏫</span>' +
+                  '<span class="dg-choice-title">Class room (up to 30)</span>' +
+                  '<span class="dg-choice-sub">Teacher only. One code for the whole class; you race too and watch the live board.</span></button>'
+                : '') +
             '</div>' +
             '<div class="text-center"><button type="button" class="dg-menu-button" onclick="DG.showSessionStep()">← Solo / Multiplayer</button></div>';
     },
 
     chooseMultiRole(role) {
         DG.sessionMode = 'multi';
-        DG.mpRole = role === 'join' ? 'join' : 'create';
-        if (DG.mpRole === 'join') DG.showCatStep();
+        const join = role === 'join';
+        DG.mpRole = join ? 'join' : 'create';
+        DG.mpClassRoom = role === 'class';
+        if (join) DG.showCatStep();
         else DG.showTopicStep();
     },
 

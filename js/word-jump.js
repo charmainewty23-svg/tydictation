@@ -166,6 +166,25 @@
             if (typeof updateBottomNav === 'function') updateBottomNav();
         };
 
+        /* Windowed play keeps the bottom bar, so make sure the whole stage
+           (including the direction pads) sits above it. The page scrolls; the
+           bar itself never eats part of the canvas. */
+        WJ.revealStage = function () {
+            if (!WJ.mounted || WJ.fsOn()) return;
+            const stage = document.getElementById('wj-stage');
+            if (!stage) return;
+            const bar = document.getElementById('bottom-nav');
+            const barH = (bar && document.body.classList.contains('has-bottom-nav'))
+                ? bar.getBoundingClientRect().height : 0;
+            const rect = stage.getBoundingClientRect();
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            if (rect.height + barH + 16 > vh) return;
+            const top = rect.top + (window.scrollY || document.documentElement.scrollTop || 0);
+            if (rect.top < 8 || rect.bottom > vh - barH - 8) {
+                window.scrollTo(0, Math.max(0, top - 8));
+            }
+        };
+
         /* ---------------- background music ---------------- */
         WJ.ensureMusic = function () {
             if (WJ.music) return;
@@ -308,6 +327,7 @@
             WJ.loadMilestones();
             WJ.draw();
             WJ.updateNav();
+            setTimeout(WJ.revealStage, 60);
         };
 
         WJ.resize = function () {
@@ -380,6 +400,7 @@
             WJ.raf = requestAnimationFrame(WJ.frame);
             WJ.startMusic(true);
             WJ.updateNav();
+            setTimeout(WJ.revealStage, 60);
         };
 
         WJ.stop = function () {
@@ -421,6 +442,9 @@
             // Full-screen layout can settle a frame or two late; a second
             // pass keeps pointer hit-testing aligned with the visible canvas.
             setTimeout(relayout, 120);
+            // The bottom bar is shown in windowed play and hidden in full
+            // screen, so every full screen transition must refresh it.
+            WJ.updateNav();
         };
 
         WJ.lockFsScroll = function (on) {

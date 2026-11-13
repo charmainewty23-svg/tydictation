@@ -126,9 +126,12 @@
             if (!owner) return null;
             try {
                 const parsed = JSON.parse(streakStore().getItem(STREAK_PREFIX + owner) || 'null');
-                return normalizeStreakState(parsed);
+                const base = normalizeStreakState(parsed);
+                const state = refreshRepairMonth(base);
+                if (state.cards !== base.cards) writeStreakState(state);
+                return state;
             } catch (e) {
-                return normalizeStreakState(null);
+                return refreshRepairMonth(null);
             }
         }
 
@@ -140,6 +143,21 @@
 
         function hkYesterdayKey() {
             return hkDayKey(new Date(Date.now() - STREAK_DAY_MS).toISOString());
+        }
+
+        // Repair cards are 3 per Hong Kong calendar month. The month is
+        // inferred from the last practice day: once that month is over, the
+        // balance resets to 3 on the next read / practice.
+        function currentStreakMonth() {
+            return hkDayKey(new Date().toISOString()).slice(0, 7);
+        }
+
+        function refreshRepairMonth(state) {
+            const s = normalizeStreakState(state);
+            const month = currentStreakMonth();
+            const lastMonth = s.last ? s.last.slice(0, 7) : '';
+            if (!lastMonth || lastMonth < month) s.cards = STREAK_DEFAULT_CARDS;
+            return s;
         }
 
         function hkDayNumber(key) {
@@ -254,8 +272,8 @@
         }
 
         function mergeStreakStates(local, cloud) {
-            const l = normalizeStreakState(local);
-            const c = normalizeStreakState(cloud);
+            const l = refreshRepairMonth(local);
+            const c = refreshRepairMonth(cloud);
             const firstSeen = earliestIso(l.firstSeen, c.firstSeen);
             // Union the recent practice days from both devices, latest 14.
             const recentDays = Array.from(new Set(l.recentDays.concat(c.recentDays))).sort().slice(-14);
@@ -389,12 +407,18 @@
                     delete legacy.recent_days;
                     sb.from(STREAK_CLOUD_TABLE).upsert(legacy, { onConflict: 'user_id' }).then(({ error: retryError }) => {
                         if (retryError) console.warn('Streak cloud save failed:', retryError.message);
-                        else bumpFriendStreaks();
+                        else {
+                            bumpFriendStreaks();
+                            recordStreakAchievements(state.best);
+                        }
                     });
                     return;
                 }
                 if (error) console.warn('Streak cloud save failed:', error.message);
-                else bumpFriendStreaks();
+                else {
+                    bumpFriendStreaks();
+                    recordStreakAchievements(state.best);
+                }
             });
         }
 
@@ -404,6 +428,17 @@
             if (!canUseCloud() || previewStudentForm() || !currentUser) return;
             try {
                 sb.rpc('bump_friend_streaks').then(() => {}, () => {});
+            } catch (e) {}
+        }
+
+        // Milestones 7 / 14 / 21 / 28 / 35 … and the personal-best record.
+        // The RPC is idempotent and also backfills older milestones.
+        function recordStreakAchievements(best) {
+            if (!canUseCloud() || previewStudentForm() || !currentUser) return;
+            try {
+                sb.rpc('record_streak_achievements', {
+                    p_best: Math.max(0, Number(best) || 0)
+                }).then(() => {}, () => {});
             } catch (e) {}
         }
 
@@ -1152,6 +1187,7 @@
                 if (recCard) recCard.classList.add('hidden');
                 paintPreviewBanner();
                 updateStreakBadge();
+                updateNotificationBadge();
                 return;
             }
             if (lbCard) lbCard.classList.remove('hidden');
@@ -1170,6 +1206,7 @@
             }
             paintPreviewBanner();
             updateStreakBadge();
+            updateNotificationBadge();
         }
 
         function showApp() {
@@ -1186,17 +1223,136 @@
             updateStreakBadge();
             // Cross-device streak: fetch once per sign-in. The local mirror is
             // already showing, so a slow / missing table never blocks the app.
-            if (canUseCloud() && !previewStudentForm()) loadCloudStreak();
+            if (canUseCloud() && !previewStudentForm()) {
+                loadCloudStreak();
+                updateNotificationBadge();
+                if (!notifTimer) notifTimer = setInterval(updateNotificationBadge, 60000);
+            }
         }
 
         function showLogin() {
             document.getElementById('app').classList.remove('logged-in');
             document.getElementById('login-view').style.display = '';
             updateBottomNav();
+            if (notifTimer) { clearInterval(notifTimer); notifTimer = 0; }
+            const bell = document.getElementById('notif-btn');
+            if (bell) bell.classList.add('hidden');
+            const popup = document.getElementById('notif-popup');
+            if (popup) popup.classList.add('hidden');
         }
 
-        // --- Login tracking (admin dashboard) ---
-        // Writes one row per student via the record_login() SQL function.
+        // --- Notifications (new follower / achievement like) ---
+        // Reads go through security-definer RPCs in supabase/friends.sql.
+        // Until that file is run the bell simply stays hidden.
+        let notifTimer = 0;
+        let notifLoading = false;
+        let notifPopup = null;
+        let notifKeydownBound = false;
+
+        function notificationsAvailable() {
+            return canUseCloud() && !previewStudentForm() && !isGuestUser();
+        }
+
+        async function updateNotificationBadge() {
+            const btn = document.getElementById('notif-btn');
+            if (!btn) return;
+            if (!notificationsAvailable()) {
+                btn.classList.add('hidden');
+                return;
+            }
+            if (notifLoading) return;
+            notifLoading = true;
+            try {
+                const { data, error } = await sb.rpc('unread_notification_count');
+                if (error) {
+                    btn.classList.add('hidden');
+                    return;
+                }
+                btn.classList.remove('hidden');
+                const n = Math.max(0, Number(data) || 0);
+                const badge = document.getElementById('notif-count');
+                if (badge) {
+                    badge.innerText = n > 99 ? '99+' : String(n);
+                    badge.classList.toggle('hidden', n <= 0);
+                }
+                btn.setAttribute('aria-label', n ? n + ' unread notification' + (n === 1 ? '' : 's') : 'Notifications');
+            } catch (e) {
+                btn.classList.add('hidden');
+            } finally {
+                notifLoading = false;
+            }
+        }
+
+        function ensureNotifPopup() {
+            if (notifPopup) return notifPopup;
+            notifPopup = document.createElement('div');
+            notifPopup.id = 'notif-popup';
+            notifPopup.className = 'notif-popup hidden';
+            notifPopup.innerHTML =
+                '<div class="notif-backdrop" onclick="closeNotifications()"></div>' +
+                '<div class="notif-card" role="dialog" aria-modal="true" aria-labelledby="notif-title">' +
+                '<div class="flex items-center justify-between gap-3 mb-2">' +
+                '<h3 id="notif-title" class="text-xl font-bold text-orange-700">🔔 Notifications</h3>' +
+                '<button type="button" onclick="closeNotifications()" class="px-3 py-2 rounded-xl bg-orange-50 text-orange-700 font-bold" aria-label="Close notifications">✕</button>' +
+                '</div><div id="notif-list"></div></div>';
+            document.body.appendChild(notifPopup);
+            if (!notifKeydownBound) {
+                notifKeydownBound = true;
+                document.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') closeNotifications();
+                });
+            }
+            return notifPopup;
+        }
+
+        function notifRowHTML(n) {
+            const actor = escapeHtml(n.actor_name || 'Someone');
+            let what;
+            if (n.kind === 'like') {
+                what = 'liked your ' + (n.achievement_kind === 'record'
+                    ? 'personal best (' + (Number(n.achievement_value) || 0) + ' days)'
+                    : (Number(n.achievement_value) || 0) + '-day streak');
+            } else {
+                what = 'started following you';
+            }
+            return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
+                '<span class="notif-icon" aria-hidden="true">' + (n.kind === 'like' ? '❤️' : '🐱') + '</span>' +
+                '<div class="min-w-0"><p class="font-bold text-gray-700 text-sm"><b>' + actor + '</b> ' + what + '</p>' +
+                '<p class="text-xs text-gray-400">' + timeAgo(n.created_at) + '</p></div></div>';
+        }
+
+        async function toggleNotifications() {
+            if (!notificationsAvailable()) return;
+            const popup = ensureNotifPopup();
+            if (!popup.classList.contains('hidden')) {
+                closeNotifications();
+                return;
+            }
+            popup.classList.remove('hidden');
+            const list = document.getElementById('notif-list');
+            if (list) list.innerHTML = '<p class="text-sm font-bold text-gray-400 py-3">Loading…</p>';
+            try {
+                const { data, error } = await sb.rpc('friend_notification_feed');
+                if (error) throw error;
+                const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                if (list) {
+                    list.innerHTML = rows.length
+                        ? rows.map(notifRowHTML).join('')
+                        : '<p class="text-sm font-bold text-gray-400 py-4">No notifications yet. New followers and likes will appear here.</p>';
+                }
+                sb.rpc('mark_notifications_read').then(() => updateNotificationBadge(), () => {});
+                const badge = document.getElementById('notif-count');
+                if (badge) badge.classList.add('hidden');
+            } catch (e) {
+                if (list) list.innerHTML = '<p class="text-sm font-bold text-gray-400 py-4">Notifications need supabase/friends.sql in the Supabase SQL editor.</p>';
+            }
+        }
+
+        function closeNotifications() {
+            if (notifPopup) notifPopup.classList.add('hidden');
+        }
+
+
         // A new login only counts if the previous one was >12h ago, so page
         // refreshes / token refreshes do not inflate login_count.
         let loginRecorded = false;

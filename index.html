@@ -384,6 +384,19 @@
             .brand-header p { display: none; }
             #auth-area { gap: 0.5rem; }
             #auth-btn { padding-left: 0.75rem; padding-right: 0.75rem; }
+            /* The notification bell adds one more 44px target. If the row
+               still cannot fit, let the auth controls wrap below the
+               wordmark instead of overflowing the page. */
+            .brand-header { flex-wrap: wrap; row-gap: 8px; }
+            #auth-area { margin-left: auto; }
+            #notif-btn { width: 40px; height: 40px; font-size: 18px; }
+        }
+        @media (max-width: 385px) {
+            /* Bell + flame + Logout no longer fit beside the wordmark on
+               narrow phones: wrap the auth controls below it. */
+            .brand-header { flex-wrap: wrap; row-gap: 8px; }
+            #auth-area { margin-left: auto; }
+            #notif-btn { width: 40px; height: 40px; font-size: 18px; }
         }
 
         .streak-popup {
@@ -614,6 +627,131 @@
             justify-content: center;
             font-size: 18px;
             line-height: 1;
+        }
+        /* ---- Notifications bell + popup ---- */
+        #notif-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            border: 2px solid #ffe8d6;
+            background: #fff;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #notif-btn.hidden { display: none; }
+        #notif-btn:hover { background: #fff7ef; border-color: #fdba74; }
+        #notif-count {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: #dc2626;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        #notif-count.hidden { display: none; }
+        .notif-popup {
+            position: fixed;
+            inset: 0;
+            z-index: 10070;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .notif-popup.hidden { display: none; }
+        .notif-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(60, 40, 20, 0.35);
+            -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+        }
+        .notif-card {
+            position: relative;
+            width: min(440px, 100%);
+            max-height: min(72dvh, 580px);
+            overflow: auto;
+            background: #fff;
+            border: 2px solid #ffe8d6;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 24px 60px rgba(107, 90, 81, 0.25);
+        }
+        .notif-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 6px;
+            border-bottom: 1px solid #fff1e0;
+        }
+        .notif-row:last-child { border-bottom: 0; }
+        .notif-row.unread { background: #fffaf3; border-radius: 10px; }
+        .notif-icon {
+            flex: 0 0 auto;
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background: #fff1e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        /* ---- Streak achievements ---- */
+        .ach-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border: 2px solid #ffe8d6;
+            border-radius: 12px;
+            background: #fff;
+        }
+        .ach-title {
+            flex: 1 1 150px;
+            min-width: 0;
+            font-weight: 800;
+            color: #9a3412;
+            font-size: 0.9rem;
+        }
+        .ach-date {
+            font-size: 11px;
+            font-weight: 700;
+            color: #9ca3af;
+        }
+        .ach-like {
+            border: 2px solid #fecaca;
+            background: #fff;
+            color: #b91c1c;
+            border-radius: 999px;
+            padding: 4px 10px;
+            min-height: 32px;
+            font-weight: 800;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .ach-like.liked { background: #fee2e2; }
+        .ach-likes {
+            font-size: 12px;
+            font-weight: 800;
+            color: #b45309;
         }
         .profile-dots {
             display: flex;
@@ -1754,6 +1892,10 @@
                 <p class="text-[12px] text-orange-300 font-bold tracking-[0.25em] uppercase">The Vocab Pet</p>
             </div>
             <div id="auth-area" class="flex items-center gap-3" onclick="event.stopPropagation()">
+                <button id="notif-btn" type="button" onclick="toggleNotifications()" title="Notifications" aria-label="Notifications" class="hidden">
+                    <span aria-hidden="true">🔔</span>
+                    <span id="notif-count" class="hidden">0</span>
+                </button>
                 <button id="streak-badge" type="button" onclick="showStreakInfo()" title="Daily practice streak" aria-label="Daily practice streak">
                     <span class="streak-flame" aria-hidden="true">🔥</span>
                     <span id="streak-count">0</span>
@@ -2551,6 +2693,11 @@
                 </div>
 
                 <p id="profile-note" class="text-xs text-gray-400 leading-relaxed mb-6"></p>
+
+                <div id="profile-achievements-card" class="mb-6 border-t-2 border-orange-100 pt-5">
+                    <h3 class="text-xl font-bold text-orange-700 mb-2">🏅 Streak achievements</h3>
+                    <div id="profile-achievements"></div>
+                </div>
 
                 <div id="profile-friends-card" class="mb-6 border-t-2 border-orange-100 pt-5">
                     <div class="flex items-center justify-between gap-3 mb-2">

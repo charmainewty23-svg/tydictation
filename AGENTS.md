@@ -1214,8 +1214,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v4`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v5`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v5`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v6`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1342,7 +1342,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - 從未做過 → `count = 1`，`cards` 預設 **3**。
   - 同一天再 call → `{ extended:false }`，唔彈卡、唔改數。
   - `best` 永遠係歷史最高，斷連勝都保留；badge 只顯示當前火數。
-  - 補救卡**每人總共 3 張，不會自動補充**。用晒之後再斷一日就會清零。
+  - 補救卡**每月 3 張**（香港月）。餘額喺新一個月第一次讀 streak 時自動
+    重置做 3；同一個月用晒就唔會再補，直到下個月。月份由
+    `state.last`（最後練習日）推斷，唔使新 SQL 欄位。
+    `refreshRepairMonth()` 喺 `readStreakState()`、`mergeStreakStates()`
+    都會套用，所以跨裝置／舊 cloud row 都會同步返 3 張。
   - 未做今日但仲可以用卡補救時，badge 仍然顯示舊火數（`pendingRepair`）；
     冇卡再斷就顯示 0。`showStreakInfo()` 會講「finish today to spend N cards」。
 - **邊啲完成會計**（全部經同一個 hook，**出咗結果畫面之後**才彈卡）：
@@ -1558,6 +1562,31 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - Guest／老師 preview：Friends 卡同朋友 profile 全部隱藏；唔會寫
     follow／friend streak。未登入／未跑 SQL 都唔會壞，Me 頁顯示提示
     「Run supabase/friends.sql…」。
+- **朋友列表今日練習狀態**：`friend_overview()` 回傳 `practiced_today`
+  同 `last_practice_date`；Mutual friend 每行顯示 `✅ today` 或
+  `⏳ not yet today`，counts 另外寫 `⏳ N not practised today`。
+- **通知（2026-11）**：`friend_notifications`（`follow`／`like`）＋
+  `friend_notification_feed()`／`unread_notification_count()`／
+  `mark_notifications_read()`。
+  - Header `#notif-btn` 🔔 有 unread badge；`showApp()` 每 60 秒更新，
+    `updateAuthUI()` 亦會更新。Guest／preview／未跑 SQL 會自動收埋。
+  - 開 popup 會列出最近 30 條，跟住 mark read。Follow 會通知被 follow 嘅人；
+    讚好 achievement 會通知擁有者。Unfollow／取消讚好會刪走對應未讀通知。
+- **Streak achievements（2026-11）**：里程碑 **7／14／21／28／35…** 同
+  **personal best record**。
+  - 表：`streak_achievements`（`milestone` value=N，`record` 每人一行）、
+    `streak_likes`（achievement + user）。
+  - `record_streak_achievements(p_best)` 由 client 喺練習 save 後 call，
+    idempotent，會補回所有 ≤ best 嘅 7 倍里程碑，record 只會越升越高。
+    SQL 亦有一次 backfill，舊 `streak_best` 會即刻有 achievement。
+  - `achievement_feed(p_user_id)` 回傳 milestones／record、like count、
+    `liked`。自己 profile 只顯示 ❤️ 數；朋友 profile 有
+    `toggleAchievementLike()` 掣（`like_achievement` RPC）。
+  - 每 7 日一個 milestone；`record` 係個人最佳，唔會因為 streak reset
+    而下降。Achievements 卡喺 profile 嘅 Friends 卡上面。
+- **SQL 更新**：`friends.sql` 已包含 notifications／achievements；
+  老師要**重新貼一次**（可重跑）。未跑之前 Friends／通知／achievements
+  會顯示提示，其他功能照用。
 - **SQL 順序**：`friends.sql` 喺 `login_tracking.sql` → `student_forms.sql`
   → `user_streaks.sql` → `wj_scores.sql` → `dictation_accuracy.sql` 之後跑
   （因為 RPC 會讀 `student_logins`、`user_streaks`、`dictation_results`、

@@ -240,11 +240,14 @@ function profileFriendStreakText(row) {
 
 function profileFriendRowHTML(row) {
     const form = row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned';
+    const practice = row.mutual && row.practiced_today != null
+        ? (row.practiced_today ? ' · ✅ today' : ' · ⏳ not yet today')
+        : '';
     return '<button type="button" class="friend-row" onclick="openFriendProfile(\'' + escapeHtml(row.user_id) + '\')">' +
         '<span class="friend-avatar" aria-hidden="true">🐱</span>' +
         '<span class="min-w-0 flex-1 text-left">' +
         '<span class="block font-bold text-gray-700 truncate">' + escapeHtml(row.nickname || 'Student') + '</span>' +
-        '<span class="block text-xs text-gray-400 truncate">' + escapeHtml(form) + profileFriendStreakText(row) + '</span>' +
+        '<span class="block text-xs text-gray-400 truncate">' + escapeHtml(form) + practice + profileFriendStreakText(row) + '</span>' +
         '</span>' +
         '<span class="text-xs font-bold text-orange-600">View →</span>' +
         '</button>';
@@ -266,6 +269,10 @@ function profileRenderFriendChrome(friend) {
     if (follow) follow.classList.toggle('hidden', !friend);
     if (banner) banner.classList.toggle('hidden', !friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
+    // The achievement list belongs to the profile currently open. Hide the
+    // old friend list while the own profile reloads it.
+    const achCard = document.getElementById('profile-achievements-card');
+    if (achCard && !friend) achCard.classList.add('hidden');
 }
 
 function profileShowOwn() {
@@ -365,6 +372,7 @@ async function loadFriendProfile(userId) {
     profileRenderWj(row.wj_best ? { score: Number(row.wj_best) } : null);
     profileRenderFriendBanner(row);
     profileRenderFollowButton(row);
+    loadAchievements(row.user_id, false);
     if (noteEl) {
         noteEl.innerText = 'You are viewing ' + (row.nickname || 'this student') +
             '\u2019s shared practice stats.' +
@@ -404,8 +412,10 @@ async function profileLoadFriends() {
     const following = rows.filter(r => r.following && !r.mutual);
     const followers = rows.filter(r => r.follows_me && !r.following);
     if (countsEl) {
+        const waiting = friends.filter(r => r.practiced_today === false).length;
         countsEl.innerText = friends.length + ' friend' + (friends.length === 1 ? '' : 's') +
-            ' · ' + following.length + ' following · ' + followers.length + ' follower' + (followers.length === 1 ? '' : 's');
+            ' · ' + following.length + ' following · ' + followers.length + ' follower' + (followers.length === 1 ? '' : 's') +
+            (waiting ? ' · ⏳ ' + waiting + ' not practised today' : '');
     }
     const section = (title, list, empty) => {
         if (!list.length) return empty ? '<p class="text-xs font-bold text-gray-400 mt-2">' + empty + '</p>' : '';
@@ -478,6 +488,87 @@ async function profileToggleFollow() {
     await loadFriendProfile(row.user_id);
 }
 
+/* ---------------- streak achievements + likes ---------------- */
+
+let profileAchievementRows = [];
+let profileAchievementOwner = '';
+let profileAchievementOwn = true;
+
+function profileAchievementLabel(row) {
+    if (!row) return '';
+    return row.kind === 'record'
+        ? '🏆 Personal best · ' + (Number(row.value) || 0) + ' days'
+        : '🏅 ' + (Number(row.value) || 0) + '-day streak';
+}
+
+function profileRenderAchievements() {
+    const box = document.getElementById('profile-achievements');
+    const card = document.getElementById('profile-achievements-card');
+    if (!box || !card) return;
+    if (!profileFriendsAvailable()) {
+        card.classList.add('hidden');
+        return;
+    }
+    card.classList.remove('hidden');
+    if (!profileAchievementRows.length) {
+        box.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">No achievements yet — reach a 7-day streak to start.</p>';
+        return;
+    }
+    box.innerHTML = profileAchievementRows.map(row => {
+        const own = profileAchievementOwn;
+        const date = row.achieved_on ? hkDateOnly(row.achieved_on) : '';
+        const like = own
+            ? '<span class="ach-likes">❤️ ' + (Number(row.likes) || 0) + '</span>'
+            : '<button type="button" class="ach-like' + (row.liked ? ' liked' : '') + '" onclick="toggleAchievementLike(\'' + escapeHtml(row.id) + '\')" aria-pressed="' + (row.liked ? 'true' : 'false') + '">' +
+              (row.liked ? '❤️' : '🤍') + ' ' + (Number(row.likes) || 0) + '</button>';
+        return '<div class="ach-row"><span class="ach-title">' + escapeHtml(profileAchievementLabel(row)) + '</span>' +
+            (date ? '<span class="ach-date">' + escapeHtml(date) + '</span>' : '') + like + '</div>';
+    }).join('');
+}
+
+async function loadAchievements(userId, own) {
+    const card = document.getElementById('profile-achievements-card');
+    if (!card) return;
+    profileAchievementOwner = userId || '';
+    profileAchievementOwn = !!own;
+    if (!profileFriendsAvailable() || !userId) {
+        card.classList.add('hidden');
+        return;
+    }
+    card.classList.remove('hidden');
+    const box = document.getElementById('profile-achievements');
+    if (box) box.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Loading achievements…</p>';
+    try {
+        const { data, error } = await sb.rpc('achievement_feed', { p_user_id: userId });
+        if (error) throw error;
+        profileAchievementRows = Array.isArray(data) ? data : (data ? [data] : []);
+    } catch (e) {
+        profileAchievementRows = [];
+        if (box) box.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Run supabase/friends.sql to enable streak achievements.</p>';
+        return;
+    }
+    profileRenderAchievements();
+}
+
+async function toggleAchievementLike(id) {
+    if (!id || profileAchievementOwn || !profileFriendsAvailable()) return;
+    const row = profileAchievementRows.find(r => r.id === id);
+    if (!row) return;
+    try {
+        const { data, error } = await sb.rpc('like_achievement', {
+            p_achievement_id: id,
+            p_like: !row.liked
+        });
+        if (error) throw error;
+        row.liked = !row.liked;
+        row.likes = Math.max(0, Number(data) || 0);
+        profileRenderAchievements();
+    } catch (e) {
+        const box = document.getElementById('profile-achievements');
+        if (box) box.innerHTML = '<p class="text-sm font-bold text-gray-400 py-2">Could not update that like. Please try again.</p>';
+    }
+}
+
 async function loadProfile() {
     if (!document.getElementById('profile-name')) return;
     if (profileFriendId) {
@@ -522,4 +613,8 @@ async function loadProfile() {
     profileRenderWj(wj);
     if (noteEl) noteEl.innerText = note;
     profileLoadFriends();
+    if (currentUser) {
+        recordStreakAchievements(streakSnapshot().best);
+        loadAchievements(currentUser.id, true);
+    }
 }

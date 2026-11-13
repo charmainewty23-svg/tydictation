@@ -258,7 +258,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 ### 9.3 班際模式 — `supabase/battle_class.sql`（要喺 9.2 之後跑）
 - 加欄：`battle_rooms.mode`（`duel`／`class`）、`max_players`、`finished_at`。
 - 新 RPC：`create_class_battle(topic, seed, max_players)`（**只限 ADMIN_EMAIL**）、
-  `end_class_battle(room_id)`（老師提早收卷）。
+  `end_class_battle(room_id)`（老師提早收卷）。前端 `battleCreateClassRoom()`
+  而家傳 `p_max_players: 30`，所以新開老師班際房最多 **30 人**；舊房
+  `max_players = 60` 照顯示 60，唔會強制改細。
 - 老師唔係玩家：開房時**唔會**插 `battle_players`，所以老師只做主持／睇直播分數。
 - 學生用同一個代碼 join，全部人同一 seed → 同一批 10 題；老師按 Start 才開始。
 - `is_battle_member()` 已更新：class 學生靠 `battle_players` 嗰行做 membership，
@@ -661,8 +663,11 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   lane（左右）先可以過人；solo CPU 唔受影響。
 - **3D 觀感（2026-11）**：karts／scenery／gates 改用 `MeshLambertMaterial`，
   scene 加 `HemisphereLight` + `DirectionalLight`，renderer 用
-  `sRGBEncoding`；road texture 加 theme kerb stripes；kart 加尾、死氣喉、
-  地面陰影 blob。目的係減少「太假／flat」嘅感覺。
+  `sRGBEncoding`；road texture 加 theme kerb stripes，另外有兩條 **3D kerb
+  ribbons**（vertex colors）沿彎路升起；kart 加尾、死氣喉、地面陰影 blob；
+  `addThreeBackdrop()` 加主題遠景（desert mesas／stadium skyline／jungle
+  hills）＋雲＋太陽 sprite；palms 加多向 fronds，grandstand 分層、building
+  有窗、dino 有腳／尾、car 有車輪。目的係減少「太假／flat」嘅感覺。
 - **Fallback**：如果 `THREE` 未載入、WebGL 失敗、或者 `DG.THREE_ENABLED=false`，
   `DG.three` 保持 null，原有 2D renderer 照用。`DG.disposeThree()` 喺
   `stopRace()` 清 canvas／renderer；restart／exit 都安全。
@@ -1064,6 +1069,22 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   無舊局 backfill：以前 rematch 已覆寫嘅紀錄無法重建；新功能由安裝後完成嘅比賽開始計。
   若已經跑過呢份檔，之後只想加對手鳥同步用嘅 `vx`／`vy`，跑短嘅 `supabase/wj_challenge_sync.sql` 就夠，唔使再貼成份。
   若已經跑過呢份檔，而家要最多 4 人同贏家完局畫面，跑短嘅 `supabase/wj_challenge_end_cap.sql` 就夠。
+
+### 10.14 Word Jump 背景音樂（2026-11 加）
+
+- 檔案：`music/jump_music.mp3`（4.9MB，**唔入** `sw.js` CORE_ASSETS；第一次播由
+  network-first SW 自己 cache）。
+- `WJ.ensureMusic()` 建 `new Audio('/music/jump_music.mp3')`，loop、volume 0.3。
+- `WJ.mount()` 一入 Word Jump view 就 `WJ.startMusic(false)`；`WJ.start()`／
+  `WJ.restart()` 再 `WJ.startMusic(true)`（由頭播）。`WJ.stop()`（離開 view）、
+  `WJ.gameOver()`、`WJ.toggleSound()` 熄聲時停；`WJ.togglePause()` 暫停／繼續。
+- 音樂跟現有 `WJ.soundOn` 同一個 🔊 掣（即係 SFX 同音樂一齊開關），冇另加
+  音樂掣；全屏時工具列收埋，要離開全屏才改。
+- Autoplay：`WJ.mount()` 由 `changeView` 的 click 觸發，通常可播；如果 browser
+  阻擋，`WJ.start()` 的 Start／Play again 手勢會再試。
+- 未跑 SQL、未改 PWA 清單；2D canvas 遊戲本身不受影響。
+
+---
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

@@ -506,7 +506,7 @@
             }
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const { data, error } = await sb.rpc('create_class_battle', {
-                p_topic: topic, p_seed: seed, p_max_players: 60,
+                p_topic: topic, p_seed: seed, p_max_players: 30,
                 p_question_count: battleQuestionCount()
             });
             if (error) return battleSetError(battleErrorMessage(error));
@@ -1073,7 +1073,7 @@
             const total = battleRoom.question_count || 10;
             const everyone = battlePlayers.slice()
                 .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
-            const max = battleRoom.max_players || 60;
+            const max = battleRoom.max_players || 30;
             const questions = battleBuildQuestions(battleRoom).words;
             const hasLive = battlePlayers.some(p => typeof p.progress === 'number');
 

@@ -2553,6 +2553,8 @@
             crown.scale.set(1.2, 0.55, 1.2);
             add(new THREE.ConeGeometry(1.0, 2.0, 6), green, -1.8, 5.2, 0).rotation.z = 0.8;
             add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 1.8, 5.2, 0).rotation.z = -0.8;
+            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, -1.8).rotation.x = 0.8;
+            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, 1.8).rotation.x = -0.8;
         } else if (kind === 'sign') {
             add(new THREE.CylinderGeometry(0.16, 0.16, 3.2, 6), 0x6b7280, 0, 1.6, 0);
             add(new THREE.BoxGeometry(2.4, 1.1, 0.25), 0xf59e0b, 0, 3.1, 0);
@@ -2561,8 +2563,10 @@
             if (kind === 'floodlight') add(new THREE.BoxGeometry(1.5, 0.7, 0.4), 0xfef08a, 0, 5.2, 0);
             else add(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
         } else if (kind === 'grandstand') {
-            add(new THREE.BoxGeometry(6, 2.2, 3), 0xcbd5e1, 0, 1.1, 0);
-            add(new THREE.BoxGeometry(6, 0.35, 3), 0xef4444, 0, 2.3, 0);
+            add(new THREE.BoxGeometry(6, 1.0, 3), 0xcbd5e1, 0, 0.5, 0);
+            add(new THREE.BoxGeometry(5.2, 0.8, 2.6), 0x94a3b8, 0, 1.3, 0);
+            add(new THREE.BoxGeometry(4.4, 0.7, 2.2), 0x64748b, 0, 2.0, 0);
+            add(new THREE.BoxGeometry(6, 0.35, 3), 0xef4444, 0, 2.55, 0);
         } else if (kind === 'flag') {
             add(new THREE.CylinderGeometry(0.14, 0.14, 4.5, 6), 0x6b7280, 0, 2.25, 0);
             const flag = add(new THREE.PlaneGeometry(1.7, 1.1), 0xef4444, 0.95, 4.0, 0);
@@ -2570,17 +2574,29 @@
         } else if (kind === 'stall') {
             add(new THREE.BoxGeometry(3.4, 1.7, 2.4), 0xfef3c7, 0, 0.85, 0);
             add(new THREE.BoxGeometry(3.8, 0.35, 2.8), 0xef4444, 0, 1.85, 0);
+            add(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 5), 0x8b5a2b, -1.5, 0.9, 1.1);
+            add(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 5), 0x8b5a2b, 1.5, 0.9, 1.1);
         } else if (kind === 'dino') {
             const body = add(new THREE.SphereGeometry(1.8, 8, 6), green, 0, 1.8, 0);
             body.scale.set(1.3, 1, 1.6);
             add(new THREE.CylinderGeometry(0.5, 0.7, 2.6, 6), green, 1.7, 3.4, -0.6).rotation.z = -0.25;
             add(new THREE.SphereGeometry(0.9, 8, 6), green, 2.2, 4.7, -0.8);
+            add(new THREE.CylinderGeometry(0.25, 0.3, 1.3, 5), green, -0.7, 0.65, 0.4);
+            add(new THREE.CylinderGeometry(0.25, 0.3, 1.3, 5), green, 0.7, 0.65, 0.4);
+            const tail = add(new THREE.CylinderGeometry(0.12, 0.4, 2.6, 5), green, -1.7, 1.6, 0.8);
+            tail.rotation.z = 1.0;
         } else if (kind === 'building') {
             add(new THREE.BoxGeometry(3.4, 8.5, 3.4), 0xd6c7b0, 0, 4.25, 0);
             add(new THREE.BoxGeometry(2.8, 0.4, 3.0), 0x94a3b8, 0, 8.5, 0);
+            for (let wy = 0; wy < 3; wy++) {
+                add(new THREE.BoxGeometry(0.9, 0.7, 0.1), 0x334155, -0.8, 2.2 + wy * 2.0, 1.76);
+                add(new THREE.BoxGeometry(0.9, 0.7, 0.1), 0x334155, 0.8, 2.2 + wy * 2.0, 1.76);
+            }
         } else if (kind === 'car') {
             add(new THREE.BoxGeometry(2.2, 1.0, 4), 0x94a3b8, 0, 0.8, 0);
             add(new THREE.BoxGeometry(1.6, 0.7, 1.8), 0xe2e8f0, 0, 1.6, -0.2);
+            add(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 8), 0x1f2937, -1.1, 0.35, -1.2).rotation.z = Math.PI / 2;
+            add(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 8), 0x1f2937, 1.1, 0.35, -1.2).rotation.z = Math.PI / 2;
         } else {
             add(new THREE.BoxGeometry(1.6, 1.6, 1.6), grey, 0, 0.8, 0);
         }
@@ -2754,6 +2770,55 @@
         DG.three = null;
     };
 
+    DG.addThreeBackdrop = function (scene, style) {
+        const group = new THREE.Group();
+        const sceneId = DG.normalizeScene(S.scene);
+        const add = (geo, color, x, y, z, sx, sy, sz) => {
+            const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: color }));
+            mesh.position.set(x, y, z);
+            if (sx != null) mesh.scale.set(sx, sy == null ? sx : sy, sz == null ? sx : sz);
+            group.add(mesh);
+            return mesh;
+        };
+        if (sceneId === 'stadium') {
+            for (let i = 0; i < 7; i++) {
+                const h = 35 + (i % 3) * 22;
+                add(new THREE.BoxGeometry(24 + i * 3, h, 18), i % 2 ? 0x94a3b8 : 0x64748b, -150 + i * 50, h / 2, -1750);
+            }
+        } else if (sceneId === 'jungle') {
+            for (let i = 0; i < 6; i++) {
+                add(new THREE.ConeGeometry(90 + i * 12, 90 + (i % 3) * 40, 7), i % 2 ? 0x2f5d2c : 0x3c7d4b, -220 + i * 90, 20, -1760);
+            }
+        } else {
+            for (let i = 0; i < 5; i++) {
+                add(new THREE.CylinderGeometry(55 + i * 8, 85 + i * 9, 90 + (i % 3) * 35, 6), i % 2 ? 0xb0895a : 0x9c7648, -210 + i * 105, 20, -1760);
+            }
+        }
+        for (let i = 0; i < 5; i++) {
+            const cloud = add(new THREE.SphereGeometry(18, 8, 6), 0xffffff, -180 + i * 90, 70 + (i % 2) * 18, -1050 - (i % 3) * 180, 2.8, 0.8, 1.2);
+            cloud.material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82 });
+        }
+        if (sceneId !== 'jungle') {
+            const c = document.createElement('canvas');
+            c.width = 128;
+            c.height = 128;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
+            g.addColorStop(0, 'rgba(255,248,180,1)');
+            g.addColorStop(0.35, 'rgba(255,236,120,.85)');
+            g.addColorStop(1, 'rgba(255,236,120,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, 128, 128);
+            const tex = new THREE.CanvasTexture(c);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            sprite.position.set(-230, 170, -1700);
+            sprite.scale.set(150, 150, 1);
+            group.add(sprite);
+        }
+        scene.add(group);
+        return group;
+    };
+
     DG.initThree = function () {
         if (!DG.THREE_ENABLED || typeof THREE === 'undefined' || !DG.raceEls || !DG.view) return false;
         try {
@@ -2801,6 +2866,36 @@
             const road = new THREE.Mesh(roadGeo, new THREE.MeshBasicMaterial({ map: roadTex, side: THREE.DoubleSide }));
             scene.add(road);
 
+            const kerbColors = [new THREE.Color(style.kerbA), new THREE.Color(style.kerbB)];
+            const makeKerb = (side) => {
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array((THREE_SEGMENTS + 1) * 2 * 3);
+                const col = new Float32Array((THREE_SEGMENTS + 1) * 2 * 3);
+                const idx = [];
+                for (let i = 0; i <= THREE_SEGMENTS; i++) {
+                    const c = kerbColors[Math.floor(i / 3) % 2];
+                    for (let v = 0; v < 2; v++) {
+                        const at = (i * 2 + v) * 3;
+                        col[at] = c.r;
+                        col[at + 1] = c.g;
+                        col[at + 2] = c.b;
+                    }
+                    if (i < THREE_SEGMENTS) {
+                        const a = i * 2;
+                        idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+                    }
+                }
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+                geo.setIndex(idx);
+                const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+                mesh.userData.side = side;
+                scene.add(mesh);
+                return mesh;
+            };
+            const kerbL = makeKerb(-1);
+            const kerbR = makeKerb(1);
+
             const ground = new THREE.Mesh(
                 new THREE.PlaneGeometry(1800, THREE_ROAD_LEN + 800),
                 new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
@@ -2808,6 +2903,8 @@
             ground.rotation.x = -Math.PI / 2;
             ground.position.set(0, THREE_GROUND_Y, -THREE_ROAD_LEN / 2);
             scene.add(ground);
+
+            DG.addThreeBackdrop(scene, style);
 
             const kartGroup = new THREE.Group();
             const gateGroup = new THREE.Group();
@@ -2819,6 +2916,7 @@
 
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
+                kerbL, kerbR,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
                 projectiles: [], bursts: [],
                 kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup
@@ -2837,14 +2935,26 @@
         const t = DG.three;
         if (!t || !S.player) return;
         const pos = t.road.geometry.attributes.position;
+        const leftPos = t.kerbL ? t.kerbL.geometry.attributes.position : null;
+        const rightPos = t.kerbR ? t.kerbR.geometry.attributes.position : null;
         for (let i = 0; i <= THREE_SEGMENTS; i++) {
             const rel = (i / THREE_SEGMENTS) * THREE_ROAD_LEN;
             const x = DG.threeRoadX(rel);
             const y = DG.threeRoadY(rel);
             pos.setXYZ(i * 2, x - THREE_ROAD_W / 2, y, -rel);
             pos.setXYZ(i * 2 + 1, x + THREE_ROAD_W / 2, y, -rel);
+            if (leftPos) {
+                leftPos.setXYZ(i * 2, x - THREE_ROAD_W / 2 - 0.35, y + 0.06, -rel);
+                leftPos.setXYZ(i * 2 + 1, x - THREE_ROAD_W / 2 - 1.55, y + 0.06, -rel);
+            }
+            if (rightPos) {
+                rightPos.setXYZ(i * 2, x + THREE_ROAD_W / 2 + 0.35, y + 0.06, -rel);
+                rightPos.setXYZ(i * 2 + 1, x + THREE_ROAD_W / 2 + 1.55, y + 0.06, -rel);
+            }
         }
         pos.needsUpdate = true;
+        if (leftPos) leftPos.needsUpdate = true;
+        if (rightPos) rightPos.needsUpdate = true;
         t.roadTex.offset.y = (S.player.dist / 40) % 1;
     };
 

@@ -150,7 +150,7 @@
             camY: 0, topY: 0, maxClimb: 0, bonus: 0,
             wordsDone: 0, streak: 0, bestStreak: 0, nextQuizY: -560, afterQuiz: false,
             boostPending: false, anchors: [], durable: [],
-            topic: '', soundOn: true, audio: null,
+            topic: '', soundOn: true, audio: null, music: null,
             lastShot: 0, bound: false, autoFs: false,
             milestones: [], passFlash: 0, passLabels: [],
             CHEERS: ['wow!', 'superb!', 'bravo!'], cheerIndex: 0
@@ -161,6 +161,42 @@
         WJ.pick = arr => arr[Math.floor(WJ.nextRand() * arr.length)];
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
+
+        /* ---------------- background music ---------------- */
+        WJ.ensureMusic = function () {
+            if (WJ.music) return;
+            WJ.music = new Audio('/music/jump_music.mp3');
+            WJ.music.loop = true;
+            WJ.music.volume = 0.3;
+            WJ.music.preload = 'none';
+        };
+
+        WJ.startMusic = function (reset) {
+            if (!WJ.soundOn) return;
+            WJ.ensureMusic();
+            if (reset) {
+                try { WJ.music.currentTime = 0; } catch (e) {}
+            }
+            try { WJ.music.play().catch(() => {}); } catch (e) {}
+        };
+
+        WJ.stopMusic = function () {
+            if (!WJ.music) return;
+            try {
+                WJ.music.pause();
+                WJ.music.currentTime = 0;
+            } catch (e) {}
+        };
+
+        WJ.pauseMusic = function () {
+            if (!WJ.music) return;
+            try { WJ.music.pause(); } catch (e) {}
+        };
+
+        WJ.resumeMusic = function () {
+            if (!WJ.soundOn || !WJ.music) return;
+            try { WJ.music.play().catch(() => {}); } catch (e) {}
+        };
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
         // Challenge rooms share a course: difficulty / heat at a platform
         // must follow that platform's height, not the local player's score
@@ -267,6 +303,7 @@
             WJ.showEntry();
             WJ.loadMilestones();
             WJ.draw();
+            WJ.startMusic(false);
         };
 
         WJ.resize = function () {
@@ -337,6 +374,7 @@
             WJ.lastTs = 0; WJ.acc = 0;
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
+            WJ.startMusic(true);
         };
 
         WJ.stop = function () {
@@ -348,6 +386,7 @@
             WJ.state = 'intro';
             WJ.hideOverlay();
             WJ.exitFullscreenSoft();
+            WJ.stopMusic();
         };
 
         /* ---------------- full screen ---------------- */
@@ -484,6 +523,7 @@
             if (WJ.state !== 'playing') return;
             WJ.paused = !WJ.paused;
             if (WJ.paused) {
+                WJ.pauseMusic();
                 WJ.setOverlay(`
                     <div class="w-full">
                         <div class="text-4xl mb-2">⏸</div>
@@ -494,6 +534,7 @@
                     </div>`, true);
             } else {
                 WJ.hideOverlay();
+                WJ.resumeMusic();
             }
         };
 
@@ -501,7 +542,12 @@
             WJ.soundOn = !WJ.soundOn;
             const b = document.getElementById('wj-sound-btn');
             if (b) b.innerText = WJ.soundOn ? '🔊 On' : '🔇 Off';
-            if (WJ.soundOn) WJ.beep(660, 0.08, 'sine', 0.04);
+            if (WJ.soundOn) {
+                WJ.beep(660, 0.08, 'sine', 0.04);
+                WJ.startMusic(false);
+            } else {
+                WJ.stopMusic();
+            }
         };
 
         WJ.setOverlay = function (html, show) {
@@ -543,6 +589,7 @@
             WJ.lastTs = 0; WJ.acc = 0;
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
+            WJ.startMusic(true);
             WJ.toast('↺ New run', '#0f766e');
         };
 
@@ -641,6 +688,7 @@
             if (WJ.raf) cancelAnimationFrame(WJ.raf);
             WJ.raf = 0;
             WJ.state = 'over';
+            WJ.stopMusic();
             const score = WJ.score();
             if (WJ.challenge && typeof WJC !== 'undefined') {
                 WJC.onLocalFallen(reason, score);

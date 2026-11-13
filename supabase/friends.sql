@@ -241,6 +241,58 @@ as $fn$
      order by (g.following and g.follows_me) desc, 2 asc;
 $fn$;
 
+-- ---------- another user's following / follower list ----------
+create or replace function public.friend_social(p_user_id uuid)
+returns table (
+    user_id uuid,
+    nickname text,
+    form text,
+    direction text,
+    mutual boolean,
+    friend_streak int,
+    friend_best int,
+    practiced_today boolean
+)
+language sql
+security definer
+set search_path = public
+as $fn$
+    with me as (select auth.uid() as uid),
+    edges as (
+        select f.following_id as pid, 'following' as direction
+          from public.friend_follows f, me
+         where f.follower_id = p_user_id
+        union all
+        select f.follower_id as pid, 'follower' as direction
+          from public.friend_follows f, me
+         where f.following_id = p_user_id
+    )
+    select e.pid,
+        coalesce(nullif(sl.nickname, ''),
+                 nullif(split_part(au.email, '@', 1), ''),
+                 'Student') as nickname,
+        sl.form,
+        e.direction,
+        (exists(select 1 from public.friend_follows f
+                 where f.follower_id = p_user_id and f.following_id = e.pid)
+         and exists(select 1 from public.friend_follows f
+                     where f.follower_id = e.pid and f.following_id = p_user_id)) as mutual,
+        case when fs.last_day is not null
+                  and fs.last_day >= (now() at time zone 'Asia/Hong_Kong')::date - 1
+             then fs.count else 0 end as friend_streak,
+        coalesce(fs.best, 0) as friend_best,
+        coalesce(us.last_practice_date = (now() at time zone 'Asia/Hong_Kong')::date, false) as practiced_today
+      from edges e
+      cross join me
+      left join public.student_logins sl on sl.user_id = e.pid
+      left join auth.users au on au.id = e.pid
+      left join public.user_streaks us on us.user_id = e.pid
+      left join public.friend_streaks fs
+        on fs.user_a = least(e.pid, p_user_id)
+       and fs.user_b = greatest(e.pid, p_user_id)
+     order by e.direction, 2 asc;
+$fn$;
+
 -- ---------- exact-email lookup (no directory listing) ----------
 create or replace function public.find_friend(p_email text)
 returns table (
@@ -586,6 +638,7 @@ revoke all on function public.unfollow_friend(uuid) from public;
 revoke all on function public.remove_follower(uuid) from public;
 revoke all on function public.friend_overview() from public;
 revoke all on function public.find_friend(text) from public;
+revoke all on function public.friend_social(uuid) from public;
 revoke all on function public.friend_public_profile(uuid) from public;
 revoke all on function public.bump_friend_streaks() from public;
 revoke all on function public.record_streak_achievements(int) from public;
@@ -600,6 +653,7 @@ grant execute on function public.unfollow_friend(uuid) to authenticated;
 grant execute on function public.remove_follower(uuid) to authenticated;
 grant execute on function public.friend_overview() to authenticated;
 grant execute on function public.find_friend(text) to authenticated;
+grant execute on function public.friend_social(uuid) to authenticated;
 grant execute on function public.friend_public_profile(uuid) to authenticated;
 grant execute on function public.bump_friend_streaks() to authenticated;
 grant execute on function public.record_streak_achievements(int) to authenticated;

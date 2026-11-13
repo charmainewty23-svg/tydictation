@@ -1193,7 +1193,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1223,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v6`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v7`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v7`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v8`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1564,9 +1564,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `bump_friend_streaks`；`js/profile.js` `profileLoadFriends()` 載入時
     亦會 call 一次，等双方都做咗今日練習時可以補上。
   - 「Me」頁新增 **💛 Friends** 卡（`#profile-friends-card`）：
-    三個 count 掣 **Friends／Following／Followers**，**預設只顯示數字**；
-    撳邊個先開 `#profile-friend-list-panel` 顯示該名單（再撳 ✕ 收埋）。
-    `⏳ N friends not practised today` 係一個掣，撳開 Friends 名單睇邊個。
+    只有 **Following／Followers** 兩個 count 掣（冇 Friends count）；
+    **預設只顯示數字**，撳邊個先開 `#profile-friend-list-panel` 顯示該名單
+    （再撳 ✕ 收埋）。名單有 **搜尋**（名／form）同 **排序**
+    （Name A–Z／Friend streak／Not practised first）。
     School email 輸入＋ **Add friend** 仍然喺 count 下面。每行顯示 form、
     `✅ today／⏳ not yet today` 同 mutual friend streak `💛🔥 N`，
     撳一行去 `openFriendProfile(user_id)`。
@@ -1574,18 +1575,26 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `friend_public_profile`，顯示對方 daily streak、7 日圓點、best、
     dictation 次數／平均正確率、Word Jump best、first practice、
     「Friend streak」格＋banner，同 **Follow／Following** 掣。
+    另外有 **👥 Connections** 卡（`#profile-social-card`）：
+    對方嘅 Following／Followers 數量，撳入去先開名單，名單同樣有
+    搜尋／排序；撳名可以再去嗰個人 profile 再 Follow。
+    `friend_social(p_user_id)` 提供對方嘅 following／follower rows。
     `profileShowOwn()` 返自己 profile（底部 Me tab 亦已改為 call 佢）。
-  - **Back 掣**：朋友 profile 頂部 `#profile-back-own` 會跟來源顯示
-    **Back to Leaderboard／Back to Word Jump／Back to my profile**。
-    `openFriendProfile()` 記住 `profileReturnView`；`profileBack()` 返去
-    原本個 view。如果係由 Friends 名單入去，返自己 profile 時會自動
-    再開返同一個名單（`profileReopenListKind`）。
-  - Guest／老師 preview：Friends 卡同朋友 profile 全部隱藏；唔會寫
-    follow／friend streak。未登入／未跑 SQL 都唔會壞，Me 頁顯示提示
+  - **Back 掣**：朋友 profile 頂部 `#profile-back-own` 係 **sticky**，
+    會跟來源顯示 **Back to Leaderboard／Back to Word Jump／Back to profile／
+    Back to my profile**。`openFriendProfile()` 用 `profileBackStack` 記住
+    去過邊個 profile／邊個 view；`profileBack()` 返上一個 context。
+    由 Friends／Connections 名單入去，返去會自動開返同一個名單
+    （`profileReopenListKind`／`profileReopenSocialKind`）。
+    `openFriendProfile()` 亦會 `profileScrollToTop()`，所以一入去就見到
+    Back 掣。**注意**：之前 back 掣個 id 寫錯咗做 `profile-friend-back`，
+    而家已改返 `profile-back-own`，所以會真正顯示。
+  - Guest／老師 preview：Friends／Connections 卡同朋友 profile 全部隱藏；
+    唔會寫 follow／friend streak。未登入／未跑 SQL 都唔會壞，Me 頁顯示提示
     「Run supabase/friends.sql…」。
 - **朋友列表今日練習狀態**：`friend_overview()` 回傳 `practiced_today`
-  同 `last_practice_date`；Mutual friend 每行顯示 `✅ today` 或
-  `⏳ not yet today`，counts 另外寫 `⏳ N not practised today`。
+  同 `last_practice_date`；Following／Followers 每行顯示 `✅ today` 或
+  `⏳ not yet today`。
 - **通知（2026-11）**：`friend_notifications`（`follow`／`like`）＋
   `friend_notification_feed()`／`unread_notification_count()`／
   `mark_notifications_read()`。
@@ -1605,9 +1614,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `toggleAchievementLike()` 掣（`like_achievement` RPC）。
   - 每 7 日一個 milestone；`record` 係個人最佳，唔會因為 streak reset
     而下降。Achievements 卡喺 profile 嘅 Friends 卡上面。
-- **SQL 更新**：`friends.sql` 已包含 notifications／achievements；
-  老師要**重新貼一次**（可重跑）。未跑之前 Friends／通知／achievements
-  會顯示提示，其他功能照用。
+- **SQL 更新**：`friends.sql` 已包含 notifications／achievements 同
+  `friend_social()`；老師要**重新貼一次**（可重跑）。如果已經跑過舊版
+  `friends.sql`，只補 `supabase/friends_social.sql` 就得（短檔，可重跑）。
+  未跑之前 Friends／通知／achievements／Connections 會顯示提示，其他功能照用。
 - **SQL 順序**：`friends.sql` 喺 `login_tracking.sql` → `student_forms.sql`
   → `user_streaks.sql` → `wj_scores.sql` → `dictation_accuracy.sql` 之後跑
   （因為 RPC 會讀 `student_logins`、`user_streaks`、`dictation_results`、

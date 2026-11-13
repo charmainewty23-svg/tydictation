@@ -636,15 +636,38 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
     障礙照舊加入 `S.bananas`。
   - 🍄 Mushroom／⭐ Star：玩家位置綠色／黃色 ring burst。
   - ⚡ Lightning：每個可見 rival 位置黃色 ring burst。
-  - 全部 effect 只係本地視覺；多人時對手仍然靠 `remoteEffect('spin'/'slow')`
-    收到實際效果，唔會見到你嗰個 shell／banana 飛過去。
+  - 本地一定見到；多人時另外經 `dg-projectiles` Broadcast 傳給對手
+    （見下面投射物同步）。實際 spin/slow 仍然經 `remoteEffect`。
   - 2D fallback 完全唔受影響（`spawnThreeProjectile`／`spawnThreeBurst`
     見 `DG.three` 為 null 就 return）。
+- **延遲命中（2026-11）**：Red shell／banana 唔再即時 spin。`DG.useItem()` 用
+  `DG.scheduleHit(target, kind, ms, toast, delaySec)` 放入 `S.pendingHits`；
+  `DG.updateRace()` 每幀 `DG.updatePendingHits()`，到 `S.clock >= at` 才套
+  `spinUntil`＋`remoteEffect`，所以投射物視覺飛到目標才轉。Mushroom／star／
+  lightning 仍然即時（佢哋冇投射物）。`stopRace`／restart 會由 `startRace`
+  重設 `S.pendingHits=[]`。
+- **投射物同步（2026-11）**：多人時 `DG.mpStartProjectileChannel()` 喺
+  `mpStartRacePoll()` 開 Supabase Realtime public channel
+  `dg-projectiles:<roomId>`（self:false）。`DG.mpSendProjectile()` 傳
+  `kind／fromDist／toDist／fromLane／toLane／duration／arc`；
+  `DG.mpReceiveProjectile()` 喺對手 client 用自己 `player.dist` 轉做
+  `rel` 再 `spawnThreeProjectile()`。純視覺，冇 SQL、冇新 RPC；實際
+  spin/slow 仍然經 `apply_drive_and_go_effect`。Channel 喺
+  `mpStopRacePoll()` 清走；Realtime 失敗只係冇遠端投射物，遊戲照玩。
+- **多人唔可以直穿對手（2026-11）**：`DG.applyMultiCollision()` 只喺
+  `S.mode === 'multi'` 生效。玩家同一個 lane（`|laneX 差| < 0.55`）而對手
+  喺前面 9 units 內，會將 `p.dist` clamp 到 `rival.dist - 9`、`p.speed`
+  降到對手速度，並每 4 秒 toast「Steer left or right to pass!」。要轉
+  lane（左右）先可以過人；solo CPU 唔受影響。
+- **3D 觀感（2026-11）**：karts／scenery／gates 改用 `MeshLambertMaterial`，
+  scene 加 `HemisphereLight` + `DirectionalLight`，renderer 用
+  `sRGBEncoding`；road texture 加 theme kerb stripes；kart 加尾、死氣喉、
+  地面陰影 blob。目的係減少「太假／flat」嘅感覺。
 - **Fallback**：如果 `THREE` 未載入、WebGL 失敗、或者 `DG.THREE_ENABLED=false`，
   `DG.three` 保持 null，原有 2D renderer 照用。`DG.disposeThree()` 喺
   `stopRace()` 清 canvas／renderer；restart／exit 都安全。
-- **效能**：實測 499×810、pixel ratio 1.5、130 draw calls、5,141 triangles；
-  no shadows、no antialias、scenery 用簡單 geometry。手機如果太慢，可以
+- **效能**：實測 499×810、pixel ratio 1.5、約 130–140 draw calls、约 5.3k triangles；
+  no shadow maps、no antialias、scenery 用簡單 geometry。手機如果太慢，可以
   將 `DG.THREE_ENABLED=false` 或喺 `initThree` 加 device check。
 - **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅 z/y/lookY 同
   `updateThreeKarts()` 嘅 scale；路面彎度改 `threeRoadX()` 個 `0.05`；

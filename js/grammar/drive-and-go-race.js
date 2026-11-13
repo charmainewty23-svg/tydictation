@@ -197,6 +197,8 @@
         S.nextGateDist = 0;
         S.lastResult = null;
         S.bananas = [];
+        S.pendingHits = [];
+        S.blockedNoticeAt = 0;
         S.finishDistance = Number(opts.room && opts.room.finish_distance) || DG.FINISH_DISTANCE;
         S.raceSeconds = Number(opts.room && opts.room.duration_seconds) || DG.RACE_SECONDS;
         S.startedAtMs = opts.room && opts.room.started_at ? Date.parse(opts.room.started_at) : 0;
@@ -364,6 +366,7 @@
             return;
         }
         if (S.phase !== 'racing') return;
+        DG.updatePendingHits();
         const p = S.player;
         if (!p) return;
         const now = S.clock;
@@ -428,6 +431,8 @@
             r.dist += r.speed * (1000 / 3600) * dt;
             r.laneX += (r.lane - r.laneX) * Math.min(1, dt * 4);
         }
+
+        if (S.mode === 'multi') DG.applyMultiCollision();
 
         // Bananas left behind by the player.
         for (let i = 0; i < S.bananas.length; i++) {
@@ -599,6 +604,30 @@
         const list = [S.player].concat(S.rivals || []);
         list.sort((a, b) => (b.dist || 0) - (a.dist || 0));
         return Math.max(1, list.indexOf(S.player) + 1);
+    };
+
+    DG.applyMultiCollision = function () {
+        const p = S.player;
+        if (!p || p.finished) return;
+        let blocked = null;
+        S.rivals.forEach(r => {
+            const gap = (r.dist || 0) - p.dist;
+            const lane = (r.laneX == null ? r.lane : r.laneX);
+            if (gap > 0 && gap < 9 && Math.abs(lane - p.laneX) < 0.55) {
+                if (!blocked || r.dist < blocked.dist) blocked = r;
+            }
+        });
+        if (!blocked) {
+            S.blockedNoticeAt = 0;
+            return;
+        }
+        const keep = Math.max(0, blocked.dist - 9);
+        if (p.dist > keep) p.dist = keep;
+        p.speed = Math.min(p.speed, Math.max(0, blocked.speed || 0));
+        if (!S.blockedNoticeAt || S.clock > S.blockedNoticeAt + 4) {
+            S.blockedNoticeAt = S.clock;
+            DG.toast('↔️ Steer left or right to pass!', 1200);
+        }
     };
 
     DG.raceTarget = function (direction) {
@@ -846,20 +875,28 @@
                 return;
             }
             p.item = null;
-            target.spinUntil = Math.max(target.spinUntil || 0, now + 2);
-            DG.remoteEffect(target, 'spin', 2000);
+            const rel = Math.max(18, target.dist - p.dist);
+            const duration = 0.45 + Math.min(0.4, rel / 1100);
+            DG.scheduleHit(target, 'spin', 2000, '🔴 Red shell hit ' + target.name + '!', duration);
             if (typeof DG.spawnThreeProjectile === 'function') {
-                const rel = Math.max(18, target.dist - p.dist);
                 DG.spawnThreeProjectile('redshell', {
                     fromRel: 2,
                     toRel: rel,
                     fromLane: p.laneX,
                     toLane: target.laneX,
-                    duration: 0.45 + Math.min(0.4, rel / 1100),
+                    duration: duration,
                     arc: 1.0
                 });
             }
-            DG.toast('🔴 Red shell hit ' + target.name + '!', 1600);
+            if (typeof DG.mpSendProjectile === 'function' && S.mode === 'multi') {
+                DG.mpSendProjectile({
+                    kind: 'redshell', userId: currentUser && currentUser.id,
+                    fromDist: p.dist + 2, toDist: target.dist,
+                    fromLane: p.laneX, toLane: target.laneX,
+                    duration: duration, arc: 1.0
+                });
+            }
+            DG.toast('🔴 Red shell fired!', 900);
         } else if (kind === 'banana') {
             p.item = null;
             S.bananas.push({ dist: Math.max(0, p.dist - 18), lane: p.lane, hit: false });
@@ -873,11 +910,18 @@
                     arc: 3.0
                 });
             }
+            if (typeof DG.mpSendProjectile === 'function' && S.mode === 'multi') {
+                DG.mpSendProjectile({
+                    kind: 'banana', userId: currentUser && currentUser.id,
+                    fromDist: p.dist, toDist: p.dist - 5,
+                    fromLane: p.laneX, toLane: p.laneX,
+                    duration: 0.5, arc: 3.0
+                });
+            }
             const target = DG.raceTarget('behind');
             if (target) {
-                target.spinUntil = Math.max(target.spinUntil || 0, now + DG.SPIN_TIME);
-                DG.remoteEffect(target, 'spin', DG.SPIN_TIME * 1000);
-                DG.toast('🍌 ' + target.name + ' spun out!', 1600);
+                DG.scheduleHit(target, 'spin', DG.SPIN_TIME * 1000, '🍌 ' + target.name + ' spun out!', 0.5);
+                DG.toast('🍌 Banana thrown!', 1000);
             } else {
                 DG.toast('🍌 Banana dropped behind you.', 1300);
             }
@@ -919,6 +963,38 @@
     DG.remoteEffect = function (target, kind, ms) {
         if (S.mode !== 'multi' || !target || !target.userId) return;
         if (typeof DG.mpApplyEffect === 'function') DG.mpApplyEffect(target.userId, kind, ms);
+    };
+
+    DG.scheduleHit = function (target, kind, ms, toastText, delaySec) {
+        if (!target) return;
+        if (!S.pendingHits) S.pendingHits = [];
+        S.pendingHits.push({
+            at: S.clock + Math.max(0, Number(delaySec) || 0),
+            target: target,
+            kind: kind,
+            ms: Math.max(100, Number(ms) || 1500),
+            toastText: toastText || ''
+        });
+    };
+
+    DG.updatePendingHits = function () {
+        if (!S.pendingHits || !S.pendingHits.length) return;
+        for (let i = S.pendingHits.length - 1; i >= 0; i--) {
+            const h = S.pendingHits[i];
+            if (S.clock < h.at) continue;
+            const target = h.target;
+            if (target) {
+                if (h.kind === 'spin') {
+                    target.spinUntil = Math.max(target.spinUntil || 0, S.clock + h.ms / 1000);
+                    DG.remoteEffect(target, 'spin', h.ms);
+                } else if (h.kind === 'slow') {
+                    target.slowUntil = Math.max(target.slowUntil || 0, S.clock + h.ms / 1000);
+                    DG.remoteEffect(target, 'slow', h.ms);
+                }
+            }
+            if (h.toastText) DG.toast(h.toastText, 1600);
+            S.pendingHits.splice(i, 1);
+        }
     };
 
     DG.receiveEffect = function (kind, seconds) {
@@ -2267,6 +2343,7 @@
         ctx.fillRect(0, 0, 8, 256);
         const tex = new THREE.CanvasTexture(c);
         tex.minFilter = THREE.LinearFilter;
+        if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
         tex.magFilter = THREE.LinearFilter;
         return tex;
     };
@@ -2282,15 +2359,21 @@
         ctx.fillStyle = style.roadB;
         for (let y = 0; y < 1024; y += 64) ctx.fillRect(0, y, 256, 30);
         ctx.globalAlpha = 1;
+        for (let y = 0; y < 1024; y += 64) {
+            ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
+            ctx.fillRect(0, y, 14, 64);
+            ctx.fillRect(242, y, 14, 64);
+        }
         ctx.fillStyle = style.edge;
-        ctx.fillRect(8, 0, 8, 1024);
-        ctx.fillRect(240, 0, 8, 1024);
+        ctx.fillRect(14, 0, 5, 1024);
+        ctx.fillRect(237, 0, 5, 1024);
         ctx.fillStyle = style.dash;
         for (let y = 0; y < 1024; y += 104) {
             ctx.fillRect(83, y, 10, 54);
             ctx.fillRect(163, y, 10, 54);
         }
         const tex = new THREE.CanvasTexture(c);
+        if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
         tex.wrapS = THREE.ClampToEdgeWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         return tex;
@@ -2315,6 +2398,7 @@
         ctx.fillText(text, 256, 66, 470);
         const tex = new THREE.CanvasTexture(c);
         tex.minFilter = THREE.LinearFilter;
+        if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
         return tex;
     };
 
@@ -2322,10 +2406,18 @@
         const l = DG.normalizeLook(look);
         const pal = DG.catPalette(l.cat);
         const g = new THREE.Group();
-        const bodyMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(pal.body) });
-        const shadeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(pal.shade) });
-        const pointMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(pal.points) });
-        const darkMat = new THREE.MeshBasicMaterial({ color: 0x1f2937 });
+        const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.body) });
+        const shadeMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.shade) });
+        const pointMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.points) });
+        const darkMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+
+        const shadow = new THREE.Mesh(
+            new THREE.CircleGeometry(1.9, 16),
+            new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 0.03;
+        g.add(shadow);
 
         const chassis = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.2, 7), bodyMat);
         chassis.position.y = 0.95;
@@ -2333,6 +2425,17 @@
         const nose = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.7, 2.4), shadeMat);
         nose.position.set(0, 1.55, -2.2);
         g.add(nose);
+
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 1.8, 6), pointMat);
+        tail.position.set(0, 1.7, 2.7);
+        tail.rotation.x = 0.75;
+        g.add(tail);
+        [-0.85, 0.85].forEach(x => {
+            const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.65, 6), darkMat);
+            pipe.rotation.x = Math.PI / 2;
+            pipe.position.set(x, 0.85, 3.35);
+            g.add(pipe);
+        });
 
         const wheelGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.8, 10);
         wheelGeo.rotateZ(Math.PI / 2);
@@ -2366,11 +2469,11 @@
         g.add(noseM);
 
         if (l.hat === 'Crown') {
-            const crown = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.0, 5), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+            const crown = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.0, 5), new THREE.MeshLambertMaterial({ color: 0xfbbf24 }));
             crown.position.set(0, 4.55, -0.6);
             g.add(crown);
         } else if (l.hat === 'Party Hat') {
-            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 10), new THREE.MeshBasicMaterial({ color: 0xf472b6 }));
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.6, 10), new THREE.MeshLambertMaterial({ color: 0xf472b6 }));
             hat.position.set(0, 4.8, -0.6);
             g.add(hat);
         }
@@ -2381,17 +2484,17 @@
         }
         if (l.outfit === 'Red Scarf' || l.outfit === 'Pink Floral Scarf') {
             const scarf = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.5, 0.7),
-                new THREE.MeshBasicMaterial({ color: l.outfit === 'Red Scarf' ? 0xef4444 : 0xf472b6 }));
+                new THREE.MeshLambertMaterial({ color: l.outfit === 'Red Scarf' ? 0xef4444 : 0xf472b6 }));
             scarf.position.set(0, 2.1, -1.5);
             g.add(scarf);
         } else if (l.outfit === 'Superhero Cape') {
             const cape = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 3),
-                new THREE.MeshBasicMaterial({ color: 0xdc2626, side: THREE.DoubleSide }));
+                new THREE.MeshLambertMaterial({ color: 0xdc2626, side: THREE.DoubleSide }));
             cape.position.set(0, 2.2, 1.8);
             cape.rotation.x = -0.25;
             g.add(cape);
         } else if (l.outfit === 'Racing Jacket') {
-            const jacket = new THREE.Mesh(new THREE.BoxGeometry(4.3, 1.4, 0.6), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+            const jacket = new THREE.Mesh(new THREE.BoxGeometry(4.3, 1.4, 0.6), new THREE.MeshLambertMaterial({ color: 0xef4444 }));
             jacket.position.set(0, 1.9, 0.8);
             g.add(jacket);
         }
@@ -2406,7 +2509,7 @@
 
     DG.makeThreeGate = function (gate) {
         const g = new THREE.Group();
-        const postMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+        const postMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
         const postGeo = new THREE.BoxGeometry(0.6, 4.2, 0.6);
         [-3.2, 3.2].forEach(x => {
             const post = new THREE.Mesh(postGeo, postMat);
@@ -2424,7 +2527,7 @@
     DG.makeThreeScenery = function (kind, tone) {
         const g = new THREE.Group();
         const add = (geo, color, x, y, z) => {
-            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: color }));
+            const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: color }));
             m.position.set(x, y, z);
             g.add(m);
             return m;
@@ -2486,9 +2589,9 @@
 
     DG.makeThreeShell = function () {
         const g = new THREE.Group();
-        const red = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-        const dark = new THREE.MeshBasicMaterial({ color: 0x991b1b });
-        const white = new THREE.MeshBasicMaterial({ color: 0xfef3c7 });
+        const red = new THREE.MeshLambertMaterial({ color: 0xef4444 });
+        const dark = new THREE.MeshLambertMaterial({ color: 0x991b1b });
+        const white = new THREE.MeshLambertMaterial({ color: 0xfef3c7 });
         const body = new THREE.Mesh(new THREE.SphereGeometry(0.58, 12, 8), red);
         body.scale.y = 0.82;
         g.add(body);
@@ -2505,8 +2608,8 @@
 
     DG.makeThreeBanana = function () {
         const g = new THREE.Group();
-        const yellow = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-        const brown = new THREE.MeshBasicMaterial({ color: 0x92400e });
+        const yellow = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+        const brown = new THREE.MeshLambertMaterial({ color: 0x92400e });
         const arc = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.18, 6, 12, Math.PI * 0.92), yellow);
         arc.rotation.z = -0.45;
         g.add(arc);
@@ -2662,11 +2765,16 @@
             const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
             renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
             renderer.setSize(DG.view.w, DG.view.h, false);
+            if ('outputEncoding' in renderer && THREE.sRGBEncoding != null) renderer.outputEncoding = THREE.sRGBEncoding;
 
             const scene = new THREE.Scene();
             const style = DG.sceneStyle();
             scene.background = DG.threeSkyTexture(style);
             scene.fog = new THREE.Fog(new THREE.Color(style.sky[style.sky.length - 1][1]), 110, THREE_ROAD_LEN * 0.92);
+            scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(style.ground), 0.9));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(-80, 140, 50);
+            scene.add(sun);
 
             const camera = new THREE.PerspectiveCamera(60, DG.view.w / DG.view.h, 0.5, THREE_ROAD_LEN + 400);
             camera.position.set(0, 4.8, 16.5);
@@ -2695,7 +2803,7 @@
 
             const ground = new THREE.Mesh(
                 new THREE.PlaneGeometry(1800, THREE_ROAD_LEN + 800),
-                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
             ground.rotation.x = -Math.PI / 2;
             ground.position.set(0, THREE_GROUND_Y, -THREE_ROAD_LEN / 2);
@@ -2847,7 +2955,7 @@
         S.bananas.forEach((b, i) => {
             let m = t.bananaGroup.children[i];
             if (!m) {
-                m = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+                m = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), new THREE.MeshLambertMaterial({ color: 0xfacc15 }));
                 t.bananaGroup.add(m);
             }
             const rel = b.dist - p.dist;

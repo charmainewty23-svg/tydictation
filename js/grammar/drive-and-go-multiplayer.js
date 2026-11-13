@@ -34,7 +34,9 @@
         closed: false,
         detachTimer: 0,
         // Consecutive race syncs where the room (or our own seat) was missing.
-        raceMissingPolls: 0
+        raceMissingPolls: 0,
+        projectileChannel: null,
+        projectileRoomId: ''
     };
     DG.mpState = MP;
 
@@ -947,12 +949,70 @@
         } catch (e) {}
     };
 
+    /* ---------------- projectile broadcast (visual only) ---------------- */
+
+    DG.mpStartProjectileChannel = function () {
+        if (!MP.room) return;
+        if (MP.projectileChannel && MP.projectileRoomId === MP.room.id) return;
+        DG.mpStopProjectileChannel();
+        try {
+            const ch = sb.channel('dg-projectiles:' + MP.room.id, {
+                config: { broadcast: { self: false } }
+            });
+            ch.on('broadcast', { event: 'projectile' }, msg => {
+                DG.mpReceiveProjectile(msg && msg.payload);
+            });
+            ch.subscribe();
+            MP.projectileChannel = ch;
+            MP.projectileRoomId = MP.room.id;
+        } catch (e) {
+            MP.projectileChannel = null;
+            MP.projectileRoomId = '';
+        }
+    };
+
+    DG.mpStopProjectileChannel = function () {
+        const ch = MP.projectileChannel;
+        MP.projectileChannel = null;
+        MP.projectileRoomId = '';
+        if (!ch) return;
+        try { sb.removeChannel(ch); } catch (e) {}
+    };
+
+    DG.mpSendProjectile = function (payload) {
+        if (!MP.projectileChannel || !payload) return;
+        try {
+            MP.projectileChannel.send({ type: 'broadcast', event: 'projectile', payload: payload });
+        } catch (e) {}
+    };
+
+    DG.mpReceiveProjectile = function (p) {
+        if (!p || !DG.three || !DG.raceState || !DG.raceState.player) return;
+        if (!DG.raceState.active || DG.raceState.mode !== 'multi') return;
+        const me = currentUser && currentUser.id;
+        if (me && p.userId === me) return;
+        const player = DG.raceState.player;
+        const fromRel = (Number(p.fromDist) || 0) - player.dist;
+        const toRel = (Number(p.toDist) || 0) - player.dist;
+        if (toRel < -40 || fromRel > 1600) return;
+        if (typeof DG.spawnThreeProjectile !== 'function') return;
+        DG.spawnThreeProjectile(p.kind === 'banana' ? 'banana' : 'redshell', {
+            fromRel: fromRel,
+            toRel: toRel,
+            fromLane: Number(p.fromLane) || 1,
+            toLane: Number(p.toLane) || 1,
+            duration: Math.max(0.2, Number(p.duration) || 0.6),
+            arc: Number(p.arc) || 1
+        });
+    };
+
     /* ---------------- race sync ---------------- */
 
     DG.mpStartRacePoll = function () {
         DG.mpStopRacePoll();
         MP.lastEffectSeq = 0;
         MP.raceMissingPolls = 0;
+        DG.mpStartProjectileChannel();
         MP.racePollId = setInterval(() => DG.mpSyncRace(), 700);
         setTimeout(() => DG.mpSyncRace(), 350);
     };
@@ -961,6 +1021,7 @@
         if (MP.racePollId) clearInterval(MP.racePollId);
         MP.racePollId = null;
         MP.syncing = false;
+        DG.mpStopProjectileChannel();
     };
 
     DG.toastSafe = function (text) {

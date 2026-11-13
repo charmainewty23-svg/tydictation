@@ -595,6 +595,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   新增 **terrain ribbon**（`DG.three.terrain`，跟 `threeRoadY(rel)` 起伏的
   1500×2200 地面）＋遠低處 fallback floor；`DG.updateThreeScenery()` 將景物
   y 跟 terrain（`THREE_GROUND_Y + threeRoadY(rel)`），所以山坡唔會穿過平地。
+  terrain 用 `MeshBasicMaterial`（唔用 Lambert，否則 1.7 光源會令遠景地面
+  clamp 成白色橫帶）；每個場景有 `fog` 色（desert `#f2d89a`、stadium
+  `#fbe0da`、jungle `#b8d88e`）對齊天空地平線，遠景唔會再有白色光帶。
 - **3D 相機**：`DG.updateThreeCamera()` 的 lookX 用 `threeRoadX(260) * 0.75`
   （跟彎道轉向），lookY 加 local hill pitch `pitch * 6`（上斜望高、落斜望低），
   令彎道同山坡在畫面上明顯。相機 pitch 用 `trackHill(dist+260)` 的 slope。

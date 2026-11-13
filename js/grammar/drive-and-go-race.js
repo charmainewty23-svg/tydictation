@@ -1356,6 +1356,7 @@
     const SCENE_STYLES = {
         desert: {
             sky: [[0, '#9fc6dc'], [0.22, '#cfe2ec'], [0.40, '#f2d79c'], [0.58, '#f8e6bb']],
+            fog: '#f2d89a',
             ground: '#d7b06b',
             bandA: '#d7b06b', bandB: '#c9a25c',
             roadA: '#8f7a56', roadB: '#836f4d',
@@ -1366,6 +1367,7 @@
         },
         stadium: {
             sky: [[0, '#6fb7e8'], [0.22, '#a9d9f6'], [0.40, '#ffd9e4'], [0.58, '#fff0e0']],
+            fog: '#fbe0da',
             ground: '#e7d3cf',
             bandA: '#e7d3cf', bandB: '#dcc3be',
             roadA: '#66707d', roadB: '#5b6572',
@@ -1376,6 +1378,7 @@
         },
         jungle: {
             sky: [[0, '#1c4a32'], [0.22, '#3c7d4b'], [0.40, '#a8d888'], [0.58, '#e4f6c3']],
+            fog: '#b8d88e',
             ground: '#2f5d2c',
             bandA: '#2f5d2c', bandB: '#386b31',
             roadA: '#6b5a41', roadB: '#5e4f39',
@@ -2848,7 +2851,7 @@
             const scene = new THREE.Scene();
             const style = DG.sceneStyle();
             scene.background = DG.threeSkyTexture(style);
-            scene.fog = new THREE.Fog(new THREE.Color(style.sky[style.sky.length - 1][1]), 110, THREE_ROAD_LEN * 0.92);
+            scene.fog = new THREE.Fog(new THREE.Color(style.fog || style.sky[style.sky.length - 1][1]), 110, THREE_ROAD_LEN * 0.92);
             scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(style.ground), 0.9));
             const sun = new THREE.DirectionalLight(0xffffff, 0.8);
             sun.position.set(-80, 140, 50);
@@ -2923,7 +2926,7 @@
             terrainGeo.setIndex(terrainIdx);
             const terrain = new THREE.Mesh(
                 terrainGeo,
-                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
             );
             terrain.frustumCulled = false;
             scene.add(terrain);

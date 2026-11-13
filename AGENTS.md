@@ -598,9 +598,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   terrain 用 `MeshBasicMaterial`（唔用 Lambert，否則 1.7 光源會令遠景地面
   clamp 成白色橫帶）；每個場景有 `fog` 色（desert `#f2d89a`、stadium
   `#fbe0da`、jungle `#b8d88e`）對齊天空地平線，遠景唔會再有白色光帶。
-- **3D 相機**：`DG.updateThreeCamera()` 的 lookX 用 `threeRoadX(260) * 0.75`
-  （跟彎道轉向），lookY 加 local hill pitch `pitch * 6`（上斜望高、落斜望低），
-  令彎道同山坡在畫面上明顯。相機 pitch 用 `trackHill(dist+260)` 的 slope。
+- **3D 相機（保持自己架車做中心）**：`DG.updateThreeCamera()` 唔再原地 yaw／pitch。
+  相機放喺「玩家 → 前方 260 units 路面」嗰條線上（距離 16.5、高 4.8），
+  望住 `threeRoadX(260) * 0.75 + px * 0.25`（`px`＝玩家 lane 位置）。
+  因為相機、玩家、look target 三點一線，**自己架車永遠喺畫面正中間**
+  （實測 392/784），y 亦固定（691/907），轉彎／上山／落山都唔會消失。
+  彎道同山坡照樣見到，因為係條路（唔係相機）喺畫面內升跌同擺動。
+  閘門 420 units 喺 dist 900 時仍然喺 351–531／784 之內。
 - **多人規模**：3D 只畫最近 **6** 部對手 kart（`visibleRival`），2D canvas 只畫
   最近 **10** 部；賽道進度板最多顯示 **8** 行，自己一定顯示，其餘顯示
   `… +N more racing`。scenery 仍 cap 40。實測 3D ~126 draw calls（1 個對手）、
@@ -732,8 +736,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   實測 499×810、pixel ratio 1.5：desert 125 draw calls／5.5k tris、stadium
   146／5.1k、jungle 192／7.6k；no shadow maps、no antialias。手機如果太慢，可以
   再減 `THREE_SCENERY_CAP` 或將 `DG.THREE_ENABLED=false`。
-- **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅 z/y/lookY 同
-  `updateThreeKarts()` 嘅 scale；路面彎度改 `threeRoadX()` 個 `0.05`；
+- **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅玩家—look 線
+  （`threeRoadX(260)`、16.5、4.8、7.8）同 `updateThreeKarts()` 嘅 scale；
+  相機一定要放喺「玩家 → look target」嗰條線上，否則轉彎時架車會偏離中心。
   想加新 scenery kind 喺 `makeThreeScenery()` 加 branch。2D 同 3D 兩邊嘅
   遊戲狀態（`DG.raceState`）係同一份，唔好喺 3D 另外改遊戲邏輯。
 

@@ -3004,19 +3004,21 @@
         const t = DG.three;
         if (!t || !S.player) return;
         const p = S.player;
-        const targetX = DG.threeLaneX(0, p.laneX) * 0.9;
-        const targetY = DG.threeRoadY(0) + 4.8;
-        t.camera.position.x += (targetX - t.camera.position.x) * 0.18;
-        t.camera.position.y += (targetY - t.camera.position.y) * 0.18;
-        t.camera.position.z = 16.5;
-        const lookX = DG.threeRoadX(260) * 0.75 + targetX * 0.25;
-        // Pitch the camera with the local hill slope. Climbing tilts the view
-        // up (the horizon drops), descending tilts it down — a strong hill cue
-        // that does not depend on the road geometry being huge.
-        const slope = (DG.trackHill(p.dist + 260) - DG.trackHill(p.dist)) / 260;
-        const pitch = Math.max(-1, Math.min(1, slope * 14 * DG.trackSettle(p.dist + 120)));
-        const lookY = DG.threeRoadY(40) + 7.8 + pitch * 6;
-        t.camera.lookAt(lookX, lookY, -40);
+        // Keep the kart exactly in the horizontal centre: place the camera on
+        // the line from the player to a point on the road ahead, so the camera
+        // can follow curves without ever sliding the kart out of frame. Hills
+        // stay visible because the road (not the camera) rises and falls.
+        const px = DG.threeLaneX(0, p.laneX);
+        const lookX = DG.threeRoadX(260) * 0.75 + px * 0.25;
+        const lookZ = -260;
+        const dx = lookX - px;
+        const dz = lookZ;
+        const len = Math.hypot(dx, dz) || 1;
+        const camDist = 16.5;
+        t.camera.position.x = px - (dx / len) * camDist;
+        t.camera.position.y = DG.threeRoadY(0) + 4.8;
+        t.camera.position.z = -(dz / len) * camDist;
+        t.camera.lookAt(lookX, DG.threeRoadY(0) + 7.8, lookZ);
     };
 
     DG.updateThreeKarts = function () {

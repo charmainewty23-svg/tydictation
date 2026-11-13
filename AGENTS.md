@@ -41,7 +41,7 @@
 ### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
 
 原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
-markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 11 個
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 12 個
 **classic** `<script src>` **同步**載入，次序唔可以改：
 
 | # | 檔案 | 內容 |
@@ -57,6 +57,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面） |
 | 10 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
 | 11 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
+| 12 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
 - **唔可以**用 ES module（`type="module"`／`import`／`export`），亦**唔可以**加 `defer`／`async`：
@@ -992,3 +993,70 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   中文提示有就顯示，冇就當 English-only。
 - SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
+
+## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
+
+### 12.1 檔案
+| 檔案 | 作用 |
+|---|---|
+| `manifest.json` | Web App Manifest。用 `.json` 而唔用 `.webmanifest`，避免 Vercel 的 MIME 問題（Chrome 接受 `application/json`）。 |
+| `sw.js` | Service worker：app shell precache＋network-first。必須放喺網站根目錄，scope 才覆蓋全站。 |
+| `js/pwa.js` | 喺 `window.load` 之後 `navigator.serviceWorker.register('/sw.js')`；只喺 HTTPS／`localhost`／`127.0.0.1` 執行，失敗只 `console.warn`。 |
+| `icons/app-icon.svg` | 圖示來源（Ragdoll 貓，同網站 mascot 同一設計）。 |
+| `icons/icon-192.png`、`icon-512.png`、`icon-maskable-512.png`、`apple-touch-icon.png`、`favicon-32.png` | 由 SVG 產生。本機冇 PIL／ImageMagick，用 `qlmanage -t -s 1024` 轉 PNG，再 `sips -z` 縮。改圖示後要重新產生呢幾個檔。 |
+
+- Manifest 重點：`start_url`／`scope` 都係 `/`、`display: standalone`、`orientation: any`、
+  `theme_color`／`background_color` `#fff9f2`、192＋512 any icon＋512 maskable。
+  冇 shortcuts、冇自訂安裝 UI，亦冇處理 `beforeinstallprompt`。
+- `index.html` `<head>` 有 `manifest`、`theme-color`、`color-scheme`、`application-name`、
+  `mobile-web-app-capable`、`apple-mobile-web-app-*`、apple-touch-icon 同 favicon。
+  呢啲 meta 唔可以刪，否則 iPhone「加入主畫面」會用錯名／圖示。
+- 安裝方法：Android／桌面 Chrome／Edge 用網址列或選單的 **Install app**；
+  iPhone／iPad Safari 用 **Share → Add to Home Screen**。iOS 冇得用自訂安裝按鈕，
+  亦**永遠**冇 element fullscreen（Apple 限制；Word Jump／Drive & Go! 會 fallback 去 CSS 全屏）。
+- 如果將來網站唔再放喺根路徑，`manifest.json` 的 `start_url`／`scope`／icons，
+  同 `sw.js` 的 precache 路徑要一齊改。
+
+### 12.2 Service worker 策略
+- **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
+  非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
+  確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
+- `CACHE_NAME` 而家係 `learnity-pwa-v1`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v2`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CORE_ASSETS` 有 18 個：`index.html`、manifest、4 個圖示、
+  11 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
+  否則第一次 offline 開會少一個檔案。
+- 只快取同源靜態檔，以及 allowlist 的 CDN：`cdn.tailwindcss.com`、`fonts.googleapis.com`、
+  `fonts.gstatic.com`、`cdn.jsdelivr.net`（Supabase JS）。
+- **唔快取**：`/api/`（Cambridge 查字）、`/sw.js` 自己、`/favicon.ico`、任何 `*.supabase.co`
+  （auth／資料要即時，亦唔應該落 cache）。
+- 因為 `skipWaiting()`＋`clients.claim()`，新 SW 會即刻接管；如果部署後仍然見到舊版，
+  關閉所有 app 分頁再開，或者喺 browser 度 hard refresh 一次。
+- 本機測試：`python3 -m http.server` 開 localhost 就用得 SW（HTTPS 或 localhost 才註冊）。
+  測試 offline：先 online 開一次等 precache 完成，再停 server／轉 offline 後 reload，
+  應該仍然見到 login／hub、`DG`、Fredoka 字體。`file://` 開 `index.html` 唔會有 SW，但網站照用。
+
+### 12.3 手機／平板版面（2026-11）
+- Viewport 有 `viewport-fit=cover`；`#app` 同 `#login-view` 的 padding 加埋
+  `env(safe-area-inset-*)`，所以 installed PWA／瀏海機／橫向時內容唔會貼住 notch 或 Home indicator。
+- **Tap target 最少 44px**（Apple HIG／WCAG 2.5.5）：
+  `#auth-btn`、所有 view 的返回掣（`.nav-back`，HTML 已加 class）、
+  Word Jump 工具列（`#wj-toolbar` 的 button／select）、
+  同埋遊戲內細 pill（`#wj-fs-enter`／`#wj-exit-fs`／`#wj-re-btn`／`#wj-tilt-fs`）。
+  Drive & Go! 的 `#dg-fs-btn` 為咗唔撐大 61px HUD 而保持細 pill，
+  但用 `::after` 加大透明 hit area，唔好刪。
+  加新返回掣或工具列按鈕時要跟呢個規則，唔好只靠 `py-2 text-sm`（實際高度會得 36px）。
+- 對比度：`.btn-paw` 背景用 `#e8590c`（白字過 3:1 大字門檻；原本 `#ff922b` 只有 2.2:1）；
+  Hub 的 Start Quest 用 `bg-green-600`；`#login-view .text-orange-600` 同
+  `#app .speech-bubble.text-orange-600` 用 `#c2410c`；`text-gray-400` 在 app／login 內
+  覆寫成 `#6b7280`（原本 2.5:1）。呢幾個 override 喺 `index.html` `<style>` 內，
+  用 id／雙 class specificity 壓過 Tailwind runtime CSS。
+- `#login-view` 有 `role="main"`（未登入時 `<main id="main-container">` 係 hidden，
+  冇呢個 landmark Lighthouse 會扣分）；`<meta name="description">` 亦已加。
+- 實測尺寸：375×667、390×844、430×932、768×1024、1024×768、844×390，
+  login／hub／grammar／revision／Drive & Go! 設定／dictation／battle／wordjump
+  全部 `overflowX = 0`，冇橫向爆版；返回掣、工具列、Word Jump 細掣全部 ≥ 44px。
+- Lighthouse（localhost，login 同 guest hub）：Accessibility／Best Practices／SEO 全部 1.0。
+- 已知限制：`canvas` 內容喺 OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>`），
+  同 PWA 無關；iPhone Safari 的瀏覽器 bar 喺 standalone 以外仍然存在，
+  要 Add to Home Screen 才會消失。

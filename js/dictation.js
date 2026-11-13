@@ -73,8 +73,11 @@
             if (sheetCategoriesLoading) return;
             const fresh = readSheetCache(false);
             if (fresh && applySheetCategories(fresh.data)) return;
+            // Expired cache: show the old words instantly, then refresh in the
+            // background. The grid updates quietly when fresh data arrives.
             const stale = fresh ? null : readSheetCache(true);
             sheetCategoriesLoading = true;
+            if (stale) applySheetCategories(stale.data);
             try {
                 const promises = SHEET_NAMES.map(async (name) => {
                     const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;

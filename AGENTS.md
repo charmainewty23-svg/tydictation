@@ -47,7 +47,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | # | 檔案 | 內容 |
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
-| 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
+| 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
 | 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（**第一步 Solo／Multiplayer**）：Solo → Topic（Tenses／Agreement）→ Challenge → Cat → Controls → 題數 → Course → 直接開賽（冇舊嘅最後 Game mode 步）；Multi → Create／Join → 房主揀 Topic／Challenge／題數／Course，加入者只揀 Cat／Controls 再入房碼。Tenses 題庫（Google Sheet 頁 `tenses`／`Passives`，AV／PV／Mixed）＋ Agreement 題庫（頁 `Agreement`，Gap-fill／Choose／Mixed）、同一動詞時態干擾項、Agreement 三閘、貓仔造型、Tilt／Swipe／按鈕、題數（20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`／`laneStep`、`displayPrompt`、`submitCloudRun`（Solo／Multi 榜） |
@@ -203,9 +203,10 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 1. `renderTenseGrid()` 要等 Sheet load 完先跑——斷網／quota 爆會連文法格都出唔到。修：拆開獨立呼叫。
 2. ~~每次入頁 fetch 足 20 個 tabs，無快取。~~ **已修（2026-11）**：`loadAllCategoriesFromSheet()` 會用
-   `sessionStorage['learniTY_sheet_cache_v1']` 存 10 分鐘 parsed words；cache 過期但
-   fetch 失敗時會用 stale cache，畫面提示「Using saved words…」。仍然係每個 tab 各自一份
-   session cache；新 tab 第一次載入仍要等 Google Sheet。
+   `sessionStorage['learniTY_sheet_cache_v1']` 存 10 分鐘 parsed words；cache 過期時
+   會即刻用 stale words（stale-while-revalidate），背景 fetch，完成後靜靜更新；
+   fetch 失敗才提示「Using saved words…」。仍然係每個 tab 各自一份 session cache；
+   新 tab 第一次載入仍要等 Google Sheet。
 3. 分數零持久化（Phase 1 解決）。
 4. `Shopping` tab 大細楷同其他唔一致，改名要連 `SHEET_NAMES` 一齊改。
 

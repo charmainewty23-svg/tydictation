@@ -906,6 +906,112 @@
         .dg-lobby-player.me { border-color: #fb923c; background: #fff7ed; }
         .dg-lobby-avatar { flex: 0 0 auto; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; }
 
+        /* ---- Drive & Go! on a short, wide screen (phone held sideways) ----
+           The race view is fixed to the viewport, so on a landscape phone the
+           portrait HUD covered ~40% of the track and the answer toast landed on
+           top of the question. Same elements, just compacted: two thin HUD
+           rows, the toast above the steering buttons, smaller right-hand
+           buttons, and a wide results panel that fits without scrolling. */
+        @media (orientation: landscape) and (max-height: 560px) {
+            .dg-hud { padding: max(4px, env(safe-area-inset-top)) 6px 0; }
+            /* The card becomes one row: sentence on the left, the three lane
+               chips on the right. Saves ~20px of track height over the
+               stacked portrait card. */
+            .dg-question-card {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 4px 8px 5px;
+                border-width: 2px;
+                border-radius: 12px;
+                box-shadow: 0 3px 0 rgba(249, 115, 22, 0.35);
+            }
+            .dg-q-label { display: none; }
+            .dg-question-text { flex: 1 1 auto; min-width: 0; margin-top: 0; font-size: 16px; line-height: 1.15; }
+            .dg-question-text.dg-shrunk { font-size: 13px; }
+            .dg-options {
+                flex: 0 1 auto;
+                max-width: 52%;
+                margin-top: 0;
+                gap: 4px;
+                justify-content: flex-end;
+                flex-wrap: nowrap;
+            }
+            .dg-option-chip {
+                flex: 0 1 auto;
+                min-width: 0;
+                max-width: 45%;
+                padding: 1px 5px 2px;
+                border-width: 1px;
+                border-radius: 7px;
+                font-size: 11px;
+            }
+            .dg-option-chip b { display: inline; margin-right: 4px; font-size: 9px; letter-spacing: 0.04em; }
+            .dg-stats { margin-top: 3px; gap: 4px; }
+            .dg-stat { font-size: 10px; padding: 2px 7px; }
+            /* Answers / item pickups: above the steering buttons, clear of the
+               question card and of the gates higher up the road. */
+            .dg-toast {
+                top: auto;
+                bottom: calc(66px + env(safe-area-inset-bottom));
+                padding: 5px 12px;
+                font-size: 12px;
+            }
+            #dg-mp-progress {
+                top: calc(66px + env(safe-area-inset-top));
+                width: min(40vw, 240px);
+                max-height: none;
+                padding: 5px 7px 6px;
+            }
+            #dg-mp-progress h4 { margin-bottom: 3px; font-size: 8px; }
+            .dg-race-row { padding: 2px 3px 3px; row-gap: 1px; }
+            .dg-race-name { font-size: 10px; }
+            .dg-race-count { font-size: 9px; }
+            .dg-race-bar { height: 4px; }
+            .dg-race-dist { font-size: 7px; }
+            .dg-race-more { font-size: 7px; }
+            .dg-item-btn { width: 68px; height: 68px; }
+            .dg-item-btn span { font-size: 24px; }
+            .dg-item-btn small { font-size: 8px; }
+            #dg-accel-btn { bottom: calc(152px + env(safe-area-inset-bottom)); }
+            #dg-item-btn { bottom: calc(78px + env(safe-area-inset-bottom)); }
+            .dg-pause-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 17px;
+                bottom: calc(80px + env(safe-area-inset-bottom));
+            }
+            .dg-controls { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); gap: 6px; }
+            .dg-controls button { padding: 9px 4px; border-radius: 12px; font-size: 13px; }
+            .dg-overlay { padding: 8px; }
+            .dg-panel { max-width: 700px; max-height: 96%; padding: 12px 16px; border-width: 3px; border-radius: 18px; }
+            /* Shorter result / pause cards so the buttons stay on screen. */
+            .dg-panel .text-6xl { font-size: 24px; line-height: 1.1; }
+            .dg-panel .text-3xl { font-size: 19px; line-height: 1.15; }
+            .dg-panel .text-2xl { font-size: 17px; line-height: 1.2; }
+            .dg-panel p { line-height: 1.3; }
+            .dg-panel .mb-1 { margin-bottom: 2px; }
+            .dg-panel .mb-3 { margin-bottom: 5px; }
+            .dg-panel .mb-4 { margin-bottom: 6px; }
+            .dg-panel .mb-5 { margin-bottom: 7px; }
+            .dg-panel .btn-paw, .dg-panel .dg-menu-button { padding: 7px 16px; font-size: 14px; }
+            .dg-standings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+            .dg-standing { padding: 2px 8px; }
+            .dg-standing .dg-who { font-size: 13px; }
+            .dg-standing .dg-points { font-size: 12px; }
+            .dg-standing .dg-dist { font-size: 10px; }
+            .dg-result-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+            .dg-result-grid > div { padding: 4px 7px; }
+            .dg-result-grid span { font-size: 10px; }
+            .dg-result-grid b { font-size: 13px; }
+            /* Waiting list inside an early finisher's card: metres are only a
+               hint during the race, so they are dropped from this panel. */
+            .dg-results-progress { margin-bottom: 6px; padding: 5px 7px 6px; }
+            .dg-results-progress h4 { margin-bottom: 2px; }
+            .dg-results-progress .dg-race-row { padding: 1px 4px 2px; row-gap: 1px; }
+            .dg-results-progress .dg-race-dist { display: none; }
+        }
+
         /* Keep intro / game-over cards phone-width when the stage is huge. */
         #wj-stage:fullscreen #wj-overlay > div,
         #wj-stage:-webkit-full-screen #wj-overlay > div,

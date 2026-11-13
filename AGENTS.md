@@ -479,6 +479,33 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   仍然係 discrete，而且會短暫壓過 tilt（`S.tilt.manualUntil`）做後備。
 - **ACCEL**：`DG.ACCEL_KMH = 110`、`DG.SPEED_CAP = 340`；按住 ACCEL 時速度 lerp 用 8，
   唔按就用 2.3。唔會消耗／自動用蘑菇，Enter 仍然用道具。
+- **打橫玩（landscape，2026-11）**：`#drive-and-go-view.dg-live` 本身已經係 `position:fixed`
+  ＋`100vw×100dvh`，所以橫向只需要純 CSS media query
+  `@media (orientation: landscape) and (max-height: 560px)`（喺 `index.html` CSS，
+  `.dg-lobby-avatar` 之後），**冇**加 JS class、亦唔會改動 view 結構。內容：
+  - HUD 由 154px 壓到 **61px**（844×390）：`.dg-q-label` 隱藏、`.dg-question-card`
+    變 `display:flex` **單行**（句子左、三個 lane chips 右，chips 唔會 ellipsis），
+    `#dg-stats` 一行細 chips。長句兩行時 HUD ~76px。
+  - `.dg-toast` 由 `top:74px` 改為 `bottom: calc(66px + safe-area)`，即喺 steering 按鈕
+    之上、已解閘區域，唔會再壓住問題卡／下一個閘。
+  - `.dg-item-btn`／`#dg-accel-btn` 82→68px，pause 50→44px，`.dg-controls` 68→54px，
+    `#dg-mp-progress` 縮到 240px 闊＋細字（5 人時 218px 高，controls 337 起，冇重疊）。
+  - kart 由 `h - 138` 改為 `h - 88`、scale 乘 `0.86`（見下）；rivals 用同一比例 ×`0.857`。
+  - 結果／暫停面板：`.dg-panel` `max-width:700px`、padding 12px、result grid 4 欄、
+    standings 2 欄、字級／Tailwind margin 縮細、早完賽 waiting 名單隱藏 metres。
+    實測 844×390：solo 253px、多人大榜（5 人）358px、早完賽 355px，全部喺 353–374px
+    可視高度內**免捲動**；暫停 238px。
+  - 平板（1024×768、768×1024）同直向手機**唔會**套用（`max-height:560px` 擋住），
+    數字同改動前完全一樣（hud 139／130、kart scale 1.229／1.638／1.016、`h-138`）。
+  - JS 幫手（`js/grammar/drive-and-go-race.js`，`DG.drawRace` 之前）：
+    `DG.sideways()`＝`v.h < 560 && v.w > v.h`；`DG.kartScale()`＝
+    `min(w/430, h/700) × (sideways ? 0.86 : 1.12)`；`DG.playerKartY()`＝
+    `sideways ? h - 88 : h - 138`。`DG.drawRace` 同 `DG.drawRival` 都改讀呢三個，
+    唔好再喺裡面寫死 `h - 138`／`1.12`／`0.96`。
+  - Controls 步驟（`showControlsStep()`）加咗一句英文提示
+    「📱 Turn your phone sideways for a wider track — the race screen adapts on its own.」
+  - 中置（CENTER） lane 閘喺橫向會被 kart 遮住最後約 1.2 秒，但 HUD chips 已經列出
+    LEFT／CENTER／RIGHT 答案，所以冇再改 kart 位置。
 - **SQL（Agreement）**：已有 Drive & Go! 嘅老師只需要喺 live project
   `mggnwzirjmibreimrwiq` 嘅 SQL editor 貼
   `supabase/drive_and_go_agreement_topic.sql`（可重複跑）。**唔好**為呢個改動再貼

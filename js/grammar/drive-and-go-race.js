@@ -1954,6 +1954,28 @@
         }
     };
 
+    /* ---------------- kart placement ---------------- */
+
+    // A phone held sideways is short and wide (e.g. 844 x 390 logical px).
+    // The portrait layout parks the kart 138px above the bottom edge, which
+    // costs a quarter of the screen height there and pushes the kart up over
+    // the answer gates, so short/wide viewports get a slightly smaller kart
+    // resting just above the LEFT / CENTER / RIGHT buttons.
+    DG.sideways = function () {
+        const v = DG.view;
+        return !!v && v.h < 560 && v.w > v.h;
+    };
+
+    DG.kartScale = function () {
+        const v = DG.view || { w: 430, h: 700 };
+        return Math.min(v.w / 430, v.h / 700) * (DG.sideways() ? 0.86 : 1.12);
+    };
+
+    DG.playerKartY = function () {
+        const v = DG.view || { w: 430, h: 700 };
+        return DG.sideways() ? v.h - 88 : v.h - 138;
+    };
+
     DG.drawRace = function () {
         if (!DG.raceEls || !DG.view) return;
         const ctx = DG.raceEls.canvas.getContext('2d');
@@ -2012,8 +2034,8 @@
         // Player kart: stays in its lane on the near road.
         const nearLane = DG.projectRel(0, p.laneX);
         const px = nearLane.x;
-        const py = h - 138;
-        const scale = Math.min(w / 430, h / 700) * 1.12;
+        const py = DG.playerKartY();
+        const scale = DG.kartScale();
         DG.drawKart(ctx, px, py, scale, p.look, {
             spin: S.clock < p.spinUntil ? (S.clock * 15) % (Math.PI * 2) : 0,
             star: S.clock < p.starUntil,
@@ -2120,7 +2142,8 @@
         if (rel < -10 || rel > FAR_REL) return;
         const pr = DG.project(rel, r.laneX);
         if (pr.y < DG.trackHorizonY() - 6) return;
-        const scale = Math.max(0.32, pr.scale) * Math.min(DG.view.w / 430, DG.view.h / 700) * 0.96;
+        // Rivals keep the same size relative to the player kart (0.96 / 1.12).
+        const scale = Math.max(0.32, pr.scale) * DG.kartScale() * 0.857;
         const spin = S.clock < (r.spinUntil || 0) ? (S.clock * 14) % (Math.PI * 2) : 0;
         DG.drawKart(ctx, pr.x, pr.y, scale, r.look, {
             spin,

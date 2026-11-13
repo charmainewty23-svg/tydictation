@@ -1568,7 +1568,8 @@ const DG = {
         content.innerHTML =
             DG.stepDots('controls') +
             DG.stepHeading('controls', 'Choose your controls') +
-            '<p class="text-center text-gray-500 font-bold mb-4">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
+            '<p class="text-center text-gray-500 font-bold mb-2">Tilt is recommended on a phone. Buttons always stay on screen as a backup.</p>' +
+            '<p class="text-center text-gray-400 text-sm font-bold mb-4">📱 Turn your phone sideways for a wider track — the race screen adapts on its own.</p>' +
             note +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
             card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +

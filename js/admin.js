@@ -6,6 +6,8 @@
             grammar: null,
             logins: null,
             loginsError: null,
+            streaks: null,
+            streaksError: null,
             battles: null,
             battlesError: null,
             wj: null,
@@ -258,11 +260,16 @@
             if (!statsEl || !listEl) return;
 
             const logsRes = await sb.from('student_logins')
-                .select('email, nickname, first_login_at, last_login_at, login_count, user_agent')
+                .select('user_id, email, nickname, first_login_at, last_login_at, login_count, user_agent')
                 .order('last_login_at', { ascending: false });
+            const streakRes = await sb.from('user_streaks')
+                .select('user_id, streak_count, streak_best, last_practice_date, repair_cards')
+                .limit(1000);
 
             adminCache.logins = logsRes.data || [];
             adminCache.loginsError = logsRes.error || null;
+            adminCache.streaks = streakRes.data || [];
+            adminCache.streaksError = streakRes.error || null;
             renderLoginAdmin();
         }
 
@@ -279,6 +286,10 @@
                 return;
             }
             const logs = adminCache.logins;
+            const streakByUser = {};
+            (adminCache.streaks || []).forEach(s => { streakByUser[s.user_id] = s; });
+            const activeStreaks = logs.filter(l => streakCurrentCount(streakByUser[l.user_id]) > 0).length;
+            const streakStat = adminCache.streaksError ? '—' : activeStreaks;
             const todayKey = hkDayKey(new Date().toISOString());
             const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
             const loggedToday = logs.filter(l => l.last_login_at && hkDayKey(l.last_login_at) === todayKey).length;
@@ -297,6 +308,10 @@
                         <div class="text-3xl font-bold text-purple-600">0</div>
                         <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
                     </div>
+                    <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
+                        <div class="text-3xl font-bold text-orange-600">${adminCache.streaksError ? '—' : '0'}</div>
+                        <div class="text-sm text-gray-500 font-bold">Active Streaks</div>
+                    </div>
                 `;
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No login records yet.</p>';
                 return;
@@ -313,6 +328,10 @@
                 <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
                     <div class="text-3xl font-bold text-purple-600">${loggedThisWeek}</div>
                     <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
+                </div>
+                <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
+                    <div class="text-3xl font-bold text-orange-600">${streakStat}</div>
+                    <div class="text-sm text-gray-500 font-bold">Active Streaks</div>
                 </div>
             `;
             listEl.innerHTML = renderFormSections(groupRowsByForm(logs), (list) => `
@@ -331,6 +350,16 @@
                             </div>
                             <div class="flex items-center gap-4 text-sm flex-wrap">
                                 <span class="text-gray-500">${l.login_count} login${l.login_count === 1 ? '' : 's'}</span>
+                                ${(() => {
+                                    if (adminCache.streaksError) {
+                                        return '<span class="text-gray-400 text-xs" title="Run supabase/user_streaks.sql in the SQL editor">🔥 —</span>';
+                                    }
+                                    const s = streakByUser[l.user_id];
+                                    const n = streakCurrentCount(s);
+                                    const best = s ? (Number(s.streak_best) || 0) : 0;
+                                    const last = s && s.last_practice_date ? escapeHtml(String(s.last_practice_date)) : '—';
+                                    return `<span class="font-bold text-xs ${n > 0 ? 'text-orange-600' : 'text-gray-400'}" title="Best ${best} day${best === 1 ? '' : 's'} · last ${last}">🔥 ${n} day${n === 1 ? '' : 's'}</span>`;
+                                })()}
                                 <span class="text-gray-400 text-xs">${escapeHtml(deviceLabel(l.user_agent))}</span>
                                 <span class="text-gray-400 text-xs">First: ${escapeHtml(hkDate(l.first_login_at))}</span>
                                 <span class="font-bold text-blue-600 text-xs" title="${escapeHtml(hkDate(l.last_login_at))}">${escapeHtml(timeAgo(l.last_login_at))}</span>

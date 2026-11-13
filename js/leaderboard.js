@@ -8,13 +8,15 @@
         function setLeaderboardBlurb() {
             const blurb = document.getElementById('leaderboard-blurb');
             if (!blurb) return;
-            blurb.textContent = lbModeFilter === 'wordjump'
-                ? 'Personal bests — top 10 by best score and words collected.'
-                : lbModeFilter === 'wjchallenge'
-                    ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
-                    : (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti')
-                        ? 'Personal bests by composite score — time, accuracy, questions and AV / PV / Mixed.'
-                        : 'Cumulative scores — practice more to rank higher!';
+            blurb.textContent = lbModeFilter === 'streaks'
+                ? 'Current daily streaks — top 10 by consecutive Hong Kong practice days.'
+                : lbModeFilter === 'wordjump'
+                    ? 'Personal bests — top 10 by best score and words collected.'
+                    : lbModeFilter === 'wjchallenge'
+                        ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
+                        : (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti')
+                            ? 'Personal bests by composite score — time, accuracy, questions and AV / PV / Mixed.'
+                            : 'Cumulative scores — practice more to rank higher!';
         }
 
         async function loadLeaderboard(mode) {
@@ -32,6 +34,15 @@
                 return;
             }
             if (isAdmin()) await ensureFormDirectory();
+            if (lbModeFilter === 'streaks') {
+                const { data, error } = await sb.from('user_streaks')
+                    .select('user_id,email,nickname,streak_count,streak_best,last_practice_date,repair_cards')
+                    .limit(1000);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
             if (lbModeFilter === 'wordjump') {
                 const { data, error } = await sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays,created_at')
@@ -153,10 +164,48 @@
             , { emptyAll: empty, emptyForm: '<p class="text-gray-400 text-center py-4">No runs from this form yet.</p>' });
         }
 
+        function renderStreakLeaderboard(container) {
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">Streak leaderboard not available. Run <code class="text-orange-600">supabase/user_streaks.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            const rows = (lbRows || [])
+                .map(r => Object.assign({}, r, { current_streak: streakCurrentCount(r) }))
+                .filter(r => r.current_streak > 0)
+                .sort((a, b) => (b.current_streak - a.current_streak)
+                    || ((Number(b.streak_best) || 0) - (Number(a.streak_best) || 0))
+                    || String(a.nickname || a.email || '').localeCompare(String(b.nickname || b.email || '')))
+                .slice(0, 10);
+            if (!rows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No active streaks yet. Finish any practice today to start one.</p>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            ${formAssignControl(r.email, r.nickname)}
+                            <span class="text-gray-400 text-xs whitespace-nowrap">best ${Number(r.streak_best) || 0}</span>
+                            <span class="font-bold text-orange-600 text-lg whitespace-nowrap">🔥 ${r.current_streak} day${r.current_streak === 1 ? '' : 's'}</span>
+                        </div>`;
+            if (!isAdmin()) {
+                container.innerHTML = `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(rows), (list) =>
+                `<div class="space-y-3">${list.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No active streaks yet.</p>' });
+        }
+
         function renderLeaderboard() {
             if (isGuestUser()) return;
             const container = document.getElementById('leaderboard-container');
             if (!container || !lbRows || lbModeFilter === 'wjchallenge') return;
+            if (lbModeFilter === 'streaks') {
+                renderStreakLeaderboard(container);
+                return;
+            }
             if (lbModeFilter === 'wordjump') {
                 renderWordJumpLeaderboard(container);
                 return;

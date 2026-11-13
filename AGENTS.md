@@ -1161,8 +1161,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **持久化 / 跨裝置**：
   - 學校帳戶：Supabase `user_streaks`（`supabase/user_streaks.sql`，老師要自己喺
     SQL editor 跑一次；可重跑）。每 user 一行：`streak_count`、`streak_best`、
-    `last_practice_date`、`repair_cards`、`first_seen`。
-    RLS 只准 `auth.uid() = user_id` 讀／insert／update，冇 delete policy。
+    `last_practice_date`、`repair_cards`、`first_seen`、`recent_days`。
+    `recent_days` 係最近 14 個香港練習日（JSON array），用嚟畫 Me 頁 7 日圓點。
+    RLS：select 公開（同 `dictation_results` 一樣，等 Hub 連勝榜讀得到），
+    insert／update 只准 `auth.uid() = user_id`，冇 delete policy。
   - 登入時 `showApp()` 會 call `loadCloudStreak()`：讀 cloud row，同本機 mirror
     合併（較新 `last` 為準；同日取 max count/best、min cards、最早 `first_seen`），
     再寫返 localStorage。新裝置第一次登入會等 cloud 合併完才計數，避免當成新生。
@@ -1216,6 +1218,9 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   - 學生名（Google `full_name` 或電郵 local-part）＋電郵；preview 顯示年級；
     訪客顯示 `Guest`。
   - 當前連勝日數、最佳連勝、剩餘補救卡、今日做咗未／仲有幾多日到期。
+  - **Last 7 days**：7 個圓點（今日同之前 6 日），`recent_days` 有嗰日就變橙，
+    今日多一圈 outline；下面寫 `3 / 7 days`。≤360px 圓點縮到 24px，
+    320px 都唔會橫向爆版。
   - **Dictation quizzes**：做過幾多次（`dictation_results` 的 exact count）。
   - **Average score**：平均分（`score` 平均，保留 1 位小數）。
     超過 1,000 次時只抽最新 1,000 次計平均，畫面會註明。
@@ -1229,6 +1234,14 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
 - **資料來源**：學校帳戶讀 cloud；訪客／preview 讀 `dict_history_guest`／
   `dict_history:preview:<form>` 同 `wj_best`。雲端暫時失敗時顯示 `—` 同
   一句提示，唔會令個人頁爆。
+- **老師 dashboard**：Admin「Student Logins」每行加 `🔥 N days`（用
+  `streakCurrentCount()` 計 effective current streak；hover 顯示 best／last），
+  stats 由 3 格變 4 格，加「Active Streaks」。`loadLoginAdmin()` 會一齊讀
+  `user_streaks`；未跑 SQL 時該格顯示 `—`，login 名單照出。
+- **Hub Leaderboard**：新增 **🔥 Streaks** tab，顯示 top 10 當前連勝。
+  用 `streakCurrentCount()` 過濾已斷兼冇卡補嘅 row；排序 current desc →
+  `streak_best` desc → 名。學生睇平坦名單；老師按年級分組。未跑
+  `user_streaks.sql` 或未有公開 select policy 時顯示提示／空榜。
 - **開啟方式**：`changeView('profile-view')` 會 call `loadProfile()`，
   先畫本機／session 數字，再 `await loadCloudStreak()` 和
   `dictation_results`／`wj_leaderboard` 更新。`currentView` 已離開 profile 時
@@ -1237,6 +1250,10 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   Dictation 統計用返現有 `dictation_results`（§5），Word Jump 用返
   `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
   first practice 只計本機、連勝唔跨裝置。
-- **實測**：375×667 profile 卡 `overflowX = 0`；Error Book 掣 44px 高；
-  guest 隱藏 My Records／Leaderboard；Lighthouse（guest profile）
-  Accessibility／Best Practices／SEO 全部 1.0。
+- **實測**：320、375、390 profile 卡同 7 日圓點全部 `overflowX = 0`
+  （≤360px 圓點 24px）；Error Book 掣 44px 高；guest 隱藏
+  My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日
+  + 3 張卡唔入榜，斷 3 日仍然入）；Admin Student Logins 第 4 格
+  「Active Streaks」同每行 `🔥 N days` 用假 data 測過；Lighthouse
+  （guest profile）Accessibility／Best Practices／SEO 全部 1.0。
+  未用真實 Gmail 帳戶 + live `user_streaks` row 測過。

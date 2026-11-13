@@ -98,12 +98,20 @@
 
         function normalizeStreakState(parsed) {
             const raw = (parsed && typeof parsed === 'object') ? parsed : {};
+            let recent = Array.isArray(raw.recentDays)
+                ? raw.recentDays.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().slice(-14)
+                : [];
+            const last = typeof raw.last === 'string' ? raw.last : '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(last) && recent.indexOf(last) === -1) {
+                recent = recent.concat(last).sort().slice(-14);
+            }
             return {
-                last: typeof raw.last === 'string' ? raw.last : '',
+                last: last,
                 count: Math.max(0, Number(raw.count) || 0),
                 best: Math.max(0, Number(raw.best) || 0),
                 cards: raw.cards == null ? STREAK_DEFAULT_CARDS : Math.max(0, Number(raw.cards) || 0),
-                firstSeen: typeof raw.firstSeen === 'string' ? raw.firstSeen : ''
+                firstSeen: typeof raw.firstSeen === 'string' ? raw.firstSeen : '',
+                recentDays: recent
             };
         }
 
@@ -152,10 +160,25 @@
             return ta <= tb ? a : b;
         }
 
+        // Effective current streak for a row from user_streaks. A lapsed run
+        // can still be repaired with cards, so it stays visible until the gap
+        // costs more cards than the student owns.
+        function streakCurrentCount(row) {
+            if (!row) return 0;
+            const count = Number(row.streak_count) || 0;
+            if (count <= 0) return 0;
+            const last = row.last_practice_date ? String(row.last_practice_date).slice(0, 10) : '';
+            if (!last) return 0;
+            const gap = streakGapDays(last, hkDayKey(new Date().toISOString()));
+            if (gap === 0 || gap === 1) return count;
+            const cards = Number(row.repair_cards) || 0;
+            return (gap > 1 && (gap - 1) <= cards) ? count : 0;
+        }
+
         function streakSnapshot() {
             const state = readStreakState();
             if (!state) {
-                return { count: 0, best: 0, cards: STREAK_DEFAULT_CARDS, firstSeen: '', practicedToday: false, alive: false, pendingRepair: 0, last: '' };
+                return { count: 0, best: 0, cards: STREAK_DEFAULT_CARDS, firstSeen: '', recentDays: [], practicedToday: false, alive: false, pendingRepair: 0, last: '' };
             }
             const today = hkDayKey(new Date().toISOString());
             const practicedToday = state.last === today;
@@ -170,6 +193,7 @@
                 best: Math.max(state.best, state.count),
                 cards: state.cards,
                 firstSeen: state.firstSeen,
+                recentDays: state.recentDays,
                 practicedToday: practicedToday,
                 alive: alive,
                 pendingRepair: repairable ? pendingRepair : 0,
@@ -218,7 +242,8 @@
                 count: row && row.streak_count,
                 best: row && row.streak_best,
                 cards: row && row.repair_cards,
-                firstSeen: row && row.first_seen ? row.first_seen : ''
+                firstSeen: row && row.first_seen ? row.first_seen : '',
+                recentDays: row && Array.isArray(row.recent_days) ? row.recent_days : []
             });
         }
 
@@ -226,19 +251,22 @@
             const l = normalizeStreakState(local);
             const c = normalizeStreakState(cloud);
             const firstSeen = earliestIso(l.firstSeen, c.firstSeen);
+            // Union the recent practice days from both devices, latest 14.
+            const recentDays = Array.from(new Set(l.recentDays.concat(c.recentDays))).sort().slice(-14);
             if (!l.last && !c.last) {
-                return { last: '', count: 0, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
+                return { last: '', count: 0, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen, recentDays: recentDays };
             }
-            if (!l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen };
-            if (!c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
-            if (l.last > c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best, l.count), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
-            if (c.last > l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best, c.count), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen };
+            if (!l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen, recentDays: recentDays };
+            if (!c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen, recentDays: recentDays };
+            if (l.last > c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best, l.count), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen, recentDays: recentDays };
+            if (c.last > l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best, c.count), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen, recentDays: recentDays };
             return {
                 last: l.last,
                 count: Math.max(l.count, c.count),
                 best: Math.max(l.best, c.best, l.count, c.count),
                 cards: Math.min(l.cards, c.cards),
-                firstSeen: firstSeen
+                firstSeen: firstSeen,
+                recentDays: recentDays
             };
         }
 
@@ -271,10 +299,20 @@
             streakCloudLoaded = false;
             streakCloudLoading = (async () => {
                 try {
-                    const { data, error } = await sb.from(STREAK_CLOUD_TABLE)
-                        .select('streak_count,streak_best,last_practice_date,repair_cards,first_seen')
+                    let { data, error } = await sb.from(STREAK_CLOUD_TABLE)
+                        .select('streak_count,streak_best,last_practice_date,repair_cards,first_seen,recent_days')
                         .eq('user_id', uid)
                         .maybeSingle();
+                    // Older installs may not have recent_days yet; keep the
+                    // rest of the streak working until the SQL is re-run.
+                    if (error && /recent_days|column .* does not exist|42703|PGRST204/i.test(String(error.message || ''))) {
+                        const fallback = await sb.from(STREAK_CLOUD_TABLE)
+                            .select('streak_count,streak_best,last_practice_date,repair_cards,first_seen')
+                            .eq('user_id', uid)
+                            .maybeSingle();
+                        data = fallback.data;
+                        error = fallback.error;
+                    }
                     if (error) throw error;
                     if (!currentUser || currentUser.id !== uid) return null;
                     let row = data;
@@ -289,10 +327,21 @@
                             last_practice_date: null,
                             repair_cards: STREAK_DEFAULT_CARDS,
                             first_seen: firstSeen || null,
+                            recent_days: [],
                             updated_at: new Date().toISOString()
                         };
                         const inserted = await sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' });
-                        if (inserted.error) throw inserted.error;
+                        if (inserted.error) {
+                            if (/recent_days|column .* does not exist|42703|PGRST204/i.test(String(inserted.error.message || ''))) {
+                                const legacy = Object.assign({}, row);
+                                delete legacy.recent_days;
+                                const retry = await sb.from(STREAK_CLOUD_TABLE).upsert(legacy, { onConflict: 'user_id' });
+                                if (retry.error) throw retry.error;
+                                row = legacy;
+                            } else {
+                                throw inserted.error;
+                            }
+                        }
                     }
                     if (!currentUser || currentUser.id !== uid) return null;
                     const merged = mergeStreakStates(readStreakState(), cloudStreakToLocal(row));
@@ -324,9 +373,19 @@
                 last_practice_date: state.last || null,
                 repair_cards: state.cards,
                 first_seen: state.firstSeen || null,
+                recent_days: state.recentDays || [],
                 updated_at: new Date().toISOString()
             };
             sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' }).then(({ error }) => {
+                if (error && /recent_days|column .* does not exist|42703|PGRST204/i.test(String(error.message || ''))) {
+                    // Older table without recent_days: save the rest.
+                    const legacy = Object.assign({}, row);
+                    delete legacy.recent_days;
+                    sb.from(STREAK_CLOUD_TABLE).upsert(legacy, { onConflict: 'user_id' }).then(({ error: retryError }) => {
+                        if (retryError) console.warn('Streak cloud save failed:', retryError.message);
+                    });
+                    return;
+                }
                 if (error) console.warn('Streak cloud save failed:', error.message);
             });
         }
@@ -346,7 +405,7 @@
             const state = readStreakState();
             const today = hkDayKey(new Date().toISOString());
             if (state.last === today) {
-                return { extended: false, count: state.count, best: state.best, cards: state.cards, repaired: 0, today: today };
+                return { extended: false, count: state.count, best: state.best, cards: state.cards, repaired: 0, today: today, recentDays: state.recentDays };
             }
             const gap = state.last ? streakGapDays(state.last, today) : NaN;
             let count = 1;
@@ -367,7 +426,8 @@
                 count: count,
                 best: Math.max(state.best, count),
                 cards: cards,
-                firstSeen: state.firstSeen || new Date().toISOString()
+                firstSeen: state.firstSeen || new Date().toISOString(),
+                recentDays: state.recentDays.concat(today).filter((d, i, a) => a.indexOf(d) === i).sort().slice(-14)
             };
             writeStreakState(next);
             saveCloudStreak(next);
@@ -383,7 +443,7 @@
             };
             if (delay > 0) setTimeout(() => showStreakPopup(info), delay);
             else showStreakPopup(info);
-            return { extended: true, count: count, best: next.best, cards: next.cards, repaired: repaired, today: today };
+            return { extended: true, count: count, best: next.best, cards: next.cards, repaired: repaired, today: today, recentDays: next.recentDays };
         }
 
         function streakPopupKeydown(event) {

@@ -16,6 +16,8 @@ create table if not exists public.user_streaks (
     -- First *completed practice*, not first login. NULL until the student
     -- finishes a Dictation quiz / Word Jump / Drive & Go / Word Battle.
     first_seen timestamptz,
+    -- Last 14 Hong Kong practice days (YYYY-MM-DD), used by the Me page dots.
+    recent_days jsonb not null default '[]'::jsonb,
     updated_at timestamptz not null default now()
 );
 
@@ -23,12 +25,17 @@ create table if not exists public.user_streaks (
 -- nullable, no default, so it stays empty until the first completed practice.
 alter table public.user_streaks alter column first_seen drop not null;
 alter table public.user_streaks alter column first_seen drop default;
+alter table public.user_streaks add column if not exists recent_days jsonb not null default '[]'::jsonb;
 
 alter table public.user_streaks enable row level security;
 
+-- The Hub streak leaderboard reads everyone's current streak (like
+-- dictation_results / wj_scores). Only the streak fields are exposed; writes
+-- stay restricted to the owner below.
 drop policy if exists "read own streak" on public.user_streaks;
-create policy "read own streak" on public.user_streaks
-    for select using (auth.uid() = user_id);
+drop policy if exists "read all streaks" on public.user_streaks;
+create policy "read all streaks" on public.user_streaks
+    for select using (true);
 
 drop policy if exists "insert own streak" on public.user_streaks;
 create policy "insert own streak" on public.user_streaks
@@ -155,6 +162,15 @@ begin
             from _learnity_streak_activity
             group by user_id
         ),
+        recent as (
+            select user_id, jsonb_agg(day order by day) as days
+            from (
+                select distinct user_id, day
+                from _learnity_streak_activity
+                where day >= ((now() at time zone 'Asia/Hong_Kong')::date - 6)
+            ) x
+            group by user_id
+        ),
         computed as (
             select lr.user_id,
                    -- A backfilled run only stays "current" if it ended today or
@@ -167,19 +183,22 @@ begin
                    end as streak_count,
                    greatest(b.best_len, lr.last_len) as streak_best,
                    lr.end_day as last_practice_date,
-                   fs.first_at as first_seen
+                   fs.first_at as first_seen,
+                   coalesce(r.days, '[]'::jsonb) as recent_days
             from last_run lr
             join best b on b.user_id = lr.user_id
             join first_seen fs on fs.user_id = lr.user_id
+            left join recent r on r.user_id = lr.user_id
         )
         insert into public.user_streaks (
             user_id, email, nickname, streak_count, streak_best,
-            last_practice_date, repair_cards, first_seen, updated_at
+            last_practice_date, repair_cards, first_seen, recent_days, updated_at
         )
         select c.user_id,
                u.email,
                coalesce(u.raw_user_meta_data ->> 'full_name', split_part(u.email, '@', 1)),
-               c.streak_count, c.streak_best, c.last_practice_date, 3, c.first_seen, now()
+               c.streak_count, c.streak_best, c.last_practice_date, 3, c.first_seen,
+               c.recent_days, now()
         from computed c
         left join auth.users u on u.id = c.user_id
         on conflict (user_id) do update set
@@ -187,6 +206,12 @@ begin
             nickname = coalesce(excluded.nickname, public.user_streaks.nickname),
             streak_best = greatest(public.user_streaks.streak_best, excluded.streak_best),
             first_seen = least(public.user_streaks.first_seen, excluded.first_seen),
+            recent_days = (
+                select coalesce(jsonb_agg(distinct d order by d), '[]'::jsonb)
+                from jsonb_array_elements_text(
+                    coalesce(public.user_streaks.recent_days, '[]'::jsonb) || excluded.recent_days
+                ) as t(d)
+            ),
             last_practice_date = case
                 when public.user_streaks.last_practice_date is null
                   or excluded.last_practice_date > public.user_streaks.last_practice_date

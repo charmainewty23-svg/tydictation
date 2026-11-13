@@ -96,6 +96,31 @@ async function profileCloudWjBest() {
     return null;
 }
 
+function profileRenderDots(snap) {
+    const box = document.getElementById('profile-dots');
+    if (!box) return;
+    const set = new Set(Array.isArray(snap.recentDays) ? snap.recentDays : []);
+    const today = hkDayKey(new Date().toISOString());
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+        days.push(hkDayKey(new Date(Date.now() - i * 86400000).toISOString()));
+    }
+    box.innerHTML = days.map(day => {
+        const on = set.has(day);
+        const label = new Date(day + 'T12:00:00+08:00')
+            .toLocaleDateString('en-HK', { weekday: 'short', timeZone: 'Asia/Hong_Kong' })
+            .slice(0, 1);
+        return `<span class="profile-dot-cell" title="${day}${on ? ' — practised' : ' — no practice'}">
+            <span class="profile-dot ${on ? 'on' : ''} ${day === today ? 'today' : ''}" aria-hidden="true"></span>
+            <span class="profile-dot-label">${label}</span>
+        </span>`;
+    }).join('');
+    const count = days.filter(day => set.has(day)).length;
+    const summary = document.getElementById('profile-dots-summary');
+    if (summary) summary.innerText = count + ' / 7 days';
+    box.setAttribute('aria-label', count + ' of the last 7 days practised');
+}
+
 function profileRenderStreak() {
     const snap = streakSnapshot();
     const count = document.getElementById('profile-streak');
@@ -109,6 +134,7 @@ function profileRenderStreak() {
     if (cards) cards.innerText = String(snap.cards);
     if (best) best.innerText = String(Math.max(snap.best, snap.count));
     if (first) first.innerText = snap.firstSeen ? profileDate(snap.firstSeen) : 'Not yet';
+    profileRenderDots(snap);
     if (!note) return;
     if (!snap.count) {
         note.innerText = 'Finish any practice today to light your flame.';

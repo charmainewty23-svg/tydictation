@@ -581,6 +581,52 @@
             font-weight: 800;
             line-height: 1.15;
         }
+        .profile-dots {
+            display: flex;
+            gap: 6px;
+        }
+        .profile-dot-cell {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .profile-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            border: 2px solid #ffe8d6;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #c2410c;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1;
+        }
+        .profile-dot.on {
+            border-color: #f97316;
+            background: #fb923c;
+            color: #fff;
+            box-shadow: 0 3px 0 #ea580c;
+        }
+        .profile-dot.today {
+            outline: 3px solid #fed7aa;
+            outline-offset: 1px;
+        }
+        .profile-dot-label {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        @media (max-width: 360px) {
+            .profile-dots { gap: 3px; }
+            .profile-dot { width: 24px; height: 24px; font-size: 11px; }
+        }
 
         .grammar-card {
             background: white;
@@ -2123,6 +2169,7 @@
                         <button onclick="loadLeaderboard('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white lb-mode-btn">All</button>
                         <button onclick="loadLeaderboard('listening')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Listening</button>
                         <button onclick="loadLeaderboard('recitation')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Recitation</button>
+                        <button onclick="loadLeaderboard('streaks')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🔥 Streaks</button>
                         <button onclick="loadLeaderboard('wordjump')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Word Jump</button>
                         <button onclick="loadLeaderboard('wjchallenge')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">WJ Challenge wins</button>
                         <button onclick="loadLeaderboard('dgsolo')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Drive &amp; Go! Solo</button>
@@ -2296,6 +2343,14 @@
                         </p>
                         <p id="profile-streak-note" class="text-sm font-bold text-orange-700 mt-2">Finish any practice today to light your flame.</p>
                     </div>
+                </div>
+
+                <div class="mb-5">
+                    <div class="flex items-center justify-between mb-2 gap-3">
+                        <p class="profile-stat-label" style="margin:0">Last 7 days</p>
+                        <p id="profile-dots-summary" class="text-xs font-bold text-gray-400"></p>
+                    </div>
+                    <div id="profile-dots" class="profile-dots" role="img" aria-label="Practice days in the last 7 days"></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 mb-6">

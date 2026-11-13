@@ -41,7 +41,7 @@
 ### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
 
 原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
-markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 12 個
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 13 個
 **classic** `<script src>` **同步**載入，次序唔可以改：
 
 | # | 檔案 | 內容 |
@@ -55,9 +55,10 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 同**場**適用全房（`p_scene`）；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間先貼 `supabase/drive_and_go_question_count.sql`，再貼 `supabase/drive_and_go_scenes_and_boards.sql`）；單人唔使 SQL；**唔好**用 plugin 跑 SQL |
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard`／`renderDriveAndGoLeaderboard`（Solo／Multi 兩塊榜） |
 | 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面） |
-| 10 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
-| 11 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
-| 12 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
+| 10 | `js/profile.js` | 「Me」個人頁（`#profile-view`）：`loadProfile`、`profileRenderStreak`／`profileRenderDict`／`profileRenderWj`；學校帳戶讀 `dictation_results`／`wj_leaderboard`，訪客同 preview 讀 session／local 記錄 |
+| 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
+| 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
+| 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
 - **唔可以**用 ES module（`type="module"`／`import`／`export`），亦**唔可以**加 `defer`／`async`：
@@ -90,6 +91,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
+| `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均分、Word Jump 最佳、首次加入日期（見 §12.6） |
 
 ### Grammar Quest tenses
 - `grammar-revision-view` 只有 2 張卡：`let's revise!`（開 `grammar-tense-list-view`）同
@@ -991,7 +993,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first joined 可以補最早 Word Jump 日期）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1021,10 +1023,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v1`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v2`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
-- `CORE_ASSETS` 有 18 個：`index.html`、manifest、4 個圖示、
-  11 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
+- `CACHE_NAME` 而家係 `learnity-pwa-v2`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v3`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
+  12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
 - 只快取同源靜態檔，以及 allowlist 的 CDN：`cdn.tailwindcss.com`、`fonts.googleapis.com`、
   `fonts.gstatic.com`、`cdn.jsdelivr.net`（Supabase JS）。
@@ -1068,15 +1070,18 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 | Tab | Icon | 開啟 view | Active 範圍 |
 |---|---|---|---|
 | Home | 🏠 | `hub-view` | hub、grammar 系列、my-records、leaderboard |
-| Dictation | ✍️ | `home-view` | home、sub-category、word-list、quiz |
+| Dictation | ✍️ | `home-view` | home、sub-category、word-list、quiz、error-book |
 | Jump | 🦘 | `wordjump-view` | wordjump |
 | Battle | ⚔️ | `battle-view` | battle |
-| Error | 📕 | `error-book-view` | error-book |
+| Me | 🐱 | `profile-view` | profile（個人頁，見 §12.6） |
 
 - Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；五個
   `[data-nav-view]` button 直接 call `changeView(...)`，所以每個 tab 永遠返到該區根頁。
   冇 Admin shortcut。Active tab 用深橙（`#c2410c`，11px 字過 4.5:1）＋底線；`updateBottomNav()`
   會設 `aria-current="page"`。
+- 舊嘅 **Error** tab 已換成 **Me／🐱**（個人頁）。Error Book 冇消失：Hub 的
+  Error Book 卡、Dictation 版面同個人頁左下角嘅「📕 Error Book」掣都入到
+  `error-book-view`；打開 Error Book 時 bottom bar 仍然會出，active tab 係 Dictation。
 - CSS 喺 `index.html` `<style>` 的 `/* ---- Bottom tab bar ---- */`：
   `position:fixed`、`z-index:900`、56px 高 tab、`env(safe-area-inset-bottom)`、
   半透明白底＋blur。內層 `.bottom-nav-inner` 在 iPad／桌面固定 **max-width 720px
@@ -1087,7 +1092,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - `NAV_TABS`（5 個 root view）、`NAV_HIDDEN_VIEWS = ['quiz-view',
     'wordjump-view', 'drive-and-go-view', 'admin-view']`。
   - `navTabForView(viewId)` 決定 active tab；grammar 樹／records／leaderboard
-    都 highlight Home。
+    都 highlight Home；`error-book-view` highlight Dictation；`profile-view`
+    highlight Me。
   - `navShouldShow(viewId)`：上面四個隱藏 view 唔出 bar；`battle-view` 只在
     lobby／result／class 出，`waiting`／`play` 進行中會收埋（避免蓋住計分板／輸入）。
     `class` 係老師嘅班際直播板（`battleRenderClassHost()` 只俾 host／老師），
@@ -1112,55 +1118,113 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   2. 新 view 預設會出 bar；如果係全屏遊戲或需要沉浸，加入 `NAV_HIDDEN_VIEWS`，
      並確保該 view 有自己嘅退出掣。
   3. `sw.js` 的 `CORE_ASSETS` 唔使改（呢個改動冇新 JS 檔）。
-- 實測（iframe 載入真 `index.html`，模擬登入後量度）：375×667、390×844、
+- 實測（iframe 載入真 `index.html`，模擬登入後量度）：320×568、375×667、390×844、
   430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`；tab 高度 56px、
-  nav 高度 58px、iPad／橫向內層 720px；lobby／result／class 出 bar，
+  nav 高度 58px、iPad／橫向內層 720px；lobby／result／class／profile／error-book 出 bar，
   waiting／play／quiz／wordjump／admin 收埋；`#app` 底部 padding 72px
-  （bar 58px ＋ 14px 空隙）。
+  （bar 58px ＋ 14px 空隙）。320px 時 header 會縮細 wordmark、收埋副標題同減
+  Logout padding（`@media (max-width:360px)`），避免橫向爆版。
 
-### 12.5 每日練習連勝（streak）
+### 12.5 每日練習連勝（streak）＋補救卡
 
 鼓勵學生每日做一次練習：連續嘅香港日曆日會有火（flame）數量，第一次做完當日
-練習會彈 **「You made it!」** 卡，之後同一天再完成唔會再加。
+練習會彈 **「You made it!」** 卡，之後同一天再完成唔會再加。學校 Google 帳戶
+經 Supabase 跨裝置同步；訪客同老師 preview 只用 browser session。
 
-- **計法**：`hkDayKey()`（`Asia/Hong_Kong`）做日界。`recordDailyPractice(source)`
+- **計法**：`hkDayKey()`（`Asia/Hong_Kong`）做日界。`recordDailyPractice(source, options)`
   （`js/shared.js`）只喺 `state.last !== 今日` 時寫入：
   - 上次係**昨日** → `count + 1`（連勝繼續）。
-  - 上次係更早（或從未做過）→ `count = 1`（重新開始，唔會懲罰）。
+  - 斷咗 1 日或以上，而 `gap - 1 <= repairCards` → 用補救卡補齊所有漏做日，
+    `count + 1`，`cards -= gap - 1`，popup 會寫「Repair card used」同剩幾張。
+  - 漏做日數多過手上補救卡 → **唔會**浪費卡，`count = 1` 重新開始。
+  - 從未做過 → `count = 1`，`cards` 預設 **3**。
   - 同一天再 call → `{ extended:false }`，唔彈卡、唔改數。
-  - 過期未做（上次 > 1 日前）時，badge 顯示 **0**，但 `best` 保留。
-    一 practice 就由 1 重新計。
-- **邊啲完成會計**（全部經同一個 hook）：
-  - Dictation `finishQuiz()` → `recordDailyPractice('Dictation')`
-  - Word Jump `WJ.gameOver()` → `'Word Jump'`（Challenge 跌倒都計）
-  - Drive & Go! `DG.finishPlayer()` → `'Drive & Go!'`（Solo／多人）
-  - Word Battle `battleFinishLocal()` → `'Word Battle'`
-  - 只有**完成**先計，開始／中途離開唔計。加新遊戲喺完成位 call 同一個 helper。
-- **持久化**：冇新 SQL、冇排行榜。
-  - 學校帳戶：`localStorage['learniTY_streak:user:<uuid>']`，每部裝置、每個帳戶
-    各自一份（換機／清 browser data 會由 0 開始；刻意唔扮 cross-device sync）。
-  - 老師 Preview：`sessionStorage['learniTY_streak:preview:<form>']`。
-  - 訪客：`sessionStorage['learniTY_streak:guest']`，所以同一個 password 登入嘅
-    下一個同學唔會繼承上一個嘅火（同 guest history 一樣理由）。
-  - 記錄格式：`{ last:'YYYY-MM-DD', count, best }`。
+  - `best` 永遠係歷史最高，斷連勝都保留；badge 只顯示當前火數。
+  - 補救卡**每人總共 3 張，不會自動補充**。用晒之後再斷一日就會清零。
+  - 未做今日但仲可以用卡補救時，badge 仍然顯示舊火數（`pendingRepair`）；
+    冇卡再斷就顯示 0。`showStreakInfo()` 會講「finish today to spend N cards」。
+- **邊啲完成會計**（全部經同一個 hook，**出咗結果畫面之後**才彈卡）：
+  - Dictation `finishQuiz()` → `recordDailyPractice('Dictation', { delayMs: 700 })`
+    （call 喺 `window.lastFinalView = finalView` 之後）。
+  - Word Jump 單人 `WJ.gameOver()` → `'Word Jump'`（call 喺 `WJ.setOverlay(...)` 之後）。
+  - Word Jump Challenge `WJC.showResults()` → `'Word Jump'`（全房完賽先計；
+    中途跌倒唔會打斷比賽畫面）。
+  - Drive & Go! `DG.finishPlayer()` → `'Drive & Go!'`（Solo／多人，call 喺
+    `showSoloResults`／`showMpOwnResults` 之後）。
+  - Word Battle `battleFinishLocal()` → `'Word Battle'`（call 喺 `await battlePoll()` 之後）。
+  - 只有**完成**先計，開始／中途離開唔計。加新遊戲喺完成位 call 同一個 helper，
+    並盡量喺結果 DOM 出現之後才 call。
+- **持久化 / 跨裝置**：
+  - 學校帳戶：Supabase `user_streaks`（`supabase/user_streaks.sql`，老師要自己喺
+    SQL editor 跑一次；可重跑）。每 user 一行：`streak_count`、`streak_best`、
+    `last_practice_date`、`repair_cards`、`first_seen`。
+    RLS 只准 `auth.uid() = user_id` 讀／insert／update，冇 delete policy。
+  - 登入時 `showApp()` 會 call `loadCloudStreak()`：讀 cloud row，同本機 mirror
+    合併（較新 `last` 為準；同日取 max count/best、min cards、最早 `first_seen`），
+    再寫返 localStorage。新裝置第一次登入會等 cloud 合併完才計數，避免當成新生。
+  - 每次 record 會 fire-and-forget upsert 上 cloud；失敗只 `console.warn`，
+    本機 mirror 照用。SQL 未跑時全部功能照用，只係唔會跨裝置。
+  - 本機 mirror key：`localStorage['learniTY_streak:user:<uuid>']`（學校帳戶）、
+    `sessionStorage['learniTY_streak:preview:<form>']`（老師 preview）、
+    `sessionStorage['learniTY_streak:guest']`（訪客，下一個同學唔會繼承）。
+  - 記錄格式：`{ last:'YYYY-MM-DD', count, best, cards, firstSeen }`。
 - **UI**：
   - Header `#auth-area` 最左邊有 `#streak-badge`（🔥 + `#streak-count`），
     min 44px tap target。`updateStreakBadge()` 喺 `updateAuthUI()`、`showApp()`、
-    `recordDailyPractice()` 後更新。0 火時灰色；有火時火苗輕微擺動
-    （`prefers-reduced-motion` 會停）。
-  - 撳 badge → `showStreakInfo()` 用 mascot bubble 講今日做咗未／仲有幾多日。
+    `loadCloudStreak()`、`recordDailyPractice()` 後更新。0 火時灰色；有火時火苗
+    輕微擺動（`prefers-reduced-motion` 會停）。
+  - 撳 badge → `showStreakInfo()` 用 mascot bubble 講今日做咗未／仲有幾多日／
+    要唔要用補救卡。
   - 「You made it!」卡係 `showStreakPopup()` 動態建立嘅 `#streak-popup`
     （`z-index: 10060`），有 backdrop、`role="dialog"`、Esc／backdrop 都可以關，
-    標題固定 `You made it!`，下面顯示 `🔥 N day(s)`、鼓勵句、來源（例如
-    `DICTATION COMPLETE`）同 `Keep going!` 掣。`streak-popup-btn` 最少 48px 高。
+    標題固定 `You made it!`，下面顯示 `🔥 N day(s)`、鼓勵句、`🛟 N repair cards
+    left`、用卡時 `🛟 N repair card(s) used`、來源（例如 `DICTATION COMPLETE`）
+    同 `Keep going!` 掣。`streak-popup-btn` 最少 48px 高。
   - 全屏遊戲（Word Jump／Drive & Go!）彈卡時，`streakPopupHost()` 會將卡放入
     `document.fullscreenElement`（原生全屏只 render 該 subtree），並且
     `stopPropagation()`，唔會當成轉向／射擊輸入。
-- **窄螢幕 header**：≤480px 時 `#auth-nickname` 收埋，避免 brand（LearniTY）
-  ＋🔥 badge＋Logout 橫向爆版；學生名仍然喺 records／leaderboard／admin 見到。
-  實測 375、390、430 全部 `overflowX = 0`。
-- **改動提示**：想「斷一日唔清零」就改 `recordDailyPractice()` 嘅
-  `state.last === hkYesterdayKey()` 條件；想轉用雲端就要另加 SQL 同 RLS，
-  唔好偷偷用 localStorage 扮 cross-device。想改慶祝文案改
-  `showStreakPopup()` 嘅 `line`。想加「連勝 7 日」獎勵，喺 `recordDailyPractice()`
-  收到 `count` 之後加（記得只喺 `extended:true` 時做）。
+  - 橫向短螢幕（`orientation: landscape` 且 `max-height: 480px`）有 compact CSS：
+    flame／字級／padding 縮細，卡高約 250px，844×390 免捲動。其他情況
+    `.streak-popup-card` 有 `max-height: calc(100dvh - 2rem); overflow-y:auto`
+    做最後防線。
+- **窄螢幕 header**：≤480px 時 `#auth-nickname` 收埋；≤360px 再縮細 wordmark、
+  收埋副標題同減 Logout padding，避免 brand＋🔥＋Logout 橫向爆版。學生名仍然
+  喺 records／leaderboard／admin 見到。實測 320、375、390、430 全部 `overflowX = 0`。
+- **改動提示**：想改預設卡數改 `STREAK_DEFAULT_CARDS`；想「斷一日唔清零」
+  改 `recordDailyPractice()` 嘅 repair 條件；想轉用其他持久化要同時改
+  `loadCloudStreak()`／`saveCloudStreak()`。想加「連勝 7 日」獎勵，喺
+  `recordDailyPractice()` 收到 `count` 之後加（只喺 `extended:true` 時做）。
+
+### 12.6 「Me」個人頁（`profile-view`）
+
+底部第 5 個 tab 由 Error 改成 **Me／🐱**，開啟 `#profile-view`（`js/profile.js`）。
+Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Error Book」掣進入。
+
+- **顯示內容**：
+  - 學生名（Google `full_name` 或電郵 local-part）＋電郵；preview 顯示年級；
+    訪客顯示 `Guest`。
+  - 當前連勝日數、最佳連勝、剩餘補救卡、今日做咗未／仲有幾多日到期。
+  - **Dictation quizzes**：做過幾多次（`dictation_results` 的 exact count）。
+  - **Average score**：平均分（`score` 平均，保留 1 位小數）。
+    超過 1,000 次時只抽最新 1,000 次計平均，畫面會註明。
+  - **Word Jump best**：`wj_leaderboard` 的個人最佳（冇就用 `wj_scores` 最高分）；
+    hover 有 words／height。訪客／preview 用 `wj_best`。
+  - **First joined**：`user_streaks.first_seen`；新 row 會先用
+    `my_first_login()`（讀 `student_logins.first_login_at`，只回傳自己嗰行），
+    再同最早 `dictation_results`／`wj_scores` 比較取最早；真正新用戶就用
+    第一次登入當日。格式 `13 Nov 2026`（香港時區）。
+  - 底部有 Error Book、My Records、Leaderboard 掣；訪客會收埋後兩者。
+- **資料來源**：學校帳戶讀 cloud；訪客／preview 讀 `dict_history_guest`／
+  `dict_history:preview:<form>` 同 `wj_best`。雲端暫時失敗時顯示 `—` 同
+  一句提示，唔會令個人頁爆。
+- **開啟方式**：`changeView('profile-view')` 會 call `loadProfile()`，
+  先畫本機／session 數字，再 `await loadCloudStreak()` 和
+  `dictation_results`／`wj_leaderboard` 更新。`currentView` 已離開 profile 時
+  遲來的 response 會直接丟棄。
+- **SQL**：只需要 `supabase/user_streaks.sql`（連勝／補救卡／first_seen）。
+  Dictation 統計用返現有 `dictation_results`（§5），Word Jump 用返
+  `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
+  first joined 用本機日期、連勝唔跨裝置。
+- **實測**：375×667 profile 卡 `overflowX = 0`；Error Book 掣 44px 高；
+  guest 隱藏 My Records／Leaderboard；Lighthouse（guest profile）
+  Accessibility／Best Practices／SEO 全部 1.0。

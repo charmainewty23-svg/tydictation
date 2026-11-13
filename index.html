@@ -374,6 +374,14 @@
                the student name stays visible in records and leaderboards. */
             #auth-nickname { display: none; }
         }
+        @media (max-width: 360px) {
+            /* Very narrow phones: shrink the wordmark + Logout instead of
+               letting the header push the page sideways. */
+            .brand-header h1 { font-size: 1.75rem; }
+            .brand-header p { display: none; }
+            #auth-area { gap: 0.5rem; }
+            #auth-btn { padding-left: 0.75rem; padding-right: 0.75rem; }
+        }
 
         .streak-popup {
             position: fixed;
@@ -391,6 +399,8 @@
         .streak-popup-card {
             width: 100%;
             max-width: 340px;
+            max-height: calc(100dvh - 2rem);
+            overflow-y: auto;
             padding: 1.75rem 1.5rem 1.5rem;
             text-align: center;
             background: #fffdf8;
@@ -443,6 +453,18 @@
             text-transform: uppercase;
             letter-spacing: 0.06em;
         }
+        .streak-popup-repair {
+            margin: 0 0 0.35rem;
+            color: #b45309;
+            font-weight: 800;
+            font-size: 0.85rem;
+        }
+        .streak-popup-cards {
+            margin: 0 0 0.6rem;
+            color: #6b7280;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
         .streak-popup-btn {
             width: 100%;
             min-height: 48px;
@@ -460,12 +482,104 @@
             transform: translateY(2px);
             box-shadow: 0 2px 0 #b34700;
         }
+        /* Landscape phones (and the Drive & Go! full-screen race) are short:
+           keep the whole celebration visible without scrolling. */
+        @media (orientation: landscape) and (max-height: 480px) {
+            .streak-popup {
+                align-items: flex-start;
+                padding: 0.5rem;
+            }
+            .streak-popup-card {
+                max-width: 440px;
+                padding: 0.75rem 1rem;
+                border-width: 3px;
+                border-radius: 1.25rem;
+            }
+            .streak-popup-flame {
+                font-size: 32px;
+                margin-bottom: 0;
+            }
+            .streak-popup-title {
+                font-size: 1.4rem;
+                margin-bottom: 0.15rem;
+            }
+            .streak-popup-count {
+                padding: 0.15rem 0.7rem;
+                margin-bottom: 0.35rem;
+                font-size: 1.05rem;
+            }
+            .streak-popup-line {
+                margin-bottom: 0.25rem;
+                font-size: 0.82rem;
+            }
+            .streak-popup-repair,
+            .streak-popup-cards,
+            .streak-popup-source {
+                margin-bottom: 0.2rem;
+                font-size: 0.7rem;
+            }
+            .streak-popup-btn {
+                min-height: 42px;
+                font-size: 0.9rem;
+            }
+        }
         @media (prefers-reduced-motion: reduce) {
             #streak-badge .streak-flame,
             .streak-popup-flame,
             .streak-popup-card {
                 animation: none;
             }
+        }
+
+        /* ---- Profile (Me) page ---- */
+        .profile-avatar {
+            flex: 0 0 auto;
+            width: 64px;
+            height: 64px;
+            border-radius: 999px;
+            border: 3px solid #fdba74;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            line-height: 1;
+        }
+        .profile-hero {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 1.5rem;
+            border: 2px solid #fed7aa;
+            border-radius: 1.5rem;
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+        }
+        .profile-flame {
+            flex: 0 0 auto;
+            font-size: 44px;
+            line-height: 1;
+        }
+        .profile-stat {
+            padding: 0.85rem 1rem;
+            border: 2px solid #ffe8d6;
+            border-radius: 1rem;
+            background: #fff;
+        }
+        .profile-stat-label {
+            margin: 0 0 0.25rem;
+            color: #6b7280;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+        .profile-stat-value {
+            margin: 0;
+            color: #9a3412;
+            font-size: 1.35rem;
+            font-weight: 800;
+            line-height: 1.15;
         }
 
         .grammar-card {
@@ -2163,6 +2277,63 @@
                     </div>
                 </div>
             </div>
+        <div id="profile-view" class="view hidden">
+            <div class="cat-card p-6 md:p-10 w-full">
+                <div class="flex items-center gap-4 mb-6">
+                    <div class="profile-avatar" aria-hidden="true">🐱</div>
+                    <div class="min-w-0">
+                        <h2 id="profile-name" class="text-3xl font-bold text-orange-600 truncate">Your profile</h2>
+                        <p id="profile-sub" class="text-gray-400 font-bold text-sm truncate">LearniTY learner</p>
+                    </div>
+                </div>
+
+                <div class="profile-hero mb-4">
+                    <div class="profile-flame" aria-hidden="true">🔥</div>
+                    <div>
+                        <p class="text-4xl font-extrabold text-orange-700 leading-none">
+                            <span id="profile-streak">0</span>
+                            <span id="profile-streak-unit" class="text-lg">day streak</span>
+                        </p>
+                        <p id="profile-streak-note" class="text-sm font-bold text-orange-700 mt-2">Finish any practice today to light your flame.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">Repair cards</p>
+                        <p class="profile-stat-value" id="profile-cards">3</p>
+                    </div>
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">Best streak</p>
+                        <p class="profile-stat-value"><span id="profile-best">0</span> days</p>
+                    </div>
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">Dictation quizzes</p>
+                        <p class="profile-stat-value" id="profile-dict-count">—</p>
+                    </div>
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">Average score</p>
+                        <p class="profile-stat-value" id="profile-dict-avg">—</p>
+                    </div>
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">Word Jump best</p>
+                        <p class="profile-stat-value" id="profile-wj-best">—</p>
+                    </div>
+                    <div class="profile-stat">
+                        <p class="profile-stat-label">First joined</p>
+                        <p class="profile-stat-value" id="profile-first" style="font-size:1rem">—</p>
+                    </div>
+                </div>
+
+                <p id="profile-note" class="text-xs text-gray-400 leading-relaxed mb-6"></p>
+
+                <div class="flex flex-wrap gap-3">
+                    <button type="button" onclick="changeView('error-book-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">📕 Error Book</button>
+                    <button type="button" id="profile-records-btn" onclick="changeView('my-records-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">☁️ My Records</button>
+                    <button type="button" id="profile-lb-btn" onclick="changeView('leaderboard-view')" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-full font-bold text-sm hover:bg-orange-200 transition-colors">🏆 Leaderboard</button>
+                </div>
+            </div>
+        </div>
         </main>
 
         <nav id="bottom-nav" aria-label="Main navigation">
@@ -2183,9 +2354,9 @@
                     <span class="bottom-nav-icon" aria-hidden="true">⚔️</span>
                     <span>Battle</span>
                 </button>
-                <button type="button" class="bottom-nav-tab" data-nav-view="error-book-view" onclick="changeView('error-book-view')">
-                    <span class="bottom-nav-icon" aria-hidden="true">📕</span>
-                    <span>Error</span>
+                <button type="button" class="bottom-nav-tab" data-nav-view="profile-view" onclick="changeView('profile-view')">
+                    <span class="bottom-nav-icon" aria-hidden="true">🐱</span>
+                    <span>Me</span>
                 </button>
             </div>
         </nav>
@@ -2203,6 +2374,7 @@
     <script src="js/grammar/drive-and-go-multiplayer.js"></script>
     <script src="js/leaderboard.js"></script>
     <script src="js/admin.js"></script>
+    <script src="js/profile.js"></script>
     <script src="js/word-battle.js"></script>
     <script src="js/word-jump.js"></script>
     <script src="js/pwa.js"></script>

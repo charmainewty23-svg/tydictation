@@ -641,7 +641,6 @@
             if (WJ.raf) cancelAnimationFrame(WJ.raf);
             WJ.raf = 0;
             WJ.state = 'over';
-            recordDailyPractice('Word Jump');
             const score = WJ.score();
             if (WJ.challenge && typeof WJC !== 'undefined') {
                 WJC.onLocalFallen(reason, score);
@@ -673,6 +672,8 @@
                 </div>`, true);
             WJ.loadLeaderboard();
             WJ.draw();
+            // Show the result first, then celebrate the daily streak.
+            recordDailyPractice('Word Jump', { delayMs: 800 });
         };
 
         /* ---------------- words & topics ---------------- */
@@ -3282,6 +3283,8 @@
             if (!WJC.room) return;
             WJC.overlayMode = 'results';
             WJC._resultsSig = WJC.resultsSig();
+            // A finished Challenge is a completed Word Jump practice too.
+            recordDailyPractice('Word Jump', { delayMs: 800 });
             const winner = (WJC.players || []).find(p => p.user_id === WJC.room.winner_id);
             const winName = winner ? (winner.nickname || (winner.email || '').split('@')[0]) : 'No one';
             const mineWin = currentUser && WJC.room.winner_id === currentUser.id;

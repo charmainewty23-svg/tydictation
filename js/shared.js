@@ -30,17 +30,17 @@
 
         // --- Bottom tab bar -------------------------------------------------
         // Exactly five tabs. Each tab always returns to its section root.
-        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'error-book-view'];
+        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'profile-view'];
         // Views that keep the screen immersive: the bar would cover controls or
         // compete with the game HUD, so it hides and the view keeps its own exit.
         const NAV_HIDDEN_VIEWS = ['quiz-view', 'wordjump-view', 'drive-and-go-view', 'admin-view'];
         let currentView = 'hub-view';
 
         function navTabForView(viewId) {
-            if (viewId === 'home-view' || viewId === 'sub-category-view' || viewId === 'word-list-view' || viewId === 'quiz-view') return 'home-view';
+            if (viewId === 'home-view' || viewId === 'sub-category-view' || viewId === 'word-list-view' || viewId === 'quiz-view' || viewId === 'error-book-view') return 'home-view';
             if (viewId === 'wordjump-view') return 'wordjump-view';
             if (viewId === 'battle-view') return 'battle-view';
-            if (viewId === 'error-book-view') return 'error-book-view';
+            if (viewId === 'profile-view') return 'profile-view';
             return 'hub-view'; // hub, grammar tree, records, leaderboard
         }
 
@@ -73,11 +73,16 @@
 
         // --- Daily practice streak -----------------------------------------
         // One flame per consecutive Asia/Hong_Kong calendar day with practice.
-        // Signed-in students keep it on this device (localStorage, per account);
-        // guests and teacher previews use sessionStorage so two people sharing
-        // a browser never inherit each other's flame.
+        // Signed-in students sync through user_streaks (Supabase), so the flame
+        // follows the Gmail account. Guests and teacher previews stay on the
+        // browser (sessionStorage) and never share another person's streak.
         const STREAK_PREFIX = 'learniTY_streak:';
         const STREAK_DAY_MS = 24 * 60 * 60 * 1000;
+        const STREAK_DEFAULT_CARDS = 3;
+        const STREAK_CLOUD_TABLE = 'user_streaks';
+        let streakCloudUser = '';
+        let streakCloudLoaded = false;
+        let streakCloudLoading = null;
 
         function streakOwner() {
             const form = previewStudentForm();
@@ -91,19 +96,25 @@
             return (isGuestUser() || previewStudentForm()) ? sessionStorage : localStorage;
         }
 
+        function normalizeStreakState(parsed) {
+            const raw = (parsed && typeof parsed === 'object') ? parsed : {};
+            return {
+                last: typeof raw.last === 'string' ? raw.last : '',
+                count: Math.max(0, Number(raw.count) || 0),
+                best: Math.max(0, Number(raw.best) || 0),
+                cards: raw.cards == null ? STREAK_DEFAULT_CARDS : Math.max(0, Number(raw.cards) || 0),
+                firstSeen: typeof raw.firstSeen === 'string' ? raw.firstSeen : ''
+            };
+        }
+
         function readStreakState() {
             const owner = streakOwner();
             if (!owner) return null;
             try {
                 const parsed = JSON.parse(streakStore().getItem(STREAK_PREFIX + owner) || 'null');
-                if (!parsed || typeof parsed !== 'object') return { last: '', count: 0, best: 0 };
-                return {
-                    last: typeof parsed.last === 'string' ? parsed.last : '',
-                    count: Math.max(0, Number(parsed.count) || 0),
-                    best: Math.max(0, Number(parsed.best) || 0)
-                };
+                return normalizeStreakState(parsed);
             } catch (e) {
-                return { last: '', count: 0, best: 0 };
+                return normalizeStreakState(null);
             }
         }
 
@@ -117,19 +128,51 @@
             return hkDayKey(new Date(Date.now() - STREAK_DAY_MS).toISOString());
         }
 
+        function hkDayNumber(key) {
+            if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return NaN;
+            const parts = key.split('-').map(Number);
+            return Math.floor(Date.UTC(parts[0], parts[1] - 1, parts[2]) / STREAK_DAY_MS);
+        }
+
+        // Whole Hong Kong days from `fromKey` to `toKey` (1 = yesterday -> today).
+        function streakGapDays(fromKey, toKey) {
+            const a = hkDayNumber(fromKey);
+            const b = hkDayNumber(toKey);
+            if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN;
+            return b - a;
+        }
+
+        function earliestIso(a, b) {
+            if (!a) return b || '';
+            if (!b) return a;
+            const ta = new Date(a).getTime();
+            const tb = new Date(b).getTime();
+            if (!Number.isFinite(ta)) return b;
+            if (!Number.isFinite(tb)) return a;
+            return ta <= tb ? a : b;
+        }
+
         function streakSnapshot() {
             const state = readStreakState();
-            if (!state) return { count: 0, best: 0, practicedToday: false, alive: false, last: '' };
+            if (!state) {
+                return { count: 0, best: 0, cards: STREAK_DEFAULT_CARDS, firstSeen: '', practicedToday: false, alive: false, pendingRepair: 0, last: '' };
+            }
             const today = hkDayKey(new Date().toISOString());
             const practicedToday = state.last === today;
-            // The streak is still alive until the end of the day after the last
-            // practice; after that it has lapsed and the badge shows 0 again.
-            const alive = practicedToday || state.last === hkYesterdayKey();
+            const gap = state.last ? streakGapDays(state.last, today) : NaN;
+            // A missed day can still be repaired with cards, so keep the flame
+            // visible until the gap costs more cards than the student owns.
+            const pendingRepair = (Number.isFinite(gap) && gap > 1) ? (gap - 1) : 0;
+            const repairable = pendingRepair > 0 && pendingRepair <= state.cards;
+            const alive = practicedToday || gap === 1 || repairable;
             return {
                 count: alive ? state.count : 0,
-                best: state.best,
+                best: Math.max(state.best, state.count),
+                cards: state.cards,
+                firstSeen: state.firstSeen,
                 practicedToday: practicedToday,
                 alive: alive,
+                pendingRepair: repairable ? pendingRepair : 0,
                 last: state.last
             };
         }
@@ -147,8 +190,10 @@
                 : 'Daily practice streak: not started');
             badge.title = snap.count
                 ? (snap.practicedToday
-                    ? '🔥 ' + snap.count + '-day streak — done for today!'
-                    : '🔥 ' + snap.count + '-day streak — practise today to keep it alive.')
+                    ? '🔥 ' + snap.count + '-day streak — done for today! ' + snap.cards + ' repair card' + (snap.cards === 1 ? '' : 's') + ' left.'
+                    : snap.pendingRepair
+                        ? '🔥 ' + snap.count + '-day streak — finish a practice today to spend ' + snap.pendingRepair + ' repair card' + (snap.pendingRepair === 1 ? '' : 's') + '.'
+                        : '🔥 ' + snap.count + '-day streak — practise today to keep it alive.')
                 : '🔥 Finish any practice today to light your first flame.';
         }
 
@@ -158,34 +203,192 @@
                 updateMascot('🔥 Finish any practice today to light your first streak flame!');
                 return;
             }
+            if (snap.pendingRepair) {
+                updateMascot('🔥 Your ' + snap.count + '-day streak is waiting. Finish a practice today to spend ' + snap.pendingRepair + ' repair card' + (snap.pendingRepair === 1 ? '' : 's') + ' and keep it.');
+                return;
+            }
             updateMascot(snap.practicedToday
                 ? '🔥 ' + snap.count + '-day streak! You already practised today — come back tomorrow to grow it.'
                 : '🔥 ' + snap.count + '-day streak. Finish a practice today to keep it alive!');
         }
 
+        function cloudStreakToLocal(row) {
+            return normalizeStreakState({
+                last: row && row.last_practice_date ? String(row.last_practice_date).slice(0, 10) : '',
+                count: row && row.streak_count,
+                best: row && row.streak_best,
+                cards: row && row.repair_cards,
+                firstSeen: row && row.first_seen ? row.first_seen : ''
+            });
+        }
+
+        function mergeStreakStates(local, cloud) {
+            const l = normalizeStreakState(local);
+            const c = normalizeStreakState(cloud);
+            const firstSeen = earliestIso(l.firstSeen, c.firstSeen) || new Date().toISOString();
+            if (!l.last && !c.last) {
+                return { last: '', count: 0, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
+            }
+            if (!l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen };
+            if (!c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
+            if (l.last > c.last) return { last: l.last, count: l.count, best: Math.max(l.best, c.best, l.count), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
+            if (c.last > l.last) return { last: c.last, count: c.count, best: Math.max(c.best, l.best, c.count), cards: Math.min(c.cards, l.cards), firstSeen: firstSeen };
+            return {
+                last: l.last,
+                count: Math.max(l.count, c.count),
+                best: Math.max(l.best, c.best, l.count, c.count),
+                cards: Math.min(l.cards, c.cards),
+                firstSeen: firstSeen
+            };
+        }
+
+        async function earliestActivityIso(uid) {
+            const dates = [];
+            // The real join date is in student_logins (admin-only table); the
+            // security-definer RPC returns just this student's own row.
+            try {
+                const first = await sb.rpc('my_first_login');
+                if (!first.error && first.data) dates.push(first.data);
+            } catch (e) {}
+            try {
+                const a = await sb.from('dictation_results')
+                    .select('created_at').eq('user_id', uid)
+                    .order('created_at', { ascending: true }).limit(1);
+                if (!a.error && a.data && a.data[0] && a.data[0].created_at) dates.push(a.data[0].created_at);
+            } catch (e) {}
+            try {
+                const b = await sb.from('wj_scores')
+                    .select('created_at').eq('user_id', uid)
+                    .order('created_at', { ascending: true }).limit(1);
+                if (!b.error && b.data && b.data[0] && b.data[0].created_at) dates.push(b.data[0].created_at);
+            } catch (e) {}
+            return dates.reduce((best, d) => earliestIso(best, d), '');
+        }
+
+        // Reads this student's row once per sign-in and merges it with the local
+        // mirror. Safe to call repeatedly; the in-flight promise is reused.
+        async function loadCloudStreak(force) {
+            if (!canUseCloud() || previewStudentForm()) return null;
+            const uid = currentUser && currentUser.id;
+            if (!uid) return null;
+            if (!force && streakCloudUser === uid && streakCloudLoaded) return readStreakState();
+            if (!force && streakCloudLoading && streakCloudUser === uid) return streakCloudLoading;
+            streakCloudUser = uid;
+            streakCloudLoaded = false;
+            streakCloudLoading = (async () => {
+                try {
+                    const { data, error } = await sb.from(STREAK_CLOUD_TABLE)
+                        .select('streak_count,streak_best,last_practice_date,repair_cards,first_seen')
+                        .eq('user_id', uid)
+                        .maybeSingle();
+                    if (error) throw error;
+                    if (!currentUser || currentUser.id !== uid) return null;
+                    let row = data;
+                    if (!row) {
+                        const firstSeen = await earliestActivityIso(uid);
+                        row = {
+                            user_id: uid,
+                            email: currentUser.email,
+                            nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                            streak_count: 0,
+                            streak_best: 0,
+                            last_practice_date: null,
+                            repair_cards: STREAK_DEFAULT_CARDS,
+                            first_seen: firstSeen || new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        };
+                        const inserted = await sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' });
+                        if (inserted.error) throw inserted.error;
+                    }
+                    if (!currentUser || currentUser.id !== uid) return null;
+                    const merged = mergeStreakStates(readStreakState(), cloudStreakToLocal(row));
+                    writeStreakState(merged);
+                    streakCloudLoaded = true;
+                    updateStreakBadge();
+                    return merged;
+                } catch (e) {
+                    console.warn('Streak cloud unavailable:', e.message || e);
+                    // The local mirror still works, so nothing on screen breaks.
+                    streakCloudLoaded = true;
+                    updateStreakBadge();
+                    return readStreakState();
+                } finally {
+                    streakCloudLoading = null;
+                }
+            })();
+            return streakCloudLoading;
+        }
+
+        function saveCloudStreak(state) {
+            if (!canUseCloud() || previewStudentForm() || !currentUser) return;
+            const row = {
+                user_id: currentUser.id,
+                email: currentUser.email,
+                nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                streak_count: state.count,
+                streak_best: state.best,
+                last_practice_date: state.last || null,
+                repair_cards: state.cards,
+                first_seen: state.firstSeen || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' }).then(({ error }) => {
+                if (error) console.warn('Streak cloud save failed:', error.message);
+            });
+        }
+
         // Called from every "finished a practice" hook. Only the first finished
-        // practice of a Hong Kong calendar day extends the streak and shows the
-        // celebration; later completions that day are silent no-ops.
-        function recordDailyPractice(source) {
+        // practice of a Hong Kong calendar day extends the streak. If a day was
+        // missed, repair cards bridge the gap while the student still has enough.
+        function recordDailyPractice(source, options) {
             const owner = streakOwner();
             if (!owner) return { extended: false, count: 0 };
+            // Wait for the cloud row once per sign-in, otherwise a fresh device
+            // would look like a new student and reset the streak.
+            if (canUseCloud() && !previewStudentForm() && !streakCloudLoaded) {
+                loadCloudStreak().then(() => recordDailyPractice(source, options));
+                return { extended: false, pending: true, count: 0 };
+            }
             const state = readStreakState();
             const today = hkDayKey(new Date().toISOString());
             if (state.last === today) {
-                return { extended: false, count: state.count, best: state.best, today: today };
+                return { extended: false, count: state.count, best: state.best, cards: state.cards, repaired: 0, today: today };
             }
-            const continues = state.last === hkYesterdayKey();
-            const count = continues ? Math.max(1, state.count + 1) : 1;
-            const next = { last: today, count: count, best: Math.max(state.best, count) };
+            const gap = state.last ? streakGapDays(state.last, today) : NaN;
+            let count = 1;
+            let cards = state.cards;
+            let repaired = 0;
+            if (state.last && gap === 1) {
+                count = Math.max(1, state.count + 1);
+            } else if (Number.isFinite(gap) && gap > 1 && (gap - 1) <= cards) {
+                // A repair card covers one missed day. Spend them only when the
+                // whole gap can be bridged; otherwise start a fresh streak.
+                repaired = gap - 1;
+                cards -= repaired;
+                count = Math.max(1, state.count + 1);
+            }
+            const next = {
+                last: today,
+                count: count,
+                best: Math.max(state.best, count),
+                cards: cards,
+                firstSeen: state.firstSeen || new Date().toISOString()
+            };
             writeStreakState(next);
+            saveCloudStreak(next);
             updateStreakBadge();
-            showStreakPopup({
+            const delay = Math.max(0, Number(options && options.delayMs) || 0);
+            const info = {
                 count: count,
                 best: next.best,
-                fresh: !continues,
+                cards: next.cards,
+                repaired: repaired,
+                fresh: count === 1 && !repaired,
                 source: source || ''
-            });
-            return { extended: true, count: count, best: next.best, today: today };
+            };
+            if (delay > 0) setTimeout(() => showStreakPopup(info), delay);
+            else showStreakPopup(info);
+            return { extended: true, count: count, best: next.best, cards: next.cards, repaired: repaired, today: today };
         }
 
         function streakPopupKeydown(event) {
@@ -212,14 +415,18 @@
             const count = Math.max(1, Number(info && info.count) || 1);
             const source = (info && info.source) ? String(info.source) : '';
             const fresh = !!(info && info.fresh);
+            const repaired = Math.max(0, Number(info && info.repaired) || 0);
+            const cards = Math.max(0, Number(info && info.cards) || 0);
             const dayWord = count === 1 ? 'day' : 'days';
-            const line = fresh
-                ? 'Your first flame is lit. Finish a practice tomorrow to make it two.'
-                : count === 2
-                    ? 'Two days in a row — the flame is growing!'
-                    : count >= 7
-                        ? count + ' days in a row. That is a proper bonfire!'
-                        : count + ' days in a row — keep the fire alive!';
+            const line = repaired
+                ? 'Repair card used — your flame is still alive!'
+                : fresh
+                    ? 'Your first flame is lit. Finish a practice tomorrow to make it two.'
+                    : count === 2
+                        ? 'Two days in a row — the flame is growing!'
+                        : count >= 7
+                            ? count + ' days in a row. That is a proper bonfire!'
+                            : count + ' days in a row — keep the fire alive!';
             const popup = document.createElement('div');
             popup.id = 'streak-popup';
             popup.className = 'streak-popup';
@@ -232,6 +439,8 @@
                     <h2 id="streak-popup-title" class="streak-popup-title">You made it!</h2>
                     <p class="streak-popup-count"><span aria-hidden="true">🔥</span> ${count} ${dayWord}</p>
                     <p class="streak-popup-line">${escapeHtml(line)}</p>
+                    ${repaired ? `<p class="streak-popup-repair">🛟 ${repaired} repair card${repaired === 1 ? '' : 's'} used</p>` : ''}
+                    <p class="streak-popup-cards">🛟 ${cards} repair card${cards === 1 ? '' : 's'} left</p>
                     ${source ? `<p class="streak-popup-source">${escapeHtml(source)} complete</p>` : ''}
                     <button type="button" class="streak-popup-btn" onclick="closeStreakPopup()">Keep going!</button>
                 </div>`;
@@ -248,7 +457,6 @@
             const btn = popup.querySelector('.streak-popup-btn');
             if (btn && btn.focus) btn.focus({ preventScroll: true });
         }
-
         function isGuestUser() { return !!guestSession; }
         function isTeacherAccount() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }
         const PREVIEW_FORM_KEY = 'learniTY_preview_form';
@@ -847,6 +1055,9 @@
             myFormValue = '';
             myFormLoaded = false;
             ownFormPersisted = false;
+            streakCloudUser = '';
+            streakCloudLoaded = false;
+            streakCloudLoading = null;
             paintPreviewBanner();
             adoptErrorBookUser();
             updateAuthUI();
@@ -901,6 +1112,9 @@
             if (!alreadyOpen) changeView('hub-view');
             else updateBottomNav();
             updateStreakBadge();
+            // Cross-device streak: fetch once per sign-in. The local mirror is
+            // already showing, so a slow / missing table never blocks the app.
+            if (canUseCloud() && !previewStudentForm()) loadCloudStreak();
         }
 
         function showLogin() {
@@ -1156,6 +1370,7 @@
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
             if (viewId === 'grammar-tense-list-view') { updateMascot("Pick a tense to revise!"); renderTenseGrid(); }
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
+            if (viewId === 'profile-view') { updateMascot("Your LearniTY profile — keep the flame alive!"); loadProfile(); }
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }

@@ -799,12 +799,13 @@
         async function battleFinishLocal() {
             if (battleDoneLocal) return;
             battleDoneLocal = true;
-            recordDailyPractice('Word Battle');
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             document.getElementById('battle-feedback').innerText = '';
             await battleSubmitProgress(true);
             await sb.rpc('finish_battle', { p_room_id: battleRoom.id });
             await battlePoll();
+            // The result panel is on screen now; celebrate afterwards.
+            recordDailyPractice('Word Battle', { delayMs: 800 });
         }
 
         function battleRenderResult() {

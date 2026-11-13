@@ -421,9 +421,6 @@
             const correctCount = quizResults.filter(r => r.correct).length;
             const accuracy = Math.round((correctCount / total) * 100);
 
-            // First finished practice of the Hong Kong day extends the streak.
-            recordDailyPractice('Dictation');
-
             // Save to local (session-only for guests, so a later visitor is not mixed in)
             const historyStore = (isGuestUser() || previewStudentForm()) ? sessionStorage : localStorage;
             const historyKey = previewStudentForm() ? ('dict_history:preview:' + previewStudentForm()) : (isGuestUser() ? 'dict_history_guest' : 'dict_history');
@@ -491,6 +488,8 @@
             document.getElementById('quiz-view').classList.add('hidden');
             document.getElementById('main-container').appendChild(finalView);
             window.lastFinalView = finalView;
+            // After the result card is on screen, celebrate the daily streak.
+            recordDailyPractice('Dictation', { delayMs: 700 });
         }
 
         const EXAM_FOCUS_CATS = [

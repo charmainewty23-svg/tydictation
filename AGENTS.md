@@ -1211,7 +1211,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
 - `CACHE_NAME` 而家係 `learnity-pwa-v3`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v3`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+  （例如 `v4`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

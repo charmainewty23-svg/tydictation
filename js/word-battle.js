@@ -446,7 +446,6 @@
             }
             if (!isAdmin()) await resolveOwnForm(true);
             battlePopulateTopics();
-            battleRenderCatCustomizer();
             const qsel = document.getElementById('battle-count-select');
             if (qsel) {
                 const saved = localStorage.getItem('battle_qcount');
@@ -592,6 +591,9 @@
             if (battleRoom.status === 'waiting') {
                 battleShowPanel('waiting');
                 document.getElementById('battle-code-display').innerText = battleRoom.code;
+                const catBox = document.getElementById('battle-cat-customizer');
+                if (catBox) catBox.classList.toggle('hidden', battleRoom.mode !== 'class');
+                if (battleRoom.mode === 'class') battleRenderCatCustomizer();
                 const chips = document.getElementById('battle-chips');
                 if (battleRoom.mode === 'class') {
                     if (chips) chips.classList.add('hidden');

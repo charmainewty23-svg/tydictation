@@ -588,11 +588,14 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `cat`／`glasses`／`hat`／`outfit`，default 係 `Ginger`／`None`／`None`／`None`。
   學生用現有 `battle players update own` RLS 更新自己嗰行，唔需要新 RPC。
   未跑 SQL 都玩到：貓 look 只留喺本機／用 default，更新時只會 `console.warn`。
-- **自訂貓**：Word Battle lobby 嘅 Join a room 下面加咗同 Drive & Go 一樣嘅
-  `battle-cat-options`（Cat／Glasses／Hat／Outfit）＋`#battle-cat-preview`
-  canvas。選擇會寫入 `learniTY_dg_settings`（同 Drive & Go 共用），
-  `battleSetLook()` 會即時更新 preview；`battleAdoptRoom()` 入房後會
-  `battleSaveLookToRoom()` 寫入自己嗰個 `battle_players` row。
+- **自訂貓（只限班際）**：學生用 4 位房碼入咗 **班際 waiting room** 之後，
+  `battle-waiting` 會顯示 `#battle-cat-customizer`（Cat／Glasses／Hat／Outfit）
+  ＋`#battle-cat-preview` canvas；1v1 waiting room 唔會顯示。選擇會寫入
+  `learniTY_dg_settings`（同 Drive & Go 共用），`battleSetLook()` 會即時更新
+  preview 並寫入自己嗰個 `battle_players` row。入房時亦會先
+  `battleSaveLookToRoom()` 儲存當時嘅 look，所以趕住開賽都至少用到設定值。
+  班際房如果已經開始（join mid-game），waiting room 唔會出現，學生要用
+  Drive & Go 之前設定好嘅貓。
 - **頒獎台**：班際房 `status === 'finished'`（`finished_at` 有值）時，
   學生 result 同老師 class board 都會出 `battlePodiumHTML()`：
   - 1–3 名喺台上（2／1／3 排列，台階高度唔同）

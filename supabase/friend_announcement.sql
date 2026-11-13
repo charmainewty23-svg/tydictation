@@ -11,7 +11,7 @@ declare
     r record;
 begin
     for r in
-        select conname
+        select oid, conname
           from pg_constraint
          where conrelid = 'public.friend_notifications'::regclass
            and contype = 'c'

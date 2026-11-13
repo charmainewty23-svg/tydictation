@@ -1223,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v10`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v11`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v11`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v12`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1682,3 +1682,20 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `#profile-best-unit`，1 顯示 **1 day**、其他 **N days**。朋友 profile
   嘅 Friend streak 同 record achievement 亦用 `1 day / N days`。
 - 真正 OS push 仍未做；呢個係 app 內 bell notification＋一次性 modal。
+
+#### 12.7d Admin 名單展開／收起（2026-11）
+
+- `renderFormSections()` 嘅 `collapsible: true` + `scope` 會出
+  `adminFormToggleButtons()` 嘅 **(+)/(-)**，狀態記喺 `adminFormOpen`。
+- 已覆蓋嘅 admin 名單：
+  - Admin activity（`admin-activity`）
+  - Grammar Quest admin（`grammar-admin`）
+  - Student Logins（`login-admin`）
+  - Word Jump admin（`wj-admin`）
+  - Drive & Go Solo／Multi admin（`dg-admin-solo`／`dg-admin-multi`）
+  - Word Battle class live board（`battle-class`）
+  - Guest logins 卡本身有 `guest-admin` +/-。
+- Word Battle admin 每間房嘅 player list 另外用 `<details>`（summary
+  `Players (N)`，預設 open），可以逐間收埋；房間列表本身仍有
+  Show all／Collapse。
+- 所有 admin 名單嘅名都用 `adminProfileName()` 撳得入 profile。

@@ -233,7 +233,9 @@
                         <span class="font-bold text-green-600 text-sm whitespace-nowrap">${Number(r.composite) || 0} pts</span>
                     </div>`;
                 }).join('') + '</div>',
-            { emptyAll: '<p class="text-gray-400 text-center py-8 text-sm">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>' });
+            { emptyAll: '<p class="text-gray-400 text-center py-8 text-sm">No Drive &amp; Go! ' + (solo ? 'Solo' : 'Multiplayer') + ' runs recorded yet.</p>',
+              collapsible: true,
+              scope: solo ? 'dg-admin-solo' : 'dg-admin-multi' });
         }
 
         function renderDriveAndGoAdmin() {

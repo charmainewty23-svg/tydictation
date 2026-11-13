@@ -1165,7 +1165,9 @@
             document.getElementById('battle-class-list').innerHTML = everyone.length
                 ? renderFormSections(groupRowsByForm(everyone), (list) =>
                     `<div class="space-y-2">${list.map(playerCard).join('')}</div>`,
-                    { emptyAll: '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>' })
+                    { emptyAll: '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>',
+                      collapsible: true,
+                      scope: 'battle-class' })
                 : '<p class="text-gray-400 text-center py-8">No students yet — share the code above.</p>';
 
             // per-question accuracy, only once the round is finished
@@ -1414,7 +1416,12 @@
                                     ${!mixed && groups.length === 1 ? `<span class="text-xs font-bold px-2 py-1 rounded-full ${groups[0].id ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}">${escapeHtml(groups[0].label)}</span>` : ''}
                                     <span class="text-xs text-gray-400 capitalize">${escapeHtml(r.topic === '__random__' ? 'random' : r.topic)}</span>
                                 </div>
-                                <div class="text-sm min-w-[240px] flex-1 max-w-md">${lines}</div>
+                                <div class="text-sm min-w-[240px] flex-1 max-w-md">
+                                    <details ${ps.length ? 'open' : ''}>
+                                        <summary class="cursor-pointer text-xs font-bold text-indigo-600">Players (${ps.length})</summary>
+                                        <div class="mt-1">${lines}</div>
+                                    </details>
+                                </div>
                                 <div class="flex items-center gap-3">
                                     <button onclick="toggleBattleBreakdown('${r.id}')" class="text-xs font-bold text-indigo-500 hover:text-indigo-700">📊 breakdown</button>
                                     <span class="text-xs text-gray-400">${escapeHtml(hkDate(r.created_at))}</span>

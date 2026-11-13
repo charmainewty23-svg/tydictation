@@ -163,7 +163,7 @@
             // A missed day can still be repaired with cards, so keep the flame
             // visible until the gap costs more cards than the student owns.
             const pendingRepair = (Number.isFinite(gap) && gap > 1) ? (gap - 1) : 0;
-            const repairable = pendingRepair > 0 && pendingRepair <= state.cards;
+            const repairable = state.count > 0 && pendingRepair > 0 && pendingRepair <= state.cards;
             const alive = practicedToday || gap === 1 || repairable;
             return {
                 count: alive ? state.count : 0,
@@ -354,9 +354,10 @@
             let repaired = 0;
             if (state.last && gap === 1) {
                 count = Math.max(1, state.count + 1);
-            } else if (Number.isFinite(gap) && gap > 1 && (gap - 1) <= cards) {
-                // A repair card covers one missed day. Spend them only when the
-                // whole gap can be bridged; otherwise start a fresh streak.
+            } else if (state.count > 0 && Number.isFinite(gap) && gap > 1 && (gap - 1) <= cards) {
+                // A repair card covers one missed day. Spend them only on a
+                // live streak, when the whole gap can be bridged; otherwise
+                // start a fresh streak without wasting cards.
                 repaired = gap - 1;
                 cards -= repaired;
                 count = Math.max(1, state.count + 1);

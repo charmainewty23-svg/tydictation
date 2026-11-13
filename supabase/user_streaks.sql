@@ -118,7 +118,11 @@ begin
             select p.user_id, (r.finished_at at time zone 'Asia/Hong_Kong')::date, r.finished_at
             from public.battle_players p
             join public.battle_rooms r on r.id = p.room_id
-            where p.user_id is not null and r.finished_at is not null
+            where p.user_id is not null
+              and r.finished_at is not null
+              -- Class rooms are teacher-led and can include students who never
+              -- answered, so they never count towards the streak.
+              and coalesce(r.mode, 'duel') <> 'class'
         $q$;
     end if;
 
@@ -153,7 +157,14 @@ begin
         ),
         computed as (
             select lr.user_id,
-                   lr.last_len as streak_count,
+                   -- A backfilled run only stays "current" if it ended today or
+                   -- yesterday. Older runs keep their best but show 0 and must
+                   -- start again without spending repair cards.
+                   case
+                       when lr.end_day >= ((now() at time zone 'Asia/Hong_Kong')::date - 1)
+                       then lr.last_len
+                       else 0
+                   end as streak_count,
                    greatest(b.best_len, lr.last_len) as streak_best,
                    lr.end_day as last_practice_date,
                    fs.first_at as first_seen
@@ -186,6 +197,9 @@ begin
                 when public.user_streaks.last_practice_date is null
                   or excluded.last_practice_date > public.user_streaks.last_practice_date
                 then excluded.streak_count
+                when excluded.last_practice_date = public.user_streaks.last_practice_date
+                  and excluded.streak_count = 0
+                then 0
                 else public.user_streaks.streak_count
             end,
             updated_at = now()

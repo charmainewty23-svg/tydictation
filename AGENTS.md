@@ -1134,8 +1134,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **計法**：`hkDayKey()`（`Asia/Hong_Kong`）做日界。`recordDailyPractice(source, options)`
   （`js/shared.js`）只喺 `state.last !== 今日` 時寫入：
   - 上次係**昨日** → `count + 1`（連勝繼續）。
-  - 斷咗 1 日或以上，而 `gap - 1 <= repairCards` → 用補救卡補齊所有漏做日，
-    `count + 1`，`cards -= gap - 1`，popup 會寫「Repair card used」同剩幾張。
+  - 斷咗 1 日或以上，而 `state.count > 0` 且 `gap - 1 <= repairCards` → 用補救卡
+    補齊所有漏做日，`count + 1`，`cards -= gap - 1`，popup 會寫
+    「Repair card used」同剩幾張。**count 已經係 0（例如 backfill 嘅舊 streak）
+    就唔會用卡**，直接由 1 重新開始，補救卡保留。
   - 漏做日數多過手上補救卡 → **唔會**浪費卡，`count = 1` 重新開始。
   - 從未做過 → `count = 1`，`cards` 預設 **3**。
   - 同一天再 call → `{ extended:false }`，唔彈卡、唔改數。
@@ -1151,7 +1153,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     中途跌倒唔會打斷比賽畫面）。
   - Drive & Go! `DG.finishPlayer()` → `'Drive & Go!'`（Solo／多人，call 喺
     `showSoloResults`／`showMpOwnResults` 之後）。
-  - Word Battle `battleFinishLocal()` → `'Word Battle'`（call 喺 `await battlePoll()` 之後）。
+  - Word Battle `battleFinishLocal()` → `'Word Battle'`（call 喺
+    `await battlePoll()` 之後；**只計 1v1，`mode === 'class'` 班際房完全唔計**，
+    因為班際房可以包括冇答過題嘅學生）。
   - 只有**完成**先計，開始／中途離開唔計。加新遊戲喺完成位 call 同一個 helper，
     並盡量喺結果 DOM 出現之後才 call。
 - **持久化 / 跨裝置**：
@@ -1167,9 +1171,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - `supabase/user_streaks.sql` 最後有一段可重跑 backfill：由
     `dictation_results`／`wj_scores`／`drive_and_go_solo_scores`／
     `drive_and_go_multi_scores`／`battle_rooms.finished_at` 抽香港練習日，
-    計連續 run，寫入 `streak_count`（最新一段）、`streak_best`（最長一段）、
-    `last_practice_date` 同 `first_seen`。**唔會扣補救卡**，亦唔會用舊歷史
-    覆蓋較新嘅 row；舊學生一開個人頁就見到之前累積嘅火。
+    計連續 run，寫入 `streak_count`（最新一段；**只限最後練習係今日或昨日，
+    否則寫 0**）、`streak_best`（最長一段）、`last_practice_date` 同
+    `first_seen`。**唔會扣補救卡**，亦唔會用舊歷史覆蓋較新嘅 row；
+    舊學生嘅已斷 streak 只保留 `best`，當前顯示 0，第一次再練習由 1 開始。
+    Word Battle 只計 1v1（`coalesce(mode,'duel') <> 'class'`），班際房完全唔計。
   - 本機 mirror key：`localStorage['learniTY_streak:user:<uuid>']`（學校帳戶）、
     `sessionStorage['learniTY_streak:preview:<form>']`（老師 preview）、
     `sessionStorage['learniTY_streak:guest']`（訪客，下一個同學唔會繼承）。

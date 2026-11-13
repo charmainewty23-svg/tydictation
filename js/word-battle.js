@@ -805,7 +805,11 @@
             await sb.rpc('finish_battle', { p_room_id: battleRoom.id });
             await battlePoll();
             // The result panel is on screen now; celebrate afterwards.
-            recordDailyPractice('Word Battle', { delayMs: 800 });
+            // Class rooms are teacher-led and can include students who never
+            // answered, so they do not extend the daily streak.
+            if (battleRoom && battleRoom.mode !== 'class') {
+                recordDailyPractice('Word Battle', { delayMs: 800 });
+            }
         }
 
         function battleRenderResult() {

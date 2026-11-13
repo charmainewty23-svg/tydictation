@@ -1274,7 +1274,7 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
 - **可選 cleanup（只係文件參考，唔會自動跑）**：如果將來要刪 2026-11-13
   老師帳戶嗰條測試 quiz，可以喺 Supabase SQL Editor 跑下面段 SQL。
   **唔好隨便跑**；如果老師之後再做過練習，skip `update user_streaks`
-  部分，避免清走新進度。
+  部分，避免清走新進度。**跑完之後，刪走呢段 SQL（2026-11 決定）。**
 
 ```sql
 -- Delete the 2026-11-13 teacher test quiz (New Vocab / recitation, 4/4).

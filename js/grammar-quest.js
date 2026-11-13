@@ -529,7 +529,7 @@
             if (!isAdmin()) return;
             grammarAdminFilter = filter || 'all';
             paintChoiceButtons('.grammar-admin-btn', grammarAdminFilter);
-            let query = sb.from("dictation_results").select("email, nickname, score, total, mode, created_at").in("mode", ["conditionals", "participle_clauses"]);
+            let query = sb.from("dictation_results").select("user_id, email, nickname, score, total, mode, created_at").in("mode", ["conditionals", "participle_clauses"]);
             if (grammarAdminFilter !== 'all') query = query.eq("mode", grammarAdminFilter);
             const { data, error } = await query.order("created_at", { ascending: false });
             adminCache.grammar = error ? [] : (data || []);
@@ -572,7 +572,8 @@
             const studentMap = {};
             rows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
-                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, quizzes: 0, totalScore: 0, modes: new Set(), lastActive: r.created_at };
+                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, user_id: r.user_id || '', quizzes: 0, totalScore: 0, modes: new Set(), lastActive: r.created_at };
+                if (!studentMap[key].user_id && r.user_id) studentMap[key].user_id = r.user_id;
                 studentMap[key].quizzes++;
                 studentMap[key].totalScore += r.score;
                 studentMap[key].modes.add(r.mode);
@@ -587,7 +588,7 @@
                             <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                                 <span class="text-lg font-bold text-gray-400 w-8 text-center">${i + 1}</span>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}${classBadge(s.email, s.nickname)}</span>
+                                    <span class="font-bold text-gray-700">${adminProfileName(s, classBadge(s.email, s.nickname))}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(s.email || '')}</span>
                                 </div>
                                 ${formAssignControl(s.email, s.nickname)}

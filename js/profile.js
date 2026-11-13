@@ -290,7 +290,8 @@ function profileRenderFriendChrome(friend) {
                 'leaderboard-view': 'Back to Leaderboard',
                 'wordjump-view': 'Back to Word Jump',
                 'hub-view': 'Back to Hub',
-                'battle-view': 'Back to Battle'
+                'battle-view': 'Back to Battle',
+                'admin-view': 'Back to Admin'
             };
             label = labels[top.view] || 'Back';
         } else if (top && top.type === 'friend') {

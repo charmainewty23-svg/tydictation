@@ -1138,7 +1138,7 @@
                         <div class="flex items-center gap-3 min-w-[220px]">
                             <span class="text-gray-400 font-bold w-6 text-right">${i + 1}</span>
                             <div>
-                                <div class="font-bold text-gray-700">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}${classBadge(p.email, p.nickname)}</div>
+                                <div class="font-bold text-gray-700">${adminProfileName(p, classBadge(p.email, p.nickname))}</div>
                                 <div class="text-gray-400 text-xs">${escapeHtml(p.email || '')}</div>
                             </div>
                             ${formAssignControl(p.email, p.nickname)}
@@ -1390,7 +1390,7 @@
                     ? '<span class="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">WAITING</span>'
                     : '<span class="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full">FINISHED</span>';
             const playerLine = p => `<div class="flex items-center justify-between gap-2">
-                                    <span class="text-gray-700 font-bold">${escapeHtml(p.nickname || (p.email || '').split('@')[0])}${classBadge(p.email, p.nickname)}</span>
+                                    <span class="text-gray-700 font-bold">${adminProfileName(p, classBadge(p.email, p.nickname))}</span>
                                     ${formAssignControl(p.email, p.nickname)}
                                     <span class="text-indigo-600 font-bold">${p.score} pts · ${p.correct} correct${p.done ? ' ✔' : ''}</span>
                                </div>`;

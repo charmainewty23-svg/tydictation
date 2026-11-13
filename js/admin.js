@@ -14,6 +14,21 @@
             dg: null
         };
 
+        // Teacher dashboard names open the student's profile (and Follow).
+        // Rows without a user_id (old records, guests) stay plain text.
+        function adminProfileName(row, suffix) {
+            const name = escapeHtml(displayName(row));
+            const uid = row && row.user_id ? String(row.user_id) : '';
+            const tail = suffix || '';
+            if (!uid || !isTeacherAccount() || previewStudentForm()) return name + tail;
+            const me = currentUser && currentUser.id === uid;
+            const handler = me
+                ? 'profileShowOwn()'
+                : "openFriendProfile('" + escapeHtml(uid) + "')";
+            return '<button type="button" class="lb-name" onclick="' + handler + '" title="' +
+                (me ? 'Open my profile' : 'Open student profile and follow') + '">' + name + '</button>' + tail;
+        }
+
         async function loadAdminDashboard() {
             if (!isAdmin()) return;
             const { data, error } = await sb.from("dictation_results")
@@ -59,7 +74,8 @@
             const studentMap = {};
             rows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
-                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, quizzes: 0, totalScore: 0, topics: new Set(), lastActive: r.created_at };
+                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, user_id: r.user_id || '', quizzes: 0, totalScore: 0, topics: new Set(), lastActive: r.created_at };
+                if (!studentMap[key].user_id && r.user_id) studentMap[key].user_id = r.user_id;
                 studentMap[key].quizzes++;
                 studentMap[key].totalScore += r.score;
                 studentMap[key].topics.add(r.topic);
@@ -74,7 +90,7 @@
                             <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                                 <span class="text-lg font-bold text-gray-400 w-8 text-center">${i + 1}</span>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(displayName(s))}${classBadge(s.email, s.nickname)}</span>
+                                    <span class="font-bold text-gray-700">${adminProfileName(s, classBadge(s.email, s.nickname))}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(s.email || '')}</span>
                                 </div>
                                 ${formAssignControl(s.email, s.nickname)}
@@ -209,8 +225,7 @@
                         <span class="w-7 text-center text-sm font-bold">${medal}</span>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 min-w-0 flex-wrap">
-                                <p class="text-sm font-bold text-gray-700 truncate">${escapeHtml(displayName(r))}</p>
-                                ${classBadge(r.email, r.nickname)}
+                                <p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, classBadge(r.email, r.nickname))}</p>
                                 ${formAssignControl(r.email, r.nickname)}
                             </div>
                             <p class="text-xs text-gray-400 truncate">${escapeHtml(driveAndGoRowMeta(r))}</p>
@@ -379,7 +394,7 @@
                                     ${escapeHtml((l.nickname || l.email || '?').charAt(0).toUpperCase())}
                                 </div>
                                 <div>
-                                    <span class="font-bold text-gray-700">${escapeHtml(l.nickname || (l.email || '').split('@')[0])}${classBadge(l.email, l.nickname)}</span>
+                                    <span class="font-bold text-gray-700">${adminProfileName(l, classBadge(l.email, l.nickname))}</span>
                                     <span class="text-gray-400 text-xs ml-2">${escapeHtml(l.email)}</span>
                                 </div>
                                 ${formAssignControl(l.email, l.nickname)}

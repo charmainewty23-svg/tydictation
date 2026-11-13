@@ -93,11 +93,10 @@
             listEl.innerHTML = renderFormSections(groupRowsByForm(board), (list) =>
                 '<div class="space-y-2">' + list.map((r, i) => {
                 const medal = ['🥇', '🥈', '🥉'][i] || `<span class="text-gray-400">${i + 1}.</span>`;
-                const name = displayName(r);
                 return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
                     <span class="w-7 text-center text-sm font-bold">${medal}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${escapeHtml(name)}</p>${classBadge(r.email, r.nickname)}${formAssignControl(r.email, r.nickname)}</div>
+                        <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, '')}</p>${classBadge(r.email, r.nickname)}${formAssignControl(r.email, r.nickname)}</div>
                         <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">last ${timeAgo(r.created_at)}</p>
                     </div>
                     <div class="text-right">

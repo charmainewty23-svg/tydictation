@@ -1223,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v8`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v9`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v9`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v10`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1646,3 +1646,22 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   （lock screen 通知）要 VAPID keys、`push_subscriptions` table、service worker
   `push` event 同一個 sender（Vercel API／Supabase Edge Function），仲要
   用戶逐個批准；未做。
+
+#### 12.7b Admin dashboard 撳名入 profile（2026-11）
+
+- `js/admin.js` 新增 `adminProfileName(row, suffix)`：如果 row 有
+  `user_id` 而老師係 `isTeacherAccount()`（非 preview），個名會變成
+  `.lb-name` 按鈕 → `openFriendProfile(user_id)`；自己嗰行 →
+  `profileShowOwn()`。冇 `user_id` 嘅舊 row／guest 保持純文字。
+- 已套用：
+  - Admin activity（`dictation_results` 加 `user_id`）
+  - Grammar Quest admin（query 加 `user_id`）
+  - Drive & Go admin board
+  - Student Logins
+  - Word Jump admin
+  - Word Battle admin room player line（`battle_players.user_id`）
+  - Teacher class live board player names
+- Back label：`admin-view` → **Back to Admin**；`battle-view` →
+  **Back to Battle**。Admin profile 返去會保留 dashboard 原本內容。
+- 排行榜本身已經用 `leaderboardNameHTML()`；admin dashboard 只係補齊
+  其他名單。

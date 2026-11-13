@@ -1223,8 +1223,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v7`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v8`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v8`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v9`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1627,3 +1627,22 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - **改動提示**：加 friend 相關 UI 要保留 `profileFriendsAvailable()`
   （guest／preview 隱藏）同唔好直接 select `student_logins`；所有跨用戶
   資料經上面啲 RPC。`friend_streaks` 只可以經 `bump_friend_streaks` 寫。
+
+#### 12.7a 一次性「新朋友」announcement（2026-11）
+
+- 登入後約 1 秒，`showApp()` 會 call `maybeShowFriendAnnouncement()`，彈出
+  `#friend-announce`（dynamic DOM，z-index 10080）。內容介紹：
+  💛 Add friends（Me → Friends，school email）、🔥 Friend streak（同一 HK 日
+  雙方練習）、🔔 通知鐘（new follower／achievement like）。
+- 只對**學校帳戶**顯示；guest／老師 preview 自動 skip。用
+  `localStorage['learniTY_friend_announce_v1'] = '1'` 記住，**每部機一次**。
+  `friendAnnounceShown` 避免同一次 session 重複。
+- 掣：
+  - **💛 Find friends** → `profileShowOwn()`，再 scroll 去
+    `#profile-friends-card`
+  - **Start practising** → `changeView('home-view')`
+  - **Got it** → 關閉
+- 呢個係 **in-app announcement**，唔係 OS push notification。真正 Web Push
+  （lock screen 通知）要 VAPID keys、`push_subscriptions` table、service worker
+  `push` event 同一個 sender（Vercel API／Supabase Edge Function），仲要
+  用戶逐個批准；未做。

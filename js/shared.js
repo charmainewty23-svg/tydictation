@@ -1228,6 +1228,7 @@
                 updateNotificationBadge();
                 if (!notifTimer) notifTimer = setInterval(updateNotificationBadge, 60000);
             }
+            setTimeout(maybeShowFriendAnnouncement, 1000);
         }
 
         function showLogin() {
@@ -1350,6 +1351,69 @@
 
         function closeNotifications() {
             if (notifPopup) notifPopup.classList.add('hidden');
+        }
+
+        // --- One-time "new friends" announcement ---------------------------
+        // This is an in-app announcement on the next visit, not an OS push
+        // notification. Real Web Push needs VAPID keys + a sender + the user
+        // granting permission, which is a separate opt-in flow.
+        const FRIEND_ANNOUNCE_KEY = 'learniTY_friend_announce_v1';
+        let friendAnnounceShown = false;
+
+        function maybeShowFriendAnnouncement(force) {
+            if (friendAnnounceShown && !force) return;
+            if (!force && (!canUseCloud() || previewStudentForm() || isGuestUser())) return;
+            if (document.getElementById('friend-announce')) return;
+            try {
+                if (!force && localStorage.getItem(FRIEND_ANNOUNCE_KEY) === '1') return;
+            } catch (e) {}
+            friendAnnounceShown = true;
+            if (!force) {
+                try { localStorage.setItem(FRIEND_ANNOUNCE_KEY, '1'); } catch (e) {}
+            }
+            const wrap = document.createElement('div');
+            wrap.id = 'friend-announce';
+            wrap.className = 'friend-announce';
+            wrap.innerHTML =
+                '<div class="friend-announce-backdrop" onclick="closeFriendAnnouncement()"></div>' +
+                '<div class="friend-announce-card" role="dialog" aria-modal="true" aria-labelledby="friend-announce-title">' +
+                '<div class="text-center mb-2"><div class="text-6xl" aria-hidden="true">💛</div>' +
+                '<h3 id="friend-announce-title" class="text-2xl font-bold text-orange-600">New: friends &amp; friend streaks</h3>' +
+                '<p class="text-sm text-gray-500 font-bold mb-1">You can now connect with classmates inside LearniTY.</p></div>' +
+                '<div class="friend-announce-feature"><span class="friend-announce-emoji" aria-hidden="true">💛</span>' +
+                '<div><p class="font-bold text-gray-700">Add friends</p>' +
+                '<p class="text-xs text-gray-500">Me → Friends: follow a classmate by school email, open their profile, and see their streak.</p></div></div>' +
+                '<div class="friend-announce-feature"><span class="friend-announce-emoji" aria-hidden="true">🔥</span>' +
+                '<div><p class="font-bold text-gray-700">Friend streak</p>' +
+                '<p class="text-xs text-gray-500">Finish a practice on the same Hong Kong day as a friend to grow a shared flame. You get 3 repair cards each month.</p></div></div>' +
+                '<div class="friend-announce-feature"><span class="friend-announce-emoji" aria-hidden="true">🔔</span>' +
+                '<div><p class="font-bold text-gray-700">Stay in the loop</p>' +
+                '<p class="text-xs text-gray-500">The bell shows new followers and likes on your streak achievements.</p></div></div>' +
+                '<div class="flex gap-2 flex-wrap justify-center mt-4">' +
+                '<button type="button" class="btn-paw" onclick="friendAnnounceFindFriends()">💛 Find friends</button>' +
+                '<button type="button" class="px-4 py-3 bg-orange-100 text-orange-700 rounded-xl font-bold text-sm" onclick="friendAnnouncePractice()">Start practising</button>' +
+                '<button type="button" class="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm" onclick="closeFriendAnnouncement()">Got it</button>' +
+                '</div></div>';
+            document.body.appendChild(wrap);
+        }
+
+        function closeFriendAnnouncement() {
+            const el = document.getElementById('friend-announce');
+            if (el) el.remove();
+        }
+
+        function friendAnnounceFindFriends() {
+            closeFriendAnnouncement();
+            if (typeof profileShowOwn === 'function') profileShowOwn();
+            setTimeout(() => {
+                const card = document.getElementById('profile-friends-card');
+                if (card) card.scrollIntoView({ block: 'center', behavior: 'auto' });
+            }, 300);
+        }
+
+        function friendAnnouncePractice() {
+            closeFriendAnnouncement();
+            changeView('home-view');
         }
 
 

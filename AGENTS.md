@@ -1238,8 +1238,12 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   `streakCurrentCount()` 計 effective current streak；hover 顯示 best／last），
   另外有一行細字 `best N · last 3 days ago`（`hkRelativeDay()`：Today／
   Yesterday／N days ago），手機都睇到。
-  stats 由 3 格變 4 格，加「Active Streaks」。`loadLoginAdmin()` 會一齊讀
-  `user_streaks`；未跑 SQL 時該格顯示 `—`，login 名單照出。
+  stats 由 3 格變 4 格，加「Active Streaks」。卡片右上角有
+  **Last login／🔥 Streak** 排序掣（`setLoginAdminSort()`，記住喺
+  `localStorage['learniTY_login_sort']`，Refresh 後保持）；Streak 模式
+  按 effective current streak → best → 名排，再按年級分組。
+  `loadLoginAdmin()` 會一齊讀 `user_streaks`；未跑 SQL 時該格顯示 `—`，
+  login 名單照出。
 - **Hub Leaderboard**：新增 **🔥 Streaks** tab，顯示 top 10 當前連勝。
   用 `streakCurrentCount()` 過濾已斷兼冇卡補嘅 row；排序 current desc →
   `streak_best` desc → 名。學生睇平坦名單，自己嗰行有 `(you)`＋ring；
@@ -1259,6 +1263,7 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日
   + 3 張卡唔入榜，斷 3 日仍然入）同 Top 10 以外嘅 **Your rank: #12** 卡；
   Admin Student Logins 第 4 格「Active Streaks」、每行 `🔥 N days`＋
-  `best · last` 細字用假 data 測過；Lighthouse（guest profile）
-  Accessibility／Best Practices／SEO 全部 1.0。未用真實 Gmail 帳戶 +
-  live `user_streaks` row 測過。
+  `best · last` 細字、Last login／🔥 Streak 排序（按連勝／登入時間）用假
+  data 測過；320 admin 亦 `overflowX = 0`（順手加咗 Grammar admin 按鈕
+  `flex-wrap`）。Lighthouse（guest profile）Accessibility／Best Practices／
+  SEO 全部 1.0。未用真實 Gmail 帳戶 + live `user_streaks` row 測過。

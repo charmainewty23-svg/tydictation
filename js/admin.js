@@ -252,6 +252,25 @@
 
         // --- Admin: student login activity ---
 
+        const LOGIN_SORT_KEY = 'learniTY_login_sort';
+        let loginAdminSort = (() => {
+            try { return localStorage.getItem(LOGIN_SORT_KEY) === 'streak' ? 'streak' : 'login'; } catch (e) { return 'login'; }
+        })();
+
+        function paintLoginSortButtons() {
+            paintChoiceButtons('.login-sort-btn', loginAdminSort);
+            document.querySelectorAll('.login-sort-btn').forEach(btn => {
+                const match = (btn.getAttribute('onclick') || '').match(/'([^']+)'/);
+                btn.setAttribute('aria-pressed', String(!!match && match[1] === loginAdminSort));
+            });
+        }
+
+        function setLoginAdminSort(mode) {
+            loginAdminSort = mode === 'streak' ? 'streak' : 'login';
+            try { localStorage.setItem(LOGIN_SORT_KEY, loginAdminSort); } catch (e) {}
+            renderLoginAdmin();
+        }
+
         async function loadLoginAdmin(forceForms) {
             if (!isAdmin()) return;
             if (forceForms) await ensureFormDirectory(true);
@@ -277,6 +296,7 @@
             const statsEl = document.getElementById('login-admin-stats');
             const listEl = document.getElementById('login-admin-container');
             if (!statsEl || !listEl || !adminCache.logins) return;
+            paintLoginSortButtons();
             if (adminCache.loginsError) {
                 statsEl.innerHTML = '';
                 const missing = isMissingSchema(adminCache.loginsError.message);
@@ -290,6 +310,20 @@
             (adminCache.streaks || []).forEach(s => { streakByUser[s.user_id] = s; });
             const activeStreaks = logs.filter(l => streakCurrentCount(streakByUser[l.user_id]) > 0).length;
             const streakStat = adminCache.streaksError ? '—' : activeStreaks;
+            const displayLogs = logs.slice();
+            if (loginAdminSort === 'streak') {
+                displayLogs.sort((a, b) => {
+                    const sa = streakCurrentCount(streakByUser[a.user_id]);
+                    const sb = streakCurrentCount(streakByUser[b.user_id]);
+                    if (sb !== sa) return sb - sa;
+                    const ba = streakByUser[a.user_id] ? (Number(streakByUser[a.user_id].streak_best) || 0) : 0;
+                    const bb = streakByUser[b.user_id] ? (Number(streakByUser[b.user_id].streak_best) || 0) : 0;
+                    if (bb !== ba) return bb - ba;
+                    return String(a.nickname || a.email || '').localeCompare(String(b.nickname || b.email || ''));
+                });
+            } else {
+                displayLogs.sort((a, b) => new Date(b.last_login_at || 0).getTime() - new Date(a.last_login_at || 0).getTime());
+            }
             const todayKey = hkDayKey(new Date().toISOString());
             const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
             const loggedToday = logs.filter(l => l.last_login_at && hkDayKey(l.last_login_at) === todayKey).length;
@@ -334,7 +368,7 @@
                     <div class="text-sm text-gray-500 font-bold">Active Streaks</div>
                 </div>
             `;
-            listEl.innerHTML = renderFormSections(groupRowsByForm(logs), (list) => `
+            listEl.innerHTML = renderFormSections(groupRowsByForm(displayLogs), (list) => `
                 <div class="space-y-3">
                     ${list.map(l => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 flex-wrap gap-3">

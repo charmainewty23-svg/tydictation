@@ -56,7 +56,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard`／`renderDriveAndGoLeaderboard`（Solo／Multi 兩塊榜） |
 | 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面） |
 | 10 | `js/profile.js` | 「Me」個人頁（`#profile-view`）：`loadProfile`、`profileRenderStreak`／`profileRenderDict`／`profileRenderWj`；學校帳戶讀 `dictation_results`／`wj_leaderboard`，訪客同 preview 讀 session／local 記錄 |
-| 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）同 battle 輸入 listener |
+| 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
@@ -582,6 +582,31 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
+### 9.10 Word Battle 班際：自訂貓＋頒獎台（2026-11 加）
+
+- **SQL**：`supabase/battle_cat.sql`（可重跑）為 `battle_players` 加
+  `cat`／`glasses`／`hat`／`outfit`，default 係 `Ginger`／`None`／`None`／`None`。
+  學生用現有 `battle players update own` RLS 更新自己嗰行，唔需要新 RPC。
+  未跑 SQL 都玩到：貓 look 只留喺本機／用 default，更新時只會 `console.warn`。
+- **自訂貓**：Word Battle lobby 嘅 Join a room 下面加咗同 Drive & Go 一樣嘅
+  `battle-cat-options`（Cat／Glasses／Hat／Outfit）＋`#battle-cat-preview`
+  canvas。選擇會寫入 `learniTY_dg_settings`（同 Drive & Go 共用），
+  `battleSetLook()` 會即時更新 preview；`battleAdoptRoom()` 入房後會
+  `battleSaveLookToRoom()` 寫入自己嗰個 `battle_players` row。
+- **頒獎台**：班際房 `status === 'finished'`（`finished_at` 有值）時，
+  學生 result 同老師 class board 都會出 `battlePodiumHTML()`：
+  - 1–3 名喺台上（2／1／3 排列，台階高度唔同）
+  - 4／5 名喺台旁嘅 `battle-podium-extra` row
+  - 每個人都用自己嘅 `battle_players` 貓 look，`DG.drawKart()` 畫落 canvas
+  - 多過 5 人只顯示 Top 5，下面註明 `Top 5 shown of N players`
+  - 未 finished 時照舊顯示「Waiting for the teacher…」＋文字排名，唔會出 podium
+- **手機**：≤480px 台階 78px、≤360px 60px＋gap 4px，320px 都唔會橫向爆版。
+- **改動提示**：加新貓選項要同時改 `DG.CATS`／`DG.GLASSES`／`DG.HATS`／
+  `DG.OUTFITS`，Word Battle 會自動跟。頒獎台只顯示 Top 5；要顯示更多就改
+  `battlePodiumHTML()` 個 `slice(0,5)` 同 CSS。
+
+---
+
 ## 10. Word Jump（Doodle Jump 式爬高認字遊戲）
 
 入口：Hub 嘅「🦘 Word Jump」卡，或者 `battle-view` 頂部嘅同一張卡 → `openWordJump(...)` → `wordjump-view`。返回會返去撳入嚟嗰一頁（Hub 或 Word Battle）。
@@ -998,7 +1023,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）

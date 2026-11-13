@@ -300,6 +300,135 @@
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
         }
 
+        // --- Word Battle cat look + class prize stand ---
+        function battleMyLook() {
+            const s = (typeof DG !== 'undefined' && DG.readSettings) ? DG.readSettings() : {};
+            return {
+                cat: s.cat || 'Ginger',
+                glasses: s.glasses || 'None',
+                hat: s.hat || 'None',
+                outfit: s.outfit || 'None'
+            };
+        }
+
+        function battlePlayerLook(p) {
+            return {
+                cat: (p && p.cat) || 'Ginger',
+                glasses: (p && p.glasses) || 'None',
+                hat: (p && p.hat) || 'None',
+                outfit: (p && p.outfit) || 'None'
+            };
+        }
+
+        function battleSaveLookToRoom() {
+            if (!battleRoom || !currentUser) return;
+            sb.from('battle_players').update(battleMyLook())
+                .eq('room_id', battleRoom.id)
+                .eq('user_id', currentUser.id)
+                .then(({ error }) => {
+                    if (error) console.warn('Battle cat look not saved:', error.message);
+                });
+        }
+
+        function battleSetLook(key, value) {
+            if (['cat', 'glasses', 'hat', 'outfit'].indexOf(key) === -1) return;
+            if (typeof DG === 'undefined' || !DG.readSettings) return;
+            const s = DG.readSettings();
+            s[key] = value;
+            DG.saveSettings();
+            battleRenderCatCustomizer();
+            battleSaveLookToRoom();
+        }
+
+        function battleDrawCatPreview() {
+            const canvas = document.getElementById('battle-cat-preview');
+            if (!canvas || typeof DG === 'undefined' || typeof DG.drawKart !== 'function') return;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            const cssW = canvas.clientWidth || 240;
+            const cssH = canvas.clientHeight || 180;
+            canvas.width = Math.round(cssW * dpr);
+            canvas.height = Math.round(cssH * dpr);
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const grd = ctx.createLinearGradient(0, 0, 0, cssH);
+            grd.addColorStop(0, '#dbeafe');
+            grd.addColorStop(1, '#fef3c7');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, cssW, cssH);
+            ctx.fillStyle = 'rgba(120,113,108,.22)';
+            ctx.beginPath();
+            ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
+            ctx.fill();
+            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), battleMyLook(), { preview: true });
+        }
+
+        function battleRenderCatCustomizer() {
+            const box = document.getElementById('battle-cat-options');
+            if (!box || typeof DG === 'undefined') return;
+            const look = battleMyLook();
+            const row = (label, key, options, current) =>
+                `<div class="battle-cat-row"><p class="battle-cat-label">${escapeHtml(label)}</p><div class="battle-cat-chips">` +
+                options.map(opt => `<button type="button" class="battle-cat-chip${opt === current ? ' active' : ''}" onclick="battleSetLook('${key}','${escapeHtml(opt)}')">${escapeHtml(opt)}</button>`).join('') +
+                '</div></div>';
+            box.innerHTML =
+                row('Cat', 'cat', DG.CATS, look.cat) +
+                row('Glasses', 'glasses', DG.GLASSES, look.glasses) +
+                row('Hat', 'hat', DG.HATS, look.hat) +
+                row('Outfit', 'outfit', DG.OUTFITS, look.outfit);
+            requestAnimationFrame(battleDrawCatPreview);
+        }
+
+        function battlePodiumPlayers() {
+            return (battlePlayers || []).slice()
+                .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
+        }
+
+        function battlePodiumHTML(players) {
+            const top = (players || []).slice(0, 5);
+            if (!top.length) return '';
+            const step = (p, i) => {
+                const medals = ['🥇', '🥈', '🥉'];
+                const cls = i === 0 ? 'first' : i === 1 ? 'second' : i === 2 ? 'third' : 'extra';
+                return `<div class="battle-podium-step ${cls}">
+                    <canvas class="battle-podium-cat" data-podium-index="${i}" width="160" height="110" aria-label="${escapeHtml(displayName(p))} cat"></canvas>
+                    <div class="battle-podium-base">
+                        <div class="battle-podium-medal">${medals[i] || (i + 1) + '.'}</div>
+                        <p class="battle-podium-name">${escapeHtml(displayName(p))}</p>
+                        <p class="battle-podium-score">${Number(p.score) || 0} pts</p>
+                    </div>
+                </div>`;
+            };
+            const podium = [];
+            if (top[1]) podium.push(step(top[1], 1));
+            if (top[0]) podium.push(step(top[0], 0));
+            if (top[2]) podium.push(step(top[2], 2));
+            const extras = top.slice(3).map((p, i) => step(p, i + 3)).join('');
+            return `<div class="battle-podium">${podium.join('')}</div>` +
+                (extras ? `<div class="battle-podium-extra">${extras}</div>` : '') +
+                (players.length > 5 ? `<p class="battle-podium-note">Top 5 shown of ${players.length} players</p>` : '');
+        }
+
+        function battleDrawPodiumCats(container, players) {
+            if (!container || typeof DG === 'undefined' || typeof DG.drawKart !== 'function') return;
+            const top = (players || []).slice(0, 5);
+            requestAnimationFrame(() => {
+                container.querySelectorAll('canvas[data-podium-index]').forEach(canvas => {
+                    const i = Number(canvas.getAttribute('data-podium-index'));
+                    const p = top[i];
+                    if (!p) return;
+                    const dpr = Math.min(2, window.devicePixelRatio || 1);
+                    const w = canvas.clientWidth || 90;
+                    const h = canvas.clientHeight || 64;
+                    canvas.width = Math.round(w * dpr);
+                    canvas.height = Math.round(h * dpr);
+                    const ctx = canvas.getContext('2d');
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    ctx.clearRect(0, 0, w, h);
+                    DG.drawKart(ctx, w / 2, h * 0.82, Math.min(w / 180, h / 120), battlePlayerLook(p), { preview: true });
+                });
+            });
+        }
+
         async function battleEnter() {
             if (!isSignedIn()) { updateMascot('Please login to play Word Battle.'); return; }
             if (isGuestUser()) {
@@ -317,6 +446,7 @@
             }
             if (!isAdmin()) await resolveOwnForm(true);
             battlePopulateTopics();
+            battleRenderCatCustomizer();
             const qsel = document.getElementById('battle-count-select');
             if (qsel) {
                 const saved = localStorage.getItem('battle_qcount');
@@ -420,6 +550,7 @@
             battleRoundSeed = null;
             battleDoneLocal = false;
             battlePlayers = [];
+            battleSaveLookToRoom();
             battleSaveResume();
             battleStartPolling();
             battlePoll();
@@ -836,8 +967,14 @@
                         <span>${i + 1}. ${escapeHtml(p.nickname || (p.email || '').split('@')[0])}</span>
                         <span>${p.score} pts</span>
                     </div>`).join('');
-                body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>
-                                  <div class="max-w-sm mx-auto text-left space-y-1">${top}</div>`;
+                if (battleRoom.status === 'finished' && battleRoom.finished_at) {
+                    body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>` +
+                        (sorted.length ? battlePodiumHTML(sorted) : '<p class="text-gray-400">No results recorded.</p>');
+                    battleDrawPodiumCats(body, sorted);
+                } else {
+                    body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>
+                                      <div class="max-w-sm mx-auto text-left space-y-1">${top}</div>`;
+                }
                 document.getElementById('battle-rematch-btn').classList.add('hidden');
                 return;
             }
@@ -972,6 +1109,19 @@
             document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
             const classLeave = document.getElementById('battle-class-leave');
             if (classLeave) classLeave.classList.toggle('hidden', battleRoom.status !== 'waiting');
+
+            const podiumEl = document.getElementById('battle-class-podium');
+            if (podiumEl) {
+                if (battleRoom.status === 'finished' && battleRoom.finished_at) {
+                    podiumEl.classList.remove('hidden');
+                    podiumEl.innerHTML = '<h3 class="text-2xl font-bold text-indigo-700 mb-4">🏆 Prize stand</h3>' +
+                        (everyone.length ? battlePodiumHTML(everyone) : '<p class="text-gray-400">No results recorded.</p>');
+                    battleDrawPodiumCats(podiumEl, everyone);
+                } else {
+                    podiumEl.classList.add('hidden');
+                    podiumEl.innerHTML = '';
+                }
+            }
 
             const playerCard = (p, i) => {
                     const qNow = p.done ? total : (typeof p.progress === 'number' ? Math.min(total, p.progress + 1) : null);

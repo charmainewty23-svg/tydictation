@@ -708,6 +708,110 @@
             100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
         }
 
+        /* ---- Word Battle: cat customizer + prize stand ---- */
+        .battle-cat-row { margin-bottom: 0.6rem; }
+        .battle-cat-label {
+            margin: 0 0 4px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .battle-cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .battle-cat-chip {
+            min-height: 40px;
+            padding: 6px 10px;
+            border: 2px solid #ffe8d6;
+            border-radius: 999px;
+            background: #fff;
+            color: #9a3412;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .battle-cat-chip.active {
+            border-color: #f97316;
+            background: #f97316;
+            color: #fff;
+        }
+        .battle-podium {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .battle-podium-step {
+            width: 96px;
+            text-align: center;
+        }
+        .battle-podium-cat {
+            display: block;
+            width: 100%;
+            height: 64px;
+        }
+        .battle-podium-base {
+            padding: 6px 6px 8px;
+            border-radius: 12px 12px 6px 6px;
+            background: #eef2ff;
+            border: 2px solid #c7d2fe;
+        }
+        .battle-podium-step.first .battle-podium-base {
+            background: #fef3c7;
+            border-color: #fcd34d;
+            padding-top: 10px;
+            min-height: 96px;
+        }
+        .battle-podium-step.second .battle-podium-base { background: #e5e7eb; border-color: #d1d5db; min-height: 76px; }
+        .battle-podium-step.third .battle-podium-base { background: #ffedd5; border-color: #fdba74; min-height: 64px; }
+        .battle-podium-name {
+            margin: 4px 0 0;
+            font-size: 11px;
+            font-weight: 800;
+            color: #374151;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .battle-podium-score {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 800;
+            color: #4f46e5;
+        }
+        .battle-podium-medal { font-size: 20px; line-height: 1; }
+        .battle-podium-extra {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .battle-podium-extra .battle-podium-step { width: 80px; }
+        .battle-podium-extra .battle-podium-cat { height: 48px; }
+        .battle-podium-note {
+            margin: 8px 0 0;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+        }
+        @media (max-width: 480px) {
+            .battle-podium-step { width: 78px; }
+            .battle-podium-cat { height: 54px; }
+            .battle-podium-step.first .battle-podium-base { min-height: 84px; }
+            .battle-podium-step.second .battle-podium-base { min-height: 68px; }
+            .battle-podium-step.third .battle-podium-base { min-height: 58px; }
+        }
+        @media (max-width: 360px) {
+            .battle-podium { gap: 4px; }
+            .battle-podium-step { width: 60px; }
+            .battle-podium-cat { height: 46px; }
+            .battle-podium-name, .battle-podium-score { font-size: 10px; }
+        }
+
         /* ---- Word Jump: full screen (native API + CSS fallback for iOS) ---- */
         #wj-stage:fullscreen,
         #wj-stage:-webkit-full-screen,
@@ -2010,6 +2114,14 @@
                                 <button type="button" onclick="battleJoinRoom()" class="w-full py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">Join Room</button>
                                 <button type="button" onclick="battleJoinRoom()" class="w-full mt-3 py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-50 transition-colors">⏩ Join mid-game</button>
                                 <p class="text-xs text-gray-400 mt-2">Arrived late? Enter the code and press Join mid-game. You start from question 1 of a battle that is already in progress.</p>
+                                <div id="battle-cat-customizer" class="mt-5 pt-5 border-t-2 border-orange-100">
+                                    <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                                        <p class="font-bold text-orange-700 text-sm">🎨 Customize your cat</p>
+                                        <p class="text-xs text-gray-400">Shows in the class prize stand</p>
+                                    </div>
+                                    <canvas id="battle-cat-preview" class="w-full rounded-xl border-2 border-orange-100 bg-white" height="180"></canvas>
+                                    <div id="battle-cat-options" class="mt-3"></div>
+                                </div>
                             </div>
                         </div>
                         <div id="battle-class-entry" class="hidden mt-6 bg-indigo-50 rounded-2xl p-6 border-2 border-indigo-100">
@@ -2075,6 +2187,7 @@
                                 <button id="battle-class-leave" type="button" onclick="battleLeaveRoom()" class="hidden px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Close room</button>
                             </div>
                         </div>
+                        <div id="battle-class-podium" class="hidden mt-8"></div>
                         <div id="battle-class-list" class="mt-4 space-y-2"></div>
                         <div id="battle-class-breakdown" class="hidden mt-10 pt-8 border-t border-gray-100"></div>
                     </div>

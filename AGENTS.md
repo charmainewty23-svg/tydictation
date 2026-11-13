@@ -1271,6 +1271,10 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
   first practice 只計本機、連勝唔跨裝置；未跑 `dictation_accuracy.sql`
   時平均正確率顯示 `—`，其他照用。
+- **可選 cleanup**：`supabase/cleanup_test_quiz.sql` 只係刪 2026-11-13
+  老師帳戶嗰條測試 quiz，並 reset 老師 streak 回 4 日（last 2026-11-12）。
+  **唔好隨便跑**；如果老師之後再做過練習，skip 個 `update user_streaks`
+  部分，避免清走新進度。
 - **實測**：320、375、390 profile 卡同 7 日圓點全部 `overflowX = 0`
   （≤360px 圓點 24px）；Error Book 掣 44px 高；guest 隱藏
   My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日

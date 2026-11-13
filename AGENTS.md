@@ -1242,7 +1242,8 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   `streakCurrentCount()` 計 effective current streak；hover 顯示 best／last），
   另外有一行細字 `best N · last 3 days ago`（`hkRelativeDay()`：Today／
   Yesterday／N days ago），手機都睇到。
-  stats 由 3 格變 4 格，加「Active Streaks」。卡片右上角有
+  stats 由 3 格變 4 格，加「Active Streaks」（直接由 `user_streaks`
+  計，唔靠 login 名單，所以名單載入失敗都仍然準）。卡片右上角有
   **Last login／🔥 Streak** 排序掣（`setLoginAdminSort()`，記住喺
   `localStorage['learniTY_login_sort']`，Refresh 後保持）；Streak 模式
   按 effective current streak → best → 名排，再按年級分組。

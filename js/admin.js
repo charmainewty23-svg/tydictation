@@ -308,7 +308,9 @@
             const logs = adminCache.logins;
             const streakByUser = {};
             (adminCache.streaks || []).forEach(s => { streakByUser[s.user_id] = s; });
-            const activeStreaks = logs.filter(l => streakCurrentCount(streakByUser[l.user_id]) > 0).length;
+            // Count from the streak table itself, so the tile is still correct
+            // if the login list happens to be unavailable.
+            const activeStreaks = (adminCache.streaks || []).filter(s => streakCurrentCount(s) > 0).length;
             const streakStat = adminCache.streaksError ? '—' : activeStreaks;
             const displayLogs = logs.slice();
             if (loginAdminSort === 'streak') {
@@ -343,7 +345,7 @@
                         <div class="text-sm text-gray-500 font-bold">Last 7 Days</div>
                     </div>
                     <div class="bg-orange-50 rounded-2xl p-5 text-center border-2 border-orange-100">
-                        <div class="text-3xl font-bold text-orange-600">${adminCache.streaksError ? '—' : '0'}</div>
+                        <div class="text-3xl font-bold text-orange-600">${streakStat}</div>
                         <div class="text-sm text-gray-500 font-bold">Active Streaks</div>
                     </div>
                 `;

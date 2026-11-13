@@ -90,6 +90,9 @@ const DG = {
     // Teacher-only 30-player room. Set by chooseMultiRole('class'); create
     // then calls create_drive_and_go_class_room instead of the 5-player RPC.
     mpClassRoom: false,
+    // Whether the teacher takes a seat in the class room (31 seats) or hosts
+    // only (30 student seats).
+    mpTeacherPlays: true,
     tiltPermission: 'unknown',
 
     /* ---------------- preferences ---------------- */
@@ -1670,11 +1673,21 @@ const DG = {
                 '<span class="dg-choice-sub">' + DG.esc(DG.SCENE_FLAVOUR[id]) + '</span></button>';
         }).join('');
         const host = DG.sessionMode === 'multi';
+        const classRoom = host && DG.mpClassRoom;
         content.innerHTML =
             DG.stepDots('scene') +
             DG.stepHeading('scene', 'Choose a course') +
             '<p class="text-center text-gray-500 font-bold mb-4">Same track, three different worlds. In multiplayer the host picks the course for everyone.</p>' +
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' + cards + '</div>' +
+            (classRoom
+                ? '<div class="dg-menu-panel mb-4 text-left">' +
+                  '<p class="font-bold text-gray-700 mb-2">Will you race too?</p>' +
+                  '<label class="flex items-start gap-3 font-bold text-gray-600">' +
+                  '<input id="dg-teacher-plays" type="checkbox" checked class="mt-1 w-5 h-5">' +
+                  '<span>Yes — give me a kart (31 seats: me + 30 students).' +
+                  '<span class="block text-sm text-gray-400 font-normal mt-1">Uncheck to host only (30 student seats). You still start the race and watch live progress.</span></span></label>' +
+                  '</div>'
+                : '') +
             (host ? '<div id="dg-mp-status" class="dg-note hidden mb-4"></div>' : '') +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCountStep()">← Questions</button>' +

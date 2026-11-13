@@ -1435,13 +1435,21 @@
             6 * Math.sin(z * 0.0085 + ph[2] * 2.1);
     };
 
+    // Keep the first stretch after the start line straight and level, then
+    // ease into the full curves / hills. z is the world distance from the
+    // start line, so the player always begins with a clean straight view.
+    DG.trackSettle = function (z) {
+        const t = Math.max(0, Math.min(1, ((Number(z) || 0) - 200) / 900));
+        return t * t * (3 - 2 * t);
+    };
+
     DG.trackHorizonY = function () {
         const h = DG.view.h;
         const camZ = S.player ? S.player.dist : 0;
         const cache = DG._horizonCache || (DG._horizonCache = { camZ: null, h: 0, y: 0 });
         if (cache.camZ === camZ && cache.h === h) return cache.y;
         const slope = (DG.trackHill(camZ + 260) - DG.trackHill(camZ)) / 260;
-        const pitch = Math.max(-1, Math.min(1, slope * 14));
+        const pitch = Math.max(-1, Math.min(1, slope * 14 * DG.trackSettle(camZ + 130)));
         cache.camZ = camZ;
         cache.h = h;
         cache.y = h * HORIZON_BASE - pitch * h * 0.04;
@@ -1459,10 +1467,11 @@
         const persp = (raw - rawFar) / (1 - rawFar);
         const horizonY = DG.trackHorizonY();
         const bottom = h * ROAD_BOTTOM;
-        const elev = DG.trackHill(camZ + r) - DG.trackHill(camZ);
+        const settle = DG.trackSettle(camZ + r);
+        const elev = (DG.trackHill(camZ + r) - DG.trackHill(camZ)) * settle;
         const y = horizonY + (bottom - horizonY) * persp - elev * h * 0.0022 * persp;
-        const lat = (DG.trackLateral(camZ + r) - DG.trackLateral(camZ)) -
-            DG.trackCurve(camZ) * r;
+        const lat = ((DG.trackLateral(camZ + r) - DG.trackLateral(camZ)) -
+            DG.trackCurve(camZ) * r) * settle;
         const centerX = w / 2 + lat * (w / 180) * persp;
         const roadHalf = w * (0.02 + 0.49 * persp);
         const laneN = lane == null ? 1 : lane;
@@ -2323,12 +2332,12 @@
     DG.threeRoadX = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
         const lat = (DG.trackLateral(camZ + rel) - DG.trackLateral(camZ)) - DG.trackCurve(camZ) * rel;
-        return lat * 0.6;
+        return lat * 0.6 * DG.trackSettle(camZ + rel);
     };
 
     DG.threeRoadY = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
-        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.5;
+        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.5 * DG.trackSettle(camZ + rel);
     };
 
     DG.threeLaneX = function (rel, laneX) {
@@ -3002,7 +3011,7 @@
         // up (the horizon drops), descending tilts it down — a strong hill cue
         // that does not depend on the road geometry being huge.
         const slope = (DG.trackHill(p.dist + 260) - DG.trackHill(p.dist)) / 260;
-        const pitch = Math.max(-1, Math.min(1, slope * 14));
+        const pitch = Math.max(-1, Math.min(1, slope * 14 * DG.trackSettle(p.dist + 120)));
         const lookY = DG.threeRoadY(40) + 7.8 + pitch * 6;
         t.camera.lookAt(lookX, lookY, -40);
     };

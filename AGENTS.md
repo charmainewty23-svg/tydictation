@@ -602,18 +602,35 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   最近 **10** 部；賽道進度板最多顯示 **8** 行，自己一定顯示，其餘顯示
   `… +N more racing`。scenery 仍 cap 40。實測 3D ~126 draw calls（1 個對手）、
   30 個對手時 6 部對手約 200 calls、~9k tris。
+- **起步直路（2026-11 修正）**：`DG.trackSettle(z)` 用世界距離 `z`（距起步線）
+  計 ease：前 **200 units** 完全直／平，到 **1100 units** 才 full 曲／坡。
+  `DG.threeRoadX()`／`threeRoadY()`、2D `DG.projectRel()`、`DG.trackHorizonY()`
+  同 3D camera pitch 都會乘 `trackSettle`，所以一開波畫面正中、水平；
+  之後先出現轉彎／上山／落山。第一個閘（320 units）仍然係直路。
+- **老師 3C 選擇：落唔落場**：Class room 嘅 Course step 有
+  `#dg-teacher-plays` checkbox（預設 checked）。
+  - checked：**31 seats**（老師＋30 學生），RPC 傳 `p_teacher_plays = true`。
+  - unchecked：**30 seats**（30 學生），老師唔會插入 `drive_and_go_players`。
+    房主照樣按 Start；`DG.mpStart()` 後老師留喺 `grammar-detail-view`，
+    `DG.mpWatchRace()` 顯示 live 名次（correct/N、距離），lobby poll 繼續行，
+    完場自動轉結果畫面。
+  - `DG.mpRoomUpdatePlan()` 而家會把 `room.host_id === me` 當成員，所以
+    host-only 老師唔會被當成 missing 而 rejoin／closed。
+  - `DG.mpCreate()` 讀 checkbox 並傳 `p_teacher_plays`。
 - **老師 30 學生房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
   - `drive_and_go_rooms.max_players` 新欄，default **5**（舊房保持 5）。
   - `create_drive_and_go_class_room()` 只限 `is_drive_and_go_teacher()`
-    （老師 email），同 `create_drive_and_go_room()` 同樣參數，但寫入
-    `max_players = 31`（30 個學生＋老師自己），並照樣插入老師做玩家。
+    （老師 email），同 `create_drive_and_go_room()` 同樣參數，另加
+    `p_teacher_plays boolean default true`；`max_players` 係 **31**（老師落場）
+    或 **30**（host-only）。舊 8-arg overload 會先 `drop function if exists`，
+    避免 PostgREST 見到兩個 overload。
   - `join_drive_and_go_room()` 同 `start_drive_and_go_room()` 改用
-    `coalesce(v_room.max_players, 5)` 做上限，所以 5 人房同 31 人房並存。
+    `coalesce(v_room.max_players, 5)` 做上限，所以 5 人房同 30／31 人房並存。
   - 前端 Multiplayer → Create 多一個 **Class room (30 students)** 掣（只老師見到）；
     `DG.mpClassRoom` 記住選擇，`DG.mpCreate()` 揀
-    `create_drive_and_go_class_room`。Lobby 顯示 `Players n/31`，房主 Start
-    上限跟 `room.max_players`。加入者照用 4 位房碼，Topic／Challenge／題數／場地
-    跟房主。
+    `create_drive_and_go_class_room`。Lobby 顯示 `Players n/31` 或 `n/30`，
+    房主 Start 上限跟 `room.max_players`。加入者照用 4 位房碼，
+    Topic／Challenge／題數／場地跟房主。
   - 未跑 SQL：Class room 會顯示 `DG.mpShowSqlHint('class')`，提示貼
     `supabase/drive_and_go_class_room.sql`；普通 5 人房、Solo 照用。
   - 呢份 SQL 喺 `drive_and_go.sql` 之後跑；fresh install 都要跑埋呢份，

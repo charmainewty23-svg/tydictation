@@ -140,7 +140,11 @@ begin
 end;
 $dg$;
 
--- ---------- teacher-only class room: 30 students + teacher (31 seats) ----------
+-- ---------- teacher-only class room: 30 students + optional teacher seat ----------
+-- The old 8-arg version (before p_teacher_plays) is dropped so PostgREST
+-- cannot see two overloads with defaults.
+drop function if exists public.create_drive_and_go_class_room(text, text, text, text, text, int, text, text);
+
 create or replace function public.create_drive_and_go_class_room(
     p_question_mode text default 'av',
     p_cat text default null,
@@ -149,7 +153,8 @@ create or replace function public.create_drive_and_go_class_room(
     p_outfit text default null,
     p_question_count int default 20,
     p_scene text default 'desert',
-    p_topic text default 'tenses'
+    p_topic text default 'tenses',
+    p_teacher_plays boolean default true
 ) returns setof public.drive_and_go_rooms
 language plpgsql
 security definer
@@ -164,6 +169,8 @@ declare
     v_mode   text := lower(coalesce(p_question_mode, 'av'));
     v_count  int := coalesce(p_question_count, 20);
     v_scene  text := lower(coalesce(p_scene, 'desert'));
+    v_plays  boolean := coalesce(p_teacher_plays, true);
+    v_max    int := case when coalesce(p_teacher_plays, true) then 31 else 30 end;
     v_email  text := coalesce(auth.jwt() ->> 'email', '');
     v_nick   text;
     i        int;
@@ -218,17 +225,19 @@ begin
         (code, host_id, topic, question_mode, question_count, seed, scene, max_players)
     values
         (v_code, auth.uid(), v_topic, v_mode, v_count,
-         floor(random() * 2147483646)::bigint + 1, v_scene, 31)
+         floor(random() * 2147483646)::bigint + 1, v_scene, v_max)
     returning * into v_room;
 
-    insert into public.drive_and_go_players
-        (room_id, user_id, email, nickname, cat, glasses, hat, outfit)
-    values
-        (v_room.id, auth.uid(), v_email, v_nick,
-         left(coalesce(p_cat, 'Ginger'), 30),
-         left(coalesce(p_glasses, 'None'), 30),
-         left(coalesce(p_hat, 'None'), 30),
-         left(coalesce(p_outfit, 'None'), 40));
+    if v_plays then
+        insert into public.drive_and_go_players
+            (room_id, user_id, email, nickname, cat, glasses, hat, outfit)
+        values
+            (v_room.id, auth.uid(), v_email, v_nick,
+             left(coalesce(p_cat, 'Ginger'), 30),
+             left(coalesce(p_glasses, 'None'), 30),
+             left(coalesce(p_hat, 'None'), 30),
+             left(coalesce(p_outfit, 'None'), 40));
+    end if;
 
     return next v_room;
 end;

@@ -36,7 +36,10 @@
         // Consecutive race syncs where the room (or our own seat) was missing.
         raceMissingPolls: 0,
         projectileChannel: null,
-        projectileRoomId: ''
+        projectileRoomId: '',
+        // Signature of the last host-only live board, so the 1s poll only
+        // re-renders when a student's progress actually changes.
+        watchSig: ''
     };
     DG.mpState = MP;
 
@@ -216,7 +219,7 @@
         const meId = c.meId || '';
         const list = players || [];
         const isMember = c.isMember == null
-            ? list.some(p => p && p.user_id === meId)
+            ? (list.some(p => p && p.user_id === meId) || (room && room.host_id === meId))
             : !!c.isMember;
         const missing = Math.max(0, Number(c.missingMePolls) || 0);
         const raceActive = !!c.raceActive;
@@ -449,6 +452,11 @@
         // Tenses rooms deliberately omit p_topic so the existing 7-argument
         // function keeps working before the new SQL is pasted.
         if (topic === 'agreement') args.p_topic = 'agreement';
+        if (DG.mpClassRoom) {
+            const cb = document.getElementById('dg-teacher-plays');
+            DG.mpTeacherPlays = !cb || cb.checked;
+            args.p_teacher_plays = DG.mpTeacherPlays;
+        }
         const rpc = DG.mpClassRoom ? 'create_drive_and_go_class_room' : 'create_drive_and_go_room';
         sb.rpc(rpc, args).then(({ data, error }) => {
             if (error) {
@@ -601,6 +609,13 @@
             MP.players = players;
             MP.closed = false;
             if (plan.kind === 'begin') {
+                // A teacher who chose "host only" has no player row. Keep the
+                // lobby poll running and show the live class board instead of
+                // dropping them onto the track.
+                if (DG.mpClassRoom && !players.some(p => p && p.user_id === me)) {
+                    DG.mpWatchRace(room, players);
+                    return;
+                }
                 DG.mpStopPoll();
                 DG.mpBeginRace();
                 return;
@@ -736,6 +751,10 @@
         const isHost = room.host_id === me;
         const maxPlayers = Math.max(2, Number(room.max_players) || 5);
         const isClass = maxPlayers > 5;
+        const teacherSeated = players.some(p => p && p.user_id === me);
+        // A 31-seat racing room leaves 30 student places; a 30-seat host-only
+        // room leaves all 30 for students.
+        const studentSeats = isClass ? (teacherSeated ? maxPlayers - 1 : maxPlayers) : maxPlayers - 1;
         const canStart = players.length >= 2 && players.length <= maxPlayers;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
         const cards = players.map(p => {
@@ -754,7 +773,7 @@
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
             '<p class="text-center text-sm font-bold text-gray-500 mb-4">Players ' + players.length + '/' + maxPlayers + ' · ' +
             (isClass
-                ? 'share this code with the class (up to ' + (maxPlayers - 1) + ' students)'
+                ? 'share this code with the class (up to ' + studentSeats + ' students)'
                 : 'share this code with 1–' + (maxPlayers - 1) + ' friends') + '</p>' +
             '<div class="dg-lobby-grid mb-5">' + cards + '</div>' +
             (isHost
@@ -767,6 +786,49 @@
             '<button type="button" class="dg-menu-button" onclick="DG.mpSetStatus(\'Room code: ' + DG.esc(room.code) + '\', false)">Refresh</button>' +
             '</div>' +
             '<div id="dg-mp-status" class="dg-note hidden mt-4"></div>';
+    };
+
+    /* Host-only class room: the teacher has no kart. Stay on the grammar
+       detail page, keep the lobby poll running, and show a live board that
+       refreshes from the players table. The results panel takes over when the
+       room finishes. */
+    DG.mpWatchRace = function (room, players) {
+        if (!room) return;
+        const content = DG.menuContent();
+        if (!content) return;
+        document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
+        const n = DG.normalizeQuestionCount(room.question_count);
+        const list = (players || []).slice().sort((a, b) => {
+            const ca = Math.max(0, Math.min(n, Math.floor(Number(a.correct) || 0)));
+            const cb = Math.max(0, Math.min(n, Math.floor(Number(b.correct) || 0)));
+            if (cb !== ca) return cb - ca;
+            return (Number(b.distance) || 0) - (Number(a.distance) || 0);
+        });
+        const sig = room.id + '|' + room.status + '|' + list.map(p =>
+            (p.user_id || '') + ':' + (p.correct || 0) + ':' + (p.distance || 0) + ':' + (p.finished_at ? '1' : '0')
+        ).join(',');
+        if (MP.watchSig === sig && document.getElementById('dg-watch-panel')) return;
+        MP.watchSig = sig;
+        const rows = list.map((p, i) => {
+            const correct = Math.max(0, Math.min(n, Math.floor(Number(p.correct) || 0)));
+            const finished = !!p.finished_at || correct >= n;
+            return '<div class="dg-standing' + (finished ? ' me' : '') + '">' +
+                '<span class="dg-medal">' + (finished ? '🏁' : (i + 1) + '.') + '</span>' +
+                '<span class="dg-who">' + DG.esc(DG.mpPlayerName(p)) + '</span>' +
+                '<span class="dg-points">' + correct + '/' + n + '</span>' +
+                '<span class="dg-dist">' + Math.floor(Number(p.distance) || 0) + ' m</span>' +
+                '</div>';
+        }).join('');
+        content.innerHTML =
+            '<div class="text-center mb-4"><div class="text-7xl mb-1">🏁</div>' +
+            '<h3 class="text-3xl font-bold text-green-600">Class race live</h3>' +
+            '<p class="text-gray-500 font-bold">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' + n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
+            '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
+            '<p class="text-center text-sm font-bold text-gray-500 mb-4">Hosting without a kart · ' + list.length + ' students racing</p>' +
+            '<div id="dg-watch-panel" class="dg-menu-panel"><div class="dg-standings">' +
+            (rows || '<p class="text-center font-bold text-gray-500 py-4">Waiting for students to join…</p>') +
+            '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>';
     };
 
     DG.mpCopyCode = function () {
@@ -791,6 +853,7 @@
             return;
         }
         DG.mpSetStatus('Starting race…', false);
+        const hostOnly = DG.mpClassRoom && !MP.players.some(p => p && p.user_id === (currentUser && currentUser.id));
         sb.rpc('start_drive_and_go_room', { p_room_id: MP.room.id }).then(({ data, error }) => {
             if (error) {
                 DG.mpSetStatus(DG.mpIsSqlMissing(error) ? 'Run supabase/drive_and_go.sql first.' : DG.mpErrorText(error), true);
@@ -798,6 +861,11 @@
             }
             const room = Array.isArray(data) ? data[0] : data;
             if (room) MP.room = room;
+            if (hostOnly) {
+                DG.mpWatchRace(MP.room, MP.players);
+                if (!MP.pollId) DG.mpStartLobbyPoll();
+                return;
+            }
             DG.mpStopPoll();
             DG.mpBeginRace();
         }).catch(() => DG.mpSetStatus('Could not start the race. Please try again.', true));

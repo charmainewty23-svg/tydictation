@@ -47,9 +47,10 @@
         function navShouldShow(viewId) {
             if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
             if (viewId === 'battle-view') {
-                // Lobby and result screens can use the bar; a live room cannot.
+                // Lobby, result and the teacher's class live board can use the
+                // bar; the student waiting / playing panels cannot.
                 const panel = window.navBattlePanel || 'lobby';
-                return panel === 'lobby' || panel === 'result';
+                return panel === 'lobby' || panel === 'result' || panel === 'class';
             }
             return true;
         }
@@ -68,6 +69,184 @@
                 if (on) btn.setAttribute('aria-current', 'page');
                 else btn.removeAttribute('aria-current');
             });
+        }
+
+        // --- Daily practice streak -----------------------------------------
+        // One flame per consecutive Asia/Hong_Kong calendar day with practice.
+        // Signed-in students keep it on this device (localStorage, per account);
+        // guests and teacher previews use sessionStorage so two people sharing
+        // a browser never inherit each other's flame.
+        const STREAK_PREFIX = 'learniTY_streak:';
+        const STREAK_DAY_MS = 24 * 60 * 60 * 1000;
+
+        function streakOwner() {
+            const form = previewStudentForm();
+            if (form) return 'preview:' + form;
+            if (isGuestUser()) return 'guest';
+            if (currentUser && currentUser.id) return 'user:' + currentUser.id;
+            return '';
+        }
+
+        function streakStore() {
+            return (isGuestUser() || previewStudentForm()) ? sessionStorage : localStorage;
+        }
+
+        function readStreakState() {
+            const owner = streakOwner();
+            if (!owner) return null;
+            try {
+                const parsed = JSON.parse(streakStore().getItem(STREAK_PREFIX + owner) || 'null');
+                if (!parsed || typeof parsed !== 'object') return { last: '', count: 0, best: 0 };
+                return {
+                    last: typeof parsed.last === 'string' ? parsed.last : '',
+                    count: Math.max(0, Number(parsed.count) || 0),
+                    best: Math.max(0, Number(parsed.best) || 0)
+                };
+            } catch (e) {
+                return { last: '', count: 0, best: 0 };
+            }
+        }
+
+        function writeStreakState(state) {
+            const owner = streakOwner();
+            if (!owner) return;
+            try { streakStore().setItem(STREAK_PREFIX + owner, JSON.stringify(state)); } catch (e) {}
+        }
+
+        function hkYesterdayKey() {
+            return hkDayKey(new Date(Date.now() - STREAK_DAY_MS).toISOString());
+        }
+
+        function streakSnapshot() {
+            const state = readStreakState();
+            if (!state) return { count: 0, best: 0, practicedToday: false, alive: false, last: '' };
+            const today = hkDayKey(new Date().toISOString());
+            const practicedToday = state.last === today;
+            // The streak is still alive until the end of the day after the last
+            // practice; after that it has lapsed and the badge shows 0 again.
+            const alive = practicedToday || state.last === hkYesterdayKey();
+            return {
+                count: alive ? state.count : 0,
+                best: state.best,
+                practicedToday: practicedToday,
+                alive: alive,
+                last: state.last
+            };
+        }
+
+        function updateStreakBadge() {
+            const badge = document.getElementById('streak-badge');
+            if (!badge) return;
+            const snap = streakSnapshot();
+            const label = document.getElementById('streak-count');
+            if (label) label.innerText = String(snap.count);
+            badge.classList.toggle('streak-zero', snap.count === 0);
+            const dayWord = snap.count === 1 ? 'day' : 'days';
+            badge.setAttribute('aria-label', snap.count
+                ? 'Daily practice streak: ' + snap.count + ' ' + dayWord
+                : 'Daily practice streak: not started');
+            badge.title = snap.count
+                ? (snap.practicedToday
+                    ? '🔥 ' + snap.count + '-day streak — done for today!'
+                    : '🔥 ' + snap.count + '-day streak — practise today to keep it alive.')
+                : '🔥 Finish any practice today to light your first flame.';
+        }
+
+        function showStreakInfo() {
+            const snap = streakSnapshot();
+            if (!snap.count) {
+                updateMascot('🔥 Finish any practice today to light your first streak flame!');
+                return;
+            }
+            updateMascot(snap.practicedToday
+                ? '🔥 ' + snap.count + '-day streak! You already practised today — come back tomorrow to grow it.'
+                : '🔥 ' + snap.count + '-day streak. Finish a practice today to keep it alive!');
+        }
+
+        // Called from every "finished a practice" hook. Only the first finished
+        // practice of a Hong Kong calendar day extends the streak and shows the
+        // celebration; later completions that day are silent no-ops.
+        function recordDailyPractice(source) {
+            const owner = streakOwner();
+            if (!owner) return { extended: false, count: 0 };
+            const state = readStreakState();
+            const today = hkDayKey(new Date().toISOString());
+            if (state.last === today) {
+                return { extended: false, count: state.count, best: state.best, today: today };
+            }
+            const continues = state.last === hkYesterdayKey();
+            const count = continues ? Math.max(1, state.count + 1) : 1;
+            const next = { last: today, count: count, best: Math.max(state.best, count) };
+            writeStreakState(next);
+            updateStreakBadge();
+            showStreakPopup({
+                count: count,
+                best: next.best,
+                fresh: !continues,
+                source: source || ''
+            });
+            return { extended: true, count: count, best: next.best, today: today };
+        }
+
+        function streakPopupKeydown(event) {
+            if (event.key === 'Escape') closeStreakPopup();
+        }
+
+        function closeStreakPopup() {
+            const popup = document.getElementById('streak-popup');
+            if (!popup) return;
+            popup.remove();
+            document.removeEventListener('keydown', streakPopupKeydown);
+        }
+
+        function streakPopupHost() {
+            // Native fullscreen renders only the fullscreen element's subtree,
+            // so a race/Word Jump popup has to live inside it to be seen.
+            const fs = document.fullscreenElement || document.webkitFullscreenElement;
+            return (fs && fs.appendChild) ? fs : document.body;
+        }
+
+        function showStreakPopup(info) {
+            const existing = document.getElementById('streak-popup');
+            if (existing) existing.remove();
+            const count = Math.max(1, Number(info && info.count) || 1);
+            const source = (info && info.source) ? String(info.source) : '';
+            const fresh = !!(info && info.fresh);
+            const dayWord = count === 1 ? 'day' : 'days';
+            const line = fresh
+                ? 'Your first flame is lit. Finish a practice tomorrow to make it two.'
+                : count === 2
+                    ? 'Two days in a row — the flame is growing!'
+                    : count >= 7
+                        ? count + ' days in a row. That is a proper bonfire!'
+                        : count + ' days in a row — keep the fire alive!';
+            const popup = document.createElement('div');
+            popup.id = 'streak-popup';
+            popup.className = 'streak-popup';
+            popup.setAttribute('role', 'dialog');
+            popup.setAttribute('aria-modal', 'true');
+            popup.setAttribute('aria-labelledby', 'streak-popup-title');
+            popup.innerHTML = `
+                <div class="streak-popup-card">
+                    <div class="streak-popup-flame" aria-hidden="true">🔥</div>
+                    <h2 id="streak-popup-title" class="streak-popup-title">You made it!</h2>
+                    <p class="streak-popup-count"><span aria-hidden="true">🔥</span> ${count} ${dayWord}</p>
+                    <p class="streak-popup-line">${escapeHtml(line)}</p>
+                    ${source ? `<p class="streak-popup-source">${escapeHtml(source)} complete</p>` : ''}
+                    <button type="button" class="streak-popup-btn" onclick="closeStreakPopup()">Keep going!</button>
+                </div>`;
+            popup.addEventListener('click', event => {
+                if (event.target === popup) closeStreakPopup();
+            });
+            // The popup can sit inside #wj-stage during fullscreen; stop the
+            // game's pointer handlers from treating a tap on it as steering.
+            ['pointerdown', 'pointerup', 'pointermove', 'touchstart', 'touchmove', 'click'].forEach(type => {
+                popup.addEventListener(type, event => event.stopPropagation());
+            });
+            streakPopupHost().appendChild(popup);
+            document.addEventListener('keydown', streakPopupKeydown);
+            const btn = popup.querySelector('.streak-popup-btn');
+            if (btn && btn.focus) btn.focus({ preventScroll: true });
         }
 
         function isGuestUser() { return !!guestSession; }
@@ -689,6 +868,7 @@
                 if (lbCard) lbCard.classList.add('hidden');
                 if (recCard) recCard.classList.add('hidden');
                 paintPreviewBanner();
+                updateStreakBadge();
                 return;
             }
             if (lbCard) lbCard.classList.remove('hidden');
@@ -706,6 +886,7 @@
                 if (nickname) nickname.innerText = '';
             }
             paintPreviewBanner();
+            updateStreakBadge();
         }
 
         function showApp() {
@@ -719,6 +900,7 @@
             // while adding New Vocab words (and students lost their place too).
             if (!alreadyOpen) changeView('hub-view');
             else updateBottomNav();
+            updateStreakBadge();
         }
 
         function showLogin() {

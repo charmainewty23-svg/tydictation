@@ -502,6 +502,7 @@
         const result = DG.scoreRun(p, elapsed, S.questionCount);
         p.finished = true;
         p.finishAt = S.clock;
+        recordDailyPractice('Drive & Go!');
         p.elapsed = result.elapsed;
         p.timeBonus = result.timeBonus;
         p.composite = result.composite;

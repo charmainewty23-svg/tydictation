@@ -1089,7 +1089,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - `navTabForView(viewId)` 決定 active tab；grammar 樹／records／leaderboard
     都 highlight Home。
   - `navShouldShow(viewId)`：上面四個隱藏 view 唔出 bar；`battle-view` 只在
-    lobby／result 出，`waiting`／`play`／`class` 進行中會收埋（避免蓋住計分板／輸入）。
+    lobby／result／class 出，`waiting`／`play` 進行中會收埋（避免蓋住計分板／輸入）。
+    `class` 係老師嘅班際直播板（`battleRenderClassHost()` 只俾 host／老師），
+    保留 bar 方便老師一撳返 Home；學生喺 `waiting`／`play` 仍然收埋。
   - `currentView` 喺 `changeView()` 更新，之後 call `updateBottomNav()`；
     `showApp()`／`showLogin()` 亦會更新（未登入一定冇 bar）。
   - Battle 面板切換經 `battleShowPanel()` 寫 `window.navBattlePanel` 再
@@ -1112,6 +1114,53 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   3. `sw.js` 的 `CORE_ASSETS` 唔使改（呢個改動冇新 JS 檔）。
 - 實測（iframe 載入真 `index.html`，模擬登入後量度）：375×667、390×844、
   430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`；tab 高度 56px、
-  nav 高度 58px、iPad／橫向內層 720px；lobby／result 出 bar，
-  waiting／play／class／quiz／wordjump／admin 收埋；`#app` 底部 padding 72px
+  nav 高度 58px、iPad／橫向內層 720px；lobby／result／class 出 bar，
+  waiting／play／quiz／wordjump／admin 收埋；`#app` 底部 padding 72px
   （bar 58px ＋ 14px 空隙）。
+
+### 12.5 每日練習連勝（streak）
+
+鼓勵學生每日做一次練習：連續嘅香港日曆日會有火（flame）數量，第一次做完當日
+練習會彈 **「You made it!」** 卡，之後同一天再完成唔會再加。
+
+- **計法**：`hkDayKey()`（`Asia/Hong_Kong`）做日界。`recordDailyPractice(source)`
+  （`js/shared.js`）只喺 `state.last !== 今日` 時寫入：
+  - 上次係**昨日** → `count + 1`（連勝繼續）。
+  - 上次係更早（或從未做過）→ `count = 1`（重新開始，唔會懲罰）。
+  - 同一天再 call → `{ extended:false }`，唔彈卡、唔改數。
+  - 過期未做（上次 > 1 日前）時，badge 顯示 **0**，但 `best` 保留。
+    一 practice 就由 1 重新計。
+- **邊啲完成會計**（全部經同一個 hook）：
+  - Dictation `finishQuiz()` → `recordDailyPractice('Dictation')`
+  - Word Jump `WJ.gameOver()` → `'Word Jump'`（Challenge 跌倒都計）
+  - Drive & Go! `DG.finishPlayer()` → `'Drive & Go!'`（Solo／多人）
+  - Word Battle `battleFinishLocal()` → `'Word Battle'`
+  - 只有**完成**先計，開始／中途離開唔計。加新遊戲喺完成位 call 同一個 helper。
+- **持久化**：冇新 SQL、冇排行榜。
+  - 學校帳戶：`localStorage['learniTY_streak:user:<uuid>']`，每部裝置、每個帳戶
+    各自一份（換機／清 browser data 會由 0 開始；刻意唔扮 cross-device sync）。
+  - 老師 Preview：`sessionStorage['learniTY_streak:preview:<form>']`。
+  - 訪客：`sessionStorage['learniTY_streak:guest']`，所以同一個 password 登入嘅
+    下一個同學唔會繼承上一個嘅火（同 guest history 一樣理由）。
+  - 記錄格式：`{ last:'YYYY-MM-DD', count, best }`。
+- **UI**：
+  - Header `#auth-area` 最左邊有 `#streak-badge`（🔥 + `#streak-count`），
+    min 44px tap target。`updateStreakBadge()` 喺 `updateAuthUI()`、`showApp()`、
+    `recordDailyPractice()` 後更新。0 火時灰色；有火時火苗輕微擺動
+    （`prefers-reduced-motion` 會停）。
+  - 撳 badge → `showStreakInfo()` 用 mascot bubble 講今日做咗未／仲有幾多日。
+  - 「You made it!」卡係 `showStreakPopup()` 動態建立嘅 `#streak-popup`
+    （`z-index: 10060`），有 backdrop、`role="dialog"`、Esc／backdrop 都可以關，
+    標題固定 `You made it!`，下面顯示 `🔥 N day(s)`、鼓勵句、來源（例如
+    `DICTATION COMPLETE`）同 `Keep going!` 掣。`streak-popup-btn` 最少 48px 高。
+  - 全屏遊戲（Word Jump／Drive & Go!）彈卡時，`streakPopupHost()` 會將卡放入
+    `document.fullscreenElement`（原生全屏只 render 該 subtree），並且
+    `stopPropagation()`，唔會當成轉向／射擊輸入。
+- **窄螢幕 header**：≤480px 時 `#auth-nickname` 收埋，避免 brand（LearniTY）
+  ＋🔥 badge＋Logout 橫向爆版；學生名仍然喺 records／leaderboard／admin 見到。
+  實測 375、390、430 全部 `overflowX = 0`。
+- **改動提示**：想「斷一日唔清零」就改 `recordDailyPractice()` 嘅
+  `state.last === hkYesterdayKey()` 條件；想轉用雲端就要另加 SQL 同 RLS，
+  唔好偷偷用 localStorage 扮 cross-device。想改慶祝文案改
+  `showStreakPopup()` 嘅 `line`。想加「連勝 7 日」獎勵，喺 `recordDailyPractice()`
+  收到 `count` 之後加（記得只喺 `extended:true` 時做）。

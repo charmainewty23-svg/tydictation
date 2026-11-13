@@ -799,6 +799,7 @@
         async function battleFinishLocal() {
             if (battleDoneLocal) return;
             battleDoneLocal = true;
+            recordDailyPractice('Word Battle');
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             document.getElementById('battle-feedback').innerText = '';
             await battleSubmitProgress(true);

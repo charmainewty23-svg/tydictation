@@ -641,6 +641,7 @@
             if (WJ.raf) cancelAnimationFrame(WJ.raf);
             WJ.raf = 0;
             WJ.state = 'over';
+            recordDailyPractice('Word Jump');
             const score = WJ.score();
             if (WJ.challenge && typeof WJC !== 'undefined') {
                 WJC.onLocalFallen(reason, score);

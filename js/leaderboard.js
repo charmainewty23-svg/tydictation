@@ -19,6 +19,19 @@
                             : 'Cumulative scores — practice more to rank higher!';
         }
 
+        function leaderboardNameHTML(row, suffix) {
+            const name = escapeHtml(displayName(row));
+            const uid = row && row.user_id ? String(row.user_id) : '';
+            const tail = suffix || '';
+            if (!uid || isGuestUser() || previewStudentForm()) return name + tail;
+            const me = currentUser && currentUser.id === uid;
+            const handler = me
+                ? 'profileShowOwn()'
+                : "openFriendProfile('" + escapeHtml(uid) + "')";
+            return '<button type="button" class="lb-name" onclick="' + handler + '" title="' +
+                (me ? 'Open my profile' : 'Open profile and follow') + '">' + name + '</button>' + tail;
+        }
+
         async function loadLeaderboard(mode) {
             if (isGuestUser()) return;
             lbModeFilter = mode || 'all';
@@ -79,7 +92,7 @@
                 renderLeaderboard();
                 return;
             }
-            let query = sb.from("dictation_results").select("email, nickname, score, total, topic, mode, created_at");
+            let query = sb.from("dictation_results").select("user_id, email, nickname, score, total, topic, mode, created_at");
             if (lbModeFilter !== 'all') query = query.eq("mode", lbModeFilter);
             const { data, error } = await query.order("created_at", { ascending: false }).limit(1000);
             lbRows = data || [];
@@ -100,7 +113,7 @@
             const rowHtml = (r, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
-                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${leaderboardNameHTML(r, isAdmin() ? classBadge(r.email, r.nickname) : '')}</span>
                             ${formAssignControl(r.email, r.nickname)}
                             <span class="text-gray-400 text-sm mx-2">${Number(r.words) || 0} words</span>
                             <span class="font-bold text-orange-600 text-lg">${Number(r.score) || 0} pts</span>
@@ -147,7 +160,7 @@
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
                             <div class="flex-1 ml-3 min-w-0">
-                                <p class="font-bold text-gray-700 truncate">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</p>
+                                <p class="font-bold text-gray-700 truncate">${leaderboardNameHTML(r, isAdmin() ? classBadge(r.email, r.nickname) : '')}</p>
                                 <p class="text-xs text-gray-400 truncate">${escapeHtml(meta)}</p>
                             </div>
                             ${formAssignControl(r.email, r.nickname)}
@@ -187,7 +200,7 @@
             const rowHtml = (r, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''} ${r.user_id === me ? 'ring-2 ring-orange-300' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
-                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${r.user_id === me ? ' <span class="text-xs text-orange-500">(you)</span>' : ''}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${leaderboardNameHTML(r, (r.user_id === me ? ' <span class="text-xs text-orange-500">(you)</span>' : '') + (isAdmin() ? classBadge(r.email, r.nickname) : ''))}</span>
                             ${formAssignControl(r.email, r.nickname)}
                             <span class="text-gray-400 text-xs whitespace-nowrap">best ${Number(r.streak_best) || 0}</span>
                             <span class="font-bold text-orange-600 text-lg whitespace-nowrap">🔥 ${r.current_streak} day${r.current_streak === 1 ? '' : 's'}</span>
@@ -231,7 +244,8 @@
             const studentMap = {};
             lbRows.forEach(r => {
                 const key = (r.email || '').toLowerCase();
-                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, totalScore: 0, quizzes: 0 };
+                if (!studentMap[key]) studentMap[key] = { nickname: r.nickname, email: r.email, user_id: r.user_id || '', totalScore: 0, quizzes: 0 };
+                if (!studentMap[key].user_id && r.user_id) studentMap[key].user_id = r.user_id;
                 studentMap[key].totalScore += r.score;
                 studentMap[key].quizzes++;
                 if (r.nickname) studentMap[key].nickname = r.nickname;
@@ -240,7 +254,7 @@
             const rowHtml = (r, i) => `
                         <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
-                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${leaderboardNameHTML(r, isAdmin() ? classBadge(r.email, r.nickname) : '')}</span>
                             ${formAssignControl(r.email, r.nickname)}
                             <span class="text-gray-400 text-sm mx-2">${r.quizzes} quizzes</span>
                             <span class="font-bold text-orange-600 text-lg">${r.totalScore} pts</span>

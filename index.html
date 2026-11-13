@@ -377,26 +377,30 @@
                the student name stays visible in records and leaderboards. */
             #auth-nickname { display: none; }
         }
-        @media (max-width: 360px) {
-            /* Very narrow phones: shrink the wordmark + Logout instead of
-               letting the header push the page sideways. */
+        @media (max-width: 430px) {
+            /* Bell + flame + Logout: tighten the row so the bell clears the
+               "…TY" of the LearniTY wordmark instead of touching it. */
             .brand-header h1 { font-size: 1.75rem; }
-            .brand-header p { display: none; }
-            #auth-area { gap: 0.5rem; }
-            #auth-btn { padding-left: 0.75rem; padding-right: 0.75rem; }
-            /* The notification bell adds one more 44px target. If the row
-               still cannot fit, let the auth controls wrap below the
-               wordmark instead of overflowing the page. */
-            .brand-header { flex-wrap: wrap; row-gap: 8px; }
-            #auth-area { margin-left: auto; }
-            #notif-btn { width: 40px; height: 40px; font-size: 18px; }
+            #auth-area { gap: 0.25rem; }
+            #notif-btn { width: 44px; height: 44px; font-size: 20px; }
+            #streak-badge { padding: 0 2px; }
+            #auth-btn { padding-left: 0.1rem; padding-right: 0.1rem; }
         }
-        @media (max-width: 385px) {
-            /* Bell + flame + Logout no longer fit beside the wordmark on
-               narrow phones: wrap the auth controls below it. */
+        @media (max-width: 380px) {
+            /* 360–380px phones: a smaller wordmark leaves a real gap before
+               the bell instead of letting the auth row touch it. */
+            .brand-header h1 { font-size: 1.5rem; }
+        }
+        @media (max-width: 360px) {
+            /* Very narrow phones: hide the subtitle; the wordmark is already
+               compact from the 430px rule. */
+            .brand-header p { display: none; }
+        }
+        @media (max-width: 345px) {
+            /* Last resort on very narrow phones: let the auth controls wrap
+               below the wordmark instead of overlapping it. */
             .brand-header { flex-wrap: wrap; row-gap: 8px; }
             #auth-area { margin-left: auto; }
-            #notif-btn { width: 40px; height: 40px; font-size: 18px; }
         }
 
         .streak-popup {
@@ -627,6 +631,31 @@
             justify-content: center;
             font-size: 18px;
             line-height: 1;
+        }
+        /* Leaderboard names open that student's profile / follow screen. */
+        .lb-name {
+            background: none;
+            border: 0;
+            padding: 0;
+            font: inherit;
+            font-weight: 700;
+            color: inherit;
+            cursor: pointer;
+            text-align: left;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: bottom;
+        }
+        .lb-name:hover {
+            color: #c2410c;
+            text-decoration: underline;
+        }
+        .lb-name:focus-visible {
+            outline: 2px solid #c2410c;
+            outline-offset: 2px;
+            border-radius: 4px;
         }
         /* ---- Notifications bell + popup ---- */
         #notif-btn {

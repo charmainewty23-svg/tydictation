@@ -1048,6 +1048,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - 老師：Admin Dashboard「🦘 Word Jump」卡 → `loadWordJumpAdmin()`：
     學生數、總局數、最高分、今日局數 ＋ 每人最佳（名次、幾時玩、最佳分數、中字量；唔顯示局數）。
     `changeView('admin-view')` 會自動 call。
+  - **排行榜撳名（2026-11）**：`js/leaderboard.js` 嘅 `leaderboardNameHTML()`
+    將學生名變成 `.lb-name` 按鈕 → `openFriendProfile(user_id)`，入到對方
+    profile 可以 Follow；自己嗰行就 `profileShowOwn()`。Dictation 查詢
+    已加 `user_id`，aggregate 時每個 email 保留第一個 `user_id`。
+    Guest／老師 preview 保持純文字，唔會出 link。
 - **未跑 SQL 唔會壞**：game-over 顯示「排行榜載入唔到（老師要喺 Supabase 跑
   `wj_scores.sql`）」，Hub Leaderboard 嘅 Word Jump 分頁同 admin 卡顯示同一句提示，遊戲照玩。
 - 改名額：`WJ.loadLeaderboard()` 入面 `.limit(7)`；Hub Leaderboard Word Jump 分頁 `.limit(10)`；
@@ -1324,6 +1329,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   waiting／play／quiz／admin 收埋；`#app` 底部 padding 72px
   （bar 58px ＋ 14px 空隙）。320px 時 header 會縮細 wordmark、收埋副標題同減
   Logout padding（`@media (max-width:360px)`），避免橫向爆版。
+- **🔔 通知鐘 header 排版（2026-11）**：`#notif-btn` 放喺 `#auth-area`，
+  ≤430px 時 wordmark 1.75rem、auth gap 4px、bell 44px、Logout padding
+  0.1rem；≤380px wordmark 1.5rem；≤345px auth 控制項會 wrap 落 wordmark
+  下面。實測 320／360／375／390 都唔會橫向爆版，bell 同「TY」有
+  5–20px 空位（390 約 14px）。
 
 ### 12.5 每日練習連勝（streak）＋補救卡
 

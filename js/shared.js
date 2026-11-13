@@ -225,7 +225,7 @@
         function mergeStreakStates(local, cloud) {
             const l = normalizeStreakState(local);
             const c = normalizeStreakState(cloud);
-            const firstSeen = earliestIso(l.firstSeen, c.firstSeen) || new Date().toISOString();
+            const firstSeen = earliestIso(l.firstSeen, c.firstSeen);
             if (!l.last && !c.last) {
                 return { last: '', count: 0, best: Math.max(l.best, c.best), cards: Math.min(l.cards, c.cards), firstSeen: firstSeen };
             }
@@ -244,12 +244,6 @@
 
         async function earliestActivityIso(uid) {
             const dates = [];
-            // The real join date is in student_logins (admin-only table); the
-            // security-definer RPC returns just this student's own row.
-            try {
-                const first = await sb.rpc('my_first_login');
-                if (!first.error && first.data) dates.push(first.data);
-            } catch (e) {}
             try {
                 const a = await sb.from('dictation_results')
                     .select('created_at').eq('user_id', uid)
@@ -294,7 +288,7 @@
                             streak_best: 0,
                             last_practice_date: null,
                             repair_cards: STREAK_DEFAULT_CARDS,
-                            first_seen: firstSeen || new Date().toISOString(),
+                            first_seen: firstSeen || null,
                             updated_at: new Date().toISOString()
                         };
                         const inserted = await sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' });
@@ -329,7 +323,7 @@
                 streak_best: state.best,
                 last_practice_date: state.last || null,
                 repair_cards: state.cards,
-                first_seen: state.firstSeen || new Date().toISOString(),
+                first_seen: state.firstSeen || null,
                 updated_at: new Date().toISOString()
             };
             sb.from(STREAK_CLOUD_TABLE).upsert(row, { onConflict: 'user_id' }).then(({ error }) => {

@@ -13,9 +13,16 @@ create table if not exists public.user_streaks (
     streak_best int not null default 0,
     last_practice_date date,
     repair_cards int not null default 3,
-    first_seen timestamptz not null default now(),
+    -- First *completed practice*, not first login. NULL until the student
+    -- finishes a Dictation quiz / Word Jump / Drive & Go / Word Battle.
+    first_seen timestamptz,
     updated_at timestamptz not null default now()
 );
+
+-- Re-running after an older version? Make first_seen mean "first practice":
+-- nullable, no default, so it stays empty until the first completed practice.
+alter table public.user_streaks alter column first_seen drop not null;
+alter table public.user_streaks alter column first_seen drop default;
 
 alter table public.user_streaks enable row level security;
 
@@ -33,25 +40,6 @@ create policy "update own streak" on public.user_streaks
 
 create index if not exists user_streaks_last_practice_idx
     on public.user_streaks (last_practice_date desc);
-
--- The true "first joined" date lives in student_logins, which students cannot
--- read directly. This security-definer helper returns only their own row.
--- Requires login_tracking.sql (run that first).
-create or replace function public.my_first_login()
-returns timestamptz
-language sql
-security definer
-set search_path = public
-as $$
-    select first_login_at
-    from public.student_logins
-    where user_id = auth.uid()
-    limit 1;
-$$;
-
-revoke all on function public.my_first_login() from public;
-revoke all on function public.my_first_login() from anon;
-grant execute on function public.my_first_login() to authenticated;
 
 -- No delete policy: students cannot remove their own row.
 -- Streak values are written by the browser (like dictation_results), so this

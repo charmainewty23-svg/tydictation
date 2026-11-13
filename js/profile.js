@@ -108,7 +108,7 @@ function profileRenderStreak() {
     if (unit) unit.innerText = 'day streak';
     if (cards) cards.innerText = String(snap.cards);
     if (best) best.innerText = String(Math.max(snap.best, snap.count));
-    if (first) first.innerText = profileDate(snap.firstSeen);
+    if (first) first.innerText = snap.firstSeen ? profileDate(snap.firstSeen) : 'Not yet';
     if (!note) return;
     if (!snap.count) {
         note.innerText = 'Finish any practice today to light your flame.';

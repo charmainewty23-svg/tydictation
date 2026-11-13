@@ -993,7 +993,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first joined 可以補最早 Word Jump 日期）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1209,10 +1209,10 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
     超過 1,000 次時只抽最新 1,000 次計平均，畫面會註明。
   - **Word Jump best**：`wj_leaderboard` 的個人最佳（冇就用 `wj_scores` 最高分）；
     hover 有 words／height。訪客／preview 用 `wj_best`。
-  - **First joined**：`user_streaks.first_seen`；新 row 會先用
-    `my_first_login()`（讀 `student_logins.first_login_at`，只回傳自己嗰行），
-    再同最早 `dictation_results`／`wj_scores` 比較取最早；真正新用戶就用
-    第一次登入當日。格式 `13 Nov 2026`（香港時區）。
+  - **First practice**：`user_streaks.first_seen`，意思係**第一次完成練習**
+    （唔係第一次登入）。第一次 `recordDailyPractice()` 才寫入；未做過就顯示
+    `Not yet`。新 row 會先同最早 `dictation_results`／`wj_scores` 比較，
+    所以舊學生都補到最早做功課日期。格式 `13 Nov 2026`（香港時區）。
   - 底部有 Error Book、My Records、Leaderboard 掣；訪客會收埋後兩者。
 - **資料來源**：學校帳戶讀 cloud；訪客／preview 讀 `dict_history_guest`／
   `dict_history:preview:<form>` 同 `wj_best`。雲端暫時失敗時顯示 `—` 同
@@ -1224,7 +1224,7 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
 - **SQL**：只需要 `supabase/user_streaks.sql`（連勝／補救卡／first_seen）。
   Dictation 統計用返現有 `dictation_results`（§5），Word Jump 用返
   `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
-  first joined 用本機日期、連勝唔跨裝置。
+  first practice 只計本機、連勝唔跨裝置。
 - **實測**：375×667 profile 卡 `overflowX = 0`；Error Book 掣 44px 高；
   guest 隱藏 My Records／Leaderboard；Lighthouse（guest profile）
   Accessibility／Best Practices／SEO 全部 1.0。

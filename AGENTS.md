@@ -1236,12 +1236,15 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   一句提示，唔會令個人頁爆。
 - **老師 dashboard**：Admin「Student Logins」每行加 `🔥 N days`（用
   `streakCurrentCount()` 計 effective current streak；hover 顯示 best／last），
+  另外有一行細字 `best N · last 13 Nov 2026`，手機都睇到。
   stats 由 3 格變 4 格，加「Active Streaks」。`loadLoginAdmin()` 會一齊讀
   `user_streaks`；未跑 SQL 時該格顯示 `—`，login 名單照出。
 - **Hub Leaderboard**：新增 **🔥 Streaks** tab，顯示 top 10 當前連勝。
   用 `streakCurrentCount()` 過濾已斷兼冇卡補嘅 row；排序 current desc →
-  `streak_best` desc → 名。學生睇平坦名單；老師按年級分組。未跑
-  `user_streaks.sql` 或未有公開 select policy 時顯示提示／空榜。
+  `streak_best` desc → 名。學生睇平坦名單，自己嗰行有 `(you)`＋ring；
+  如果排 11 名或以外，榜下面會多一張 **Your rank: #N** 卡。
+  老師按年級分組。未跑 `user_streaks.sql` 或未有公開 select policy 時
+  顯示提示／空榜。
 - **開啟方式**：`changeView('profile-view')` 會 call `loadProfile()`，
   先畫本機／session 數字，再 `await loadCloudStreak()` 和
   `dictation_results`／`wj_leaderboard` 更新。`currentView` 已離開 profile 時
@@ -1253,7 +1256,8 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
 - **實測**：320、375、390 profile 卡同 7 日圓點全部 `overflowX = 0`
   （≤360px 圓點 24px）；Error Book 掣 44px 高；guest 隱藏
   My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日
-  + 3 張卡唔入榜，斷 3 日仍然入）；Admin Student Logins 第 4 格
-  「Active Streaks」同每行 `🔥 N days` 用假 data 測過；Lighthouse
-  （guest profile）Accessibility／Best Practices／SEO 全部 1.0。
-  未用真實 Gmail 帳戶 + live `user_streaks` row 測過。
+  + 3 張卡唔入榜，斷 3 日仍然入）同 Top 10 以外嘅 **Your rank: #12** 卡；
+  Admin Student Logins 第 4 格「Active Streaks」、每行 `🔥 N days`＋
+  `best · last` 細字用假 data 測過；Lighthouse（guest profile）
+  Accessibility／Best Practices／SEO 全部 1.0。未用真實 Gmail 帳戶 +
+  live `user_streaks` row 測過。

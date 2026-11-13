@@ -358,7 +358,9 @@
                                     const n = streakCurrentCount(s);
                                     const best = s ? (Number(s.streak_best) || 0) : 0;
                                     const last = s && s.last_practice_date ? escapeHtml(String(s.last_practice_date)) : '—';
-                                    return `<span class="font-bold text-xs ${n > 0 ? 'text-orange-600' : 'text-gray-400'}" title="Best ${best} day${best === 1 ? '' : 's'} · last ${last}">🔥 ${n} day${n === 1 ? '' : 's'}</span>`;
+                                    const lastLabel = s && s.last_practice_date ? hkDateOnly(s.last_practice_date) : '—';
+                                    return `<span class="font-bold text-xs ${n > 0 ? 'text-orange-600' : 'text-gray-400'}" title="Best ${best} day${best === 1 ? '' : 's'} · last ${last}">🔥 ${n} day${n === 1 ? '' : 's'}</span>
+                                <span class="text-gray-400 text-xs whitespace-nowrap">best ${best} · last ${escapeHtml(lastLabel)}</span>`;
                                 })()}
                                 <span class="text-gray-400 text-xs">${escapeHtml(deviceLabel(l.user_agent))}</span>
                                 <span class="text-gray-400 text-xs">First: ${escapeHtml(hkDate(l.first_login_at))}</span>

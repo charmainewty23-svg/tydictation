@@ -22,18 +22,6 @@ function profilePointsLabel(value) {
     return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)) + ' pts';
 }
 
-function profileDate(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (!Number.isFinite(d.getTime())) return '—';
-    return d.toLocaleDateString('en-HK', {
-        timeZone: 'Asia/Hong_Kong',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
-}
-
 function profileLocalDictStats() {
     const src = profileHistorySource();
     if (!src) return null;
@@ -133,7 +121,7 @@ function profileRenderStreak() {
     if (unit) unit.innerText = 'day streak';
     if (cards) cards.innerText = String(snap.cards);
     if (best) best.innerText = String(Math.max(snap.best, snap.count));
-    if (first) first.innerText = snap.firstSeen ? profileDate(snap.firstSeen) : 'Not yet';
+    if (first) first.innerText = snap.firstSeen ? hkDateOnly(snap.firstSeen) : 'Not yet';
     profileRenderDots(snap);
     if (!note) return;
     if (!snap.count) {

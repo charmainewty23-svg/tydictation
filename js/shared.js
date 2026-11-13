@@ -1321,6 +1321,16 @@
             });
         }
 
+        function hkDateOnly(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            if (!Number.isFinite(d.getTime())) return '—';
+            return d.toLocaleDateString('en-HK', {
+                timeZone: 'Asia/Hong_Kong',
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+        }
+
         function hkDayKey(iso) {
             return new Intl.DateTimeFormat('en-CA', {
                 timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit'

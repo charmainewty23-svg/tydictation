@@ -169,28 +169,38 @@
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">Streak leaderboard not available. Run <code class="text-orange-600">supabase/user_streaks.sql</code> in the SQL editor.</p>';
                 return;
             }
-            const rows = (lbRows || [])
+            const all = (lbRows || [])
                 .map(r => Object.assign({}, r, { current_streak: streakCurrentCount(r) }))
                 .filter(r => r.current_streak > 0)
                 .sort((a, b) => (b.current_streak - a.current_streak)
                     || ((Number(b.streak_best) || 0) - (Number(a.streak_best) || 0))
-                    || String(a.nickname || a.email || '').localeCompare(String(b.nickname || b.email || '')))
-                .slice(0, 10);
+                    || String(a.nickname || a.email || '').localeCompare(String(b.nickname || b.email || '')));
+            const rows = all.slice(0, 10);
             if (!rows.length) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No active streaks yet. Finish any practice today to start one.</p>';
                 return;
             }
+            const me = currentUser ? currentUser.id : null;
+            const myIndex = me ? all.findIndex(r => r.user_id === me) : -1;
+            const myRow = myIndex >= 0 ? all[myIndex] : null;
             const medals = ['🥇', '🥈', '🥉'];
             const rowHtml = (r, i) => `
-                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''} ${r.user_id === me ? 'ring-2 ring-orange-300' : ''}">
                             <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
-                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${escapeHtml(displayName(r))}${r.user_id === me ? ' <span class="text-xs text-orange-500">(you)</span>' : ''}${isAdmin() ? classBadge(r.email, r.nickname) : ''}</span>
                             ${formAssignControl(r.email, r.nickname)}
                             <span class="text-gray-400 text-xs whitespace-nowrap">best ${Number(r.streak_best) || 0}</span>
                             <span class="font-bold text-orange-600 text-lg whitespace-nowrap">🔥 ${r.current_streak} day${r.current_streak === 1 ? '' : 's'}</span>
                         </div>`;
             if (!isAdmin()) {
-                container.innerHTML = `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`;
+                let html = `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`;
+                if (myRow && myIndex >= 10) {
+                    html += `<div class="mt-4 bg-orange-50 border-2 border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                        <span class="font-bold text-orange-700 text-sm">Your rank: #${myIndex + 1}</span>
+                        <span class="font-bold text-orange-600">🔥 ${myRow.current_streak} day${myRow.current_streak === 1 ? '' : 's'}</span>
+                    </div>`;
+                }
+                container.innerHTML = html;
                 return;
             }
             container.innerHTML = renderFormSections(groupRowsByForm(rows), (list) =>

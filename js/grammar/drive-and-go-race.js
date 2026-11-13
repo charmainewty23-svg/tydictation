@@ -2315,6 +2315,7 @@
     const THREE_SEGMENTS = 160;
     const THREE_LANE = 7;
     const THREE_GROUND_Y = -1.4;
+    const THREE_SCENERY_CAP = 40;
 
     DG.threeRoadX = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
@@ -3080,9 +3081,17 @@
         if (!t || !S.player) return;
         const p = S.player;
         const seen = new Set();
+        const candidates = [];
         S.scenery.forEach(it => {
             const rel = it.z - p.dist;
             if (rel < -70 || rel > 1600) return;
+            candidates.push({ it: it, rel: rel });
+        });
+        candidates.sort((a, b) => a.rel - b.rel);
+        const keep = new Set(candidates.slice(0, THREE_SCENERY_CAP).map(c => c.it));
+        candidates.forEach(c => {
+            const it = c.it;
+            const rel = c.rel;
             let entry = t.scenery.get(it);
             if (!entry) {
                 entry = { group: DG.makeThreeScenery(it.kind, it.tone) };
@@ -3090,7 +3099,7 @@
                 t.scenery.set(it, entry);
             }
             seen.add(it);
-            entry.group.visible = true;
+            entry.group.visible = keep.has(it);
             const x = DG.threeRoadX(rel) + it.side * (THREE_ROAD_W / 2 + it.offset * 10);
             entry.group.position.set(x, THREE_GROUND_Y, -rel);
             const scale = it.size * 1.2;

@@ -671,9 +671,10 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - **Fallback**：如果 `THREE` 未載入、WebGL 失敗、或者 `DG.THREE_ENABLED=false`，
   `DG.three` 保持 null，原有 2D renderer 照用。`DG.disposeThree()` 喺
   `stopRace()` 清 canvas／renderer；restart／exit 都安全。
-- **效能**：實測 499×810、pixel ratio 1.5、約 130–140 draw calls、约 5.3k triangles；
-  no shadow maps、no antialias、scenery 用簡單 geometry。手機如果太慢，可以
-  將 `DG.THREE_ENABLED=false` 或喺 `initThree` 加 device check。
+- **效能**：scenery 只畫最近 `THREE_SCENERY_CAP = 40` 件（其餘隱藏／fog），
+  實測 499×810、pixel ratio 1.5：desert 125 draw calls／5.5k tris、stadium
+  146／5.1k、jungle 192／7.6k；no shadow maps、no antialias。手機如果太慢，可以
+  再減 `THREE_SCENERY_CAP` 或將 `DG.THREE_ENABLED=false`。
 - **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅 z/y/lookY 同
   `updateThreeKarts()` 嘅 scale；路面彎度改 `threeRoadX()` 個 `0.05`；
   想加新 scenery kind 喺 `makeThreeScenery()` 加 branch。2D 同 3D 兩邊嘅

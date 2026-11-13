@@ -1164,6 +1164,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     再寫返 localStorage。新裝置第一次登入會等 cloud 合併完才計數，避免當成新生。
   - 每次 record 會 fire-and-forget upsert 上 cloud；失敗只 `console.warn`，
     本機 mirror 照用。SQL 未跑時全部功能照用，只係唔會跨裝置。
+  - `supabase/user_streaks.sql` 最後有一段可重跑 backfill：由
+    `dictation_results`／`wj_scores`／`drive_and_go_solo_scores`／
+    `drive_and_go_multi_scores`／`battle_rooms.finished_at` 抽香港練習日，
+    計連續 run，寫入 `streak_count`（最新一段）、`streak_best`（最長一段）、
+    `last_practice_date` 同 `first_seen`。**唔會扣補救卡**，亦唔會用舊歷史
+    覆蓋較新嘅 row；舊學生一開個人頁就見到之前累積嘅火。
   - 本機 mirror key：`localStorage['learniTY_streak:user:<uuid>']`（學校帳戶）、
     `sessionStorage['learniTY_streak:preview:<form>']`（老師 preview）、
     `sessionStorage['learniTY_streak:guest']`（訪客，下一個同學唔會繼承）。

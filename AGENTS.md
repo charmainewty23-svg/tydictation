@@ -1271,10 +1271,34 @@ Error Book 仍然可以經 Hub 卡、Dictation 版面同個人頁嘅「📕 Erro
   `supabase/wj_scores.sql`。未跑 `user_streaks.sql` 時個人頁照開，只係
   first practice 只計本機、連勝唔跨裝置；未跑 `dictation_accuracy.sql`
   時平均正確率顯示 `—`，其他照用。
-- **可選 cleanup**：`supabase/cleanup_test_quiz.sql` 只係刪 2026-11-13
-  老師帳戶嗰條測試 quiz，並 reset 老師 streak 回 4 日（last 2026-11-12）。
-  **唔好隨便跑**；如果老師之後再做過練習，skip 個 `update user_streaks`
+- **可選 cleanup（只係文件參考，唔會自動跑）**：如果將來要刪 2026-11-13
+  老師帳戶嗰條測試 quiz，可以喺 Supabase SQL Editor 跑下面段 SQL。
+  **唔好隨便跑**；如果老師之後再做過練習，skip `update user_streaks`
   部分，避免清走新進度。
+
+```sql
+-- Delete the 2026-11-13 teacher test quiz (New Vocab / recitation, 4/4).
+delete from public.dictation_results
+where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60'
+  and created_at = '2026-11-13T08:29:57.305707+00:00';
+
+-- Restore the teacher's pre-test streak (4 days, ended 2026-11-12, 3 cards).
+-- Skip this update if the teacher has practised since the test.
+update public.user_streaks
+set streak_count = 4,
+    streak_best = 4,
+    last_practice_date = '2026-11-12',
+    repair_cards = 3,
+    recent_days = '["2026-11-09","2026-11-10","2026-11-11","2026-11-12"]'::jsonb,
+    updated_at = now()
+where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
+
+-- Check the result.
+select user_id, streak_count, streak_best, last_practice_date, repair_cards, recent_days
+from public.user_streaks
+where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
+```
+
 - **實測**：320、375、390 profile 卡同 7 日圓點全部 `overflowX = 0`
   （≤360px 圓點 24px）；Error Book 掣 44px 高；guest 隱藏
   My Records／Leaderboard；🔥 Streaks 榜用假 row 測過排序／過濾（斷 8 日

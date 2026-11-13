@@ -591,7 +591,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `36 sin(0.0016z) + 18 sin(0.0038z) + 6 sin(0.0085z)`，令上山／落山同彎道更密。
   `DG.trackHorizonY()` 嘅 pitch multiplier 由 `900` 改做 `14`，2D 地平線唔再
   長期飽和，會跟山坡平滑升降。
-- **3D 賽道**：`DG.threeRoadX()` scale `0.6`、`DG.threeRoadY()` scale `0.5`。
+- **3D 賽道**：`DG.threeRoadX()` scale `0.6`、`DG.threeRoadY()` scale `0.62`。
   新增 **terrain ribbon**（`DG.three.terrain`，跟 `threeRoadY(rel)` 起伏的
   1500×2200 地面）＋遠低處 fallback floor；`DG.updateThreeScenery()` 將景物
   y 跟 terrain（`THREE_GROUND_Y + threeRoadY(rel)`），所以山坡唔會穿過平地。
@@ -605,6 +605,10 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   （實測 392/784），y 亦固定（691/907），轉彎／上山／落山都唔會消失。
   彎道同山坡照樣見到，因為係條路（唔係相機）喺畫面內升跌同擺動。
   閘門 420 units 喺 dist 900 時仍然喺 351–531／784 之內。
+- **2D fallback 都跟車**：`DG.projectRel()` 加 `camShift`（
+  `(player.laneX - 1) * nearHalf * 0.64`），成個 2D 世界左右移，玩家 lane 永遠
+  喺畫面底部正中間；轉線時係條路移，唔係架車飄走。2D 山坡 elevation 由
+  `0.0022` 加到 `0.0028`。
 - **多人規模**：3D 只畫最近 **6** 部對手 kart（`visibleRival`），2D canvas 只畫
   最近 **10** 部；賽道進度板最多顯示 **8** 行，自己一定顯示，其餘顯示
   `… +N more racing`。scenery 仍 cap 40。實測 3D ~126 draw calls（1 個對手）、
@@ -1206,7 +1210,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v2`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+- `CACHE_NAME` 而家係 `learnity-pwa-v3`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
   （例如 `v3`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，

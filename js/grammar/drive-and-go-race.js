@@ -1472,10 +1472,14 @@
         const bottom = h * ROAD_BOTTOM;
         const settle = DG.trackSettle(camZ + r);
         const elev = (DG.trackHill(camZ + r) - DG.trackHill(camZ)) * settle;
-        const y = horizonY + (bottom - horizonY) * persp - elev * h * 0.0022 * persp;
+        const y = horizonY + (bottom - horizonY) * persp - elev * h * 0.0028 * persp;
         const lat = ((DG.trackLateral(camZ + r) - DG.trackLateral(camZ)) -
             DG.trackCurve(camZ) * r) * settle;
-        const centerX = w / 2 + lat * (w / 180) * persp;
+        // Slide the whole 2D world so the player's lane stays at the bottom
+        // centre. Steering then moves the road, not the kart.
+        const nearHalf = w * 0.51;
+        const camShift = S.player ? (S.player.laneX - 1) * nearHalf * 0.64 : 0;
+        const centerX = w / 2 + lat * (w / 180) * persp - camShift;
         const roadHalf = w * (0.02 + 0.49 * persp);
         const laneN = lane == null ? 1 : lane;
         return {
@@ -2340,7 +2344,7 @@
 
     DG.threeRoadY = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
-        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.5 * DG.trackSettle(camZ + rel);
+        return (DG.trackHill(camZ + rel) - DG.trackHill(camZ)) * 0.62 * DG.trackSettle(camZ + rel);
     };
 
     DG.threeLaneX = function (rel, laneX) {

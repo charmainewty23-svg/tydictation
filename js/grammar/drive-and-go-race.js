@@ -3018,7 +3018,7 @@
         const dx = lookX - px;
         const dz = lookZ;
         const len = Math.hypot(dx, dz) || 1;
-        const camDist = 16.5;
+        const camDist = 14;
         t.camera.position.x = px - (dx / len) * camDist;
         t.camera.position.y = DG.threeRoadY(0) + 4.8;
         t.camera.position.z = -(dz / len) * camDist;

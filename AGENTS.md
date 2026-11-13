@@ -599,10 +599,12 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   clamp 成白色橫帶）；每個場景有 `fog` 色（desert `#f2d89a`、stadium
   `#fbe0da`、jungle `#b8d88e`）對齊天空地平線，遠景唔會再有白色光帶。
 - **3D 相機（保持自己架車做中心）**：`DG.updateThreeCamera()` 唔再原地 yaw／pitch。
-  相機放喺「玩家 → 前方 260 units 路面」嗰條線上（距離 16.5、高 4.8），
+  相機放喺「玩家 → 前方 260 units 路面」嗰條線上（距離 **14**、高 4.8），
   望住 `threeRoadX(260) * 0.75 + px * 0.25`（`px`＝玩家 lane 位置）。
   因為相機、玩家、look target 三點一線，**自己架車永遠喺畫面正中間**
   （實測 392/784），y 亦固定（691/907），轉彎／上山／落山都唔會消失。
+  14（原本 16.5）令架車大啲、車後空白由 169px 減到約 **110px**，
+  仍然留返約 110px 俾底部控制掣，唔會遮住架車。
   彎道同山坡照樣見到，因為係條路（唔係相機）喺畫面內升跌同擺動。
   閘門 420 units 喺 dist 900 時仍然喺 351–531／784 之內。
 - **2D fallback 都跟車**：`DG.projectRel()` 加 `camShift`（
@@ -741,7 +743,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   146／5.1k、jungle 192／7.6k；no shadow maps、no antialias。手機如果太慢，可以
   再減 `THREE_SCENERY_CAP` 或將 `DG.THREE_ENABLED=false`。
 - **改動提示**：郁 camera 要同時睇 `updateThreeCamera()` 嘅玩家—look 線
-  （`threeRoadX(260)`、16.5、4.8、7.8）同 `updateThreeKarts()` 嘅 scale；
+  （`threeRoadX(260)`、14、4.8、7.8）同 `updateThreeKarts()` 嘅 scale；
   相機一定要放喺「玩家 → look target」嗰條線上，否則轉彎時架車會偏離中心。
   想加新 scenery kind 喺 `makeThreeScenery()` 加 branch。2D 同 3D 兩邊嘅
   遊戲狀態（`DG.raceState`）係同一份，唔好喺 3D 另外改遊戲邏輯。

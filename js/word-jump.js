@@ -162,6 +162,10 @@
         WJ.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
         WJ.score = () => Math.max(0, Math.floor(WJ.maxClimb / 10) + WJ.bonus);
 
+        WJ.updateNav = function () {
+            if (typeof updateBottomNav === 'function') updateBottomNav();
+        };
+
         /* ---------------- background music ---------------- */
         WJ.ensureMusic = function () {
             if (WJ.music) return;
@@ -303,7 +307,7 @@
             WJ.showEntry();
             WJ.loadMilestones();
             WJ.draw();
-            WJ.startMusic(false);
+            WJ.updateNav();
         };
 
         WJ.resize = function () {
@@ -375,6 +379,7 @@
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
             WJ.startMusic(true);
+            WJ.updateNav();
         };
 
         WJ.stop = function () {
@@ -387,6 +392,7 @@
             WJ.hideOverlay();
             WJ.exitFullscreenSoft();
             WJ.stopMusic();
+            WJ.updateNav();
         };
 
         /* ---------------- full screen ---------------- */
@@ -536,6 +542,7 @@
                 WJ.hideOverlay();
                 WJ.resumeMusic();
             }
+            WJ.updateNav();
         };
 
         WJ.toggleSound = function () {
@@ -544,7 +551,7 @@
             if (b) b.innerText = WJ.soundOn ? '🔊 On' : '🔇 Off';
             if (WJ.soundOn) {
                 WJ.beep(660, 0.08, 'sine', 0.04);
-                WJ.startMusic(false);
+                if (WJ.state === 'playing' && !WJ.paused) WJ.startMusic(false);
             } else {
                 WJ.stopMusic();
             }
@@ -590,6 +597,7 @@
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
             WJ.startMusic(true);
+            WJ.updateNav();
             WJ.toast('↺ New run', '#0f766e');
         };
 
@@ -689,6 +697,7 @@
             WJ.raf = 0;
             WJ.state = 'over';
             WJ.stopMusic();
+            WJ.updateNav();
             const score = WJ.score();
             if (WJ.challenge && typeof WJC !== 'undefined') {
                 WJC.onLocalFallen(reason, score);

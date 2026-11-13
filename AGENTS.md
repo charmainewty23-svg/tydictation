@@ -1076,8 +1076,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 檔案：`music/jump_music.mp3`（4.9MB，**唔入** `sw.js` CORE_ASSETS；第一次播由
   network-first SW 自己 cache）。
 - `WJ.ensureMusic()` 建 `new Audio('/music/jump_music.mp3')`，loop、volume 0.3。
-- `WJ.mount()` 一入 Word Jump view 就 `WJ.startMusic(false)`；`WJ.start()`／
-  `WJ.restart()` 再 `WJ.startMusic(true)`（由頭播）。`WJ.stop()`（離開 view）、
+- `WJ.mount()` **唔會**起音樂；要撳 Start／Play again 後 `WJ.start()`／
+  `WJ.restart()` 才 `WJ.startMusic(true)`（由頭播）。`WJ.stop()`（離開 view）、
   `WJ.gameOver()`、`WJ.toggleSound()` 熄聲時停；`WJ.togglePause()` 暫停／繼續。
 - 音樂跟現有 `WJ.soundOn` 同一個 🔊 掣（即係 SFX 同音樂一齊開關），冇另加
   音樂掣；全屏時工具列收埋，要離開全屏才改。
@@ -1213,14 +1213,18 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   底部距離 nav 頂約 **14px**（390×844、768×1024、844×390、320×568）。
 - 顯示規則（`js/shared.js`）：
   - `NAV_TABS`（5 個 root view）、`NAV_HIDDEN_VIEWS = ['quiz-view',
-    'wordjump-view', 'drive-and-go-view', 'admin-view']`。
+    'drive-and-go-view', 'admin-view']`。
   - `navTabForView(viewId)` 決定 active tab；grammar 樹／records／leaderboard
     都 highlight Home；`error-book-view` highlight Dictation；`profile-view`
     highlight Me。
-  - `navShouldShow(viewId)`：上面四個隱藏 view 唔出 bar；`battle-view` 只在
-    lobby／result／class 出，`waiting`／`play` 進行中會收埋（避免蓋住計分板／輸入）。
+  - `navShouldShow(viewId)`：上面三個隱藏 view 唔出 bar；`wordjump-view`
+    喺 intro／pause／game-over 出 bar，但 `WJ.state === 'playing' && !paused`
+    時收埋，避免蓋住左右方向 pad；`battle-view` 只在 lobby／result／class 出，
+    `waiting`／`play` 進行中會收埋（避免蓋住計分板／輸入）。
     `class` 係老師嘅班際直播板（`battleRenderClassHost()` 只俾 host／老師），
     保留 bar 方便老師一撳返 Home；學生喺 `waiting`／`play` 仍然收埋。
+    Word Jump 每次 start／stop／pause／restart／gameOver 都會 call
+    `WJ.updateNav()` 同步 bar。
   - `currentView` 喺 `changeView()` 更新，之後 call `updateBottomNav()`；
     `showApp()`／`showLogin()` 亦會更新（未登入一定冇 bar）。
   - Battle 面板切換經 `battleShowPanel()` 寫 `window.navBattlePanel` 再
@@ -1244,7 +1248,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 實測（iframe 載入真 `index.html`，模擬登入後量度）：320×568、375×667、390×844、
   430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`；tab 高度 56px、
   nav 高度 58px、iPad／橫向內層 720px；lobby／result／class／profile／error-book 出 bar，
-  waiting／play／quiz／wordjump／admin 收埋；`#app` 底部 padding 72px
+  wordjump 喺 intro／pause／game-over 出 bar（live playing 收埋），
+  waiting／play／quiz／admin 收埋；`#app` 底部 padding 72px
   （bar 58px ＋ 14px 空隙）。320px 時 header 會縮細 wordmark、收埋副標題同減
   Logout padding（`@media (max-width:360px)`），避免橫向爆版。
 

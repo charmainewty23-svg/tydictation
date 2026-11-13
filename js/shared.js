@@ -33,7 +33,7 @@
         const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'profile-view'];
         // Views that keep the screen immersive: the bar would cover controls or
         // compete with the game HUD, so it hides and the view keeps its own exit.
-        const NAV_HIDDEN_VIEWS = ['quiz-view', 'wordjump-view', 'drive-and-go-view', 'admin-view'];
+        const NAV_HIDDEN_VIEWS = ['quiz-view', 'drive-and-go-view', 'admin-view'];
         let currentView = 'hub-view';
 
         function navTabForView(viewId) {
@@ -46,6 +46,11 @@
 
         function navShouldShow(viewId) {
             if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
+            if (viewId === 'wordjump-view') {
+                // The bar is available on the intro / pause / game-over screens,
+                // but hides during live play so it never covers the direction pads.
+                return !(typeof WJ !== 'undefined' && WJ.state === 'playing' && !WJ.paused);
+            }
             if (viewId === 'battle-view') {
                 // Lobby, result and the teacher's class live board can use the
                 // bar; the student waiting / playing panels cannot.

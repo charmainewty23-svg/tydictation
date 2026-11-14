@@ -1248,8 +1248,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v14`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v15`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v15`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v16`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1733,13 +1733,19 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   loop、volume **0.28**、preload `none`；`homeMusicEnabled` 預設 on，
   `localStorage['learniTY_home_music']` 記住（`0` = 熄）。
 - **播放範圍**：`login-view`（未登入）、`hub-view`、`home-view`（Dictation
-  揀 topic 頁）。`homeMusicView()` 未登入時回 true，登入後只認
-  `hub-view`／`home-view`；`changeView()` 會 `syncHomeMusic(viewId)`，
-  命中就 play，其他 view（`sub-category-view`、quiz、Grammar、Word Battle、
-  Drive & Go!、Word Jump…）就 pause。返 Hub／`home-view` 會續播。
+  揀 topic 頁）、`sub-category-view`（Listening／Recitation／Revision 掣）、
+  `word-list-view`（Revision 字表）、`error-book-view`。即係 **Dictation 區
+  全部有音樂，但一入 `quiz-view`（真正開始 Listening／Recitation）就停**。
+  `HOME_MUSIC_VIEWS` 係唯一清單，`homeMusicView()` 未登入時回 true，登入後
+  只認清單內 view；`changeView()` 會 `syncHomeMusic(viewId)`，命中就 play，
+  其他 view（quiz、Grammar、Word Battle、Drive & Go!、Word Jump、Admin…）
+  就 pause。返任何清單內頁面會續播。
+- 非 Hub 嘅 Dictation 頁面有 `body.has-music-fab` class，`#app` 底部 padding
+  會多加 64px，等最後一排掣（例如 Error Book 嘅 Revision、字表底部）唔會
+  被浮動音樂掣蓋住。
 - 浮動掣 `#home-music-btn`（右下、bottom nav 之上，52px）：
   `toggleHomeMusic()` 切 🔊／🔇、記住 `localStorage['learniTY_home_music']`
-  （`0` = 熄）。只喺上面三個 view 出現；`updateHomeMusicButton()` 會依
+  （`0` = 熄）。只喺上面清單內嘅 view（同未登入嘅 login）出現；`updateHomeMusicButton()` 會依
   登入狀態切 `.on-login` class，登入頁冇 bottom nav 所以個掣貼近底部。
   個掣嘅 markup 喺 `#app` **外面**（`</main>`／`</div>` 之後、script tag 之前），
   所以登入頁都見得到；`showLogin()` 會 `syncHomeMusic('login-view')` 並

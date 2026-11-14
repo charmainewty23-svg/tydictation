@@ -305,6 +305,11 @@
         body.has-bottom-nav #app {
             padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
         }
+        /* Dictation pages also show the floating home-music toggle; keep the
+           last button row clear of it as well. */
+        body.has-music-fab #app {
+            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom) + 64px);
+        }
         /* In the battle lobby the bar is the way home. During a live battle
            the bar hides, so this top button comes back as the exit. */
         body.has-bottom-nav #battle-back-btn {

@@ -1466,12 +1466,15 @@
             document.addEventListener('keydown', tryPlay);
         }
 
+        // Dictation pages keep the music, but the quiz itself does not.
+        const HOME_MUSIC_VIEWS = ['hub-view', 'home-view', 'sub-category-view', 'word-list-view', 'error-book-view'];
+
         function homeMusicView() {
             const app = document.getElementById('app');
             // The login page also gets the music; autoplay is retried on the
             // first tap/keypress.
             if (!app || !app.classList.contains('logged-in')) return true;
-            return currentView === 'hub-view' || currentView === 'home-view';
+            return HOME_MUSIC_VIEWS.indexOf(currentView) !== -1;
         }
 
         function startHomeMusic() {
@@ -1499,7 +1502,7 @@
                 startHomeMusic();
                 return;
             }
-            if (viewId === 'hub-view' || viewId === 'home-view') startHomeMusic();
+            if (HOME_MUSIC_VIEWS.indexOf(viewId) !== -1) startHomeMusic();
             else pauseHomeMusic();
         }
 
@@ -1508,10 +1511,12 @@
             if (!btn) return;
             const app = document.getElementById('app');
             const loggedIn = !!(app && app.classList.contains('logged-in'));
-            const show = !loggedIn || currentView === 'hub-view' || currentView === 'home-view';
+            const show = !loggedIn || HOME_MUSIC_VIEWS.indexOf(currentView) !== -1;
             btn.classList.toggle('hidden', !show);
             // The login page has no bottom tab bar, so the button sits lower.
             btn.classList.toggle('on-login', !loggedIn);
+            // Keep the last card / button row clear of the floating toggle.
+            document.body.classList.toggle('has-music-fab', loggedIn && show && currentView !== 'hub-view');
             btn.innerText = homeMusicEnabled ? '🔊' : '🔇';
             btn.setAttribute('aria-label', homeMusicEnabled ? 'Mute home music' : 'Play home music');
             btn.title = homeMusicEnabled ? 'Mute home music' : 'Play home music';

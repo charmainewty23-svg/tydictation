@@ -333,8 +333,10 @@
         }
         #home-music-btn.hidden { display: none; }
         #home-music-btn:hover { background: #ffedd5; }
+        #home-music-btn.on-login { bottom: calc(env(safe-area-inset-bottom) + 16px); }
         @media (min-width: 768px) {
             #home-music-btn { right: 24px; bottom: calc(4.5rem + 12px); }
+            #home-music-btn.on-login { bottom: 24px; }
         }
 
         /* ---- Daily practice streak ---- */
@@ -2165,8 +2167,6 @@
                     <div class="text-4xl">📊</div>
                     <h2 class="text-xl font-bold text-orange-600">Admin Dashboard</h2>
                 </div>
-
-                <button id="home-music-btn" type="button" onclick="toggleHomeMusic()" class="hidden" title="Home music" aria-label="Home music">🔊</button>
             </div>
 
             <!-- Grammar Views -->
@@ -2959,6 +2959,8 @@
             </div>
         </nav>
     </div>
+
+    <button id="home-music-btn" type="button" onclick="toggleHomeMusic()" class="hidden" title="Home music" aria-label="Home music">🔊</button>
 
     <!-- App scripts: classic script tags, loaded synchronously in dependency order.
          They must stay in this order and must not use defer/async, because the

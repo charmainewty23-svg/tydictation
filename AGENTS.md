@@ -1248,8 +1248,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v13`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v14`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v14`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v15`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1732,14 +1732,21 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - `js/shared.js`：`ensureHomeMusic()` 建 `new Audio('/music/homepage_music.mp3')`，
   loop、volume **0.28**、preload `none`；`homeMusicEnabled` 預設 on，
   `localStorage['learniTY_home_music']` 記住（`0` = 熄）。
-- **只喺 Hub（`hub-view`）播放**：`changeView()` 會 `syncHomeMusic(viewId)`，
-  Hub 就 play，其他 view 就 pause；返 Hub 會續播。離開登入／Logout
-  `stopHomeMusic()` 會 pause + 返 0。
-- 浮動掣 `#home-music-btn`（右下、bottom nav 之上，44px+）：
-  `toggleHomeMusic()` 切 🔊／🔇、記住設定；只喺 `hub-view` 出現。
-- Autoplay：登入／第一次 click 係 user gesture，通常可播；如果 browser
-  阻擋，`play().catch` 會 `armHomeMusicGesture()`，下一次 pointerdown／
-  keydown 再試。
+- **播放範圍**：`login-view`（未登入）、`hub-view`、`home-view`（Dictation
+  揀 topic 頁）。`homeMusicView()` 未登入時回 true，登入後只認
+  `hub-view`／`home-view`；`changeView()` 會 `syncHomeMusic(viewId)`，
+  命中就 play，其他 view（`sub-category-view`、quiz、Grammar、Word Battle、
+  Drive & Go!、Word Jump…）就 pause。返 Hub／`home-view` 會續播。
+- 浮動掣 `#home-music-btn`（右下、bottom nav 之上，52px）：
+  `toggleHomeMusic()` 切 🔊／🔇、記住 `localStorage['learniTY_home_music']`
+  （`0` = 熄）。只喺上面三個 view 出現；`updateHomeMusicButton()` 會依
+  登入狀態切 `.on-login` class，登入頁冇 bottom nav 所以個掣貼近底部。
+  個掣嘅 markup 喺 `#app` **外面**（`</main>`／`</div>` 之後、script tag 之前），
+  所以登入頁都見得到；`showLogin()` 會 `syncHomeMusic('login-view')` 並
+  顯示個掣，**唔會**再 stop。
+- Autoplay：登入頁首次載入通常被 browser 阻擋；`play().catch` 會
+  `armHomeMusicGesture()`，下一次 pointerdown／keydown（例如撳 Guest login）
+  再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
-  播；返 Hub 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v13。
+  播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v14。

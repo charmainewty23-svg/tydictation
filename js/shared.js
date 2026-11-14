@@ -1237,9 +1237,8 @@
             document.getElementById('app').classList.remove('logged-in');
             document.getElementById('login-view').style.display = '';
             updateBottomNav();
-            stopHomeMusic();
-            const homeMusicBtn = document.getElementById('home-music-btn');
-            if (homeMusicBtn) homeMusicBtn.classList.add('hidden');
+            syncHomeMusic('login-view');
+            updateHomeMusicButton();
             if (notifTimer) { clearInterval(notifTimer); notifTimer = 0; }
             const bell = document.getElementById('notif-btn');
             if (bell) bell.classList.add('hidden');
@@ -1458,14 +1457,25 @@
             if (homeMusicGestureArmed) return;
             homeMusicGestureArmed = true;
             const tryPlay = () => {
-                if (currentView === 'hub-view') startHomeMusic();
+                document.removeEventListener('pointerdown', tryPlay);
+                document.removeEventListener('keydown', tryPlay);
+                homeMusicGestureArmed = false;
+                if (homeMusicEnabled && homeMusicView()) startHomeMusic();
             };
-            document.addEventListener('pointerdown', tryPlay, { once: true });
-            document.addEventListener('keydown', tryPlay, { once: true });
+            document.addEventListener('pointerdown', tryPlay);
+            document.addEventListener('keydown', tryPlay);
+        }
+
+        function homeMusicView() {
+            const app = document.getElementById('app');
+            // The login page also gets the music; autoplay is retried on the
+            // first tap/keypress.
+            if (!app || !app.classList.contains('logged-in')) return true;
+            return currentView === 'hub-view' || currentView === 'home-view';
         }
 
         function startHomeMusic() {
-            if (!homeMusicEnabled || currentView !== 'hub-view') return;
+            if (!homeMusicEnabled || !homeMusicView()) return;
             const audio = ensureHomeMusic();
             if (!audio) return;
             try {
@@ -1482,24 +1492,26 @@
             }
         }
 
-        function stopHomeMusic() {
-            if (!homeMusic) return;
-            try {
-                homeMusic.pause();
-                homeMusic.currentTime = 0;
-            } catch (e) {}
-        }
-
         function syncHomeMusic(viewId) {
-            if (viewId === 'hub-view') startHomeMusic();
+            const app = document.getElementById('app');
+            const loggedIn = !!(app && app.classList.contains('logged-in'));
+            if (!loggedIn) {
+                startHomeMusic();
+                return;
+            }
+            if (viewId === 'hub-view' || viewId === 'home-view') startHomeMusic();
             else pauseHomeMusic();
         }
 
         function updateHomeMusicButton() {
             const btn = document.getElementById('home-music-btn');
             if (!btn) return;
-            const show = currentView === 'hub-view';
+            const app = document.getElementById('app');
+            const loggedIn = !!(app && app.classList.contains('logged-in'));
+            const show = !loggedIn || currentView === 'hub-view' || currentView === 'home-view';
             btn.classList.toggle('hidden', !show);
+            // The login page has no bottom tab bar, so the button sits lower.
+            btn.classList.toggle('on-login', !loggedIn);
             btn.innerText = homeMusicEnabled ? '🔊' : '🔇';
             btn.setAttribute('aria-label', homeMusicEnabled ? 'Mute home music' : 'Play home music');
             btn.title = homeMusicEnabled ? 'Mute home music' : 'Play home music';
@@ -1510,7 +1522,7 @@
             try { localStorage.setItem(HOME_MUSIC_KEY, homeMusicEnabled ? '1' : '0'); } catch (e) {}
             updateHomeMusicButton();
             if (!homeMusicEnabled) pauseHomeMusic();
-            else if (currentView === 'hub-view') startHomeMusic();
+            else if (homeMusicView()) startHomeMusic();
         }
 
 

@@ -1228,6 +1228,8 @@
                 updateNotificationBadge();
                 if (!notifTimer) notifTimer = setInterval(updateNotificationBadge, 60000);
             }
+            syncHomeMusic(currentView);
+            updateHomeMusicButton();
             setTimeout(maybeShowFriendAnnouncement, 1000);
         }
 
@@ -1235,6 +1237,9 @@
             document.getElementById('app').classList.remove('logged-in');
             document.getElementById('login-view').style.display = '';
             updateBottomNav();
+            stopHomeMusic();
+            const homeMusicBtn = document.getElementById('home-music-btn');
+            if (homeMusicBtn) homeMusicBtn.classList.add('hidden');
             if (notifTimer) { clearInterval(notifTimer); notifTimer = 0; }
             const bell = document.getElementById('notif-btn');
             if (bell) bell.classList.add('hidden');
@@ -1423,6 +1428,89 @@
         function friendAnnouncePractice() {
             closeFriendAnnouncement();
             changeView('home-view');
+        }
+
+        // --- Home page background music ----------------------------------
+        // Plays only on the Hub. The first tap/keypress retries if the browser
+        // blocked the initial autoplay. The 3.8MB file is not precached by the
+        // service worker; it is fetched (and cached) on the first play.
+        const HOME_MUSIC_KEY = 'learniTY_home_music';
+        let homeMusic = null;
+        let homeMusicEnabled = (() => {
+            try { return localStorage.getItem(HOME_MUSIC_KEY) !== '0'; } catch (e) { return true; }
+        })();
+        let homeMusicGestureArmed = false;
+
+        function ensureHomeMusic() {
+            if (homeMusic) return homeMusic;
+            try {
+                homeMusic = new Audio('/music/homepage_music.mp3');
+                homeMusic.loop = true;
+                homeMusic.volume = 0.28;
+                homeMusic.preload = 'none';
+            } catch (e) {
+                homeMusic = null;
+            }
+            return homeMusic;
+        }
+
+        function armHomeMusicGesture() {
+            if (homeMusicGestureArmed) return;
+            homeMusicGestureArmed = true;
+            const tryPlay = () => {
+                if (currentView === 'hub-view') startHomeMusic();
+            };
+            document.addEventListener('pointerdown', tryPlay, { once: true });
+            document.addEventListener('keydown', tryPlay, { once: true });
+        }
+
+        function startHomeMusic() {
+            if (!homeMusicEnabled || currentView !== 'hub-view') return;
+            const audio = ensureHomeMusic();
+            if (!audio) return;
+            try {
+                const p = audio.play();
+                if (p && p.catch) p.catch(() => armHomeMusicGesture());
+            } catch (e) {
+                armHomeMusicGesture();
+            }
+        }
+
+        function pauseHomeMusic() {
+            if (homeMusic) {
+                try { homeMusic.pause(); } catch (e) {}
+            }
+        }
+
+        function stopHomeMusic() {
+            if (!homeMusic) return;
+            try {
+                homeMusic.pause();
+                homeMusic.currentTime = 0;
+            } catch (e) {}
+        }
+
+        function syncHomeMusic(viewId) {
+            if (viewId === 'hub-view') startHomeMusic();
+            else pauseHomeMusic();
+        }
+
+        function updateHomeMusicButton() {
+            const btn = document.getElementById('home-music-btn');
+            if (!btn) return;
+            const show = currentView === 'hub-view';
+            btn.classList.toggle('hidden', !show);
+            btn.innerText = homeMusicEnabled ? '🔊' : '🔇';
+            btn.setAttribute('aria-label', homeMusicEnabled ? 'Mute home music' : 'Play home music');
+            btn.title = homeMusicEnabled ? 'Mute home music' : 'Play home music';
+        }
+
+        function toggleHomeMusic() {
+            homeMusicEnabled = !homeMusicEnabled;
+            try { localStorage.setItem(HOME_MUSIC_KEY, homeMusicEnabled ? '1' : '0'); } catch (e) {}
+            updateHomeMusicButton();
+            if (!homeMusicEnabled) pauseHomeMusic();
+            else if (currentView === 'hub-view') startHomeMusic();
         }
 
 
@@ -1674,6 +1762,8 @@
             currentView = viewId;
             window.scrollTo(0,0);
             updateBottomNav();
+            syncHomeMusic(viewId);
+            updateHomeMusicButton();
             
             if (viewId === 'hub-view') {
                 updateMascot("Awesome! What would you like to learn next?");

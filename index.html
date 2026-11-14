@@ -310,6 +310,32 @@
         body.has-bottom-nav #battle-back-btn {
             display: none;
         }
+        /* Floating home-page music toggle, above the bottom tab bar. */
+        #home-music-btn {
+            position: fixed;
+            right: 16px;
+            bottom: calc(4.5rem + env(safe-area-inset-bottom) + 12px);
+            z-index: 850;
+            width: 52px;
+            height: 52px;
+            border-radius: 999px;
+            border: 2px solid #fdba74;
+            background: #fff7ed;
+            color: #c2410c;
+            font-size: 22px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 8px 20px rgba(107, 90, 81, 0.18);
+        }
+        #home-music-btn.hidden { display: none; }
+        #home-music-btn:hover { background: #ffedd5; }
+        @media (min-width: 768px) {
+            #home-music-btn { right: 24px; bottom: calc(4.5rem + 12px); }
+        }
 
         /* ---- Daily practice streak ---- */
         .login-sort-btn {
@@ -2139,6 +2165,8 @@
                     <div class="text-4xl">📊</div>
                     <h2 class="text-xl font-bold text-orange-600">Admin Dashboard</h2>
                 </div>
+
+                <button id="home-music-btn" type="button" onclick="toggleHomeMusic()" class="hidden" title="Home music" aria-label="Home music">🔊</button>
             </div>
 
             <!-- Grammar Views -->

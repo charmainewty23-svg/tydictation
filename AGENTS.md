@@ -1248,8 +1248,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v12`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v13`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v13`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v14`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1724,3 +1724,22 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `Players (N)`，預設 open），可以逐間收埋；房間列表本身仍有
   Show all／Collapse。
 - 所有 admin 名單嘅名都用 `adminProfileName()` 撳得入 profile。
+
+### 12.8 首頁背景音樂（2026-11）
+
+- 檔案：`music/homepage_music.mp3`（3.8MB，**唔入** `sw.js` CORE_ASSETS；
+  第一次播由 network-first SW 自己 cache）。
+- `js/shared.js`：`ensureHomeMusic()` 建 `new Audio('/music/homepage_music.mp3')`，
+  loop、volume **0.28**、preload `none`；`homeMusicEnabled` 預設 on，
+  `localStorage['learniTY_home_music']` 記住（`0` = 熄）。
+- **只喺 Hub（`hub-view`）播放**：`changeView()` 會 `syncHomeMusic(viewId)`，
+  Hub 就 play，其他 view 就 pause；返 Hub 會續播。離開登入／Logout
+  `stopHomeMusic()` 會 pause + 返 0。
+- 浮動掣 `#home-music-btn`（右下、bottom nav 之上，44px+）：
+  `toggleHomeMusic()` 切 🔊／🔇、記住設定；只喺 `hub-view` 出現。
+- Autoplay：登入／第一次 click 係 user gesture，通常可播；如果 browser
+  阻擋，`play().catch` 會 `armHomeMusicGesture()`，下一次 pointerdown／
+  keydown 再試。
+- 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
+  播；返 Hub 先續播，唔會兩首一齊響。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v13。

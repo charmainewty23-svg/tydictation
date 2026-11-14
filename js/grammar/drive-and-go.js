@@ -1716,7 +1716,8 @@ const DG = {
             DG.stepDots('join') +
             DG.stepHeading('join', 'Join the room') +
             '<div class="dg-menu-panel">' +
-            '<p class="text-center text-gray-500 font-bold mb-4">Enter the host’s 4-character room code. The host’s challenge, number of questions and course apply to everyone.</p>' +
+            '<p class="text-center text-gray-500 font-bold mb-2">Enter the host’s 4-character room code. The host’s challenge, number of questions and course apply to everyone.</p>' +
+            '<p class="text-center text-xs text-gray-400 mb-4">Class rooms allow late join while the race is playing; 5-player rooms do not.</p>' +
             '<div class="flex gap-2 justify-center mb-4">' +
             '<input id="dg-join-code" type="text" inputmode="latin" autocomplete="off" maxlength="4" placeholder="CODE" ' +
             'class="dg-code-input" onkeydown="if(event.key===\'Enter\'){event.preventDefault();DG.mpJoin();}" aria-label="Room code">' +

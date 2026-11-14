@@ -368,7 +368,7 @@
     DG.mpErrorText = function (error) {
         const msg = clean(error && (error.message || error.error_description || error.details));
         if (/ROOM_FULL/i.test(msg)) return 'That room is full.';
-        if (/ROOM_ALREADY_STARTED/i.test(msg)) return 'That race has already started.';
+        if (/ROOM_ALREADY_STARTED/i.test(msg)) return 'That race has already started. Only class rooms allow late join.';
         if (/ROOM_NOT_FOUND/i.test(msg)) return 'No room with that code.';
         if (/START_NEEDS_TWO/i.test(msg)) return 'A race needs at least 2 players.';
         if (/NOT_HOST/i.test(msg)) return 'Only the host can start this race.';
@@ -775,6 +775,7 @@
             (isClass
                 ? 'share this code with the class (up to ' + studentSeats + ' students)'
                 : 'share this code with 1–' + (maxPlayers - 1) + ' friends') + '</p>' +
+            (isClass ? '<p class="text-center text-xs font-bold text-indigo-600 mb-3">Late students can still join with this code after Start.</p>' : '') +
             '<div class="dg-lobby-grid mb-5">' + cards + '</div>' +
             (isHost
                 ? '<div class="text-center"><button type="button" class="btn-paw' + (canStart ? '' : ' opacity-50') + '" ' +
@@ -826,6 +827,7 @@
             '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
             '<p class="text-center text-sm font-bold text-gray-500 mb-4">Hosting without a kart · ' + list.length + ' students racing</p>' +
+            '<p class="text-center text-xs font-bold text-indigo-600 mb-4">Late students can still join with this room code while the race is playing.</p>' +
             '<div id="dg-watch-panel" class="dg-menu-panel"><div class="dg-standings">' +
             (rows || '<p class="text-center font-bold text-gray-500 py-4">Waiting for students to join…</p>') +
             '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>';

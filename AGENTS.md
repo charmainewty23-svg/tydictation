@@ -653,6 +653,31 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
+### 9.9b Drive & Go! 班際 late join＋Class 排行榜（2026-11 加）
+
+- **Late join（只限 class room）**：`join_drive_and_go_room()` 而家喺 room
+  `status = 'playing'` 兼 `max_players > 5` 時，容許未入過房嘅學生加入；
+  正常 5 人房仍然 `ROOM_ALREADY_STARTED`。late joiner 由第 1 題開始，
+  用同一個 `room.seed`／題庫／題數；房要所有玩家（包括 late joiner）完成
+  先完。Join step 寫明「Class rooms allow late join while the race is playing」；
+  host-only live board 同 class lobby 都有「Late students can still join…」提示。
+- **Class 排行榜**：新 view `drive_and_go_class_leaderboard`，只計
+  `drive_and_go_multi_scores.player_count >= 10`（30 人房會寫 30/31），
+  每人每個 topic 一行，排序同 Multi 榜一樣。
+  Hub Leaderboard → **Drive & Go! Multi** 有
+  **All multiplayer／Class rooms (10+)** 兩個 filter（`lbDgClassOnly`，
+  記住喺 localStorage），class filter 讀 class view；admin 都可以用。
+- **SQL**：已跑過 `drive_and_go_class_room.sql` 嘅老師，貼短檔
+  `supabase/drive_and_go_class_updates.sql`（可重跑）；全新安裝貼更新咗嘅
+  `drive_and_go_class_room.sql` 就一次過有齊 late join 同 class view。
+  未跑 class view 時，Multi 榜 Class filter 會提示跑
+  `drive_and_go_class_updates.sql`。
+- **改動提示**：`player_count` 係結果畫面寫入；class 榜用 10+ 門檻，
+  如果將來想用房嘅 `max_players` 判斷，要留意 leaderboard view 嘅 RLS。
+- **快取**：`CACHE_NAME` v12。
+
+---
+
 ### 9.10 Word Battle 班際：自訂貓＋頒獎台（2026-11 加）
 
 - **SQL**：`supabase/battle_cat.sql`（可重跑）為 `battle_players` 加
@@ -1223,8 +1248,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v11`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v12`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v12`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v13`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

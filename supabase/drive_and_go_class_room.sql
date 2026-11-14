@@ -47,7 +47,11 @@ begin
     ) into v_member;
 
     if not v_member and v_room.status <> 'waiting' then
-        raise exception 'ROOM_ALREADY_STARTED';
+        -- Class rooms (max_players > 5) let a late student join a race that is
+        -- already playing. Normal 5-player rooms keep the old behaviour.
+        if not (v_room.status = 'playing' and coalesce(v_room.max_players, 5) > 5) then
+            raise exception 'ROOM_ALREADY_STARTED';
+        end if;
     end if;
 
     select count(distinct p.user_id) into v_count
@@ -242,3 +246,44 @@ begin
     return next v_room;
 end;
 $dg$;
+
+-- ---------- class-only multiplayer leaderboard ----------
+-- player_count is written by the results screen: 30/31 for a class room,
+-- 5 for a normal room. 10+ keeps the class board separate.
+drop view if exists public.drive_and_go_class_leaderboard;
+
+create view public.drive_and_go_class_leaderboard
+with (security_invoker = true)
+as
+select
+    user_id,
+    email,
+    nickname,
+    topic,
+    bank_mode,
+    question_count,
+    scene,
+    composite,
+    race_score,
+    time_bonus,
+    correct,
+    wrong,
+    accuracy,
+    elapsed_ms,
+    created_at,
+    plays,
+    player_count
+from (
+    select
+        s.*,
+        count(*) over (partition by s.user_id, s.topic) as plays,
+        row_number() over (
+            partition by s.user_id, s.topic
+            order by s.composite desc, s.elapsed_ms asc, s.accuracy desc, s.created_at asc
+        ) as rn
+    from public.drive_and_go_multi_scores s
+    where coalesce(s.player_count, 0) >= 10
+) ranked
+where rn = 1;
+
+grant select on public.drive_and_go_class_leaderboard to anon, authenticated;

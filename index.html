@@ -133,8 +133,27 @@
         }
 
         .floating-kitty {
+            position: relative;
             animation: kitty-float 4s ease-in-out infinite;
         }
+        .mascot-paws-btn {
+            position: absolute;
+            right: -6px;
+            bottom: 4px;
+            min-height: 44px;
+            padding: 0 12px;
+            border: 2px solid #fdba74;
+            border-radius: 999px;
+            background: #fff7ed;
+            color: #9a3412;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.72rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(154, 52, 18, .18);
+            white-space: nowrap;
+        }
+        .mascot-paws-btn:active { transform: translateY(1px); }
 
         @keyframes kitty-float {
             0%, 100% { transform: translateY(0) rotate(0deg); }
@@ -2867,6 +2886,7 @@
                         <path d="M145 122 L180 125" fill="none" stroke="white" stroke-width="1.5" opacity="0.6"/>
                         <path d="M70 145 Q100 160 130 145" fill="none" stroke="white" stroke-width="8" stroke-linecap="round"/>
                     </svg>
+                    <button type="button" id="mascot-paws-btn" class="mascot-paws-btn hidden" onclick="storeShowPawsHelp()">🐾 How to earn</button>
                 </div>
             </div>
         </header>
@@ -3591,7 +3611,6 @@
                             <div class="store-balance-pill" aria-live="polite">
                                 <span id="store-balance">…</span>
                             </div>
-                            <button type="button" class="store-howto-btn" onclick="storeShowPawsHelp()">🐾 How to earn</button>
                         </div>
                     </div>
                     <p id="store-note" class="hidden text-sm font-bold text-amber-700 mb-4"></p>

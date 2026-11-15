@@ -150,6 +150,7 @@ declare
     v_balance int;
     v_buyer_name text;
     v_seller_name text;
+    v_teacher uuid;
 begin
     if v_buyer is null then raise exception 'NOT_AUTHENTICATED'; end if;
 
@@ -229,6 +230,21 @@ begin
                 'You bought ' || v_item.name_en || ' from ' || coalesce(v_seller_name, 'a student') ||
                 ' for ' || v_listing.price || ' 🐾.'
             );
+
+            -- Teacher gets a copy for oversight (unless they are a party).
+            select id into v_teacher
+              from auth.users
+             where lower(email) = 'tywong@lstyoungkhl.edu.hk'
+             limit 1;
+            if v_teacher is not null and v_teacher <> v_buyer and v_teacher <> v_listing.seller_id then
+                insert into public.friend_notifications (user_id, actor_id, kind, message)
+                values (
+                    v_teacher, v_buyer, 'market',
+                    'Market: ' || coalesce(v_buyer_name, 'A student') || ' bought ' ||
+                    v_item.name_en || ' from ' || coalesce(v_seller_name, 'a student') ||
+                    ' for ' || v_listing.price || ' 🐾.'
+                );
+            end if;
         exception when others then
             null;
         end;

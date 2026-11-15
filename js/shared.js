@@ -1529,6 +1529,8 @@
         }
 
         function showLogin() {
+            const pawsBtn = document.getElementById('mascot-paws-btn');
+            if (pawsBtn) pawsBtn.classList.add('hidden');
             document.getElementById('app').classList.remove('logged-in');
             document.getElementById('login-view').style.display = '';
             updateBottomNav();
@@ -2190,6 +2192,8 @@
             const target = document.getElementById(viewId);
             if(target) target.classList.remove('hidden');
             currentView = viewId;
+            const pawsBtn = document.getElementById('mascot-paws-btn');
+            if (pawsBtn) pawsBtn.classList.toggle('hidden', viewId !== 'store-view');
             window.scrollTo(0,0);
             updateBottomNav();
             syncHomeMusic(viewId);

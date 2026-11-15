@@ -2046,7 +2046,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - **商品**：Hats 11、Face 7、Outfits 9、Props 7、Backgrounds 10 = **44**。
   價錢 60–450 Paws；全部一次過上。**未買任何 item 嘅用戶 default look = 全部 None**（光身貓，Store 亦冇免費 item）；Red Scarf 而家都係 80 Paws。Backgrounds 除咗原有 7 個，2026-11 再加
   **Pink（130）／Blue（130）／Floral（180）**；`storePaintBackground()` 會畫
-  心心、雲朵同花瓣圖案，唔止純色漸變。Props／Backgrounds **只喺 Me profile
+  心心、雲朵同花瓣圖案，唔止純色漸變。已裝 `store.sql` 只想補呢三件就
+  跑短檔 `supabase/store_backgrounds_colors.sql`（可重跑）。Props／Backgrounds **只喺 Me profile
   同 Drive & Go／Word Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
 - **Paws 計算**（`supabase/store.sql` 嘅 trigger，唔靠 client）：
   - +1 per correct answer（Dictation／Drive & Go／Word Battle，Battle 只計

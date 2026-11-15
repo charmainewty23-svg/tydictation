@@ -1248,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v18）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v19）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1307,8 +1307,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v18`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v19`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v19`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v20`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1495,8 +1495,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - 撳 badge → `showStreakInfo()` 用 mascot bubble 講今日做咗未／仲有幾多日／
     要唔要用補救卡。
   - **觸覺回饋**：`showStreakPopup()` 喺 `count > 1`（連勝延續）時會
-    `navigator.vibrate([45,35,70])`；第一次生火（count 1）唔會震。
-    Android／Chrome 支援；iOS Safari 冇 `navigator.vibrate`，會靜靜跳過。
+    `navigator.vibrate([70,40,70,40,130])`；第一次生火（count 1）唔會震。
+    Android／Chrome 支援；**iPhone Safari 冇 `navigator.vibrate`**，所以同時
+    會加 `.haptic` class 落 `.streak-popup-card`，播 `streakHaptic` 0.5s
+    左右搖一下做視覺 fallback（`prefers-reduced-motion` 會停）。
+    老師帳戶（`isAdmin()`，唔計 preview）會喺卡底多一行細字，寫
+    「Vibration API available — phones only」或
+    「No web vibration here (iPhone Safari does not support it)」，方便診斷
+    點解喺電腦／iPhone 感受唔到。Android 亦要系統「震動／觸感回饋」開啟，
+    省電模式可能會靜靜跳過。
   - 「You made it!」卡係 `showStreakPopup()` 動態建立嘅 `#streak-popup`
     （`z-index: 10060`），有 backdrop、`role="dialog"`、Esc／backdrop 都可以關，
     標題固定 `You made it!`，下面顯示 `🔥 N day(s)`、鼓勵句、`🛟 N repair cards

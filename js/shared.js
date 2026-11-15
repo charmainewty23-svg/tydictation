@@ -602,6 +602,10 @@
             const repaired = Math.max(0, Number(info && info.repaired) || 0);
             const cards = Math.max(0, Number(info && info.cards) || 0);
             const dayWord = count === 1 ? 'day' : 'days';
+            const vibeSupported = typeof navigator.vibrate === 'function';
+            const teacherNote = (count > 1 && typeof isAdmin === 'function' && isAdmin())
+                ? `<p class="streak-popup-source">📳 ${vibeSupported ? 'Vibration API available — phones only' : 'No web vibration here (iPhone Safari does not support it)'}</p>`
+                : '';
             const line = repaired
                 ? 'Repair card used — your flame is still alive!'
                 : fresh
@@ -626,6 +630,7 @@
                     ${repaired ? `<p class="streak-popup-repair">🛟 ${repaired} repair card${repaired === 1 ? '' : 's'} used</p>` : ''}
                     <p class="streak-popup-cards">🛟 ${cards} repair card${cards === 1 ? '' : 's'} left</p>
                     ${source ? `<p class="streak-popup-source">${escapeHtml(source)} complete</p>` : ''}
+                    ${teacherNote}
                     <button type="button" class="streak-popup-btn" onclick="closeStreakPopup()">Keep going!</button>
                 </div>`;
             popup.addEventListener('click', event => {
@@ -641,9 +646,14 @@
             const btn = popup.querySelector('.streak-popup-btn');
             if (btn && btn.focus) btn.focus({ preventScroll: true });
             // Haptic tap when a live streak continues. Android / Chrome use
-            // navigator.vibrate; iOS Safari ignores it, so guard everything.
-            if (count > 1 && typeof navigator.vibrate === 'function') {
-                try { navigator.vibrate([45, 35, 70]); } catch (e) {}
+            // navigator.vibrate; iOS Safari ignores it, so the card also does a
+            // short visual shake there (and for anyone with vibration off).
+            if (count > 1) {
+                const card = popup.querySelector('.streak-popup-card');
+                if (card && card.classList) card.classList.add('haptic');
+                if (vibeSupported) {
+                    try { navigator.vibrate([70, 40, 70, 40, 130]); } catch (e) {}
+                }
             }
         }
         function isGuestUser() { return !!guestSession; }

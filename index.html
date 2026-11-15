@@ -544,6 +544,22 @@
         .streak-popup-btn-quiet:active {
             box-shadow: 0 2px 0 #d1d5db;
         }
+        /* Visible "haptic" pulse for devices without navigator.vibrate
+           (notably iPhone Safari). */
+        @keyframes streakHaptic {
+            0%, 100% { transform: translateX(0); }
+            15% { transform: translateX(-5px) rotate(-0.4deg); }
+            30% { transform: translateX(5px) rotate(0.4deg); }
+            45% { transform: translateX(-4px) rotate(-0.3deg); }
+            60% { transform: translateX(4px) rotate(0.3deg); }
+            75% { transform: translateX(-2px); }
+        }
+        .streak-popup-card.haptic {
+            animation: streakHaptic 0.5s ease-in-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .streak-popup-card.haptic { animation: none; }
+        }
         /* Landscape phones (and the Drive & Go! full-screen race) are short:
            keep the whole celebration visible without scrolling. */
         @media (orientation: landscape) and (max-height: 480px) {

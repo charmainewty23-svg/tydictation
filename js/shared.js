@@ -1391,6 +1391,10 @@
                 loadCloudStreak();
                 updateNotificationBadge();
                 if (!notifTimer) notifTimer = setInterval(updateNotificationBadge, 60000);
+                // Users who follow nobody get a bell suggestion after login.
+                if (typeof refreshFriendSuggestionNotif === 'function') {
+                    setTimeout(refreshFriendSuggestionNotif, 1600);
+                }
             }
             syncHomeMusic(currentView);
             updateHomeMusicButton();
@@ -1438,7 +1442,11 @@
                     return;
                 }
                 btn.classList.remove('hidden');
-                const n = Math.max(0, Number(data) || 0);
+                const dbCount = Math.max(0, Number(data) || 0);
+                const localCount = (typeof friendSuggestionUnreadCount === 'function')
+                    ? Math.max(0, Number(friendSuggestionUnreadCount()) || 0)
+                    : 0;
+                const n = dbCount + localCount;
                 const badge = document.getElementById('notif-count');
                 if (badge) {
                     badge.innerText = n > 99 ? '99+' : String(n);
@@ -1475,6 +1483,16 @@
         }
 
         function notifRowHTML(n) {
+            if (n.kind === 'suggestion') {
+                const uid = escapeHtml(n.user_id || '');
+                return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
+                    '<span class="notif-icon" aria-hidden="true">💡</span>' +
+                    '<div class="min-w-0 flex-1"><p class="font-bold text-gray-700 text-sm">Suggested friend</p>' +
+                    '<p class="text-xs text-gray-500"><b>' + escapeHtml(n.actor_name || 'A classmate') + '</b>' +
+                    (n.message ? ' · ' + escapeHtml(n.message) : '') + '</p>' +
+                    '<button type="button" class="notif-suggest-btn" onclick="followSuggestedFromNotif(\'' + uid + '\')">➕ Follow</button>' +
+                    '<p class="text-[10px] text-gray-400 mt-1">' + timeAgo(n.created_at) + '</p></div></div>';
+            }
             if (n.kind === 'announcement') {
                 return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
                     '<span class="notif-icon" aria-hidden="true">📣</span>' +
@@ -1513,11 +1531,17 @@
                 const { data, error } = await sb.rpc('friend_notification_feed');
                 if (error) throw error;
                 const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                const localNotif = (typeof readFriendSuggestionNotif === 'function')
+                    ? readFriendSuggestionNotif()
+                    : null;
+                const localHTML = (localNotif && !localNotif.read) ? notifRowHTML(localNotif) : '';
+                const dbHTML = rows.map(notifRowHTML).join('');
                 if (list) {
-                    list.innerHTML = rows.length
-                        ? rows.map(notifRowHTML).join('')
+                    list.innerHTML = (localHTML + dbHTML)
+                        ? localHTML + dbHTML
                         : '<p class="text-sm font-bold text-gray-400 py-4">No notifications yet. New followers and likes will appear here.</p>';
                 }
+                if (typeof markFriendSuggestionNotifRead === 'function') markFriendSuggestionNotifRead();
                 sb.rpc('mark_notifications_read').then(() => updateNotificationBadge(), () => {});
                 const badge = document.getElementById('notif-count');
                 if (badge) badge.classList.add('hidden');

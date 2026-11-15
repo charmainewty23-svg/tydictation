@@ -247,6 +247,251 @@ function profileFriendsAvailable() {
     return canUseCloud() && !previewStudentForm() && !isGuestUser();
 }
 
+/* ---------------- suggested friends ----------------
+   Discovery must not depend on leaderboard scores: an F3 student who has
+   logged in but has not scored yet can still be suggested. The RPC ranks
+   follow-back → mutual friends → same class → same form → recent practice →
+   new account → a daily rotation. */
+
+let profileSuggestedRows = [];
+let profileSuggestionsLoaded = false;
+
+function profileSuggestionDismissKey() {
+    return (currentUser && currentUser.id) ? ('learniTY_friend_suggest_dismiss:' + currentUser.id) : '';
+}
+
+function profileReadSuggestionDismissals() {
+    const key = profileSuggestionDismissKey();
+    if (!key) return {};
+    try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+        const now = Date.now();
+        const out = {};
+        Object.keys(parsed || {}).forEach(id => {
+            if (Number(parsed[id]) > now) out[id] = Number(parsed[id]);
+        });
+        return out;
+    } catch (e) { return {}; }
+}
+
+function profileWriteSuggestionDismissals(map) {
+    const key = profileSuggestionDismissKey();
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(map || {})); } catch (e) {}
+}
+
+function profileSuggestionReason(row) {
+    if (!row) return '';
+    if (row.follows_me) return 'Follows you';
+    const mutual = Number(row.mutual_count) || 0;
+    if (mutual > 0) return mutual + ' mutual friend' + (mutual === 1 ? '' : 's');
+    if (row.same_class && row.class_code) return 'Same class ' + row.class_code;
+    if (row.same_form && row.form) return 'Same form ' + formLabel(normalizeForm(row.form));
+    if (row.is_new) return 'New this week';
+    const streak = Number(row.streak) || 0;
+    if (streak > 1) return '🔥 ' + streak + '-day streak';
+    if (row.last_practice) {
+        const rel = hkRelativeDay(row.last_practice);
+        if (rel === 'Today') return 'Practised today';
+        if (rel === 'Yesterday') return 'Practised yesterday';
+        return 'Practised ' + rel;
+    }
+    return 'Active on LearniTY';
+}
+
+function profileRenderSuggestions() {
+    const wrap = document.getElementById('profile-suggested');
+    const listEl = document.getElementById('profile-suggested-list');
+    const noteEl = document.getElementById('profile-suggested-note');
+    if (!wrap || !listEl) return;
+    if (!profileFriendsAvailable()) {
+        wrap.classList.add('hidden');
+        return;
+    }
+    wrap.classList.remove('hidden');
+    if (noteEl) {
+        noteEl.classList.add('hidden');
+        noteEl.innerText = '';
+    }
+    if (!profileSuggestedRows.length) {
+        listEl.innerHTML = '<p class="text-xs font-bold text-gray-400 py-1">No suggestions right now. Check back tomorrow.</p>';
+        return;
+    }
+    listEl.innerHTML = profileSuggestedRows.map(r => {
+        const uid = String(r.user_id || '');
+        const name = escapeHtml(r.nickname || 'Student');
+        const reason = escapeHtml(profileSuggestionReason(r));
+        const label = r.follows_me ? 'Follow back' : 'Follow';
+        return '<div class="friend-suggest-row">' +
+            '<button type="button" class="flex-1 min-w-0 text-left" onclick="openFriendProfile(\'' + escapeHtml(uid) + '\')">' +
+            '<span class="block font-bold text-gray-700 text-sm truncate">' + name + '</span>' +
+            '<span class="block text-xs text-gray-500 truncate">' + reason + '</span>' +
+            '</button>' +
+            '<button type="button" class="friend-suggest-btn" onclick="profileFollowSuggested(\'' + escapeHtml(uid) + '\')">' + label + '</button>' +
+            '<button type="button" class="friend-suggest-dismiss" aria-label="Not interested in ' + name + '" onclick="profileDismissSuggested(\'' + escapeHtml(uid) + '\')">✕</button>' +
+            '</div>';
+    }).join('');
+}
+
+async function profileLoadSuggestions() {
+    const wrap = document.getElementById('profile-suggested');
+    const listEl = document.getElementById('profile-suggested-list');
+    const noteEl = document.getElementById('profile-suggested-note');
+    if (!wrap || !listEl) return;
+    if (!profileFriendsAvailable()) {
+        wrap.classList.add('hidden');
+        profileSuggestedRows = [];
+        return;
+    }
+    wrap.classList.remove('hidden');
+    listEl.innerHTML = '<p class="text-xs font-bold text-gray-400 py-1">Finding classmates…</p>';
+    if (noteEl) { noteEl.classList.add('hidden'); noteEl.innerText = ''; }
+    let rows = [];
+    try {
+        const { data, error } = await sb.rpc('suggested_friends', { p_limit: 6 });
+        if (error) throw error;
+        rows = Array.isArray(data) ? data : (data ? [data] : []);
+    } catch (e) {
+        profileSuggestedRows = [];
+        profileSuggestionsLoaded = true;
+        listEl.innerHTML = '';
+        if (noteEl) {
+            noteEl.classList.remove('hidden');
+            noteEl.innerText = 'Run supabase/friends_suggestions.sql in the Supabase SQL editor to enable suggestions.';
+        }
+        return;
+    }
+    const dismissed = profileReadSuggestionDismissals();
+    profileSuggestedRows = rows.filter(r => r && r.user_id && !dismissed[String(r.user_id)]);
+    profileSuggestionsLoaded = true;
+    profileRenderSuggestions();
+}
+
+async function profileFollowSuggested(userId) {
+    if (!profileFriendsAvailable() || !userId) return;
+    const row = profileSuggestedRows.find(r => String(r.user_id) === String(userId));
+    try {
+        const { error } = await sb.rpc('follow_friend', { p_user_id: userId });
+        if (error) throw error;
+    } catch (e) {
+        const noteEl = document.getElementById('profile-suggested-note');
+        if (noteEl) {
+            noteEl.classList.remove('hidden');
+            noteEl.innerText = 'Could not follow that classmate. Please try again.';
+        }
+        return;
+    }
+    clearFriendSuggestionNotif();
+    updateNotificationBadge();
+    await profileLoadFriends();
+    if (row) updateMascot('You are now following ' + (row.nickname || 'a classmate') + '. 💛');
+}
+
+function profileDismissSuggested(userId) {
+    if (!userId) return;
+    const map = profileReadSuggestionDismissals();
+    map[String(userId)] = Date.now() + (30 * 24 * 60 * 60 * 1000);
+    profileWriteSuggestionDismissals(map);
+    const local = readFriendSuggestionNotif();
+    if (local && String(local.user_id) === String(userId)) {
+        clearFriendSuggestionNotif();
+        updateNotificationBadge();
+    }
+    profileSuggestedRows = profileSuggestedRows.filter(r => String(r.user_id) !== String(userId));
+    profileRenderSuggestions();
+}
+
+/* ---------------- suggestion bell notification ----------------
+   A local notification, not a database row: only shown while the student
+   follows nobody. Opening the bell marks it read; following anyone (or
+   having a follow already) clears it. It is regenerated on the next login. */
+
+function friendSuggestionNotifKey() {
+    return (currentUser && currentUser.id) ? ('learniTY_friend_suggest_notif:' + currentUser.id) : '';
+}
+
+function readFriendSuggestionNotif() {
+    const key = friendSuggestionNotifKey();
+    if (!key) return null;
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+}
+
+function writeFriendSuggestionNotif(value) {
+    const key = friendSuggestionNotifKey();
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+
+function clearFriendSuggestionNotif() {
+    const key = friendSuggestionNotifKey();
+    if (!key) return;
+    try { localStorage.removeItem(key); } catch (e) {}
+}
+
+function friendSuggestionUnreadCount() {
+    if (isTeacherAccount() || previewStudentForm() || isGuestUser()) return 0;
+    const n = readFriendSuggestionNotif();
+    return (n && !n.read && n.user_id) ? 1 : 0;
+}
+
+function markFriendSuggestionNotifRead() {
+    const n = readFriendSuggestionNotif();
+    if (!n || n.read) return;
+    n.read = true;
+    writeFriendSuggestionNotif(n);
+}
+
+async function refreshFriendSuggestionNotif() {
+    if (!profileFriendsAvailable() || isTeacherAccount()) {
+        clearFriendSuggestionNotif();
+        return;
+    }
+    try {
+        const overview = await sb.rpc('friend_overview');
+        if (overview.error) throw overview.error;
+        const peers = Array.isArray(overview.data) ? overview.data : (overview.data ? [overview.data] : []);
+        if (peers.some(r => r.following)) {
+            clearFriendSuggestionNotif();
+            updateNotificationBadge();
+            return;
+        }
+        const { data, error } = await sb.rpc('suggested_friends', { p_limit: 1 });
+        if (error) throw error;
+        const rows = Array.isArray(data) ? data : (data ? [data] : []);
+        const row = rows[0];
+        if (!row || !row.user_id) {
+            clearFriendSuggestionNotif();
+            updateNotificationBadge();
+            return;
+        }
+        writeFriendSuggestionNotif({
+            kind: 'suggestion',
+            user_id: row.user_id,
+            actor_name: row.nickname || 'Student',
+            message: profileSuggestionReason(row),
+            created_at: new Date().toISOString(),
+            read: false
+        });
+        updateNotificationBadge();
+    } catch (e) {
+        clearFriendSuggestionNotif();
+        updateNotificationBadge();
+    }
+}
+
+async function followSuggestedFromNotif(userId) {
+    if (!profileFriendsAvailable() || !userId) return;
+    try {
+        const { error } = await sb.rpc('follow_friend', { p_user_id: userId });
+        if (error) throw error;
+    } catch (e) { return; }
+    clearFriendSuggestionNotif();
+    updateNotificationBadge();
+    closeNotifications();
+    if (currentView === 'profile-view') profileLoadFriends();
+    updateMascot('You are now following a classmate. 💛');
+}
+
 function profileFriendStreakText(row) {
     if (!row || !row.mutual) return '';
     const n = Number(row.friend_streak) || 0;
@@ -623,6 +868,7 @@ async function profileLoadFriends() {
         profileShowFriendList(kind);
     }
     if (noteEl) noteEl.innerText = 'A friend streak grows when both of you finish a practice on the same Hong Kong day.';
+    profileLoadSuggestions();
 }
 
 /* ---------------- another user's following / followers ---------------- */
@@ -779,6 +1025,8 @@ async function profileAddFriend() {
     }
     if (input) input.value = '';
     say('Now following ' + (found.nickname || 'that student') + '.', false);
+    clearFriendSuggestionNotif();
+    updateNotificationBadge();
     await profileLoadFriends();
 }
 
@@ -794,6 +1042,10 @@ async function profileToggleFollow() {
         const note = document.getElementById('profile-note');
         if (note) note.innerText = 'Could not update that follow. Please try again.';
         return;
+    }
+    if (!row.following) {
+        clearFriendSuggestionNotif();
+        updateNotificationBadge();
     }
     await loadFriendProfile(row.user_id);
 }

@@ -951,6 +951,53 @@
         }
         .notif-row:last-child { border-bottom: 0; }
         .notif-row.unread { background: #fffaf3; border-radius: 10px; }
+        .notif-suggest-btn {
+            margin-top: 6px;
+            min-height: 36px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 999px;
+            background: #f97316;
+            color: #ffffff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .notif-suggest-btn:active { transform: translateY(1px); }
+        /* Suggested friends list (Me → Friends) */
+        .friend-suggest-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fff7ed;
+            border: 1px solid #ffedd5;
+            border-radius: 14px;
+            padding: 10px 12px;
+        }
+        .friend-suggest-btn {
+            min-height: 44px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 999px;
+            background: #f97316;
+            color: #ffffff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+        .friend-suggest-btn:active { transform: translateY(1px); }
+        .friend-suggest-dismiss {
+            min-height: 44px;
+            min-width: 44px;
+            border: 0;
+            background: transparent;
+            color: #9ca3af;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
         .notif-icon {
             flex: 0 0 auto;
             width: 30px;
@@ -3041,6 +3088,14 @@
                     <div class="flex items-center justify-between gap-3 mb-2">
                         <h3 class="text-xl font-bold text-orange-700">💛 Friends</h3>
                         <button type="button" onclick="profileLoadFriends()" class="px-3 py-2 bg-orange-50 text-orange-700 rounded-xl font-bold text-xs hover:bg-orange-100 transition-colors">Refresh</button>
+                    </div>
+                    <div id="profile-suggested" class="hidden mb-4">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <h4 class="text-sm font-bold text-orange-700">💡 Suggested friends</h4>
+                            <button type="button" onclick="profileLoadSuggestions()" class="px-3 py-1.5 bg-orange-50 text-orange-700 rounded-xl font-bold text-xs hover:bg-orange-100 transition-colors">↻ Refresh</button>
+                        </div>
+                        <div id="profile-suggested-list" class="space-y-2"></div>
+                        <p id="profile-suggested-note" class="hidden text-xs text-amber-700 font-bold mt-2"></p>
                     </div>
                     <div class="friend-count-row two">
                         <button type="button" class="friend-count-btn" onclick="profileShowFriendList('following')">

@@ -1248,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v23）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v24）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1308,7 +1308,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1338,8 +1338,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v23`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v24`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v24`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v25`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1849,6 +1849,60 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   所以同其他 admin 名單一樣按 F3／F4／F6／Unassigned 分組同有 (+)/(-)；
   預設收起。Refresh 掣會重新 `loadAdminDashboard()`。
 - 呢個係跟 `dictation_results` 嘅 RLS（老師讀全部），唔使新 SQL、唔使新欄。
+
+#### 12.7f Suggested friends（2026-11）
+
+- 目的：鼓勵學生互相 follow，**特別係未上 leaderboard 嘅 F3**。Discovery
+  **唔用分數／排名**，所以有登入但未高分嘅學生都會被 suggest。
+- SQL：`supabase/friends_suggestions.sql`（喺 `friends.sql` 之後跑，可重跑，
+  **冇新 table**）。RPC `suggested_friends(p_limit int default 6)`。
+- Candidate pool：`auth.users` + `student_logins`（所有登入過嘅學生），
+  排除自己、admin（`tywong@…`）、已經 follow 嘅人；只計學校 domain。
+- 回傳欄位只有：`user_id`、`nickname`、`form`、`class_code`、`follows_me`、
+  `mutual_count`、`same_class`、`same_form`、`last_practice`、`streak`、
+  `is_new`。**冇 email、冇分數**。
+- 排序：
+  1. `follows_me`（Follow back）
+  2. mutual friends 數量（你同對方都 follow 嘅人）
+  3. 同班（nickname 開頭 `3A`／`4C`）
+  4. 同 form
+  5. 最近 7 日有練習
+  6. 14 日內新加入
+  7. `md5(今日 + user_id)` 每日輪換
+- 冷啟動：如果冇同班，會 fallback 同 form／近期活躍／新用戶；F3 就算
+  未有 leaderboard 紀錄都會出現。
+- UI：Me → 💛 Friends 卡最上面 `#profile-suggested`：
+  - 每次 6 個，顯示名、原因（`Follows you`／`N mutual friends`／
+    `Same class 3A`／`Same form F4`／`Practised today`…）
+  - **Follow／Follow back**、**✕ Not interested**
+  - Dismiss 用 `localStorage['learniTY_friend_suggest_dismiss:<uid>']`，
+    30 日有效；唔使 SQL
+  - 撳名去 `openFriendProfile()`；follow 完會 reload list
+  - 未跑 SQL 時顯示 `Run supabase/friends_suggestions.sql…`
+- **Bell suggestion（只限 follow 緊 0 人）**：
+  - 登入後 `showApp()` 延遲 1.6 秒 call `refreshFriendSuggestionNotif()`
+    （`js/profile.js`）。先 `friend_overview()`；如果已經 follow 任何人就
+    清走 local notif，唔會煩。
+  - 如果 0 following，call `suggested_friends(p_limit:1)`，寫一個
+    **local** notification 去 `localStorage['learniTY_friend_suggest_notif:<uid>']`：
+    `{ kind:'suggestion', user_id, actor_name, message, created_at, read }`。
+    唔會寫 `friend_notifications`。
+  - `updateNotificationBadge()` 會將 DB unread + local unread 加埋；
+    bell 會多 1。`toggleNotifications()` 會喺清單頂加
+    `notifRowHTML({kind:'suggestion'})`，有 **➕ Follow** 掣
+    (`followSuggestedFromNotif()`)。
+  - 開 bell 會 mark local read（badge 減 1），row 喺今次 popup 仍然見到；
+    下次登入如果仍然 0 following 會再寫一個 unread，直至 follow 咗人。
+  - 經 suggestions／profile／email 任何方式 follow 人之後，
+    `clearFriendSuggestionNotif()` + `updateNotificationBadge()` 會清走。
+  - Guest、teacher preview、老師帳戶唔會收到（`friendSuggestionUnreadCount()`
+    直接回 0；`refresh…` 亦會 skip 老師）。
+- 測試（mock RPC）：0 following → badge 1、bell row + Follow；
+  開 bell → read true、badge 0；Follow → local 清走、badge 0；
+  已有 follow → 唔再建立；未跑 SQL → UI 提示；320px 沒有橫向爆版。
+- 改動提示：suggestion 原因由 `profileSuggestionReason()` 砌；
+  想改顯示數量改 `profileLoadSuggestions()` 嘅 `p_limit` 同 RPC default。
+  要排除某些用戶（例如另一批老師）就改 SQL 嘅 `where`。
 
 ### 12.8 首頁背景音樂（2026-11）
 

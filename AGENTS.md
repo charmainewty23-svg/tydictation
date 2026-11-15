@@ -1303,7 +1303,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v38）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v39）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1393,8 +1393,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v38`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v39`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v39`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v40`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2030,7 +2030,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v38。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v39。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2097,9 +2097,11 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   Cat `Ginger`／`Ragdoll`、Glasses `None`／`Glasses`；**Hat 同 Outfit 已刪**。
   呢個畫面用固定 `['None','Glasses']`，唔會列出已買 store face item；
   賽道／preview／多人房都用 `DG.raceLook()`（cat 只認 Ragdoll，其餘當
-  Ginger；glasses 只認 `Glasses`，其餘當 None；hat／outfit 一律 None），
+  Ginger；glasses 只要唔係 `None` 一律當 `Glasses`；hat／outfit 一律 None），
   所以已買帽／衫唔會再喺 Drive & Go 出現（仍然喺 Me profile 同 Word Battle
-  用到）。Word Battle 班際貓 customizer 照舊 4 行，basic free options 每行
+  用到）。Cat step 嘅 Glasses 選中狀態亦用同一映射，所以 profile 用緊
+  `Sunglasses`／store 眼鏡時，Drive & Go 會顯示 `Glasses` 被選中。
+  Word Battle 班際貓 customizer 照舊 4 行，basic free options 每行
   **2 個**：Cat `Ginger`／`Ragdoll`、Face `None`／`Glasses`、
   Hat `None`／`Party Hat`、Outfit `None`／`Racing Jacket`
   （`DG.CAT_OPTIONS`；legacy cat 會同第一個 option 一齊顯示，保持 2 個）。
@@ -2111,8 +2113,13 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   customizer）都有 **✨ Use my look** 掣：`storeUseMyLook()` 會用
   `store_equipped` 嘅已買 hat／face／outfit + `profile_looks` 嘅 cat
   （冇買該 slot 就用 saved look）覆蓋目前 game look，再 re-render；
-  適合試完其他造型後一撳返自己嘅 look。（Drive & Go 只會顯示 cat／
-  glasses 嘅效果。）
+  適合試完其他造型後一撳返自己嘅 look。呢個 function 而家係 **async**：
+  撳落會先 `loadStoreState(true)` 由雲端拉最新 `profile_looks`／
+  `store_equipped`（由 Hub 直接入 Drive & Go 時之前未載入都有效），
+  成功套用後 Cat step 會喺掣下面顯示 `✅ Your profile look is on`
+  （冇雲端就 `✅ Your saved look is on`，2.4 秒後自動收埋），
+  mascot 亦會講「Your own look is on! ✨」。（Drive & Go 只會顯示
+  cat／glasses 嘅效果。）
 - **Profile cat**：Me → 🎒 My look 有 `#profile-cat-picker`，所有用戶
   （包括 guest／未買任何 item）都可以揀 **🐱 Ginger／🐱 Ragdoll**；
   `storeSetProfileCat()` 寫入 `DG.readSettings().cat` + `save_profile_look`，

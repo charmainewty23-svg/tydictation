@@ -255,23 +255,52 @@ function storeMyLook() {
     };
 }
 
-function storeUseMyLook() {
+let storeUseLookBusy = false;
+
+async function storeUseMyLook() {
     if (typeof DG === 'undefined' || !DG.readSettings) return;
-    const look = storeMyLook();
-    const s = DG.readSettings();
-    s.cat = look.cat;
-    s.hat = look.hat;
-    s.glasses = look.glasses;
-    s.outfit = look.outfit;
-    DG.saveSettings();
-    if (typeof saveProfileLook === 'function') saveProfileLook();
-    if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
-        DG.showCatStep();
+    if (storeUseLookBusy) return;
+    storeUseLookBusy = true;
+    try {
+        // The profile look may not be in memory yet when Drive & Go is opened
+        // straight from the Hub, so pull it before applying.
+        let cloudLook = false;
+        if (storeAvailable()) {
+            try {
+                await loadStoreState(true);
+                cloudLook = !!STORE_MY_LOOK;
+            } catch (e) {}
+        }
+        const look = storeMyLook();
+        const s = DG.readSettings();
+        s.cat = look.cat;
+        s.hat = look.hat;
+        s.glasses = look.glasses;
+        s.outfit = look.outfit;
+        DG.saveSettings();
+        if (typeof saveProfileLook === 'function') saveProfileLook();
+        if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
+            DG.showCatStep();
+            storeShowLookNote(cloudLook ? '✅ Your profile look is on' : '✅ Your saved look is on');
+        }
+        if (typeof battleRenderCatCustomizer === 'function' && document.getElementById('battle-cat-options')) {
+            battleRenderCatCustomizer();
+        }
+        updateMascot('Your own look is on! ✨');
+    } finally {
+        storeUseLookBusy = false;
     }
-    if (typeof battleRenderCatCustomizer === 'function' && document.getElementById('battle-cat-options')) {
-        battleRenderCatCustomizer();
-    }
-    updateMascot('Your own look is on! ✨');
+}
+
+function storeShowLookNote(text) {
+    const note = document.getElementById('dg-look-note');
+    if (!note) return;
+    note.innerText = text;
+    note.classList.remove('hidden');
+    clearTimeout(storeShowLookNote._timer);
+    storeShowLookNote._timer = setTimeout(function () {
+        note.classList.add('hidden');
+    }, 2400);
 }
 
 function storeEquippedItem(slot) {

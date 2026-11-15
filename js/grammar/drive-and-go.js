@@ -277,7 +277,7 @@ const DG = {
         const s = DG.readSettings();
         return {
             cat: s.cat === 'Ragdoll' ? 'Ragdoll' : 'Ginger',
-            glasses: s.glasses === 'Glasses' ? 'Glasses' : 'None',
+            glasses: (s.glasses && s.glasses !== 'None') ? 'Glasses' : 'None',
             hat: 'None',
             outfit: 'None'
         };
@@ -1540,10 +1540,13 @@ const DG = {
             DG.stepDots('cat') +
             DG.stepHeading('cat', 'Customize your cat driver') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
-            '<div class="text-center mb-4"><button type="button" class="dg-menu-button" onclick="storeUseMyLook()">✨ Use my look</button></div>' +
+            '<div class="text-center mb-4"><button type="button" class="dg-menu-button" onclick="storeUseMyLook()">✨ Use my look</button>' +
+            '<p id="dg-look-note" class="hidden text-xs font-bold text-green-600 mt-2" role="status"></p></div>' +
             row('Cat', 'cat', DG.catOptions(s.cat), s.cat) +
             row('Glasses', 'glasses', ['None', 'Glasses'],
-                ['None', 'Glasses'].indexOf(s.glasses) === -1 ? 'None' : s.glasses) +
+                ['None', 'Glasses'].indexOf(s.glasses) !== -1
+                    ? s.glasses
+                    : ((s.glasses && s.glasses !== 'None') ? 'Glasses' : 'None')) +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' +
             ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showMultiplayerEntryStep()' : 'DG.showChallengeStep()') +

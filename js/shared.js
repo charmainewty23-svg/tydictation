@@ -593,6 +593,77 @@
             return (fs && fs.appendChild) ? fs : document.body;
         }
 
+        /* -------- streak chime (WebAudio, iPhone-friendly) -------- */
+        let streakAudioCtx = null;
+
+        function streakAudio() {
+            if (streakAudioCtx) return streakAudioCtx;
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return null;
+                streakAudioCtx = new Ctx();
+            } catch (e) {
+                streakAudioCtx = null;
+            }
+            return streakAudioCtx;
+        }
+
+        /* Creating/resuming on the first tap makes a later game-over chime
+           (no direct gesture) audible on iOS. */
+        function unlockStreakAudio() {
+            const ctx = streakAudio();
+            if (!ctx) return;
+            if (ctx.state === 'suspended' && ctx.resume) {
+                try { ctx.resume().catch(() => {}); } catch (e) {}
+            }
+        }
+
+        function playStreakChime() {
+            const ctx = streakAudio();
+            if (!ctx) return;
+            const fire = function () {
+                try {
+                    const now = ctx.currentTime;
+                    // Soft low "dong"…
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.18);
+                    gain.gain.setValueAtTime(0.0001, now);
+                    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                    // …with a small bell sparkle on top.
+                    const bell = ctx.createOscillator();
+                    const bellGain = ctx.createGain();
+                    bell.type = 'triangle';
+                    bell.frequency.setValueAtTime(520, now);
+                    bellGain.gain.setValueAtTime(0.0001, now);
+                    bellGain.gain.exponentialRampToValueAtTime(0.06, now + 0.01);
+                    bellGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+                    bell.connect(bellGain);
+                    bellGain.connect(ctx.destination);
+                    bell.start(now);
+                    bell.stop(now + 0.13);
+                } catch (e) {}
+            };
+            if (ctx.state === 'suspended' && ctx.resume) {
+                try {
+                    const p = ctx.resume();
+                    if (p && p.then) p.then(fire).catch(() => {});
+                    else fire();
+                } catch (e) {}
+            } else {
+                fire();
+            }
+        }
+
+        document.addEventListener('pointerdown', unlockStreakAudio, { once: true, passive: true });
+
         function showStreakPopup(info) {
             const existing = document.getElementById('streak-popup');
             if (existing) existing.remove();
@@ -651,6 +722,7 @@
             if (count > 1) {
                 const card = popup.querySelector('.streak-popup-card');
                 if (card && card.classList) card.classList.add('haptic');
+                playStreakChime();
                 if (vibeSupported) {
                     try { navigator.vibrate([70, 40, 70, 40, 130]); } catch (e) {}
                 }

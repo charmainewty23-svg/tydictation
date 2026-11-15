@@ -351,8 +351,14 @@
             const ctx = canvas.getContext('2d');
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const grd = ctx.createLinearGradient(0, 0, 0, cssH);
-            grd.addColorStop(0, '#dbeafe');
-            grd.addColorStop(1, '#fef3c7');
+            const bgItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('background') : null;
+            if (bgItem) {
+                grd.addColorStop(0, bgItem.color);
+                grd.addColorStop(1, '#fff7ed');
+            } else {
+                grd.addColorStop(0, '#dbeafe');
+                grd.addColorStop(1, '#fef3c7');
+            }
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, cssW, cssH);
             ctx.fillStyle = 'rgba(120,113,108,.22)';
@@ -360,6 +366,13 @@
             ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
             ctx.fill();
             DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), battleMyLook(), { preview: true });
+            const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
+            if (propItem) {
+                ctx.font = '28px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(propItem.emoji, cssW * 0.7, cssH * 0.55);
+            }
         }
 
         function battleRenderCatCustomizer() {
@@ -372,9 +385,9 @@
                 '</div></div>';
             box.innerHTML =
                 row('Cat', 'cat', DG.CATS, look.cat) +
-                row('Glasses', 'glasses', DG.GLASSES, look.glasses) +
-                row('Hat', 'hat', DG.HATS, look.hat) +
-                row('Outfit', 'outfit', DG.OUTFITS, look.outfit);
+                row('Glasses', 'glasses', DG.lookOptions ? DG.lookOptions('face', look.glasses) : DG.GLASSES, look.glasses) +
+                row('Hat', 'hat', DG.lookOptions ? DG.lookOptions('hat', look.hat) : DG.HATS, look.hat) +
+                row('Outfit', 'outfit', DG.lookOptions ? DG.lookOptions('outfit', look.outfit) : DG.OUTFITS, look.outfit);
             requestAnimationFrame(battleDrawCatPreview);
         }
 

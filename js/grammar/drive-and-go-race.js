@@ -2530,6 +2530,22 @@
         const l = DG.normalizeLook(look);
         const pal = DG.catPalette(l.cat);
         const g = new THREE.Group();
+
+        DG.makeEmojiSprite = DG.makeEmojiSprite || function (emoji, size) {
+            const c = document.createElement('canvas');
+            c.width = 128; c.height = 128;
+            const x = c.getContext('2d');
+            x.font = '96px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            x.textAlign = 'center';
+            x.textBaseline = 'middle';
+            x.fillText(emoji, 64, 68);
+            const tex = new THREE.CanvasTexture(c);
+            tex.minFilter = THREE.LinearFilter;
+            if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+            sp.scale.set(size, size, 1);
+            return sp;
+        };
         const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.body) });
         const shadeMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.shade) });
         const pointMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.points) });
@@ -2621,6 +2637,39 @@
             const jacket = new THREE.Mesh(new THREE.BoxGeometry(4.3, 1.4, 0.6), new THREE.MeshLambertMaterial({ color: 0xef4444 }));
             jacket.position.set(0, 1.9, 0.8);
             g.add(jacket);
+        }
+
+        // Generic emoji badge for store items without a bespoke 3D model.
+        if (window.storeItemByName) {
+            if (l.hat !== 'None' && l.hat !== 'Crown' && l.hat !== 'Party Hat') {
+                const hatItem = window.storeItemByName(l.hat);
+                if (hatItem) {
+                    const sp = DG.makeEmojiSprite(hatItem.emoji, 1.7);
+                    sp.position.set(0, 5.35, -0.6);
+                    g.add(sp);
+                }
+            }
+            if (l.glasses !== 'None' && l.glasses !== 'Sunglasses' && l.glasses !== 'Glasses') {
+                const faceItem = window.storeItemByName(l.glasses);
+                if (faceItem) {
+                    const sp = DG.makeEmojiSprite(faceItem.emoji, 1.15);
+                    sp.position.set(0, 3.15, -2.3);
+                    g.add(sp);
+                }
+            }
+            const freeOutfits = ['None', 'Red Scarf', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf'];
+            if (freeOutfits.indexOf(l.outfit) === -1) {
+                const outfitItem = window.storeItemByName(l.outfit);
+                if (outfitItem) {
+                    const band = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.45, 4.8),
+                        new THREE.MeshLambertMaterial({ color: new THREE.Color(outfitItem.color || '#f97316') }));
+                    band.position.set(0, 1.55, 0.3);
+                    g.add(band);
+                    const sp = DG.makeEmojiSprite(outfitItem.emoji, 1.15);
+                    sp.position.set(2.5, 2.1, -0.4);
+                    g.add(sp);
+                }
+            }
         }
 
         if (isPlayer) {
@@ -3720,6 +3769,14 @@
             ctx.lineTo(2 * s, hy - 2 * s);
             ctx.stroke();
         }
+        const storeFace = (l.glasses !== 'None' && l.glasses !== 'Sunglasses' && l.glasses !== 'Glasses' && window.storeItemByName)
+            ? window.storeItemByName(l.glasses) : null;
+        if (storeFace) {
+            ctx.font = Math.max(16, 26 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(storeFace.emoji, 0, hy - 1 * s);
+        }
 
         // Hats
         if (l.hat === 'Party Hat') {
@@ -3751,6 +3808,14 @@
             ctx.fill();
             ctx.stroke();
         }
+        const storeHat = (l.hat !== 'None' && l.hat !== 'Party Hat' && l.hat !== 'Crown' && window.storeItemByName)
+            ? window.storeItemByName(l.hat) : null;
+        if (storeHat) {
+            ctx.font = Math.max(20, 34 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(storeHat.emoji, 0, hy - 38 * s);
+        }
 
         // Outfits (front)
         if (l.outfit === 'Red Scarf' || l.outfit === 'Pink Floral Scarf') {
@@ -3778,6 +3843,20 @@
             ctx.lineTo(-14 * s, -54 * s);
             ctx.closePath();
             ctx.fill();
+        }
+        const storeOutfit = (['None', 'Red Scarf', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf'].indexOf(l.outfit) === -1 && window.storeItemByName)
+            ? window.storeItemByName(l.outfit) : null;
+        if (storeOutfit) {
+            ctx.fillStyle = storeOutfit.color || '#f97316';
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.roundRect(-30 * s, -72 * s, 60 * s, 9 * s, 4 * s);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.font = Math.max(16, 24 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(storeOutfit.emoji, 24 * s, -60 * s);
         }
 
         // Boost flame

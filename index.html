@@ -284,7 +284,7 @@
             max-width: 720px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(6, 1fr);
             padding: 0 6px;
         }
         .bottom-nav-tab {
@@ -328,6 +328,106 @@
             background: #c2410c;
             margin-top: 1px;
         }
+        @media (max-width: 360px) {
+            .bottom-nav-tab { font-size: 9px; padding-left: 0; padding-right: 0; }
+            .bottom-nav-tab .bottom-nav-icon { font-size: 18px; }
+        }
+        /* ---- Store + equipped look ---- */
+        .store-balance-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: #fff7ed;
+            border: 2px solid #fdba74;
+            color: #9a3412;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 1rem;
+            white-space: nowrap;
+        }
+        .store-cat-btn {
+            min-height: 44px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 2px solid #ffedd5;
+            background: #fff;
+            color: #9a3412;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+        .store-cat-btn.active { background: #f97316; border-color: #f97316; color: #fff; }
+        .store-group { margin-bottom: 22px; }
+        .store-group-title { font-size: 1.05rem; font-weight: 800; color: #9a3412; margin: 0 0 10px; }
+        .store-grid-inner {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        @media (min-width: 640px) {
+            .store-grid-inner { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+            .store-grid-inner { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        .store-card {
+            background: #fff;
+            border: 3px solid #ffedd5;
+            border-radius: 18px;
+            padding: 12px 10px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .store-card.equipped { border-color: #fbbf24; background: #fffbeb; }
+        .store-card-emoji { font-size: 2.6rem; line-height: 1.1; }
+        .store-card-name { font-weight: 800; color: #374151; font-size: 0.9rem; line-height: 1.15; }
+        .store-card-zh { font-size: 0.75rem; color: #9ca3af; font-weight: 700; }
+        .store-card-rarity { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+        .store-rarity-common { color: #64748b; }
+        .store-rarity-starter { color: #047857; }
+        .store-rarity-rare { color: #1d4ed8; }
+        .store-rarity-epic { color: #7e22ce; }
+        .store-rarity-legendary { color: #b45309; }
+        .store-card-owned { font-size: 0.65rem; font-weight: 800; color: #047857; }
+        .store-card-note { font-size: 0.72rem; font-weight: 700; color: #9ca3af; }
+        .store-btn {
+            min-height: 42px;
+            margin-top: 5px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 999px;
+            background: #f97316;
+            color: #fff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.8rem;
+            cursor: pointer;
+            width: 100%;
+        }
+        .store-btn:active { transform: translateY(1px); }
+        .store-btn-quiet { background: #f3f4f6; color: #4b5563; }
+        .store-howto {
+            border-top: 2px solid #ffedd5;
+            padding-top: 12px;
+            font-size: 0.85rem;
+            color: #9a3412;
+            font-weight: 700;
+        }
+        .store-howto summary { cursor: pointer; font-size: 0.95rem; }
+        .profile-look-stage {
+            border-radius: 18px;
+            overflow: hidden;
+            border: 2px solid #ffedd5;
+            background: #fef3c7;
+            height: 190px;
+        }
+        .profile-look-stage canvas { display: block; width: 100%; height: 100%; }
         /* Reserve room for the fixed bar so it never covers the last card. */
         body.has-bottom-nav #app {
             padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
@@ -3048,6 +3148,44 @@
                     </div>
                 </div>
             </div>
+            <div id="store-view" class="view hidden w-full">
+                <div class="cat-card p-6 md:p-8">
+                    <div class="flex items-start justify-between gap-4 flex-wrap mb-3">
+                        <div>
+                            <h2 class="text-3xl font-bold text-orange-600 mb-1">🛍️ Store</h2>
+                            <p class="text-gray-400 text-sm">Spend Paws on hats, glasses, outfits, props and backgrounds.</p>
+                        </div>
+                        <div class="store-balance-pill" aria-live="polite">
+                            <span id="store-balance">…</span>
+                        </div>
+                    </div>
+                    <p id="store-note" class="hidden text-sm font-bold text-amber-700 mb-4"></p>
+                    <div id="store-categories" class="flex gap-2 flex-wrap mb-5">
+                        <button type="button" class="store-cat-btn active" data-store-cat="all" onclick="storeSetCategory('all')">All</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="hat" onclick="storeSetCategory('hat')">🎩 Hats</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="face" onclick="storeSetCategory('face')">😎 Face</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="outfit" onclick="storeSetCategory('outfit')">👕 Outfits</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="prop" onclick="storeSetCategory('prop')">✨ Props</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="background" onclick="storeSetCategory('background')">🖼️ Backgrounds</button>
+                    </div>
+                    <div id="store-grid">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-orange-400 font-bold">Loading store…</p>
+                        </div>
+                    </div>
+                    <details class="store-howto mt-8">
+                        <summary>🐾 How to earn Paws</summary>
+                        <div class="text-sm text-gray-600 leading-relaxed mt-3">
+                            <p>+1 Paw for every correct answer (Dictation, Drive &amp; Go, Word Battle) and every Word Jump word.</p>
+                            <p>+10 Paws for your first completed practice each day; +5 for the next ones (up to +25/day).</p>
+                            <p>+ your current day streak (max 10) once per day. Daily cap: <b>150 Paws</b>.</p>
+                            <p>Every account starts with <b>80 Paws</b>.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
         <div id="profile-view" class="view hidden">
             <div class="cat-card p-6 md:p-10 w-full">
                 <button type="button" id="profile-back-own" onclick="profileBack()" class="nav-back hidden mb-4 text-gray-400 flex items-center gap-2 hover:text-orange-500 transition-colors text-lg font-bold">
@@ -3071,6 +3209,20 @@
                         </p>
                         <p id="profile-streak-note" class="text-sm font-bold text-orange-700 mt-2">Finish any practice today to light your flame.</p>
                     </div>
+                </div>
+
+                <div id="profile-look-card" class="mb-6 border-t-2 border-orange-100 pt-5">
+                    <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                        <h3 class="text-xl font-bold text-orange-700">🎒 My look</h3>
+                        <div class="flex items-center gap-2">
+                            <span id="profile-look-balance" class="text-xs font-bold text-orange-600">…</span>
+                            <button type="button" onclick="openStore()" class="px-3 py-2 bg-orange-100 text-orange-700 rounded-xl font-bold text-xs hover:bg-orange-200 transition-colors">🛍️ Store</button>
+                        </div>
+                    </div>
+                    <div class="profile-look-stage">
+                        <canvas id="profile-look-canvas" aria-label="Your equipped cat look"></canvas>
+                    </div>
+                    <p id="profile-look-items" class="text-xs font-bold text-gray-500 mt-2 leading-relaxed">No store items equipped yet.</p>
                 </div>
 
                 <div id="profile-friend-banner" class="hidden mb-5 px-4 py-3 rounded-2xl border-2 border-amber-200 bg-amber-50 text-sm font-bold text-amber-800"></div>
@@ -3222,6 +3374,10 @@
                     <span class="bottom-nav-icon" aria-hidden="true">⚔️</span>
                     <span>Battle</span>
                 </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="store-view" onclick="openStore()">
+                    <span class="bottom-nav-icon" aria-hidden="true">🛍️</span>
+                    <span>Store</span>
+                </button>
                 <button type="button" class="bottom-nav-tab" data-nav-view="profile-view" onclick="profileShowOwn()">
                     <span class="bottom-nav-icon" aria-hidden="true">🐱</span>
                     <span>Me</span>
@@ -3236,6 +3392,7 @@
          They must stay in this order and must not use defer/async, because the
          markup's onclick handlers call these globals. See AGENTS.md §3. -->
     <script src="js/shared.js"></script>
+    <script src="js/store.js"></script>
     <script src="js/dictation.js"></script>
     <script src="js/new-vocab.js"></script>
     <script src="js/grammar-quest.js"></script>

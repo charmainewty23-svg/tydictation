@@ -520,6 +520,7 @@ function profileRenderFriendChrome(friend) {
     const follow = document.getElementById('profile-follow-btn');
     const banner = document.getElementById('profile-friend-banner');
     const cardsLabel = document.getElementById('profile-cards-label');
+    const lookCard = document.getElementById('profile-look-card');
     // The Friends card and the personal action buttons are for your own
     // profile only; the back / follow / friend-streak controls only appear
     // while visiting someone else.
@@ -528,6 +529,7 @@ function profileRenderFriendChrome(friend) {
     if (back) back.classList.toggle('hidden', !friend);
     if (follow) follow.classList.toggle('hidden', !friend);
     if (banner) banner.classList.toggle('hidden', !friend);
+    if (lookCard) lookCard.classList.toggle('hidden', friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
     const backLabel = document.getElementById('profile-back-label');
     if (backLabel) {
@@ -577,6 +579,11 @@ function profileShowOwn() {
     profileSocialListKind = '';
     if (currentView === 'profile-view') loadProfile();
     else changeView('profile-view');
+    if (typeof loadStoreState === 'function') {
+        loadStoreState().then(function () {
+            if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
+        });
+    }
     requestAnimationFrame(profileScrollToTop);
 }
 

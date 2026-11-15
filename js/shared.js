@@ -30,7 +30,7 @@
 
         // --- Bottom tab bar -------------------------------------------------
         // Exactly five tabs. Each tab always returns to its section root.
-        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'profile-view'];
+        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'store-view', 'profile-view'];
         // Views that keep the screen immersive: the bar would cover controls or
         // compete with the game HUD, so it hides and the view keeps its own exit.
         const NAV_HIDDEN_VIEWS = ['quiz-view', 'drive-and-go-view', 'admin-view'];
@@ -40,6 +40,7 @@
             if (viewId === 'home-view' || viewId === 'sub-category-view' || viewId === 'word-list-view' || viewId === 'quiz-view' || viewId === 'error-book-view') return 'home-view';
             if (viewId === 'wordjump-view') return 'wordjump-view';
             if (viewId === 'battle-view') return 'battle-view';
+            if (viewId === 'store-view') return 'store-view';
             if (viewId === 'profile-view') return 'profile-view';
             return 'hub-view'; // hub, grammar tree, records, leaderboard
         }
@@ -1517,6 +1518,8 @@
                 if (typeof refreshFriendSuggestionNotif === 'function') {
                     setTimeout(refreshFriendSuggestionNotif, 1600);
                 }
+                // Load owned skins / Paws for the store and cat customizers.
+                if (typeof loadStoreState === 'function') setTimeout(loadStoreState, 400);
             }
             syncHomeMusic(currentView);
             updateHomeMusicButton();
@@ -2119,7 +2122,25 @@
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
             if (viewId === 'grammar-tense-list-view') { updateMascot("Pick a tense to revise!"); renderTenseGrid(); }
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
-            if (viewId === 'profile-view') { updateMascot("Your LearniTY profile — keep the flame alive!"); loadProfile(); }
+            if (viewId === 'profile-view') {
+                updateMascot("Your LearniTY profile — keep the flame alive!");
+                loadProfile();
+                if (typeof loadStoreState === 'function') {
+                    loadStoreState().then(function () {
+                        if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
+                    });
+                }
+                if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
+            }
+            if (viewId === 'store-view') {
+                updateMascot("Spend your Paws on a new look! 🐾");
+                if (typeof loadStoreState === 'function') {
+                    loadStoreState().then(function () {
+                        if (typeof renderStore === 'function') renderStore();
+                    });
+                }
+                if (typeof renderStore === 'function') renderStore();
+            }
             if (viewId === 'quiz-view') updateMascot(quizMode === 'listening' ? "Listen carefully! Type the word I say." : "Look at the Chinese meaning and recall the word.");
             if (viewId === 'my-records-view') { updateMascot("Here are your records from the cloud."); loadCloudRecords(); }
             if (viewId === 'leaderboard-view') { updateMascot("See who's on top!"); loadLeaderboard(lbModeFilter); }

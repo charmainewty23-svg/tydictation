@@ -1,0 +1,355 @@
+-- ============================================================
+-- LearniTY — Store, Paws and owned skins
+-- Run after: user_streaks.sql, friends.sql, wj_scores.sql,
+--            dictation_accuracy.sql, drive_and_go*.sql and battle*.sql.
+-- Safe to re-run. No existing data is deleted.
+-- ============================================================
+
+-- ---------- catalog ----------
+create table if not exists public.store_items (
+    id       text primary key,
+    slot     text not null check (slot in ('hat', 'face', 'outfit', 'prop', 'background')),
+    name_en  text not null,
+    name_zh  text,
+    price    int not null default 0 check (price >= 0),
+    rarity   text not null default 'Common',
+    emoji    text,
+    active   boolean not null default true,
+    sort     int not null default 0
+);
+
+alter table public.store_items enable row level security;
+drop policy if exists "store items are public" on public.store_items;
+create policy "store items are public" on public.store_items
+    for select using (true);
+grant select on public.store_items to anon, authenticated;
+
+insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji, sort) values
+    ('hat_sprout','hat','Sprout Clip','小草髮夾',80,'Common','🌱',1),
+    ('hat_lofi','hat','Lo-Fi Headphones','復古耳機',140,'Rare','🎧',2),
+    ('hat_straw','hat','Straw Hat','草帽',100,'Common','👒',3),
+    ('hat_frog','hat','Frog Hood','青蛙頭套',160,'Rare','🐸',4),
+    ('hat_chef','hat','Chef Hat','廚師高帽',120,'Rare','👨‍🍳',5),
+    ('hat_sherlock','hat','Sherlock Cap','偵探獵鹿帽',150,'Rare','🕵️',6),
+    ('hat_grad','hat','Graduation Cap','學士四方帽',180,'Rare','🎓',7),
+    ('hat_bearskin','hat','Bearskin Hat','英國衛兵高帽',220,'Epic','🐻',8),
+    ('hat_wizard','hat','Wizard Hat','魔法師尖帽',240,'Epic','🧙',9),
+    ('hat_astro','hat','Astro Helmet','太空人頭罩',280,'Epic','🚀',10),
+    ('hat_gold_crown','hat','Golden Crown','黃金皇冠',450,'Legendary','👑',11),
+    ('face_blush','face','Blush Stickers','害羞紅暈',60,'Common','😊',12),
+    ('face_round','face','Round Glasses','圓框學霸眼鏡',90,'Common','👓',13),
+    ('face_star','face','Star Sunglasses','星星太陽眼鏡',170,'Rare','⭐',14),
+    ('face_pixel','face','Pixel Sunglasses','像素黑超',140,'Rare','😎',15),
+    ('face_patch','face','Pirate Eyepatch','海盜眼罩',100,'Rare','🏴‍☠️',16),
+    ('face_monocle','face','Monocle','紳士單片眼鏡',190,'Epic','🧐',17),
+    ('face_visor','face','Cyber Visor','賽博龐克護目鏡',240,'Epic','🥽',18),
+    ('outfit_scarf','outfit','Red Scarf','紅色小領巾',0,'Starter','🧣',19),
+    ('outfit_bowtie','outfit','Tweed Bow Tie','學院風煲呔',120,'Rare','🎀',20),
+    ('outfit_bread','outfit','Bread Collar','方包頸圈',150,'Rare','🍞',21),
+    ('outfit_boba','outfit','Boba Apron','珍珠奶茶圍裙',140,'Rare','🧋',22),
+    ('outfit_raincoat','outfit','Yellow Raincoat','黃色小雨衣',170,'Rare','🧥',23),
+    ('outfit_guard','outfit','Royal Guard Tunic','英國衛兵紅制服',220,'Epic','🛡️',24),
+    ('outfit_ruff','outfit','Shakespeare Ruff','莎士比亞蕾絲領',200,'Epic','🎭',25),
+    ('outfit_shark','outfit','Shark Onesie','鯊魚連身衣',260,'Epic','🦈',26),
+    ('outfit_dragon','outfit','Dragon Suit','恐龍連身衣',300,'Epic','🐉',27),
+    ('prop_pencil','prop','Pencil','巨大鉛筆',60,'Common','✏️',28),
+    ('prop_boba','prop','Boba Tea','珍珠奶茶',90,'Common','🧋',29),
+    ('prop_magnifier','prop','Magnifying Glass','放大鏡',110,'Rare','🔍',30),
+    ('prop_quill','prop','Quill & Scroll','羽毛筆與羊皮紙',160,'Rare','🪶',31),
+    ('prop_box','prop','Cardboard Box','紙皮箱',120,'Rare','📦',32),
+    ('prop_dictionary','prop','Floating Dictionary','懸浮魔法字典',220,'Epic','📖',33),
+    ('prop_parrot','prop','Mini Parrot','肩膀小鸚鵡',240,'Epic','🦜',34),
+    ('bg_desk','background','Cozy Desk','溫書書桌',120,'Rare','🛋️',35),
+    ('bg_library','background','Oxford Library','牛津古書庫',200,'Epic','📚',36),
+    ('bg_bigben','background','Big Ben Rain','倫敦雨夜',220,'Epic','🕰️',37),
+    ('bg_galaxy','background','Starry Galaxy','星空宇宙',240,'Epic','🌌',38),
+    ('bg_aplus','background','Floating A+','滿分飄浮特效',300,'Legendary','💯',39),
+    ('bg_sakura','background','Cherry Blossoms','櫻花飄落',180,'Rare','🌸',40),
+    ('bg_cyber','background','Cyber Grid','霓虹網格',260,'Epic','🌐',41)
+on conflict (id) do update set
+    slot = excluded.slot,
+    name_en = excluded.name_en,
+    name_zh = excluded.name_zh,
+    price = excluded.price,
+    rarity = excluded.rarity,
+    emoji = excluded.emoji,
+    sort = excluded.sort,
+    active = true;
+
+-- ---------- Paws ledger ----------
+create table if not exists public.paw_ledger (
+    id         bigserial primary key,
+    user_id    uuid not null references auth.users(id) on delete cascade,
+    amount     int not null,
+    reason     text not null,
+    ref_key    text not null,
+    created_at timestamptz not null default now(),
+    unique (user_id, ref_key)
+);
+create index if not exists paw_ledger_user_idx on public.paw_ledger(user_id, created_at desc);
+alter table public.paw_ledger enable row level security;
+-- No client policies: balance and awards go through security-definer RPCs.
+
+create or replace function public.my_paw_balance()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_balance int := 0;
+begin
+    if v_me is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+    insert into public.paw_ledger (user_id, amount, reason, ref_key)
+    values (v_me, 80, 'welcome', 'welcome')
+    on conflict (user_id, ref_key) do nothing;
+    select coalesce(sum(amount), 0)::int into v_balance
+      from public.paw_ledger where user_id = v_me;
+    return v_balance;
+end;
+$fn$;
+
+-- Shared by the score-table triggers. p_base is capped by the caller.
+create or replace function public.paw_practice_award(
+    p_user uuid,
+    p_kind text,
+    p_ref text,
+    p_base int
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_day_start timestamptz :=
+        ((now() at time zone 'Asia/Hong_Kong')::date::timestamp at time zone 'Asia/Hong_Kong');
+    v_prior int := 0;
+    v_bonus int := 0;
+    v_streak int := 0;
+    v_total int := 0;
+    v_earned int := 0;
+    v_remaining int := 0;
+    v_award int := 0;
+begin
+    if p_user is null or p_ref is null then return; end if;
+    perform pg_advisory_xact_lock(hashtext(p_user::text));
+    if exists (select 1 from public.paw_ledger where user_id = p_user and ref_key = p_ref) then
+        return;
+    end if;
+
+    select count(*)::int into v_prior
+      from public.paw_ledger
+     where user_id = p_user
+       and ref_key like 'practice:%'
+       and created_at >= v_day_start;
+
+    v_bonus := case when v_prior = 0 then 10 when v_prior < 4 then 5 else 0 end;
+    if v_prior = 0 then
+        select coalesce(least(streak_count, 10), 0) into v_streak
+          from public.user_streaks where user_id = p_user;
+        v_streak := coalesce(v_streak, 0);
+    end if;
+
+    v_total := greatest(0, coalesce(p_base, 0)) + v_bonus + v_streak;
+
+    select coalesce(sum(amount), 0)::int into v_earned
+      from public.paw_ledger
+     where user_id = p_user
+       and amount > 0
+       and ref_key like 'practice:%'
+       and created_at >= v_day_start;
+
+    v_remaining := greatest(0, 150 - v_earned);
+    v_award := least(v_total, v_remaining);
+
+    if v_award > 0 then
+        insert into public.paw_ledger (user_id, amount, reason, ref_key)
+        values (p_user, v_award, 'practice:' || p_kind, p_ref)
+        on conflict (user_id, ref_key) do nothing;
+    end if;
+end;
+$fn$;
+
+-- ---------- triggers ----------
+create or replace function public.paw_trg_dictation()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+begin
+    perform public.paw_practice_award(new.user_id, 'dictation',
+        'practice:dictation:' || md5(row_to_json(new)::text),
+        coalesce((to_jsonb(new) ->> 'correct')::int, 0));
+    return new;
+end;
+$fn$;
+
+create or replace function public.paw_trg_wj()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+begin
+    perform public.paw_practice_award(new.user_id, 'wordjump',
+        'practice:wordjump:' || new.id,
+        least(coalesce(new.words, 0), 40));
+    return new;
+end;
+$fn$;
+
+create or replace function public.paw_trg_dg_solo()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+begin
+    perform public.paw_practice_award(new.user_id, 'drive_solo',
+        'practice:drive_solo:' || new.id,
+        coalesce(new.correct, 0));
+    return new;
+end;
+$fn$;
+
+create or replace function public.paw_trg_dg_multi()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+begin
+    perform public.paw_practice_award(new.user_id, 'drive_multi',
+        'practice:drive_multi:' || new.id,
+        coalesce(new.correct, 0));
+    return new;
+end;
+$fn$;
+
+create or replace function public.paw_trg_battle()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+declare
+    v_mode text;
+begin
+    if not (new.done and (old.done is distinct from true)) then return new; end if;
+    select coalesce(to_jsonb(r) ->> 'mode', 'duel') into v_mode
+      from public.battle_rooms r where r.id = new.room_id;
+    if coalesce(v_mode, 'duel') = 'class' then return new; end if;
+    perform public.paw_practice_award(new.user_id, 'battle',
+        'practice:battle:' || new.room_id::text || ':' || new.user_id::text,
+        least(coalesce(new.correct, 0), 20));
+    return new;
+end;
+$fn$;
+
+drop trigger if exists paw_dictation_after_insert on public.dictation_results;
+create trigger paw_dictation_after_insert
+after insert on public.dictation_results
+for each row execute function public.paw_trg_dictation();
+
+drop trigger if exists paw_wj_after_insert on public.wj_scores;
+create trigger paw_wj_after_insert
+after insert on public.wj_scores
+for each row execute function public.paw_trg_wj();
+
+drop trigger if exists paw_dg_solo_after_insert on public.drive_and_go_solo_scores;
+create trigger paw_dg_solo_after_insert
+after insert on public.drive_and_go_solo_scores
+for each row execute function public.paw_trg_dg_solo();
+
+drop trigger if exists paw_dg_multi_after_insert on public.drive_and_go_multi_scores;
+create trigger paw_dg_multi_after_insert
+after insert on public.drive_and_go_multi_scores
+for each row execute function public.paw_trg_dg_multi();
+
+drop trigger if exists paw_battle_after_update on public.battle_players;
+create trigger paw_battle_after_update
+after update on public.battle_players
+for each row execute function public.paw_trg_battle();
+
+-- ---------- purchases / equipped ----------
+create table if not exists public.store_purchases (
+    user_id    uuid not null references auth.users(id) on delete cascade,
+    item_id    text not null references public.store_items(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    primary key (user_id, item_id)
+);
+alter table public.store_purchases enable row level security;
+drop policy if exists "store purchases read own" on public.store_purchases;
+create policy "store purchases read own" on public.store_purchases
+    for select using (auth.uid() = user_id);
+grant select on public.store_purchases to authenticated;
+
+create table if not exists public.store_equipped (
+    user_id    uuid not null references auth.users(id) on delete cascade,
+    slot       text not null check (slot in ('hat', 'face', 'outfit', 'prop', 'background')),
+    item_id    text not null references public.store_items(id) on delete cascade,
+    updated_at timestamptz not null default now(),
+    primary key (user_id, slot)
+);
+alter table public.store_equipped enable row level security;
+drop policy if exists "store equipped read own" on public.store_equipped;
+create policy "store equipped read own" on public.store_equipped
+    for select using (auth.uid() = user_id);
+grant select on public.store_equipped to authenticated;
+
+create or replace function public.buy_store_item(p_item text)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_price int;
+    v_balance int;
+begin
+    if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    perform pg_advisory_xact_lock(hashtext(v_me::text));
+    select price into v_price from public.store_items where id = p_item and active;
+    if v_price is null then raise exception 'ITEM_NOT_FOUND'; end if;
+    if exists (select 1 from public.store_purchases where user_id = v_me and item_id = p_item) then
+        raise exception 'ALREADY_OWNED';
+    end if;
+    v_balance := public.my_paw_balance();
+    if v_balance < v_price then raise exception 'NOT_ENOUGH_PAWS'; end if;
+    insert into public.store_purchases (user_id, item_id) values (v_me, p_item);
+    insert into public.paw_ledger (user_id, amount, reason, ref_key)
+    values (v_me, -v_price, 'purchase', 'purchase:' || p_item);
+    return v_balance - v_price;
+end;
+$fn$;
+
+create or replace function public.equip_store_item(p_slot text, p_item text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_item public.store_items;
+begin
+    if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    if p_slot not in ('hat', 'face', 'outfit', 'prop', 'background') then
+        raise exception 'INVALID_SLOT';
+    end if;
+    if p_item is null or trim(p_item) = '' then
+        delete from public.store_equipped where user_id = v_me and slot = p_slot;
+        return;
+    end if;
+    select * into v_item from public.store_items where id = p_item and active;
+    if v_item.id is null then raise exception 'ITEM_NOT_FOUND'; end if;
+    if v_item.slot <> p_slot then raise exception 'WRONG_SLOT'; end if;
+    if v_item.price > 0 and not exists (
+        select 1 from public.store_purchases where user_id = v_me and item_id = p_item
+    ) then
+        raise exception 'NOT_OWNED';
+    end if;
+    insert into public.store_equipped (user_id, slot, item_id)
+    values (v_me, p_slot, p_item)
+    on conflict (user_id, slot) do update set item_id = excluded.item_id, updated_at = now();
+end;
+$fn$;
+
+revoke all on function public.my_paw_balance() from public;
+revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
+revoke all on function public.buy_store_item(text) from public;
+revoke all on function public.equip_store_item(text, text) from public;
+revoke all on function public.paw_trg_dictation() from public;
+revoke all on function public.paw_trg_wj() from public;
+revoke all on function public.paw_trg_dg_solo() from public;
+revoke all on function public.paw_trg_dg_multi() from public;
+revoke all on function public.paw_trg_battle() from public;
+
+grant execute on function public.my_paw_balance() to authenticated;
+grant execute on function public.buy_store_item(text) to authenticated;
+grant execute on function public.equip_store_item(text, text) to authenticated;

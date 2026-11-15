@@ -41,12 +41,13 @@
 ### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
 
 原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
-markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 13 個
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 14 個
 **classic** `<script src>` **同步**載入，次序唔可以改：
 
 | # | 檔案 | 內容 |
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
+| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（41 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
@@ -91,6 +92,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
+| `store-view` | 🛍️ Store：41 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
 | `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均正確率、Word Jump 最佳、首次練習日期（見 §12.6） |
 
 ### Grammar Quest tenses
@@ -1282,7 +1284,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v27）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v28）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1342,7 +1344,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1372,10 +1374,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v27`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v28`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
-- `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
-  12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
+- `CACHE_NAME` 而家係 `learnity-pwa-v28`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v29`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
+  14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
 - 只快取同源靜態檔，以及 allowlist 的 CDN：`cdn.tailwindcss.com`、`fonts.googleapis.com`、
   `fonts.gstatic.com`、`cdn.jsdelivr.net`（Supabase JS）。
@@ -1414,7 +1416,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 12.4 底部 tab bar（2026-11 加）
 
-手機同 iPad 用 Instagram 式固定底欄，**五個 tab，次序固定**：
+手機同 iPad 用 Instagram 式固定底欄，**六個 tab，次序固定**：
 
 | Tab | Icon | 開啟 view | Active 範圍 |
 |---|---|---|---|
@@ -1422,9 +1424,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 | Dictation | ✍️ | `home-view` | home、sub-category、word-list、quiz、error-book |
 | Jump | 🦘 | `wordjump-view` | wordjump |
 | Battle | ⚔️ | `battle-view` | battle |
+| Store | 🛍️ | `store-view` | store |
 | Me | 🐱 | `profile-view` | profile（個人頁，見 §12.6） |
 
-- Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；五個
+- Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；六個
   `[data-nav-view]` button 直接 call `changeView(...)`，所以每個 tab 永遠返到該區根頁。
   冇 Admin shortcut。Active tab 用深橙（`#c2410c`，11px 字過 4.5:1）＋底線；`updateBottomNav()`
   會設 `aria-current="page"`。
@@ -1440,7 +1443,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `padding-bottom: calc(4.5rem + env(safe-area-inset-bottom))`，實測最後一張卡
   底部距離 nav 頂約 **14px**（390×844、768×1024、844×390、320×568）。
 - 顯示規則（`js/shared.js`）：
-  - `NAV_TABS`（5 個 root view）、`NAV_HIDDEN_VIEWS = ['quiz-view',
+  - `NAV_TABS`（6 個 root view）、`NAV_HIDDEN_VIEWS = ['quiz-view',
     'drive-and-go-view', 'admin-view']`。
   - `navTabForView(viewId)` 決定 active tab；grammar 樹／records／leaderboard
     都 highlight Home；`error-book-view` highlight Dictation；`profile-view`
@@ -2008,4 +2011,59 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v14。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v28。
+
+### 12.9 Store、Paws 同 purchased skins（2026-11 加）
+
+- **Bottom tab**：`🛍️ Store` 放喺 Battle 同 Me 之間，共 **6 個 tab**。
+  `NAV_TABS` 加 `store-view`，`navTabForView('store-view')` 回 `store-view`；
+  HTML button `data-nav-view="store-view"`。320px 時 6 格、label 9px
+  （`@media (max-width:360px)`），實測 `overflowX = 0`。
+- **`js/store.js`**：喺 `js/shared.js` 之後、`js/dictation.js` 之前載入。
+  有 `STORE_ITEMS`（41 件，id／slot／name／zh／price／rarity／emoji／color）、
+  `storeItemByName`、`STORE_OWNED`／`STORE_EQUIPPED`／`STORE_BALANCE`、
+  `loadStoreState()`、`renderStore()`、`storeBuyItem()`／`storeEquipItem()`、
+  `storeLookOptions()`、`storeRenderProfileLook()`。
+- **商品**：Hats 11、Face 7、Outfits 9、Props 7、Backgrounds 7 = **41**。
+  價錢 60–450 Paws；`outfit_scarf` Red Scarf 係 **Starter price 0**（免費）。
+  全部一次過上。Props／Backgrounds **只喺 Me profile 同 Drive & Go／Word
+  Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
+- **Paws 計算**（`supabase/store.sql` 嘅 trigger，唔靠 client）：
+  - +1 per correct answer（Dictation／Drive & Go／Word Battle，Battle 只計
+    1v1、class room 唔計）；Word Jump +1 per word（每局 cap 40）。
+  - 每日第一次完成 +10；第 2–4 次各 +5（completion cap +25/day）。
+  - 當日第一次再加 `min(streak_count, 10)`（讀 `user_streaks`，未計今日）。
+  - **每日 cap 150 Paws**；`paw_ledger` 用 `(user_id, ref_key)` unique 防重複。
+  - **Welcome 80 Paws**（`my_paw_balance()` 第一次 call 時 insert；
+    唔計入每日 cap）。
+  - Trigger：`dictation_results`、`wj_scores`、`drive_and_go_solo_scores`、
+    `drive_and_go_multi_scores`、`battle_players`（`done` false→true）。
+    全部經 `paw_practice_award()`；有 `pg_advisory_xact_lock` 防同時寫爆 cap。
+- **SQL tables／RPC**：
+  - `store_items`（public select）、`store_purchases`（own select）、
+    `store_equipped`（own select）、`paw_ledger`（冇 client policy）。
+  - `my_paw_balance()`、`buy_store_item(item)`（原子扣分／`ALREADY_OWNED`／
+    `NOT_ENOUGH_PAWS`）、`equip_store_item(slot,item)`（驗證 slot／擁有；
+    `p_item=''` = unequip）。`store_items` 價錢由 server 再驗一次。
+- **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
+  Equip hat／face／outfit 會寫入 `DG.readSettings()`，所以 Drive & Go
+  customizer 同 Word Battle 班際貓 customizer 下次預設用該 item。
+  `DG.lookOptions(slot,current)` = 免費基本 items ＋已買 store items；
+  `DG.HATS`／`GLASSES`／`OUTFITS` 喺 `window.load` 由 `storeExtendDG()`
+  extend 齊所有 store 名，`DG.normalizeLook()` 才接受。
+- **Me profile**：`#profile-look-card` 有 `#profile-look-canvas`（背景色＋
+  貓 kart＋prop emoji）、`#profile-look-items`、`#profile-look-balance`。
+  `profileRenderFriendChrome()` 會喺朋友 profile 隱藏呢張卡；Guest 都見到
+  free look 但顯示「Sign in to earn Paws」。
+- **視覺**：Drive & Go 2D `DG.drawKart()` 用 store item 嘅 emoji 做
+  hat／face／outfit fallback；3D `DG.makeThreeKart()` 用
+  `DG.makeEmojiSprite()` 加 sprite（hat y≈5.35、face y≈3.15、outfit band）。
+  呢個係通用做法，唔使為 41 件逐件砌 3D model；想升級做 bespoke model
+  再喺 `makeThreeKart()` 加 branch。
+- **未跑 SQL**：`loadStoreState()` catch 後顯示
+  `Store needs supabase/store.sql…`；Store 仍可瀏覽但買／equip 會提示；
+  guest／preview 唔會 call RPC。
+- **測試**：41 cards、Paws 200→120（買 hat_sprout）、自動 equip、
+  `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
+  profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D
+  store item 冇 throw。SQL 未喺本機實際執行（只做 code review）。

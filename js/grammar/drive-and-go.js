@@ -1527,15 +1527,21 @@ const DG = {
             DG.stepHeading('cat', 'Customize your cat driver') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
             row('Cat', 'cat', DG.CATS, s.cat) +
-            row('Glasses', 'glasses', DG.GLASSES, s.glasses) +
-            row('Hat', 'hat', DG.HATS, s.hat) +
-            row('Outfit', 'outfit', DG.OUTFITS, s.outfit) +
+            row('Glasses', 'glasses', DG.lookOptions('face', s.glasses), s.glasses) +
+            row('Hat', 'hat', DG.lookOptions('hat', s.hat), s.hat) +
+            row('Outfit', 'outfit', DG.lookOptions('outfit', s.outfit), s.outfit) +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' +
             ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showMultiplayerEntryStep()' : 'DG.showChallengeStep()') +
             '">← Back</button>' +
             '<button type="button" class="btn-paw" onclick="DG.showControlsStep()">Next: Controls →</button></div>';
         requestAnimationFrame(() => DG.renderCatPreview());
+    },
+
+    lookOptions(slot, current) {
+        if (typeof storeLookOptions === 'function') return storeLookOptions(slot, current);
+        const fallback = slot === 'hat' ? DG.HATS : (slot === 'face' ? DG.GLASSES : DG.OUTFITS);
+        return fallback.slice();
     },
 
     setLook(key, value) {
@@ -1557,8 +1563,14 @@ const DG = {
         canvas.height = Math.round(cssH * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         const grd = ctx.createLinearGradient(0, 0, 0, cssH);
-        grd.addColorStop(0, '#dbeafe');
-        grd.addColorStop(1, '#fef3c7');
+        const bgItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('background') : null;
+        if (bgItem) {
+            grd.addColorStop(0, bgItem.color);
+            grd.addColorStop(1, '#fff7ed');
+        } else {
+            grd.addColorStop(0, '#dbeafe');
+            grd.addColorStop(1, '#fef3c7');
+        }
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, cssW, cssH);
         ctx.fillStyle = 'rgba(120,113,108,.22)';
@@ -1566,6 +1578,13 @@ const DG = {
         ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.28, cssH * 0.08, 0, 0, Math.PI * 2);
         ctx.fill();
         DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.currentLook(), { preview: true });
+        const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
+        if (propItem) {
+            ctx.font = '30px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(propItem.emoji, cssW * 0.7, cssH * 0.55);
+        }
     },
 
     showControlsStep() {

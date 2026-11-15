@@ -482,6 +482,19 @@ function storeRenderProfileLook() {
     if (balance) balance.innerText = storeBalanceLabel();
     const look = (typeof DG !== 'undefined' && DG.currentLook) ? DG.currentLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
     storePaintLook(canvas, label, look, storeEquippedItem('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
+    document.querySelectorAll('#profile-cat-picker [data-profile-cat]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-profile-cat') === look.cat);
+    });
+}
+
+function storeSetProfileCat(cat) {
+    if (['Ginger', 'Ragdoll'].indexOf(cat) === -1 || typeof DG === 'undefined') return;
+    const s = DG.readSettings();
+    s.cat = cat;
+    DG.saveSettings();
+    if (typeof saveProfileLook === 'function') saveProfileLook();
+    storeRenderProfileLook();
+    updateMascot(cat + ' is now your profile cat! 🐱');
 }
 
 async function storeRenderFriendLook(userId) {

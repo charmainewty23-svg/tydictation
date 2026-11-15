@@ -536,6 +536,8 @@ function profileRenderFriendChrome(friend) {
     if (lookBalance) lookBalance.classList.toggle('hidden', friend);
     const lookStore = document.getElementById('profile-look-store-btn');
     if (lookStore) lookStore.classList.toggle('hidden', friend);
+    const catPicker = document.getElementById('profile-cat-picker');
+    if (catPicker) catPicker.classList.toggle('hidden', friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
     const backLabel = document.getElementById('profile-back-label');
     if (backLabel) {

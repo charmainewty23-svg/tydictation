@@ -1527,6 +1527,7 @@ const DG = {
             DG.stepDots('cat') +
             DG.stepHeading('cat', 'Customize your cat driver') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
+            '<div class="text-center mb-4"><button type="button" class="dg-menu-button" onclick="storeUseMyLook()">✨ Use my look</button></div>' +
             row('Cat', 'cat', DG.catOptions(s.cat), s.cat) +
             row('Glasses', 'glasses', DG.lookOptions('face', s.glasses), s.glasses) +
             row('Hat', 'hat', DG.lookOptions('hat', s.hat), s.hat) +

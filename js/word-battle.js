@@ -389,6 +389,7 @@
                 options.map(opt => `<button type="button" class="battle-cat-chip${opt === current ? ' active' : ''}" onclick="battleSetLook('${key}','${escapeHtml(opt)}')">${escapeHtml(opt)}</button>`).join('') +
                 '</div></div>';
             box.innerHTML =
+                '<button type="button" onclick="storeUseMyLook()" class="w-full mb-3 py-2.5 bg-emerald-50 text-emerald-700 border-2 border-emerald-100 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">✨ Use my look</button>' +
                 row('Cat', 'cat', DG.catOptions ? DG.catOptions(look.cat) : DG.CATS, look.cat) +
                 row('Glasses', 'glasses', DG.lookOptions ? DG.lookOptions('face', look.glasses) : DG.GLASSES, look.glasses) +
                 row('Hat', 'hat', DG.lookOptions ? DG.lookOptions('hat', look.hat) : DG.HATS, look.hat) +

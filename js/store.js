@@ -75,6 +75,7 @@ const STORE_FREE = {
 let STORE_OWNED = {};
 let STORE_EQUIPPED = {};
 let STORE_BALANCE = 0;
+let STORE_MY_LOOK = null;
 let STORE_LOADED = false;
 let STORE_LOAD_ERROR = '';
 let STORE_LOAD_PROMISE = null;
@@ -162,6 +163,7 @@ async function loadStoreState(force) {
                     .eq('user_id', currentUser.id)
                     .maybeSingle();
                 if (!lookRes.error && lookRes.data) storeApplyProfileLookToDG(lookRes.data);
+                STORE_MY_LOOK = (!lookRes.error && lookRes.data) ? lookRes.data : null;
             } catch (e) {}
             storeApplyEquippedToDG();
         } catch (e) {
@@ -219,6 +221,7 @@ function storeApplyProfileLookToDG(look) {
 function saveProfileLook() {
     if (!storeAvailable() || typeof DG === 'undefined' || !DG.readSettings) return;
     const s = DG.readSettings();
+    STORE_MY_LOOK = { cat: s.cat, hat: s.hat, face: s.glasses, outfit: s.outfit };
     try {
         sb.rpc('save_profile_look', {
             p_cat: s.cat,
@@ -227,6 +230,41 @@ function saveProfileLook() {
             p_outfit: s.outfit
         }).then(() => {}, () => {});
     } catch (e) {}
+}
+
+function storeMyLook() {
+    const s = (typeof DG !== 'undefined' && DG.readSettings) ? DG.readSettings() : {};
+    const own = STORE_MY_LOOK || {};
+    const equippedName = slot => {
+        const id = STORE_EQUIPPED[slot];
+        const item = id ? STORE_BY_ID[id] : null;
+        return item ? item.name : '';
+    };
+    return {
+        cat: own.cat || s.cat || 'Ginger',
+        hat: equippedName('hat') || own.hat || s.hat || 'None',
+        glasses: equippedName('face') || own.face || s.glasses || 'None',
+        outfit: equippedName('outfit') || own.outfit || s.outfit || 'None'
+    };
+}
+
+function storeUseMyLook() {
+    if (typeof DG === 'undefined' || !DG.readSettings) return;
+    const look = storeMyLook();
+    const s = DG.readSettings();
+    s.cat = look.cat;
+    s.hat = look.hat;
+    s.glasses = look.glasses;
+    s.outfit = look.outfit;
+    DG.saveSettings();
+    if (typeof saveProfileLook === 'function') saveProfileLook();
+    if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
+        DG.showCatStep();
+    }
+    if (typeof battleRenderCatCustomizer === 'function' && document.getElementById('battle-cat-options')) {
+        battleRenderCatCustomizer();
+    }
+    updateMascot('Your own look is on! ✨');
 }
 
 function storeEquippedItem(slot) {

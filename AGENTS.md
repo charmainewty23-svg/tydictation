@@ -678,6 +678,39 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 
 ---
 
+### 9.9c Drive & Go! 完賽排行榜（2026-11 加）
+
+- 玩完 Drive & Go! 嘅結果畫面（Solo、Multi 早完賽、Multi 最終排名）而家
+  同 Word Jump 一樣有 **🏆 Top 7**，唔使返 Hub 才睇到。
+- **公平性**：只比較**完全相同 setup** 嘅 run：
+  `topic`（tenses／agreement）＋ `bank_mode`（AV／PV／Mixed／Gap-fill／
+  Choose）＋ `question_count`（20／25／30／35／40／50）。因為 50 題嘅
+  time bonus 天生大過 20 題，所以**唔會**攞 20 題同 50 題一齊排。
+  Solo 同 Multi 亦分開（各自讀 `drive_and_go_solo_scores`／
+  `drive_and_go_multi_scores`）。
+- 每位學生只計**該 setup 嘅個人最佳**：client 拉 filtered rows（composite
+  desc → elapsed asc → accuracy desc → created asc），再按 `user_id` 去重。
+  標題會寫例如 `🏆 Top 7 · Tenses · AV · 25 questions`，下面細字
+  「Personal best per student for this exact setup.」
+- 自己喺 top 7 會 highlight `(you)`；排 8 名以外會多一行
+  `Your best for this setup: #N · XXXX pts`。
+- Helper（`js/grammar/drive-and-go-race.js`）：
+  - `DG.resultsBoardHTML(kind, topic, bankMode, count)` 出 placeholder
+  - `DG.scheduleResultsBoard(...)` 延遲 500ms（等 fire-and-forget insert）
+  - `DG.loadResultsBoard(...)` 查表、去重、畫 rows
+  - `kind` 係 `'single'`／`'multi'`；`questionCount` 一律經
+    `DG.normalizeQuestionCount()`，唔可以寫死 20。
+- **冇新 SQL／新 view**：直接用現有 public-select score tables；如果 old
+  row 未有 topic／bank_mode 會被 filter 排除（正常，因為 setup 唔同）。
+- Guest 顯示「Leaderboards are hidden in guest mode」；查詢失敗顯示
+  「Leaderboard unavailable right now.」；未有紀錄顯示「be the first」。
+- CSS：`.dg-results-board`／`.dg-board-*`；landscape 短螢幕 board
+  `max-height:82px`、隱藏 meta，panel 本身可以 scroll。
+- 改動提示：想改名額改 `rows.slice(0,7)` 同 title；想加「同 player_count」
+  公平條件就喺 query 加 `.eq('player_count', ...)`（class房同普通房分開）。
+
+---
+
 ### 9.10 Word Battle 班際：自訂貓＋頒獎台（2026-11 加）
 
 - **SQL**：`supabase/battle_cat.sql`（可重跑）為 `battle_players` 加
@@ -1248,7 +1281,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v24）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v25）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1338,8 +1371,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v24`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v25`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v25`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v26`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

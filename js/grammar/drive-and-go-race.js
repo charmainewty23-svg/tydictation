@@ -1163,6 +1163,104 @@
         return 'Personal best for ' + n + ' questions: ' + best.composite + ' pts · ' + DG.formatRaceTime(best.time);
     };
 
+    /* A Word-Jump-style board on the results screen. Only runs with the SAME
+       topic, challenge (AV / PV / Mixed / Gap-fill / Choose) and question
+       count are compared, because a 50-question run earns a much bigger time
+       bonus than a 20-question run. Each student appears once with their best
+       run for that exact setup. */
+    DG.resultsBoardHTML = function (kind, topic, bankMode, count) {
+        const n = DG.normalizeQuestionCount(count);
+        const t = DG.normalizeTopic(topic);
+        const m = DG.normalizeBankMode(t, bankMode);
+        const label = DG.challengeShort(t, m) + ' · ' + n + ' questions';
+        return '<div id="dg-results-board" class="dg-results-board" data-kind="' + DG.esc(kind) +
+            '" data-topic="' + DG.esc(t) + '" data-mode="' + DG.esc(m) + '" data-count="' + n + '">' +
+            '<p class="dg-board-title">🏆 Top 7 · ' + DG.esc(label) + '</p>' +
+            '<p class="dg-board-note">Personal best per student for this exact setup.</p>' +
+            '<p class="dg-board-empty">Loading…</p></div>';
+    };
+
+    DG.scheduleResultsBoard = function (kind, topic, bankMode, count) {
+        setTimeout(function () {
+            DG.loadResultsBoard(kind, topic, bankMode, count);
+        }, 500);
+    };
+
+    DG.loadResultsBoard = async function (kind, topic, bankMode, count) {
+        const board = document.getElementById('dg-results-board');
+        if (!board) return;
+        const n = DG.normalizeQuestionCount(count);
+        const t = DG.normalizeTopic(topic);
+        const m = DG.normalizeBankMode(t, bankMode);
+        const label = DG.challengeShort(t, m) + ' · ' + n + ' questions';
+        const fail = function (message) {
+            if (!board.isConnected) return;
+            board.innerHTML = '<p class="dg-board-title">🏆 Top 7 · ' + DG.esc(label) + '</p>' +
+                '<p class="dg-board-empty">' + DG.esc(message) + '</p>';
+        };
+        if (isGuestUser()) {
+            fail('Leaderboards are hidden in guest mode. Sign in with your school account to compare.');
+            return;
+        }
+        if (typeof sb === 'undefined' || !sb) {
+            fail('The leaderboard needs a connection.');
+            return;
+        }
+        const table = kind === 'multi' ? 'drive_and_go_multi_scores' : 'drive_and_go_solo_scores';
+        try {
+            const { data, error } = await sb.from(table)
+                .select('user_id,nickname,email,composite,elapsed_ms,accuracy,created_at')
+                .eq('topic', t)
+                .eq('bank_mode', m)
+                .eq('question_count', n)
+                .order('composite', { ascending: false })
+                .order('elapsed_ms', { ascending: true })
+                .order('accuracy', { ascending: false })
+                .order('created_at', { ascending: true })
+                .limit(500);
+            if (!board.isConnected || document.getElementById('dg-results-board') !== board) return;
+            if (error) throw error;
+            const seen = {};
+            const rows = (data || []).filter(row => {
+                if (!row || !row.user_id) return false;
+                const key = String(row.user_id);
+                if (seen[key]) return false;
+                seen[key] = 1;
+                return true;
+            });
+            if (!rows.length) {
+                fail('No runs for this setup yet — be the first!');
+                return;
+            }
+            const me = currentUser ? currentUser.id : null;
+            const myIndex = rows.findIndex(row => me && row.user_id === me);
+            const top = rows.slice(0, 7);
+            const medal = i => i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+            const nameOf = row => (typeof DG.mpPlayerName === 'function')
+                ? DG.mpPlayerName(row)
+                : (row.nickname || String(row.email || '').split('@')[0] || 'Player');
+            const time = row => DG.formatRaceTime((Number(row.elapsed_ms) || 0) / 1000);
+            const acc = row => DG.formatAccuracy(Number(row.accuracy) || 0);
+            board.innerHTML = '<p class="dg-board-title">🏆 Top 7 · ' + DG.esc(label) + '</p>' +
+                '<p class="dg-board-note">Personal best per student for this exact setup.</p>' +
+                '<div class="dg-board">' + top.map((row, i) => {
+                    const mine = me && row.user_id === me;
+                    return '<div class="dg-board-row' + (mine ? ' me' : '') + '">' +
+                        '<span class="dg-board-medal">' + medal(i) + '</span>' +
+                        '<span class="dg-board-name">' + DG.esc(DG.mpPlayerName(row)) + (mine ? ' (you)' : '') + '</span>' +
+                        '<span class="dg-board-score">' + (Number(row.composite) || 0) + '<small> pts</small></span>' +
+                        '<span class="dg-board-meta">' + time(row) + ' · ' + acc(row) + '</span>' +
+                        '</div>';
+                }).join('') + '</div>' +
+                (myIndex > 6
+                    ? '<p class="dg-board-you">Your best for this setup: #' + (myIndex + 1) + ' · ' +
+                        (Number(rows[myIndex].composite) || 0) + ' pts</p>'
+                    : '');
+        } catch (e) {
+            if (board.isConnected) fail('Leaderboard unavailable right now.');
+        }
+    };
+
     DG.soloResultsHTML = function (result, opts) {
         const r = result || {};
         const o = opts || {};
@@ -1175,6 +1273,7 @@
             '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
             '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(DG.bestRunLine(r)) + '</p>' +
+            DG.resultsBoardHTML('single', S.topic, S.bankMode, n) +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Tenses</button>' +
@@ -1195,6 +1294,7 @@
         DG.showOverlay(DG.soloResultsHTML(r, Object.assign({
             maxCombo: p ? p.maxCombo : undefined
         }, opts)));
+        DG.scheduleResultsBoard('single', S.topic, S.bankMode, DG.normalizeQuestionCount(r.questionCount));
         return r;
     };
 
@@ -1207,6 +1307,7 @@
             '<h3 class="text-3xl font-bold text-orange-600 mb-1">You finished!</h3>' +
             '<p class="text-gray-500 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
+            DG.resultsBoardHTML('multi', S.topic, S.bankMode, n) +
             '<p class="text-sm font-bold text-gray-500 mb-3">' +
             (o.closed
                 ? 'The room is no longer available. Your run still counts.'
@@ -1241,6 +1342,7 @@
         DG.showOverlay(DG.mpOwnResultsHTML(r, board, Object.assign({
             maxCombo: p.maxCombo
         }, opts)));
+        DG.scheduleResultsBoard('multi', S.topic, S.bankMode, DG.normalizeQuestionCount(r.questionCount));
         return r;
     };
 
@@ -1330,8 +1432,10 @@
                 '<span class="dg-points">' + points(r) + ' pts</span>' +
                 '<span class="dg-dist">' + acc(r) + ' · ' + time(r) + '</span>' +
                 '</div>').join('') + '</div>' +
+            DG.resultsBoardHTML('multi', roomTopic, roomMode, n) +
             '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div>'
         );
+        DG.scheduleResultsBoard('multi', roomTopic, roomMode, n);
     };
 
     /* ---------------- drawing ---------------- */

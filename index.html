@@ -471,6 +471,66 @@
             cursor: pointer;
         }
         .store-howto-btn:active { background: #ffedd5; }
+        /* Mystery Gacha */
+        .store-gacha-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 20px;
+            border: 3px solid #e9d5ff;
+            background: linear-gradient(135deg, #faf5ff 0%, #fff7ed 100%);
+        }
+        .store-gacha-card.opening { animation: storeGachaShake .45s ease-in-out 2; }
+        @keyframes storeGachaShake {
+            0%, 100% { transform: rotate(0); }
+            25% { transform: rotate(-1.2deg) scale(1.01); }
+            75% { transform: rotate(1.2deg) scale(1.01); }
+        }
+        .store-gacha-title {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #6b21a8;
+        }
+        .store-gacha-sub {
+            margin: 2px 0 0;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #7e22ce;
+        }
+        .store-gacha-btn {
+            min-height: 48px;
+            padding: 0 20px;
+            border: 0;
+            border-radius: 999px;
+            background: #7c3aed;
+            color: #fff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #4c1d95;
+        }
+        .store-gacha-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #4c1d95; }
+        .store-gacha-btn:disabled { opacity: .65; cursor: wait; }
+        .store-gacha-result {
+            margin: -8px 0 20px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 3px solid #fcd34d;
+            background: #fffbeb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .store-gacha-emoji { font-size: 2.6rem; line-height: 1; }
+        .store-gacha-result b { color: #92400e; }
+        .store-gacha-result p { margin: 0; font-size: 0.85rem; font-weight: 700; color: #b45309; }
         #paws-help {
             position: fixed;
             inset: 0;
@@ -3465,6 +3525,14 @@
                         <button type="button" class="store-cat-btn" data-store-cat="prop" onclick="storeSetCategory('prop')">✨ Props</button>
                         <button type="button" class="store-cat-btn" data-store-cat="background" onclick="storeSetCategory('background')">🖼️ Backgrounds</button>
                     </div>
+                    <div id="store-gacha-card" class="store-gacha-card">
+                        <div>
+                            <h3 class="store-gacha-title">🎁 Mystery Gacha</h3>
+                            <p class="store-gacha-sub">200 Paws · one random cosmetic · duplicate = 100 Paws back</p>
+                        </div>
+                        <button type="button" id="store-gacha-btn" class="store-gacha-btn" onclick="storePullGacha()">🎁 Open · 200 🐾</button>
+                    </div>
+                    <div id="store-gacha-result" class="store-gacha-result hidden" role="status" aria-live="polite"></div>
                     <div id="store-grid">
                         <div class="flex flex-col items-center py-10">
                             <div class="loader mb-4"></div>

@@ -1616,11 +1616,8 @@ const DG = {
             DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.raceLook(), { preview: true });
         }
         const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
-        if (propItem) {
-            ctx.font = '30px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(propItem.emoji, cssW * 0.7, cssH * 0.55);
+        if (propItem && typeof DG.drawCatProp === 'function') {
+            DG.drawCatProp(ctx, propItem.name, cssW * 0.70, cssH * 0.84, Math.min(cssW, cssH) / 330);
         }
     },
 

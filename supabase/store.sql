@@ -65,6 +65,12 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('prop_box','prop','Cardboard Box','紙皮箱',120,'Rare','📦',32),
     ('prop_dictionary','prop','Floating Dictionary','懸浮魔法字典',220,'Epic','📖',33),
     ('prop_parrot','prop','Mini Parrot','肩膀小鸚鵡',240,'Epic','🦜',34),
+    ('prop_white_flag','prop','White Flag','投降小白旗',430,'Epic','🏳️',48),
+    ('prop_rubber_duck','prop','Rubber Duck','沖涼黃色小鴨',440,'Epic','🦆',49),
+    ('prop_red_pen','prop','Red Pen','老師改卷紅筆',450,'Epic','🖊️',50),
+    ('prop_tea_scone','prop','Tea & Scone','英式下午茶',460,'Epic','🫖',51),
+    ('prop_corgi','prop','Mini Corgi','迷你哥基犬',470,'Legendary','🐕',52),
+    ('prop_boombox','prop','Boombox','復古卡式錄音機',480,'Legendary','📻',53),
     ('bg_desk','background','Cozy Desk','溫書書桌',120,'Rare','🛋️',35),
     ('bg_library','background','Oxford Library','牛津古書庫',200,'Epic','📚',36),
     ('bg_bigben','background','Big Ben Rain','倫敦雨夜',220,'Epic','🕰️',37),
@@ -615,6 +621,62 @@ begin
 end;
 $fn$;
 
+create or replace function public.pull_store_gacha()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_cost int := 200;
+    v_balance int;
+    v_item public.store_items;
+    v_owned boolean;
+    v_ref text;
+begin
+    if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    perform pg_advisory_xact_lock(hashtext(v_me::text));
+    v_balance := public.my_paw_balance();
+    if v_balance < v_cost then raise exception 'NOT_ENOUGH_PAWS'; end if;
+    select * into v_item from public.store_items
+     where active
+     order by random()
+     limit 1;
+    if v_item.id is null then raise exception 'NO_ITEMS'; end if;
+    v_ref := 'gacha:' || v_me::text || ':' ||
+             extract(epoch from clock_timestamp())::text || ':' ||
+             floor(random() * 1000000)::text;
+    insert into public.paw_ledger (user_id, amount, reason, ref_key)
+    values (v_me, -v_cost, 'gacha', v_ref);
+    v_owned := exists (
+        select 1 from public.store_purchases
+         where user_id = v_me and item_id = v_item.id
+    );
+    if v_owned then
+        insert into public.paw_ledger (user_id, amount, reason, ref_key)
+        values (v_me, v_cost / 2, 'gacha_refund', v_ref || ':refund');
+    else
+        insert into public.store_purchases (user_id, item_id)
+        values (v_me, v_item.id)
+        on conflict do nothing;
+    end if;
+    select coalesce(sum(amount), 0)::int into v_balance
+      from public.paw_ledger where user_id = v_me;
+    return jsonb_build_object(
+        'item', v_item.id,
+        'name', v_item.name_en,
+        'zh', v_item.name_zh,
+        'emoji', v_item.emoji,
+        'slot', v_item.slot,
+        'duplicate', v_owned,
+        'refund', case when v_owned then v_cost / 2 else 0 end,
+        'cost', v_cost,
+        'balance', v_balance
+    );
+end;
+$fn$;
+
 revoke all on function public.my_paw_balance() from public;
 revoke all on function public.my_paws_today() from public;
 revoke all on function public.admin_paw_daily(int) from public;
@@ -622,6 +684,7 @@ revoke all on function public.friend_paws_daily(uuid, int) from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
 revoke all on function public.equip_store_item(text, text) from public;
+revoke all on function public.pull_store_gacha() from public;
 revoke all on function public.save_profile_look(text, text, text, text, text, text, text) from public;
 revoke all on function public.friend_store_look(uuid) from public;
 revoke all on function public.paw_trg_dictation() from public;
@@ -637,6 +700,7 @@ grant execute on function public.admin_paw_daily(int) to authenticated;
 grant execute on function public.friend_paws_daily(uuid, int) to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
+grant execute on function public.pull_store_gacha() to authenticated;
 grant execute on function public.save_profile_look(text, text, text, text, text, text, text) to authenticated;
 grant execute on function public.friend_store_look(uuid) to authenticated;
 

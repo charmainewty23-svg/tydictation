@@ -44,6 +44,12 @@ const STORE_ITEMS = [
     { id:'prop_box', slot:'prop', name:'Cardboard Box', zh:'紙皮箱', price:120, rarity:'Rare', emoji:'📦', color:'#b45309', desc:'A “Fragile” delivery box.' },
     { id:'prop_dictionary', slot:'prop', name:'Floating Dictionary', zh:'懸浮魔法字典', price:220, rarity:'Epic', emoji:'📖', color:'#2563eb', desc:'A glowing dictionary that turns its own pages.' },
     { id:'prop_parrot', slot:'prop', name:'Mini Parrot', zh:'肩膀小鸚鵡', price:240, rarity:'Epic', emoji:'🦜', color:'#22c55e', desc:'A colourful parrot on your shoulder.' },
+    { id:'prop_white_flag', slot:'prop', name:'White Flag', zh:'投降小白旗', price:430, rarity:'Epic', emoji:'🏳️', color:'#f8fafc', desc:'A little white flag that says “Too Hard!”.' },
+    { id:'prop_rubber_duck', slot:'prop', name:'Rubber Duck', zh:'沖涼黃色小鴨', price:440, rarity:'Epic', emoji:'🦆', color:'#facc15', desc:'The classic yellow debugging duck.' },
+    { id:'prop_red_pen', slot:'prop', name:'Red Pen', zh:'老師改卷紅筆', price:450, rarity:'Epic', emoji:'🖊️', color:'#dc2626', desc:'A giant red marking pen, ready for homework.' },
+    { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:460, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
+    { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:470, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
+    { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:480, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
 
     // Backgrounds & effects (Me / lobby only)
     { id:'bg_desk', slot:'background', name:'Cozy Desk', zh:'溫書書桌', price:120, rarity:'Rare', emoji:'🛋️', color:'#d97706', desc:'A wooden desk with a lamp and tea.' },
@@ -434,6 +440,75 @@ function storeBalanceLabel() {
     return STORE_BALANCE + ' 🐾 Paws';
 }
 
+/* ---------------- Mystery Gacha ---------------- */
+
+const STORE_GACHA_COST = 200;
+
+function storeShowGachaResult(html) {
+    const box = document.getElementById('store-gacha-result');
+    if (!box) return;
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+}
+
+async function storePullGacha() {
+    if (!storeAvailable()) {
+        updateMascot('Sign in with your school account to open the Mystery Gacha.');
+        return;
+    }
+    const card = document.getElementById('store-gacha-card');
+    const btn = document.getElementById('store-gacha-btn');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.innerText = '🎁 Opening…';
+    if (card) card.classList.add('opening');
+    try {
+        await loadStoreState(true);
+        if (STORE_BALANCE < STORE_GACHA_COST) {
+            throw new Error('NOT_ENOUGH_PAWS');
+        }
+        const { data, error } = await sb.rpc('pull_store_gacha');
+        if (error) throw error;
+        const r = Array.isArray(data) ? data[0] : data;
+        if (!r || !r.item) throw new Error('NO_ITEMS');
+        if (r.duplicate) {
+            storeShowGachaResult(
+                '<div class="store-gacha-emoji" aria-hidden="true">' + escapeHtml(r.emoji || '🎁') + '</div>' +
+                '<div><b>Duplicate: ' + escapeHtml(r.name || 'item') + '</b>' +
+                (r.zh ? ' · ' + escapeHtml(r.zh) : '') +
+                '<p>You already own it — <b>+' + Number(r.refund || 100) + ' 🐾</b> refunded.</p></div>'
+            );
+            updateMascot('Duplicate ' + (r.name || 'item') + ' — half your Paws are back! 🐾');
+        } else {
+            storeShowGachaResult(
+                '<div class="store-gacha-emoji" aria-hidden="true">' + escapeHtml(r.emoji || '🎁') + '</div>' +
+                '<div><b>You got ' + escapeHtml(r.name || 'a new item') + '!</b>' +
+                (r.zh ? ' · ' + escapeHtml(r.zh) : '') +
+                '<p>Added to your Store — equip it whenever you like.</p></div>'
+            );
+            updateMascot('Mystery Gacha: ' + (r.name || 'new item') + '! 🎉');
+        }
+        await loadStoreState(true);
+        renderStore();
+    } catch (e) {
+        const msg = String(e && (e.message || e));
+        if (msg.indexOf('NOT_ENOUGH_PAWS') !== -1) {
+            storeShowGachaResult('<div class="store-gacha-emoji" aria-hidden="true">🐾</div><div><b>Not enough Paws.</b><p>You need 200 Paws to open the Mystery Gacha.</p></div>');
+            updateMascot('Not enough Paws for the Mystery Gacha — practise to earn more!');
+        } else if (/PGRST202|Could not find the function|does not exist/i.test(msg)) {
+            storeShowGachaResult('<div class="store-gacha-emoji" aria-hidden="true">🛠️</div><div><b>Gacha needs SQL.</b><p>Ask the teacher to run <code>supabase/store_gacha.sql</code>.</p></div>');
+            updateMascot('The Mystery Gacha needs supabase/store_gacha.sql.');
+        } else {
+            storeShowGachaResult('<div class="store-gacha-emoji" aria-hidden="true">😿</div><div><b>The box would not open.</b><p>Try again in a moment.</p></div>');
+            updateMascot('Could not open the Mystery Gacha.');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '🎁 Open · ' + STORE_GACHA_COST + ' 🐾';
+        if (card) card.classList.remove('opening');
+    }
+}
+
 /* ---------------- Store view ---------------- */
 
 function openStore() {
@@ -469,6 +544,11 @@ function renderStore() {
     const tabs = document.querySelectorAll('#store-categories [data-store-cat]');
     if (!grid) return;
     if (balance) balance.innerText = storeBalanceLabel();
+    const gachaBtn = document.getElementById('store-gacha-btn');
+    if (gachaBtn && !gachaBtn.dataset.busy) {
+        gachaBtn.disabled = !storeAvailable();
+        gachaBtn.innerText = storeAvailable() ? ('🎁 Open · ' + STORE_GACHA_COST + ' 🐾') : 'Sign in to open';
+    }
     tabs.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-store-cat') === STORE_CATEGORY));
     if (note) {
         note.classList.toggle('hidden', !STORE_LOAD_ERROR);
@@ -677,11 +757,8 @@ function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     } else if (typeof DG !== 'undefined' && DG.drawKart) {
         DG.drawKart(ctx, cssW / 2, cssH * 0.84, Math.min(cssW / 250, cssH / 190), look, { preview: true });
     }
-    if (prop) {
-        ctx.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(prop.emoji, cssW * 0.7, cssH * 0.58);
+    if (prop && typeof DG !== 'undefined' && DG.drawCatProp) {
+        DG.drawCatProp(ctx, prop.name, cssW * 0.70, cssH * 0.84, Math.min(cssW, cssH) / 330);
     }
     if (bg) {
         ctx.font = '22px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';

@@ -3578,6 +3578,132 @@
        preview and the multiplayer lobby SVG. */
     /* A standalone, more realistic cat for the Store / Me preview and the
        lobby cat customisers. The race itself still uses DG.drawKart(). */
+    /* ---------- Props drawn beside the cat ---------- */
+
+    DG.drawCatProp = function (ctx, name, x, y, S) {
+        if (!name || name === 'None') return;
+        const rr = (px, py, w, h, r) => { ctx.beginPath(); ctx.roundRect(px, py, w, h, r); };
+        ctx.save();
+        ctx.lineJoin = 'round';
+        if (name === 'White Flag') {
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 4 * S;
+            ctx.beginPath(); ctx.moveTo(x - 10 * S, y); ctx.lineTo(x - 10 * S, y - 96 * S); ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1.6 * S;
+            rr(x - 8 * S, y - 96 * S, 58 * S, 30 * S, 3 * S); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#ef4444';
+            ctx.font = '800 ' + Math.round(9 * S) + 'px Fredoka, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Too Hard!', x + 21 * S, y - 81 * S);
+        } else if (name === 'Rubber Duck') {
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath(); ctx.ellipse(x, y - 15 * S, 25 * S, 17 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x - 12 * S, y - 36 * S, 14 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(x - 24 * S, y - 37 * S);
+            ctx.lineTo(x - 34 * S, y - 33 * S);
+            ctx.lineTo(x - 24 * S, y - 29 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#111827';
+            ctx.beginPath(); ctx.arc(x - 15 * S, y - 40 * S, 2.3 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(180,120,0,.45)';
+            ctx.lineWidth = 2 * S;
+            ctx.beginPath(); ctx.arc(x + 2 * S, y - 16 * S, 10 * S, 0.2, 2.4); ctx.stroke();
+        } else if (name === 'Red Pen') {
+            ctx.save();
+            ctx.translate(x, y - 52 * S);
+            ctx.rotate(-0.48);
+            ctx.fillStyle = '#dc2626';
+            rr(-7 * S, -38 * S, 14 * S, 66 * S, 5 * S); ctx.fill();
+            ctx.fillStyle = '#991b1b';
+            rr(-8 * S, -48 * S, 16 * S, 18 * S, 5 * S); ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.moveTo(-4 * S, 28 * S); ctx.lineTo(4 * S, 28 * S); ctx.lineTo(0, 40 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(6 * S, -30 * S, 3 * S, 22 * S);
+            ctx.restore();
+        } else if (name === 'Tea & Scone') {
+            ctx.fillStyle = '#e5e7eb';
+            ctx.beginPath(); ctx.ellipse(x - 8 * S, y - 3 * S, 28 * S, 6 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            rr(x - 28 * S, y - 34 * S, 30 * S, 26 * S, 6 * S); ctx.fill();
+            ctx.fillStyle = '#b45309';
+            ctx.beginPath(); ctx.ellipse(x - 13 * S, y - 32 * S, 13 * S, 4 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 4 * S;
+            ctx.beginPath(); ctx.arc(x + 4 * S, y - 22 * S, 8 * S, -1.2, 1.2); ctx.stroke();
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath(); ctx.moveTo(x + 8 * S, y - 4 * S); ctx.lineTo(x + 20 * S, y - 30 * S); ctx.lineTo(x + 34 * S, y - 4 * S); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(x + 21 * S, y - 12 * S, 4 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,.75)';
+            ctx.beginPath(); ctx.arc(x - 15 * S, y - 36 * S, 6 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x - 6 * S, y - 40 * S, 4 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Mini Corgi') {
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath(); ctx.ellipse(x, y - 14 * S, 22 * S, 14 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff7ed';
+            ctx.beginPath(); ctx.ellipse(x + 4 * S, y - 10 * S, 11 * S, 9 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath(); ctx.arc(x - 6 * S, y - 34 * S, 14 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath(); ctx.moveTo(x - 18 * S, y - 42 * S); ctx.lineTo(x - 12 * S, y - 56 * S); ctx.lineTo(x - 4 * S, y - 44 * S); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x + 4 * S, y - 44 * S); ctx.lineTo(x + 12 * S, y - 56 * S); ctx.lineTo(x + 16 * S, y - 40 * S); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#fff7ed';
+            ctx.beginPath(); ctx.ellipse(x - 6 * S, y - 29 * S, 8 * S, 7 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#111827';
+            ctx.beginPath(); ctx.arc(x - 11 * S, y - 37 * S, 2.2 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x - 1 * S, y - 37 * S, 2.2 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(x - 6 * S, y - 31 * S, 3 * S, 2 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fb7185';
+            ctx.beginPath(); ctx.ellipse(x - 6 * S, y - 25 * S, 3.5 * S, 2 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 5 * S;
+            ctx.beginPath(); ctx.moveTo(x + 20 * S, y - 18 * S); ctx.quadraticCurveTo(x + 30 * S, y - 26 * S, x + 28 * S, y - 34 * S); ctx.stroke();
+        } else if (name === 'Boombox') {
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 5 * S;
+            ctx.beginPath(); ctx.arc(x, y - 54 * S, 18 * S, Math.PI, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = '#334155';
+            rr(x - 34 * S, y - 54 * S, 68 * S, 46 * S, 6 * S); ctx.fill();
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2 * S;
+            rr(x - 34 * S, y - 54 * S, 68 * S, 46 * S, 6 * S); ctx.stroke();
+            [-20, 20].forEach(dx => {
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath(); ctx.arc(x + dx * S, y - 32 * S, 11 * S, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#64748b';
+                ctx.beginPath(); ctx.arc(x + dx * S, y - 32 * S, 6 * S, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#94a3b8';
+                ctx.beginPath(); ctx.arc(x + dx * S, y - 32 * S, 2 * S, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.fillStyle = '#e2e8f0';
+            rr(x - 12 * S, y - 45 * S, 24 * S, 14 * S, 2 * S); ctx.fill();
+            ctx.fillStyle = '#7c3aed';
+            ctx.beginPath(); ctx.arc(x - 5 * S, y - 38 * S, 2.5 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x + 5 * S, y - 38 * S, 2.5 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(x + 26 * S, y - 22 * S, 3 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath(); ctx.arc(x + 16 * S, y - 22 * S, 3 * S, 0, Math.PI * 2); ctx.fill();
+        } else {
+            const item = window.storeItemByName && window.storeItemByName(name);
+            if (item) {
+                ctx.font = Math.round(34 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.emoji, x, y - 30 * S);
+            }
+        }
+        ctx.restore();
+    };
+
     /* ---------- Store accessories drawn to fit the cat ---------- */
 
     DG.drawCatHat = function (ctx, name, hx, hy, S, topY) {

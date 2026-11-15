@@ -755,12 +755,22 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   - 3D 用 `DG.drawCatAvatar()`；CSS 喺 `index.html` 的
     `/* Class battle trophy ceremony */`（z-index 10080，landscape
     `max-height:480px` 有 compact 版）。Demo：`/class-battle-demo.html`
-    （iframe 載入真 app，用 mock Top 3 播同一段頒獎禮）。
+    （iframe 載入真 app，用 mock Top 3 播同一段頒獎禮）。Demo 預設係
+    **iPad 打橫 1024×768**，頂部有 Phone／iPad ↕／iPad ↔ 切換，
+    iframe 會按瀏覽器可用空間等比縮放；▶ Replay 可以重播。
   - **手機／iPad 實測**（demo iframe resize）：320×568、375×667、390×844、
-    430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`、
-    card `scrollWidth = clientWidth`；✕ 掣 44×44；Continue 48px（landscape
-    44px）；iPad 直／橫向三張卡一次過見晒；窄手機同 844×390 要 scroll，
-    但每次彈出會自動 scroll，champion 出現後 `scrollTop = 0` 一定見到頂。
+    430×932、768×1024、834×1194、1024×768、1180×820、1194×834、844×390
+    全部 `overflowX = 0`、card `scrollWidth = clientWidth`；✕ 掣 44×44；
+    Continue 48px（landscape 44px）。
+  - **iPad 打橫（2026-11）**：新增 CSS
+    `@media (orientation: landscape) and (min-width: 700px) and
+    (min-height: 561px) and (max-height: 900px)`，將 trophy card 擴到
+    `min(760px, 100%)`、縮細 medal／cat／字距，實測 1024×768、1180×820、
+    1194×834 三張卡（champion／1st／2nd runner-up）**一次過見晒、唔使
+    scroll**，card `scrollHeight 727 ≤ clientHeight`。iPad 直向
+    （768×1024、834×1194）本身都一次過見晒。窄手機同 844×390 仍然要
+    scroll，但每次彈出會自動 scroll，champion 出現後 `scrollTop = 0`
+    一定見到頂。
   - **Paws 數量**：Top 3 會顯示 `+15 🐾`（冠軍）／`+10 🐾`（亞軍）／
     `+5 🐾`（季軍）。`battleClassPaws(place)` 回 0-based 名次嘅 bonus；
     頒獎禮卡、prize stand、學生 result（`Your score … · +N 🐾`）同老師
@@ -1326,7 +1336,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v44）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v45）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1416,8 +1426,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v44`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v45`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v45`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v46`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2053,7 +2063,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v44。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v45。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

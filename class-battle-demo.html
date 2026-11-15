@@ -3,65 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LearniTY · Class Battle Top 3 demo</title>
+<title>LearniTY · Class Battle demo</title>
 <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #111827; }
-    iframe {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        top: 48px;
-        width: 100%;
-        height: calc(100% - 48px);
-        border: 0;
-    }
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; overflow: hidden; }
     #demo-bar {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
-        height: 48px;
+        height: 56px;
         z-index: 20000;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 0 12px;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 10px;
         background: #1f2937;
-        color: #fef3c7;
-        font: 700 12px/1.2 Fredoka, system-ui, sans-serif;
-        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+        box-shadow: 0 2px 8px rgba(0,0,0,.4);
     }
-    #demo-bar span { flex: 1 1 auto; min-width: 0; }
-    #demo-replay {
-        flex: 0 0 auto;
-        min-height: 36px;
-        padding: 0 16px;
+    .seg {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.1);
+    }
+    .seg button, #demo-replay {
+        min-height: 38px;
         border: 0;
         border-radius: 999px;
+        padding: 0 12px;
+        background: transparent;
+        color: #e5e7eb;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .seg button.active { background: #f59e0b; color: #fff; }
+    #demo-replay {
+        flex: 0 0 auto;
         background: #f59e0b;
         color: #fff;
-        font: 800 13px Fredoka, system-ui, sans-serif;
         box-shadow: 0 3px 0 #b45309;
-        cursor: pointer;
+    }
+    #stage {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    #frame-wrap {
+        position: relative;
+        transform-origin: center center;
+        box-shadow: 0 12px 40px rgba(0,0,0,.55);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #111827;
+    }
+    #demo-app {
+        display: block;
+        border: 0;
+        transform-origin: top left;
+        background: #111827;
+    }
+    @media (max-width: 380px) {
+        .seg button { padding: 0 9px; font-size: 11px; }
+        #demo-replay { padding: 0 10px; font-size: 11px; }
     }
 </style>
 </head>
 <body>
 <div id="demo-bar">
-    <span>Class Battle demo · Paws +15 / +10 / +5</span>
+    <div class="seg" role="group" aria-label="Preview size">
+        <button type="button" data-device="phone">📱 Phone</button>
+        <button type="button" data-device="ipadP">iPad ↕</button>
+        <button type="button" data-device="ipadL" class="active">iPad ↔</button>
+    </div>
     <button id="demo-replay" type="button">▶ Replay</button>
 </div>
-<iframe id="demo-app" src="/index.html?class-battle-demo=1" title="Class battle demo"></iframe>
+<div id="stage">
+    <div id="frame-wrap">
+        <iframe id="demo-app" src="/index.html?class-battle-demo=1" title="Class battle demo"></iframe>
+    </div>
+</div>
 <script>
     (function () {
         var frame = document.getElementById('demo-app');
+        var wrap = document.getElementById('frame-wrap');
+        var stage = document.getElementById('stage');
+        var devices = {
+            phone: { w: 390, h: 844 },
+            ipadP: { w: 768, h: 1024 },
+            ipadL: { w: 1024, h: 768 }
+        };
+        var current = 'ipadL';
         var players = [
             { user_id: 'demo1', nickname: '4C 01 Chan', email: 'demo1@lstyoungkhl.edu.hk', score: 120, total_ms: 50000, correct: 10, cat: 'Ragdoll', glasses: 'Cyber Visor', hat: 'Lo-Fi Headphones', outfit: 'Red Scarf' },
             { user_id: 'demo2', nickname: '4C 02 Lee', email: 'demo2@lstyoungkhl.edu.hk', score: 100, total_ms: 55000, correct: 8, cat: 'Ginger', glasses: 'Star Sunglasses', hat: 'Straw Hat', outfit: 'Boba Apron' },
             { user_id: 'demo3', nickname: '4C 03 Wong', email: 'demo3@lstyoungkhl.edu.hk', score: 80, total_ms: 60000, correct: 7, cat: 'Ragdoll', glasses: 'Glasses', hat: 'Golden Crown', outfit: 'Royal Guard Tunic' }
         ];
+
+        function fit() {
+            var d = devices[current];
+            var availW = Math.max(200, stage.clientWidth - 16);
+            var availH = Math.max(200, stage.clientHeight - 16);
+            var scale = Math.min(1, availW / d.w, availH / d.h);
+            frame.style.width = d.w + 'px';
+            frame.style.height = d.h + 'px';
+            frame.style.transform = 'scale(' + scale + ')';
+            wrap.style.width = Math.round(d.w * scale) + 'px';
+            wrap.style.height = Math.round(d.h * scale) + 'px';
+        }
 
         function show() {
             var w = frame.contentWindow;
@@ -75,17 +132,35 @@
                 id: 'demo-room',
                 mode: 'class',
                 status: 'finished',
-                finished_at: 'demo',
+                finished_at: 'demo-' + current + '-' + Date.now(),
                 code: '1234',
                 question_count: 10
             };
             w.battleShowTrophy(players);
         }
 
-        frame.addEventListener('load', function () { setTimeout(show, 500); });
+        function applyDevice(name) {
+            if (!devices[name]) return;
+            current = name;
+            document.querySelectorAll('.seg button').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-device') === name);
+            });
+            fit();
+            show();
+        }
+
+        document.querySelectorAll('.seg button').forEach(function (b) {
+            b.addEventListener('click', function () { applyDevice(b.getAttribute('data-device')); });
+        });
         document.getElementById('demo-replay').addEventListener('click', function () {
             setTimeout(show, 30);
         });
+        window.addEventListener('resize', fit);
+        frame.addEventListener('load', function () {
+            fit();
+            setTimeout(show, 500);
+        });
+        fit();
     })();
 </script>
 </body>

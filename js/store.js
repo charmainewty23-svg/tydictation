@@ -522,6 +522,169 @@ async function storePullGacha() {
     }
 }
 
+/* ---------------- Second-hand Market ---------------- */
+
+let STORE_MARKET_ROWS = [];
+
+function storeMarketNote(text) {
+    const el = document.getElementById('store-market-note');
+    if (!el) return;
+    el.innerText = text || '';
+    el.classList.toggle('hidden', !text);
+}
+
+function storeItemEquipped(item) {
+    if (!item) return false;
+    if (item.slot === 'prop') return (STORE_EQUIPPED.prop || []).indexOf(item.id) !== -1;
+    return STORE_EQUIPPED[item.slot] === item.id;
+}
+
+function storeMarketError(e) {
+    const msg = String(e && (e.message || e));
+    if (/PGRST202|Could not find the function|does not exist/i.test(msg)) {
+        return 'The Market needs the teacher to run supabase/store_market.sql.';
+    }
+    const map = {
+        NOT_ENOUGH_PAWS: 'Not enough Paws.',
+        ITEM_EQUIPPED: 'Unequip that item before listing it.',
+        ALREADY_LISTED: 'That item is already listed.',
+        NOT_OWNED: 'You do not own that item.',
+        BAD_PRICE: 'Choose a price from 1 to 5000 Paws.',
+        OWN_LISTING: 'That is your own listing.',
+        ALREADY_OWNED: 'You already own that item.',
+        LISTING_GONE: 'That listing is no longer available.',
+        SELLER_EQUIPPED: 'The seller equipped that item — try again later.',
+        SELLER_NO_LONGER_OWNS: 'The seller no longer owns that item.'
+    };
+    for (const key in map) {
+        if (msg.indexOf(key) !== -1) return map[key];
+    }
+    return 'Could not complete that Market action.';
+}
+
+async function loadStoreMarket(force) {
+    if (STORE_CATEGORY !== 'market') return;
+    const listEl = document.getElementById('store-market-list');
+    const sellEl = document.getElementById('store-market-sell');
+    if (!listEl || !sellEl) return;
+    storeMarketNote('');
+    if (!storeAvailable()) {
+        STORE_MARKET_ROWS = [];
+        listEl.innerHTML = '<p class="store-market-empty">Sign in with your school account to use the Market.</p>';
+        sellEl.innerHTML = '<p class="store-market-empty">Your sellable items will appear here.</p>';
+        return;
+    }
+    listEl.innerHTML = '<div class="flex items-center gap-2 py-3"><div class="loader"></div><p class="text-orange-400 font-bold text-sm">Loading Market…</p></div>';
+    sellEl.innerHTML = '';
+    try {
+        const { data, error } = await sb.rpc('store_market_listings');
+        if (error) throw error;
+        STORE_MARKET_ROWS = Array.isArray(data) ? data : (data ? [data] : []);
+        storeRenderMarketList(STORE_MARKET_ROWS);
+        storeRenderSellList(STORE_MARKET_ROWS);
+    } catch (e) {
+        STORE_MARKET_ROWS = [];
+        storeMarketNote(storeMarketError(e));
+        listEl.innerHTML = '<p class="store-market-empty">Market unavailable right now.</p>';
+        sellEl.innerHTML = '<p class="store-market-empty">Market unavailable right now.</p>';
+    }
+}
+
+function storeRenderMarketList(rows) {
+    const listEl = document.getElementById('store-market-list');
+    if (!listEl) return;
+    const list = rows || [];
+    if (!list.length) {
+        listEl.innerHTML = '<p class="store-market-empty">No items for sale yet.</p>';
+        return;
+    }
+    listEl.innerHTML = list.map(row => {
+        const name = escapeHtml(row.name_en || row.item_id || 'Item');
+        const zh = row.name_zh ? escapeHtml(row.name_zh) : '';
+        const seller = escapeHtml(row.seller_name || 'Student');
+        const form = row.seller_form ? ' · ' + escapeHtml(row.seller_form) : '';
+        const mine = !!row.is_mine;
+        return '<div class="store-market-row">' +
+            '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(row.emoji || '🎁') + '</div>' +
+            '<div class="store-market-info"><b>' + name + (mine ? ' <span class="text-[10px] text-orange-500">(your listing)</span>' : '') + '</b><small>' + zh + (zh ? ' · ' : '') + seller + form + '</small></div>' +
+            '<div class="store-market-price">' + Number(row.price || 0) + ' 🐾</div>' +
+            (mine
+                ? '<button type="button" class="store-market-btn quiet" onclick="storeCancelListing(\'' + row.listing_id + '\')">Cancel</button>'
+                : '<button type="button" class="store-market-btn" onclick="storeBuyListing(\'' + row.listing_id + '\')">Buy</button>') +
+            '</div>';
+    }).join('');
+}
+
+function storeRenderSellList(rows) {
+    const sellEl = document.getElementById('store-market-sell');
+    if (!sellEl) return;
+    const listed = {};
+    (rows || []).forEach(r => { if (r.is_mine) listed[r.item_id] = true; });
+    const mine = STORE_ITEMS.filter(it => STORE_OWNED[it.id] && !storeItemEquipped(it) && !listed[it.id]);
+    if (!mine.length) {
+        sellEl.innerHTML = '<p class="store-market-empty">No unequipped, unlisted items. Unequip something first.</p>';
+        return;
+    }
+    sellEl.innerHTML = mine.map(it => {
+        const suggested = Math.max(10, Math.round((Number(it.price) || 100) / 2));
+        return '<div class="store-market-row">' +
+            '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(it.emoji || '🎁') + '</div>' +
+            '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + '</small></div>' +
+            '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
+            '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
+            '</div>';
+    }).join('');
+}
+
+async function storeSellItem(itemId) {
+    if (!storeAvailable()) { updateMascot('Sign in to sell items.'); return; }
+    const item = STORE_BY_ID[itemId];
+    const input = document.getElementById('market-price-' + itemId);
+    const price = input ? parseInt(input.value, 10) : 0;
+    if (!item) return;
+    if (!price || price < 1 || price > 5000) { storeMarketNote('Choose a price from 1 to 5000 Paws.'); return; }
+    if (!window.confirm('List ' + item.name + ' for ' + price + ' Paws?')) return;
+    try {
+        const { error } = await sb.rpc('create_store_listing', { p_item: itemId, p_price: price });
+        if (error) throw error;
+        storeMarketNote('');
+        updateMascot(item.name + ' is now for sale at ' + price + ' 🐾');
+        await loadStoreMarket(true);
+    } catch (e) {
+        storeMarketNote(storeMarketError(e));
+    }
+}
+
+async function storeCancelListing(listingId) {
+    if (!storeAvailable()) return;
+    if (!window.confirm('Cancel this listing?')) return;
+    try {
+        const { error } = await sb.rpc('cancel_store_listing', { p_listing: listingId });
+        if (error) throw error;
+        updateMascot('Listing cancelled.');
+        await loadStoreMarket(true);
+    } catch (e) {
+        storeMarketNote(storeMarketError(e));
+    }
+}
+
+async function storeBuyListing(listingId) {
+    if (!storeAvailable()) { updateMascot('Sign in to buy items.'); return; }
+    const row = STORE_MARKET_ROWS.find(r => String(r.listing_id) === String(listingId));
+    if (!row) return;
+    if (!window.confirm('Buy ' + (row.name_en || 'this item') + ' for ' + row.price + ' Paws?')) return;
+    try {
+        const { data, error } = await sb.rpc('buy_store_listing', { p_listing: listingId });
+        if (error) throw error;
+        const r = Array.isArray(data) ? data[0] : data;
+        updateMascot('Bought ' + ((r && r.name) || row.name_en) + ' from the Market! 🛒');
+        await loadStoreState(true);
+        renderStore();
+    } catch (e) {
+        storeMarketNote(storeMarketError(e));
+    }
+}
+
 /* ---------------- Store view ---------------- */
 
 function openStore() {
@@ -567,6 +730,21 @@ function renderStore() {
         note.classList.toggle('hidden', !STORE_LOAD_ERROR);
         note.innerText = STORE_LOAD_ERROR || '';
     }
+    const market = STORE_CATEGORY === 'market';
+    const marketEl = document.getElementById('store-market');
+    const gachaCard = document.getElementById('store-gacha-card');
+    const gachaResult = document.getElementById('store-gacha-result');
+    if (market) {
+        grid.classList.add('hidden');
+        if (marketEl) marketEl.classList.remove('hidden');
+        if (gachaCard) gachaCard.classList.add('hidden');
+        if (gachaResult) gachaResult.classList.add('hidden');
+        loadStoreMarket(true);
+        return;
+    }
+    grid.classList.remove('hidden');
+    if (marketEl) marketEl.classList.add('hidden');
+    if (gachaCard) gachaCard.classList.remove('hidden');
     const groups = ['hat', 'face', 'outfit', 'prop', 'background'];
     const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
     const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];

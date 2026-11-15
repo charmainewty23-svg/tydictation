@@ -190,12 +190,17 @@ async function loadStoreState(force) {
             return;
         }
         try {
-            const [bal, purchases, equipped] = await Promise.all([
+            const [bal, purchasesResult, equipped] = await Promise.all([
                 sb.rpc('my_paw_balance'),
                 sb.from('store_purchases').select('item_id,paid_price').eq('user_id', currentUser.id),
                 sb.from('store_equipped').select('slot,item_id').eq('user_id', currentUser.id)
             ]);
             if (bal.error) throw bal.error;
+            let purchases = purchasesResult;
+            if (purchases.error && /paid_price|column|42703/i.test(purchases.error.message || '')) {
+                // Older install without store_buyback.sql: keep the Store usable.
+                purchases = await sb.from('store_purchases').select('item_id').eq('user_id', currentUser.id);
+            }
             if (purchases.error) throw purchases.error;
             if (equipped.error) throw equipped.error;
             STORE_OWNED = free;

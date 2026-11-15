@@ -89,6 +89,15 @@ as $fn$
            and u.id <> me.uid
            and u.email ilike '%@lstyoungkhl.edu.hk'
            and lower(u.email) <> 'tywong@lstyoungkhl.edu.hk'
+           -- Do not suggest Unassigned students: either a form is set, or the
+           -- displayed name starts with a class code (3A / 4C ...).
+           and (
+                coalesce(sl.form, '') <> ''
+                or upper(substring(coalesce(sl.nickname, '') from '^([3-6][A-Za-z])')) is not null
+           )
+           -- Hide AI test accounts such as "AI 01" / ai01@...
+           and upper(coalesce(sl.nickname, '')) !~ '^AI [0-9]'
+           and lower(split_part(u.email, '@', 1)) !~ '^ai[0-9]'
            and not exists (
                 select 1 from public.friend_follows f
                  where f.follower_id = me.uid and f.following_id = u.id

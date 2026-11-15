@@ -1891,6 +1891,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   **冇新 table**）。RPC `suggested_friends(p_limit int default 6)`。
 - Candidate pool：`auth.users` + `student_logins`（所有登入過嘅學生），
   排除自己、admin（`tywong@…`）、已經 follow 嘅人；只計學校 domain。
+  **亦排除 Unassigned**（`form` 空且 nickname 開頭冇 `3A`／`4C` 班別 code）
+  同 **AI 測試帳戶**（nickname `^AI [0-9]` 或 email local part `^ai[0-9]`，
+  例如 `AI 01`／`ai01@…`）。所以 bell 建議都唔會出呢兩類。
 - 回傳欄位只有：`user_id`、`nickname`、`form`、`class_code`、`follows_me`、
   `mutual_count`、`same_class`、`same_form`、`last_practice`、`streak`、
   `is_new`。**冇 email、冇分數**。

@@ -1,6 +1,13 @@
 -- LearniTY Store: six new handheld props + Mystery Gacha.
 -- Run once in the Supabase SQL editor after supabase/store.sql. Safe to re-run.
 
+-- Buyback needs the price each student actually paid.
+alter table public.store_purchases add column if not exists paid_price int not null default 0;
+update public.store_purchases p
+   set paid_price = i.price
+  from public.store_items i
+ where i.id = p.item_id and p.paid_price = 0;
+
 -- ---------- 1. new Props & Companions ----------
 insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji, sort) values
     ('prop_white_flag','prop','White Flag','投降小白旗',470,'Epic','🏳️',48),
@@ -66,8 +73,8 @@ begin
         insert into public.paw_ledger (user_id, amount, reason, ref_key)
         values (v_me, v_cost / 2, 'gacha_refund', v_ref || ':refund');
     else
-        insert into public.store_purchases (user_id, item_id)
-        values (v_me, v_item.id)
+        insert into public.store_purchases (user_id, item_id, paid_price)
+        values (v_me, v_item.id, v_cost)
         on conflict do nothing;
     end if;
 

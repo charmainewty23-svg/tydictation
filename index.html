@@ -615,6 +615,8 @@
             cursor: pointer;
         }
         .store-market-btn.quiet { background: #f3f4f6; color: #4b5563; }
+        .store-market-btn.buyback { background: #047857; }
+        .store-market-btn.buyback:hover { background: #065f46; }
         .store-market-btn:disabled { opacity: .55; cursor: wait; }
         .store-market-price-input {
             width: 92px;
@@ -3394,7 +3396,8 @@
 
             <div id="my-records-view" class="view hidden w-full">
                 <div class="cat-card p-8">
-                    <h2 class="text-3xl font-bold text-orange-600 mb-6">📋 My Records</h2>
+                    <h2 class="text-3xl font-bold text-orange-600 mb-4">📋 My Records</h2>
+                    <div id="my-records-stats" class="grid grid-cols-2 gap-4 mb-6"></div>
                     <div id="cloud-records-container">
                         <div class="col-span-full flex flex-col items-center py-10">
                             <div class="loader mb-4"></div>

@@ -2146,13 +2146,36 @@
                 container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">Please login to view cloud records.</p>';
                 return;
             }
-            const { data, error } = await sb.from("dictation_results")
-                .select("*")
-                .eq("user_id", currentUser.id)
-                .order("created_at", { ascending: false })
-                .limit(50);
+            const statsEl = document.getElementById('my-records-stats');
+            const [recordsRes, wjRes, dgSoloRes, dgMultiRes] = await Promise.all([
+                sb.from("dictation_results")
+                    .select("*")
+                    .eq("user_id", currentUser.id)
+                    .order("created_at", { ascending: false })
+                    .limit(50),
+                sb.from("wj_scores").select("*", { count: "exact", head: true }).eq("user_id", currentUser.id),
+                sb.from("drive_and_go_solo_scores").select("*", { count: "exact", head: true }).eq("user_id", currentUser.id),
+                sb.from("drive_and_go_multi_scores").select("*", { count: "exact", head: true }).eq("user_id", currentUser.id)
+            ]);
+            const wjCount = (!wjRes.error && typeof wjRes.count === 'number') ? wjRes.count : null;
+            const dgSolo = (!dgSoloRes.error && typeof dgSoloRes.count === 'number') ? dgSoloRes.count : null;
+            const dgMulti = (!dgMultiRes.error && typeof dgMultiRes.count === 'number') ? dgMultiRes.count : null;
+            const dgCount = (dgSolo === null && dgMulti === null) ? null : (dgSolo || 0) + (dgMulti || 0);
+            if (statsEl) {
+                statsEl.innerHTML = `
+                    <div class="bg-emerald-50 rounded-2xl p-4 text-center border-2 border-emerald-100">
+                        <div class="text-3xl font-bold text-emerald-600">${wjCount === null ? '—' : wjCount}</div>
+                        <div class="text-xs text-gray-500 font-bold">🦘 Word Jump runs</div>
+                    </div>
+                    <div class="bg-blue-50 rounded-2xl p-4 text-center border-2 border-blue-100">
+                        <div class="text-3xl font-bold text-blue-600">${dgCount === null ? '—' : dgCount}</div>
+                        <div class="text-xs text-gray-500 font-bold">🏎️ Drive &amp; Go races</div>
+                    </div>`;
+            }
+            const data = recordsRes.data;
+            const error = recordsRes.error;
             if (error || !data || data.length === 0) {
-                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">No records found.</p>';
+                container.innerHTML = '<p class="text-gray-400 text-center py-10 text-lg">No dictation records found.</p>';
                 return;
             }
             container.innerHTML = `

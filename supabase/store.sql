@@ -338,9 +338,15 @@ for each row execute function public.paw_trg_class_battle();
 create table if not exists public.store_purchases (
     user_id    uuid not null references auth.users(id) on delete cascade,
     item_id    text not null references public.store_items(id) on delete cascade,
+    paid_price int not null default 0,
     created_at timestamptz not null default now(),
     primary key (user_id, item_id)
 );
+alter table public.store_purchases add column if not exists paid_price int not null default 0;
+update public.store_purchases p
+   set paid_price = i.price
+  from public.store_items i
+ where i.id = p.item_id and p.paid_price = 0;
 alter table public.store_purchases enable row level security;
 drop policy if exists "store purchases read own" on public.store_purchases;
 create policy "store purchases read own" on public.store_purchases
@@ -532,7 +538,7 @@ begin
     end if;
     v_balance := public.my_paw_balance();
     if v_balance < v_price then raise exception 'NOT_ENOUGH_PAWS'; end if;
-    insert into public.store_purchases (user_id, item_id) values (v_me, p_item);
+    insert into public.store_purchases (user_id, item_id, paid_price) values (v_me, p_item, v_price);
     insert into public.paw_ledger (user_id, amount, reason, ref_key)
     values (v_me, -v_price, 'purchase', 'purchase:' || p_item);
     return v_balance - v_price;
@@ -670,8 +676,8 @@ begin
         insert into public.paw_ledger (user_id, amount, reason, ref_key)
         values (v_me, v_cost / 2, 'gacha_refund', v_ref || ':refund');
     else
-        insert into public.store_purchases (user_id, item_id)
-        values (v_me, v_item.id)
+        insert into public.store_purchases (user_id, item_id, paid_price)
+        values (v_me, v_item.id, v_cost)
         on conflict do nothing;
     end if;
     select coalesce(sum(amount), 0)::int into v_balance

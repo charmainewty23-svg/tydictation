@@ -117,6 +117,7 @@ function storePrimaryLayer(group) {
 }
 
 let STORE_OWNED = {};
+let STORE_PAID = {};
 let STORE_EQUIPPED = {};
 let STORE_BALANCE = 0;
 let STORE_PAWS_TODAY = 0;
@@ -177,6 +178,7 @@ async function loadStoreState(force) {
         STORE_ITEMS.forEach(it => { if (it.price === 0) free[it.id] = true; });
         if (!storeAvailable()) {
             STORE_OWNED = free;
+            STORE_PAID = {};
             STORE_EQUIPPED = {};
             STORE_BALANCE = 0;
             STORE_PAWS_TODAY = 0;
@@ -190,14 +192,19 @@ async function loadStoreState(force) {
         try {
             const [bal, purchases, equipped] = await Promise.all([
                 sb.rpc('my_paw_balance'),
-                sb.from('store_purchases').select('item_id').eq('user_id', currentUser.id),
+                sb.from('store_purchases').select('item_id,paid_price').eq('user_id', currentUser.id),
                 sb.from('store_equipped').select('slot,item_id').eq('user_id', currentUser.id)
             ]);
             if (bal.error) throw bal.error;
             if (purchases.error) throw purchases.error;
             if (equipped.error) throw equipped.error;
             STORE_OWNED = free;
-            (purchases.data || []).forEach(row => { if (row && row.item_id) STORE_OWNED[row.item_id] = true; });
+            STORE_PAID = {};
+            (purchases.data || []).forEach(row => {
+                if (!row || !row.item_id) return;
+                STORE_OWNED[row.item_id] = true;
+                STORE_PAID[row.item_id] = Math.max(0, Number(row.paid_price) || 0);
+            });
             STORE_EQUIPPED = { prop: [] };
             (equipped.data || []).forEach(row => {
                 if (!row || !row.slot || !row.item_id) return;
@@ -233,6 +240,7 @@ async function loadStoreState(force) {
             storeApplyEquippedToDG();
         } catch (e) {
             STORE_OWNED = free;
+            STORE_PAID = {};
             STORE_EQUIPPED = {};
             STORE_BALANCE = 0;
             STORE_PAWS_TODAY = 0;
@@ -551,6 +559,7 @@ function storeMarketError(e) {
     const map = {
         NOT_ENOUGH_PAWS: 'Not enough Paws.',
         ITEM_EQUIPPED: 'Unequip that item before listing it.',
+        ITEM_LISTED: 'Cancel the Market listing before selling it to the buyback.',
         ALREADY_LISTED: 'That item is already listed.',
         NOT_OWNED: 'You do not own that item.',
         BAD_PRICE: 'Choose a price from 1 to 5000 Paws.',
@@ -619,6 +628,29 @@ function storeRenderMarketList(rows) {
     }).join('');
 }
 
+function storeBuybackPrice(item) {
+    if (!item) return 0;
+    const paid = Number(STORE_PAID[item.id]) || Number(item.price) || 0;
+    return Math.max(1, Math.floor(paid * 0.65));
+}
+
+async function storeBuybackItem(itemId) {
+    if (!storeAvailable()) { updateMascot('Sign in to sell items.'); return; }
+    const item = STORE_BY_ID[itemId];
+    if (!item) return;
+    const refund = storeBuybackPrice(item);
+    if (!window.confirm('Sell ' + item.name + ' to the official buyback for ' + refund + ' Paws? (65% of what you paid)')) return;
+    try {
+        const { error } = await sb.rpc('sell_item_to_store', { p_item: itemId });
+        if (error) throw error;
+        updateMascot('Official buyback: +' + refund + ' 🐾 for ' + item.name + '.');
+        await loadStoreState(true);
+        renderStore();
+    } catch (e) {
+        storeMarketNote(storeMarketError(e));
+    }
+}
+
 function storeRenderSellList(rows) {
     const sellEl = document.getElementById('store-market-sell');
     if (!sellEl) return;
@@ -636,6 +668,7 @@ function storeRenderSellList(rows) {
             '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(it.price) + ' 🐾</small></div>' +
             '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
             '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
+            '<button type="button" class="store-market-btn buyback" onclick="storeBuybackItem(\'' + it.id + '\')" title="Official buyback: 65% of what you paid">↩ +' + storeBuybackPrice(it) + ' 🐾</button>' +
             '</div>';
     }).join('');
 }

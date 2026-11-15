@@ -534,6 +534,8 @@ function profileRenderFriendChrome(friend) {
     if (lookTitle) lookTitle.innerText = friend ? '🎒 Their look' : '🎒 My look';
     const lookBalance = document.getElementById('profile-look-balance');
     if (lookBalance) lookBalance.classList.toggle('hidden', friend);
+    const pawsToday = document.getElementById('profile-paws-today');
+    if (pawsToday) pawsToday.classList.toggle('hidden', friend);
     const lookStore = document.getElementById('profile-look-store-btn');
     if (lookStore) lookStore.classList.toggle('hidden', friend);
     const catPicker = document.getElementById('profile-cat-picker');
@@ -585,12 +587,15 @@ function profileShowOwn() {
     profileReopenListKind = '';
     profileReopenSocialKind = '';
     profileSocialListKind = '';
-    if (currentView === 'profile-view') loadProfile();
-    else changeView('profile-view');
-    if (typeof loadStoreState === 'function') {
-        loadStoreState().then(function () {
-            if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
-        });
+    if (currentView === 'profile-view') {
+        loadProfile();
+        if (typeof loadStoreState === 'function') {
+            loadStoreState(true).then(function () {
+                if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
+            });
+        }
+    } else {
+        changeView('profile-view');
     }
     requestAnimationFrame(profileScrollToTop);
 }

@@ -1284,7 +1284,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v34）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v35）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1374,8 +1374,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v34`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v35`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v35`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v36`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2011,7 +2011,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v34。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v35。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2053,9 +2053,15 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `save_profile_look()`（customizer 每次改動都 fire-and-forget）、
     `friend_store_look(p_user_id)`（回 jsonb：cat／hat／face／outfit＋
     prop／background 的 item id；只係 cosmetic，冇 email）。
-  - `my_paw_balance()`、`buy_store_item(item)`（原子扣分／`ALREADY_OWNED`／
+  - `my_paw_balance()`、`my_paws_today()`（今日香港日 practice／class
+    battle 正數總和，唔計 welcome／purchase／teacher test）、
+    `buy_store_item(item)`（原子扣分／`ALREADY_OWNED`／
     `NOT_ENOUGH_PAWS`）、`equip_store_item(slot,item)`（驗證 slot／擁有；
     `p_item=''` = unequip）。`store_items` 價錢由 server 再驗一次。
+  - Me → 🎒 My look 標題旁顯示 **`+N 🐾 Today`** 同 **`N 🐾 Total`**
+    （`#profile-paws-today`／`#profile-look-balance`）；朋友 profile 會
+    hide 呢兩個數。`changeView('profile-view')`／`store-view` 會
+    `loadStoreState(true)` refresh，所以做完練習再入 Me 會見到最新數。
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
   Equip hat／face／outfit 會寫入 `DG.readSettings()`，所以 Drive & Go
   customizer 同 Word Battle 班際貓 customizer 下次預設用該 item。

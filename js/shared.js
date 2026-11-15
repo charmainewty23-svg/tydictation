@@ -2211,7 +2211,7 @@
                 updateMascot("Your LearniTY profile — keep the flame alive!");
                 loadProfile();
                 if (typeof loadStoreState === 'function') {
-                    loadStoreState().then(function () {
+                    loadStoreState(true).then(function () {
                         if (typeof storeRenderProfileLook === 'function') storeRenderProfileLook();
                     });
                 }
@@ -2220,7 +2220,7 @@
             if (viewId === 'store-view') {
                 updateMascot("Spend your Paws on a new look! 🐾");
                 if (typeof loadStoreState === 'function') {
-                    loadStoreState().then(function () {
+                    loadStoreState(true).then(function () {
                         if (typeof renderStore === 'function') renderStore();
                     });
                 }

@@ -75,6 +75,7 @@ const STORE_FREE = {
 let STORE_OWNED = {};
 let STORE_EQUIPPED = {};
 let STORE_BALANCE = 0;
+let STORE_PAWS_TODAY = 0;
 let STORE_MY_LOOK = null;
 let STORE_LOADED = false;
 let STORE_LOAD_ERROR = '';
@@ -128,6 +129,7 @@ async function loadStoreState(force) {
             STORE_OWNED = free;
             STORE_EQUIPPED = {};
             STORE_BALANCE = 0;
+            STORE_PAWS_TODAY = 0;
             STORE_LOADED = true;
             STORE_LOAD_ERROR = '';
             window.STORE_OWNED = STORE_OWNED;
@@ -151,6 +153,10 @@ async function loadStoreState(force) {
                 if (row && row.slot && row.item_id) STORE_EQUIPPED[row.slot] = row.item_id;
             });
             STORE_BALANCE = Math.max(0, Number(bal.data) || 0);
+            try {
+                const todayRes = await sb.rpc('my_paws_today');
+                STORE_PAWS_TODAY = (!todayRes.error) ? Math.max(0, Number(todayRes.data) || 0) : 0;
+            } catch (e) { STORE_PAWS_TODAY = 0; }
             STORE_LOAD_ERROR = '';
             STORE_LOADED = true;
             window.STORE_OWNED = STORE_OWNED;
@@ -170,6 +176,7 @@ async function loadStoreState(force) {
             STORE_OWNED = free;
             STORE_EQUIPPED = {};
             STORE_BALANCE = 0;
+            STORE_PAWS_TODAY = 0;
             STORE_LOAD_ERROR = 'Store needs supabase/store.sql in the Supabase SQL editor.';
             STORE_LOADED = true;
             window.STORE_OWNED = STORE_OWNED;
@@ -478,8 +485,10 @@ function storeRenderProfileLook() {
     const canvas = document.getElementById('profile-look-canvas');
     const label = document.getElementById('profile-look-items');
     const balance = document.getElementById('profile-look-balance');
+    const today = document.getElementById('profile-paws-today');
     if (!canvas) return;
-    if (balance) balance.innerText = storeBalanceLabel();
+    if (balance) balance.innerText = storeAvailable() ? (STORE_BALANCE + ' 🐾 Total') : 'Sign in to earn Paws';
+    if (today) today.innerText = storeAvailable() ? ('+' + STORE_PAWS_TODAY + ' 🐾 Today') : '';
     const look = (typeof DG !== 'undefined' && DG.currentLook) ? DG.currentLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
     storePaintLook(canvas, label, look, storeEquippedItem('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
     document.querySelectorAll('#profile-cat-picker [data-profile-cat]').forEach(btn => {

@@ -112,6 +112,31 @@ begin
 end;
 $fn$;
 
+create or replace function public.my_paws_today()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_day_start timestamptz :=
+        ((now() at time zone 'Asia/Hong_Kong')::date::timestamp at time zone 'Asia/Hong_Kong');
+    v_total int := 0;
+begin
+    if v_me is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+    select coalesce(sum(amount), 0)::int into v_total
+      from public.paw_ledger
+     where user_id = v_me
+       and amount > 0
+       and created_at >= v_day_start
+       and (reason like 'practice:%' or reason = 'class_battle');
+    return v_total;
+end;
+$fn$;
+
 -- Shared by the score-table triggers. p_base is capped by the caller.
 create or replace function public.paw_practice_award(
     p_user uuid,
@@ -450,6 +475,7 @@ end;
 $fn$;
 
 revoke all on function public.my_paw_balance() from public;
+revoke all on function public.my_paws_today() from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
 revoke all on function public.equip_store_item(text, text) from public;
@@ -463,6 +489,7 @@ revoke all on function public.paw_trg_battle() from public;
 revoke all on function public.paw_trg_class_battle() from public;
 
 grant execute on function public.my_paw_balance() to authenticated;
+grant execute on function public.my_paws_today() to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
 grant execute on function public.save_profile_look(text, text, text, text) to authenticated;

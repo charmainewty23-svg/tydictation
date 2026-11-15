@@ -152,6 +152,7 @@
             topic: '', soundOn: true, audio: null, music: null,
             lastShot: 0, bound: false, autoFs: false,
             milestones: [], passFlash: 0, passLabels: [],
+            overlayKind: '',
             CHEERS: ['wow!', 'superb!', 'bravo!'], cheerIndex: 0
         };
 
@@ -219,6 +220,126 @@
             if (!WJ.soundOn || !WJ.music) return;
             try { WJ.music.play().catch(() => {}); } catch (e) {}
         };
+
+        /* ---------------- visual themes ---------------- */
+        /* Themes only change the artwork: platforms keep their colour code
+           (green safe, blue moving, grey vertical, brown breaks, yellow
+           explodes, white vanishes, purple quiz) so the game still reads the
+           same way in every world. */
+        WJ.THEME_KEY = 'learniTY_wj_theme';
+        WJ.MONSTER_COUNTRIES = [
+            { code: 'BRA', colors: ['#009c3b', '#ffdf00', '#002776'] },
+            { code: 'ARG', colors: ['#74acdf', '#ffffff', '#74acdf'] },
+            { code: 'JPN', colors: ['#1d2088', '#ffffff', '#bc002d'] },
+            { code: 'FRA', colors: ['#0055a4', '#ffffff', '#ef4135'] },
+            { code: 'GER', colors: ['#000000', '#dd0000', '#ffce00'] },
+            { code: 'ITA', colors: ['#009246', '#ffffff', '#ce2b37'] },
+            { code: 'ESP', colors: ['#aa151b', '#f1bf00', '#aa151b'] },
+            { code: 'POR', colors: ['#046a38', '#da291c', '#046a38'] },
+            { code: 'MEX', colors: ['#006847', '#ffffff', '#ce1126'] },
+            { code: 'KOR', colors: ['#cd2e3a', '#ffffff', '#0047a0'] },
+            { code: 'USA', colors: ['#3c3b6e', '#ffffff', '#b22234'] },
+            { code: 'ENG', colors: ['#ffffff', '#cf081f', '#ffffff'] }
+        ];
+        WJ.THEMES = [
+            { id: 'paper', name: 'Paper', icon: '📄',
+              sky: ['#fdf9ef', '#fdf9ef'], grid: 'rgba(120,160,215,0.16)',
+              hud: '#334155', muted: '#94a3b8', streak: '#ea580c',
+              line: 'rgba(79,70,229,0.38)', linePass: 'rgba(16,185,129,0.5)',
+              edge: 'rgba(67,56,202,0.8)', edgePass: 'rgba(5,150,105,0.85)',
+              hole: 'rgba(147,197,253,0.85)' },
+            { id: 'underwater', name: 'Underwater', icon: '🌊',
+              sky: ['#0a4a72', '#1b79ad'], grid: 'rgba(224,242,254,0.10)',
+              hud: '#f8fafc', muted: '#bae6fd', streak: '#fde047',
+              line: 'rgba(224,242,254,0.30)', linePass: 'rgba(110,231,183,0.55)',
+              edge: 'rgba(224,242,254,0.75)', edgePass: 'rgba(52,211,153,0.85)',
+              hole: 'rgba(165,243,252,0.9)' },
+            { id: 'christmas', name: 'Christmas', icon: '🎄',
+              sky: ['#dbeeff', '#f8fdff'], grid: 'rgba(148,163,184,0.16)',
+              hud: '#0f172a', muted: '#64748b', streak: '#b91c1c',
+              line: 'rgba(59,130,246,0.28)', linePass: 'rgba(16,185,129,0.45)',
+              edge: 'rgba(37,99,235,0.65)', edgePass: 'rgba(5,150,105,0.75)',
+              hole: 'rgba(96,165,250,0.9)' },
+            { id: 'halloween', name: 'Halloween', icon: '🎃',
+              sky: ['#160d2e', '#3b1b55'], grid: 'rgba(216,180,254,0.12)',
+              hud: '#faf5ff', muted: '#d8b4fe', streak: '#fdba74',
+              line: 'rgba(233,213,255,0.32)', linePass: 'rgba(134,239,172,0.55)',
+              edge: 'rgba(233,213,255,0.75)', edgePass: 'rgba(74,222,128,0.85)',
+              hole: 'rgba(233,213,255,0.9)' },
+            { id: 'soccer', name: 'Soccer', icon: '⚽',
+              sky: ['#1f7a3d', '#2e9a4e'], grid: 'rgba(255,255,255,0.09)',
+              hud: '#ffffff', muted: '#dcfce7', streak: '#fde047',
+              line: 'rgba(255,255,255,0.35)', linePass: 'rgba(253,224,71,0.6)',
+              edge: 'rgba(255,255,255,0.8)', edgePass: 'rgba(253,224,71,0.9)',
+              hole: 'rgba(253,224,71,0.9)' },
+            { id: 'newyear', name: 'New Year', icon: '🎆',
+              sky: ['#0a0f2e', '#241a52'], grid: 'rgba(196,181,253,0.10)',
+              hud: '#fefce8', muted: '#c7d2fe', streak: '#fbbf24',
+              line: 'rgba(224,231,255,0.32)', linePass: 'rgba(134,239,172,0.55)',
+              edge: 'rgba(224,231,255,0.78)', edgePass: 'rgba(74,222,128,0.85)',
+              hole: 'rgba(253,230,138,0.9)' }
+        ];
+
+        /* Deterministic 0..1 helper for decoration positions and the soccer
+           country pick — it must not consume the seeded game RNG. */
+        WJ.hash01 = function (n) {
+            const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+            return x - Math.floor(x);
+        };
+
+        WJ.themeId = (function () {
+            try {
+                const v = localStorage.getItem(WJ.THEME_KEY);
+                return WJ.THEMES.some(t => t.id === v) ? v : 'paper';
+            } catch (e) {
+                return 'paper';
+            }
+        })();
+
+        WJ.theme = function () {
+            for (let i = 0; i < WJ.THEMES.length; i++) {
+                if (WJ.THEMES[i].id === WJ.themeId) return WJ.THEMES[i];
+            }
+            return WJ.THEMES[0];
+        };
+
+        WJ.populateThemes = function () {
+            const sel = document.getElementById('wj-theme');
+            if (!sel) return;
+            sel.innerHTML = WJ.THEMES.map(t =>
+                '<option value="' + t.id + '">' + t.icon + ' ' + t.name + '</option>').join('');
+            sel.value = WJ.themeId;
+        };
+
+        WJ.setTheme = function (id, fromPicker) {
+            if (!WJ.THEMES.some(t => t.id === id)) return;
+            WJ.themeId = id;
+            try { localStorage.setItem(WJ.THEME_KEY, id); } catch (e) {}
+            const sel = document.getElementById('wj-theme');
+            if (sel) sel.value = id;
+            if (fromPicker) {
+                if (WJ.overlayKind === 'mode' && typeof WJC !== 'undefined') WJC.showModeSelect();
+                else if (WJ.overlayKind === 'intro') WJ.showIntro();
+            }
+            if (WJ.canvas) WJ.draw();
+        };
+
+        WJ.changeTheme = function (v) { WJ.setTheme(v, false); };
+
+        WJ.themePickerHTML = function () {
+            return '<div class="mb-4">' +
+                '<p class="text-[10px] font-bold tracking-widest text-gray-400 mb-1 text-center">WORLD</p>' +
+                '<div class="flex flex-wrap justify-center gap-1.5">' +
+                WJ.THEMES.map(t => {
+                    const on = t.id === WJ.themeId;
+                    return '<button type="button" onclick="WJ.setTheme(\'' + t.id + '\', true)" ' +
+                        'class="px-2.5 py-1.5 rounded-full text-xs font-bold border-2 ' +
+                        (on ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-600 border-gray-200') +
+                        '" aria-pressed="' + (on ? 'true' : 'false') + '">' + t.icon + ' ' + t.name + '</button>';
+                }).join('') +
+                '</div></div>';
+        };
+
         WJ.difficulty = () => WJ.clamp(WJ.maxClimb / 9000, 0, 1);
         // Challenge rooms share a course: difficulty / heat at a platform
         // must follow that platform's height, not the local player's score
@@ -322,6 +443,7 @@
             if (!WJ.platforms.length) WJ.reset();
             WJ.populateTopics();
             WJ.setTopicDefault();
+            WJ.populateThemes();
             WJ.showEntry();
             WJ.loadMilestones();
             WJ.draw();
@@ -626,12 +748,14 @@
 
         WJ.showIntro = function () {
             WJ.state = 'intro';
+            WJ.overlayKind = 'intro';
             const best = Number(localStorage.getItem('wj_best') || 0);
             WJ.setOverlay(`
                 <div class="w-full py-2">
                     <div class="text-5xl mb-1">🦘</div>
                     <h3 class="text-2xl font-bold text-emerald-600 mb-1">Word Jump</h3>
                     <p class="text-gray-500 text-sm mb-4">Read the Chinese, then land on the English word that matches it.</p>
+                    ${WJ.themePickerHTML()}
                     <div class="text-left bg-white rounded-xl border border-emerald-100 p-4 text-sm text-gray-600 space-y-2 mb-4">
                         <p>👈 <b>Tilt your phone</b> to move, or hold the pads at the bottom.</p>
                         <p>🟪 <b>Purple tiles</b> carry English words — bounce on the one that means the word on top.</p>
@@ -1147,7 +1271,10 @@
                 range: range != null ? range : WJ.rand(24, 50),
                 dir: WJ.nextRand() < 0.5 ? -1 : 1,
                 speed: WJ.rand(20, 40) * (1 + 0.3 * WJ.heatAt(y)),
-                r: 19, dead: false
+                r: 19, dead: false,
+                // Soccer theme jersey. Derived from the position so the seeded
+                // course still produces the same monster in a challenge.
+                country: WJ.MONSTER_COUNTRIES[Math.floor(WJ.hash01(Math.round(x) * 7.3 + Math.round(y) * 1.7) * WJ.MONSTER_COUNTRIES.length)]
             });
         };
         /* After 10000, occasionally place two monsters at the same altitude,
@@ -1511,6 +1638,7 @@
         WJ.drawMilestoneLines = function (ctx) {
             const marks = WJ.milestones;
             if (!marks || !marks.length) return;
+            const T = WJ.theme();
             ctx.save();
             for (let i = 0; i < marks.length; i++) {
                 const m = marks[i];
@@ -1518,14 +1646,14 @@
                 if (y < -8 || y > WJ.H + 8) continue;
                 ctx.setLineDash([6, 5]);
                 ctx.lineWidth = 1.5;
-                ctx.strokeStyle = m.passed ? 'rgba(16,185,129,0.5)' : 'rgba(79,70,229,0.38)';
+                ctx.strokeStyle = m.passed ? T.linePass : T.line;
                 ctx.beginPath();
                 ctx.moveTo(8, y + 0.5);
                 ctx.lineTo(WJ.W - 8, y + 0.5);
                 ctx.stroke();
                 ctx.setLineDash([]);
                 ctx.lineWidth = 3;
-                ctx.strokeStyle = m.passed ? 'rgba(5,150,105,0.85)' : 'rgba(67,56,202,0.8)';
+                ctx.strokeStyle = m.passed ? T.edgePass : T.edge;
                 ctx.beginPath();
                 ctx.moveTo(8, y - 7);
                 ctx.lineTo(8, y + 7);
@@ -1926,6 +2054,496 @@
 
         /* ---------------- rendering ---------------- */
 
+        /* ---------------- themed scenery ---------------- */
+
+        /* Walk each visible repetition of a world-spaced decoration layer.
+           parallax < 1 makes the layer drift slower than the platforms. */
+        WJ.repeatWorld = function (step, parallax, pad, fn) {
+            const cam = WJ.camY * parallax;
+            const first = Math.floor((cam - pad) / step);
+            const last = Math.floor((cam + WJ.H + pad) / step);
+            for (let k = first; k <= last; k++) fn(k, k * step - cam);
+        };
+
+        WJ.drawThemeBackdrop = function (ctx, T) {
+            if (T.id === 'underwater') WJ.drawUnderwaterBackdrop(ctx);
+            else if (T.id === 'christmas') WJ.drawChristmasBackdrop(ctx);
+            else if (T.id === 'halloween') WJ.drawHalloweenBackdrop(ctx);
+            else if (T.id === 'soccer') WJ.drawSoccerBackdrop(ctx);
+            else if (T.id === 'newyear') WJ.drawNewYearBackdrop(ctx);
+        };
+
+        WJ.drawUnderwaterBackdrop = function (ctx) {
+            const now = performance.now() / 1000;
+            // light shafts
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = 0; i < 4; i++) {
+                const x = 40 + i * 105 + Math.sin(now * 0.25 + i) * 18;
+                const g = ctx.createLinearGradient(x, 0, x + 60, WJ.H);
+                g.addColorStop(0, 'rgba(224,242,254,0.10)');
+                g.addColorStop(1, 'rgba(224,242,254,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.moveTo(x - 16, 0); ctx.lineTo(x + 16, 0);
+                ctx.lineTo(x + 70, WJ.H); ctx.lineTo(x + 30, WJ.H);
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+            // wavy caustic bands
+            WJ.repeatWorld(240, 0.32, 40, function (k, y) {
+                ctx.beginPath();
+                for (let x = 0; x <= WJ.W; x += 20) {
+                    const yy = y + Math.sin(x * 0.018 + k * 1.7) * 7;
+                    if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+                }
+                ctx.lineTo(WJ.W, y + 26);
+                ctx.lineTo(0, y + 26);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(186,230,253,0.06)';
+                ctx.fill();
+            });
+            // bubbles
+            WJ.repeatWorld(90, 1, 30, function (k, y) {
+                const x = 14 + WJ.hash01(k * 3.1) * (WJ.W - 28);
+                const r = 1.6 + WJ.hash01(k * 7.7) * 3.2;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(224,242,254,0.35)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+            // coral + seaweed on the edges
+            WJ.repeatWorld(320, 0.72, 90, function (k, y) {
+                const left = WJ.hash01(k * 5.3) < 0.5;
+                const bx = left ? 8 : WJ.W - 8;
+                const dir = left ? 1 : -1;
+                const scale = 0.8 + WJ.hash01(k * 2.9) * 0.6;
+                ctx.save();
+                ctx.translate(bx, y);
+                ctx.strokeStyle = 'rgba(8,47,73,0.55)';
+                ctx.lineWidth = 5 * scale;
+                ctx.lineCap = 'round';
+                for (let b = 0; b < 3; b++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 40 * scale);
+                    ctx.quadraticCurveTo(dir * (18 + b * 9) * scale, 6 * scale, dir * (26 + b * 12) * scale, -26 * scale);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = 'rgba(251,146,60,0.30)';
+                for (let d = 0; d < 4; d++) {
+                    ctx.beginPath();
+                    ctx.arc(dir * (12 + d * 7) * scale, -(10 + d * 9) * scale, 5 * scale, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+            // fish
+            WJ.repeatWorld(260, 0.88, 60, function (k, y) {
+                const x = 30 + WJ.hash01(k * 4.7) * (WJ.W - 60);
+                const dir = WJ.hash01(k * 9.1) > 0.5 ? 1 : -1;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.scale(dir, 1);
+                ctx.fillStyle = 'rgba(2,44,70,0.35)';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 13, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-12, 0); ctx.lineTo(-21, -6); ctx.lineTo(-21, 6); ctx.closePath(); ctx.fill();
+                ctx.restore();
+            });
+            // jellyfish
+            WJ.repeatWorld(430, 0.8, 80, function (k, y) {
+                const x = 40 + WJ.hash01(k * 6.1) * (WJ.W - 80);
+                const drift = Math.sin(now * 0.7 + k) * 6;
+                ctx.fillStyle = 'rgba(216,180,254,0.14)';
+                ctx.beginPath();
+                ctx.arc(x + drift, y, 16, Math.PI, 0, true);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(216,180,254,0.18)';
+                ctx.lineWidth = 2;
+                for (let t = 0; t < 3; t++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + drift - 8 + t * 8, y);
+                    ctx.quadraticCurveTo(x + drift - 8 + t * 8 + Math.sin(now + t) * 4, y + 12, x + drift - 8 + t * 8, y + 24);
+                    ctx.stroke();
+                }
+            });
+        };
+
+        WJ.drawChristmasBackdrop = function (ctx) {
+            const now = performance.now() / 1000;
+            // soft snow hills
+            WJ.repeatWorld(320, 0.3, 60, function (k, y) {
+                ctx.beginPath();
+                ctx.moveTo(0, y + 60);
+                for (let x = 0; x <= WJ.W; x += 24) {
+                    ctx.lineTo(x, y + 50 + Math.sin(x * 0.02 + k) * 12);
+                }
+                ctx.lineTo(WJ.W, y + 140);
+                ctx.lineTo(0, y + 140);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.fill();
+            });
+            // snow-capped pine trees on the edges
+            WJ.repeatWorld(260, 0.68, 80, function (k, y) {
+                const left = WJ.hash01(k * 2.3) < 0.5;
+                const x = left ? 22 : WJ.W - 22;
+                const s = 0.85 + WJ.hash01(k * 8.7) * 0.5;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = 'rgba(20,83,45,0.55)';
+                for (let t = 0; t < 3; t++) {
+                    const w = (30 - t * 7) * s;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -t * 18 * s - 26 * s);
+                    ctx.lineTo(w, -t * 18 * s);
+                    ctx.lineTo(-w, -t * 18 * s);
+                    ctx.closePath(); ctx.fill();
+                }
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                for (let t = 0; t < 3; t++) {
+                    const w = (30 - t * 7) * s * 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -t * 18 * s - 26 * s);
+                    ctx.lineTo(w, -t * 18 * s - 18 * s);
+                    ctx.lineTo(-w, -t * 18 * s - 18 * s);
+                    ctx.closePath(); ctx.fill();
+                }
+                ctx.restore();
+            });
+            // string lights across the sky
+            WJ.repeatWorld(190, 0.45, 40, function (k, y) {
+                const cols = ['#ef4444', '#f59e0b', '#22c55e', '#38bdf8'];
+                ctx.strokeStyle = 'rgba(15,23,42,0.18)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                for (let x = 0; x <= WJ.W; x += 40) ctx.lineTo(x, y + Math.sin(x * 0.03 + k) * 10);
+                ctx.stroke();
+                for (let i = 0; i < 8; i++) {
+                    const x = 25 + i * 50;
+                    const yy = y + Math.sin(x * 0.03 + k) * 10;
+                    ctx.fillStyle = cols[(i + k) % cols.length];
+                    ctx.globalAlpha = 0.7;
+                    ctx.beginPath(); ctx.arc(x, yy + 4, 3, 0, Math.PI * 2); ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            });
+            // falling snow
+            for (let i = 0; i < 28; i++) {
+                const speed = 0.35 + WJ.hash01(i * 3.3) * 0.5;
+                const y = ((-WJ.camY * 0.55 + i * 53 + now * 30 * speed) % (WJ.H + 40) + WJ.H + 40) % (WJ.H + 40) - 20;
+                const x = (WJ.hash01(i * 7.9) * (WJ.W + 80) + Math.sin(now * 0.4 + i) * 14 + WJ.W + 80) % (WJ.W + 80) - 40;
+                ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + WJ.hash01(i) * 0.4) + ')';
+                ctx.beginPath(); ctx.arc(x, y, 1.2 + WJ.hash01(i * 2.1) * 2.2, 0, Math.PI * 2); ctx.fill();
+            }
+        };
+
+        WJ.drawHalloweenBackdrop = function (ctx) {
+            const now = performance.now() / 1000;
+            // moon
+            ctx.fillStyle = 'rgba(253,230,138,0.12)';
+            ctx.beginPath(); ctx.arc(322, 116, 54, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(254,240,138,0.85)';
+            ctx.beginPath(); ctx.arc(322, 116, 26, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(59,27,85,0.22)';
+            [[312, 108, 5], [330, 122, 7], [320, 130, 4]].forEach(c => {
+                ctx.beginPath(); ctx.arc(c[0], c[1], c[2], 0, Math.PI * 2); ctx.fill();
+            });
+            // stars
+            for (let i = 0; i < 26; i++) {
+                const x = WJ.hash01(i * 4.1) * WJ.W;
+                const y = ((-WJ.camY * 0.28 + i * 71) % (WJ.H + 20) + WJ.H + 20) % (WJ.H + 20) - 10;
+                ctx.fillStyle = 'rgba(233,213,255,' + (0.25 + WJ.hash01(i * 2.7) * 0.45) + ')';
+                ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+            }
+            // bats
+            WJ.repeatWorld(240, 0.6, 50, function (k, y) {
+                const x = 30 + WJ.hash01(k * 3.7) * (WJ.W - 60);
+                const flap = Math.sin(now * 6 + k) * 5;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = 'rgba(15,8,30,0.55)';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(-10, -8 - flap, -20, -1);
+                ctx.quadraticCurveTo(-10, 0, 0, 5);
+                ctx.quadraticCurveTo(10, 0, 20, -1);
+                ctx.quadraticCurveTo(10, -8 - flap, 0, 0);
+                ctx.fill();
+                ctx.restore();
+            });
+            // graveyard silhouettes + pumpkins
+            WJ.repeatWorld(300, 0.75, 90, function (k, y) {
+                const x = 26 + WJ.hash01(k * 7.1) * (WJ.W - 52);
+                const s = 0.85 + WJ.hash01(k * 2.4) * 0.4;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = 'rgba(10,6,24,0.5)';
+                ctx.beginPath();
+                ctx.moveTo(-12 * s, 16 * s);
+                ctx.lineTo(-12 * s, -6 * s);
+                ctx.arc(0, -6 * s, 12 * s, Math.PI, 0);
+                ctx.lineTo(12 * s, 16 * s);
+                ctx.closePath(); ctx.fill();
+                ctx.restore();
+                if (WJ.hash01(k * 4.9) > 0.45) {
+                    const px = x + 34 * (WJ.hash01(k * 9.3) > 0.5 ? 1 : -1);
+                    ctx.fillStyle = 'rgba(249,115,22,0.55)';
+                    ctx.beginPath(); ctx.ellipse(px, y + 12, 9 * s, 7 * s, 0, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = 'rgba(34,197,94,0.5)';
+                    ctx.fillRect(px - 1.5, y + 4 * s, 3, 4 * s);
+                }
+            });
+        };
+
+        WJ.drawSoccerBackdrop = function (ctx) {
+            // mown stripes
+            const band = 74;
+            const off = ((-WJ.camY * 0.55) % (band * 2) + band * 2) % (band * 2);
+            for (let y = -band * 2 + off; y < WJ.H + band * 2; y += band) {
+                ctx.fillStyle = 'rgba(255,255,255,0.035)';
+                ctx.fillRect(0, y, WJ.W, band);
+            }
+            // touchlines
+            ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(20, 0); ctx.lineTo(20, WJ.H);
+            ctx.moveTo(WJ.W - 20, 0); ctx.lineTo(WJ.W - 20, WJ.H);
+            ctx.stroke();
+            // halfway lines and centre circles
+            WJ.repeatWorld(420, 0.6, 60, function (k, y) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(WJ.W - 20, y); ctx.stroke();
+                ctx.beginPath(); ctx.arc(WJ.W / 2, y, 46, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(WJ.W / 2, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fill();
+            });
+            // crowd in the stands
+            WJ.repeatWorld(360, 0.7, 90, function (k, y) {
+                const left = WJ.hash01(k * 3.1) < 0.5;
+                const x = left ? 0 : WJ.W;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = 'rgba(6,78,59,0.45)';
+                ctx.fillRect(left ? 0 : -26, -60, 26, 120);
+                const cols = ['#fbbf24', '#f87171', '#60a5fa', '#f9fafb', '#34d399'];
+                for (let i = 0; i < 18; i++) {
+                    ctx.fillStyle = cols[i % 5];
+                    ctx.globalAlpha = 0.35;
+                    ctx.beginPath();
+                    ctx.arc(left ? 8 + (i % 3) * 7 : -8 - (i % 3) * 7, -50 + Math.floor(i / 3) * 13, 2.4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            });
+            // corner flags in country colours
+            WJ.repeatWorld(480, 0.8, 60, function (k, y) {
+                [[24, 1], [WJ.W - 24, -1]].forEach(function (side) {
+                    const country = WJ.MONSTER_COUNTRIES[Math.floor(WJ.hash01(k * 5.7 + side[1]) * WJ.MONSTER_COUNTRIES.length)];
+                    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(side[0], y); ctx.lineTo(side[0], y - 26); ctx.stroke();
+                    const fw = 18;
+                    const fx = side[0] + (side[1] > 0 ? 0 : -fw);
+                    country.colors.forEach(function (c, i) {
+                        ctx.fillStyle = c;
+                        ctx.fillRect(fx + i * (fw / 3), y - 26, fw / 3, 12);
+                    });
+                });
+            });
+        };
+
+        WJ.drawNewYearBackdrop = function (ctx) {
+            const now = performance.now() / 1000;
+            // fireworks
+            for (let f = 0; f < 4; f++) {
+                const cycle = (now * 0.55 + f * 0.9) % 1;
+                if (cycle > 0.75) continue;
+                const x = 50 + WJ.hash01(f * 3.3) * (WJ.W - 100);
+                const y = ((-WJ.camY * 0.18 + f * 137) % (WJ.H + 40) + WJ.H + 40) % (WJ.H + 40) - 20;
+                const r = 8 + cycle * 42;
+                const a = Math.max(0, 1 - cycle / 0.75) * 0.55;
+                const hue = [45, 200, 330, 160][f % 4];
+                ctx.strokeStyle = 'hsla(' + hue + ',95%,70%,' + a + ')';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 12; i++) {
+                    const ang = (i / 12) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x + Math.cos(ang) * r * 0.35, y + Math.sin(ang) * r * 0.35);
+                    ctx.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+                    ctx.stroke();
+                }
+            }
+            // lanterns
+            WJ.repeatWorld(300, 0.7, 80, function (k, y) {
+                const left = WJ.hash01(k * 2.9) < 0.5;
+                const x = left ? 34 : WJ.W - 34;
+                const sway = Math.sin(now * 0.8 + k) * 4;
+                ctx.strokeStyle = 'rgba(253,230,138,0.45)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(x, y - 26); ctx.lineTo(x + sway, y); ctx.stroke();
+                ctx.fillStyle = 'rgba(220,38,38,0.65)';
+                ctx.beginPath(); ctx.ellipse(x + sway, y + 8, 11, 13, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(253,230,138,0.7)';
+                ctx.fillRect(x + sway - 5, y - 2, 10, 3);
+                ctx.fillRect(x + sway - 5, y + 19, 10, 3);
+                ctx.beginPath();
+                ctx.moveTo(x + sway, y + 22);
+                ctx.lineTo(x + sway - 3, y + 30);
+                ctx.lineTo(x + sway + 3, y + 30);
+                ctx.closePath(); ctx.fill();
+            });
+            // confetti
+            for (let i = 0; i < 26; i++) {
+                const x = (WJ.hash01(i * 3.7) * (WJ.W + 60) + Math.sin(now * 0.5 + i) * 12 + WJ.W + 60) % (WJ.W + 60) - 30;
+                const y = ((-WJ.camY * 0.5 + i * 61 + now * 22) % (WJ.H + 40) + WJ.H + 40) % (WJ.H + 40) - 20;
+                const c = ['#fbbf24', '#f472b6', '#60a5fa', '#34d399', '#f9fafb'][i % 5];
+                ctx.save();
+                ctx.globalAlpha = 0.6;
+                ctx.translate(x, y);
+                ctx.rotate(now * 2 + i);
+                ctx.fillStyle = c;
+                ctx.fillRect(-2, -3.5, 4, 7);
+                ctx.restore();
+            }
+        };
+
+        WJ.drawMonster = function (ctx, m, y, T) {
+            const id = T.id;
+            // ears / spikes
+            ctx.fillStyle = id === 'halloween' ? '#7c2d12' : '#7e22ce';
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.moveTo(m.x + i * 9 - 5, y - m.r + 3);
+                ctx.lineTo(m.x + i * 9, y - m.r - 9);
+                ctx.lineTo(m.x + i * 9 + 5, y - m.r + 3);
+                ctx.closePath();
+                ctx.fill();
+            }
+            // body
+            ctx.beginPath();
+            ctx.arc(m.x, y, m.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#c084fc';
+            ctx.fill();
+            ctx.strokeStyle = '#6b21a8';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            // eyes
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(m.x - 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(m.x + 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1f2937';
+            ctx.beginPath(); ctx.arc(m.x - 5, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(m.x + 7, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
+            // mouth
+            ctx.strokeStyle = '#6b21a8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(m.x, y + 7, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+            ctx.stroke();
+
+            if (id === 'underwater') {
+                // puffer spines + a trail of bubbles
+                ctx.strokeStyle = '#7e22ce';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2 + 0.2;
+                    ctx.beginPath();
+                    ctx.moveTo(m.x + Math.cos(a) * (m.r - 2), y + Math.sin(a) * (m.r - 2));
+                    ctx.lineTo(m.x + Math.cos(a) * (m.r + 5), y + Math.sin(a) * (m.r + 5));
+                    ctx.stroke();
+                }
+                ctx.strokeStyle = 'rgba(224,242,254,0.75)';
+                ctx.lineWidth = 1.2;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(m.x + 8 + i * 5, y - m.r - 12 - i * 7, 2 + i * 0.7, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (id === 'christmas') {
+                // Santa hat
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(m.x - 11, y - m.r + 2);
+                ctx.quadraticCurveTo(m.x - 1, y - m.r - 21, m.x + 13, y - m.r + 2);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(m.x - 12, y - m.r + 1, 24, 4);
+                ctx.beginPath(); ctx.arc(m.x + 13, y - m.r - 17, 3.5, 0, Math.PI * 2); ctx.fill();
+            } else if (id === 'halloween') {
+                // witch hat
+                ctx.fillStyle = '#312e81';
+                ctx.beginPath();
+                ctx.moveTo(m.x - 12, y - m.r + 1);
+                ctx.lineTo(m.x + 12, y - m.r + 1);
+                ctx.lineTo(m.x + 4, y - m.r - 22);
+                ctx.closePath(); ctx.fill();
+                ctx.fillRect(m.x - 17, y - m.r, 34, 4);
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(m.x - 3, y - m.r - 8, 6, 5);
+            } else if (id === 'soccer') {
+                // country jersey + little flag
+                const c = m.country || WJ.MONSTER_COUNTRIES[0];
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(m.x, y, m.r - 0.5, 0, Math.PI * 2);
+                ctx.clip();
+                const third = (m.r * 2) / 3;
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillStyle = c.colors[i % c.colors.length];
+                    ctx.fillRect(m.x - m.r + i * third, y + 2, third + 0.5, m.r + 2);
+                }
+                ctx.restore();
+                ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctx.lineWidth = 1.4;
+                ctx.beginPath();
+                ctx.arc(m.x, y, m.r, 0.12 * Math.PI, 0.88 * Math.PI);
+                ctx.stroke();
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(m.x + 9, y - m.r + 4);
+                ctx.lineTo(m.x + 9, y - m.r - 16);
+                ctx.stroke();
+                c.colors.forEach(function (col, i) {
+                    ctx.fillStyle = col;
+                    ctx.fillRect(m.x + 9 + i * 5, y - m.r - 16, 5, 9);
+                });
+                ctx.font = 'bold 9px Fredoka, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = 'rgba(15,23,42,0.8)';
+                ctx.strokeText(c.code, m.x, y + 13);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(c.code, m.x, y + 13);
+            } else if (id === 'newyear') {
+                // party hat
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(m.x - 11, y - m.r + 1);
+                ctx.lineTo(m.x + 11, y - m.r + 1);
+                ctx.lineTo(m.x, y - m.r - 20);
+                ctx.closePath();
+                ctx.fillStyle = '#f472b6';
+                ctx.fill();
+                ctx.clip();
+                ctx.fillStyle = '#fde047';
+                for (let i = 0; i < 3; i++) ctx.fillRect(m.x - 14 + i * 9, y - m.r - 22, 4, 26);
+                ctx.restore();
+                ctx.beginPath(); ctx.arc(m.x, y - m.r - 21, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#fde047'; ctx.fill();
+            }
+        };
+
         WJ.draw = function () {
             const ctx = WJ.ctx;
             if (!ctx || !WJ.canvas) return;
@@ -1934,17 +2552,22 @@
             ctx.setTransform(sx, 0, 0, sy, 0, 0);
             ctx.clearRect(0, 0, WJ.W, WJ.H);
 
-            // paper + grid
-            ctx.fillStyle = '#fdf9ef';
+            const T = WJ.theme();
+            // themed background
+            const sky = ctx.createLinearGradient(0, 0, 0, WJ.H);
+            sky.addColorStop(0, T.sky[0]);
+            sky.addColorStop(1, T.sky[1]);
+            ctx.fillStyle = sky;
             ctx.fillRect(0, 0, WJ.W, WJ.H);
             const gs = 26;
             const oy = ((WJ.camY % gs) + gs) % gs;
-            ctx.strokeStyle = 'rgba(120,160,215,0.16)';
+            ctx.strokeStyle = T.grid;
             ctx.lineWidth = 1;
             ctx.beginPath();
             for (let x = 0; x <= WJ.W; x += gs) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, WJ.H); }
             for (let y = -gs + oy; y <= WJ.H + gs; y += gs) { ctx.moveTo(0, y + 0.5); ctx.lineTo(WJ.W, y + 0.5); }
             ctx.stroke();
+            WJ.drawThemeBackdrop(ctx, T);
             WJ.drawMilestoneLines(ctx);
 
             // platforms
@@ -1973,6 +2596,14 @@
                 WJ.roundRect(ctx, pl.x, y, pl.w, pl.h, 6);
                 ctx.fill();
                 ctx.stroke();
+
+                // A light dusting of snow on Christmas pads.
+                if (T.id === 'christmas' && pl.type !== 'quiz') {
+                    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+                    ctx.beginPath();
+                    ctx.ellipse(pl.x + pl.w / 2, y + 2, pl.w * 0.42, 3.6, 0, Math.PI, 0);
+                    ctx.fill();
+                }
 
                 if (pl.type === 'quiz') {
                     if (pl.row === activeRow && !pl.row.resolved) {
@@ -2035,7 +2666,7 @@
                 ctx.arc(h.x, y, h.r, 0, Math.PI * 2);
                 ctx.fillStyle = '#060b18';
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(147,197,253,0.85)';
+                ctx.strokeStyle = T.hole || 'rgba(147,197,253,0.85)';
                 ctx.lineWidth = 2;
                 const t = performance.now() / 500;
                 ctx.beginPath();
@@ -2051,33 +2682,7 @@
                 if (m.dead) continue;
                 const y = m.y - WJ.camY;
                 if (y < -50 || y > WJ.H + 50) continue;
-                ctx.fillStyle = '#7e22ce';
-                for (let i = -1; i <= 1; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(m.x + i * 9 - 5, y - m.r + 3);
-                    ctx.lineTo(m.x + i * 9, y - m.r - 9);
-                    ctx.lineTo(m.x + i * 9 + 5, y - m.r + 3);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-                ctx.beginPath();
-                ctx.arc(m.x, y, m.r, 0, Math.PI * 2);
-                ctx.fillStyle = '#c084fc';
-                ctx.fill();
-                ctx.strokeStyle = '#6b21a8';
-                ctx.lineWidth = 2.5;
-                ctx.stroke();
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(m.x - 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(m.x + 6, y - 3, 5.5, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#1f2937';
-                ctx.beginPath(); ctx.arc(m.x - 5, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(m.x + 7, y - 2, 2.6, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = '#6b21a8';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(m.x, y + 7, 6, 0.15 * Math.PI, 0.85 * Math.PI);
-                ctx.stroke();
+                WJ.drawMonster(ctx, m, y, T);
             }
 
             // UFOs
@@ -2261,6 +2866,8 @@
                 ctx.fill();
             }
 
+            WJ.drawPlayerLook(ctx, x, y, w, h, p, WJ.theme());
+
             // shield bubble
             if (p.shield > 0) {
                 const a = 0.45 + 0.3 * Math.sin(performance.now() / 150);
@@ -2271,6 +2878,78 @@
                 ctx.strokeStyle = 'rgba(56,189,248,' + a + ')';
                 ctx.lineWidth = 3;
                 ctx.stroke();
+            }
+        };
+
+        /* Theme accessories on the little jump blob. Kept separate so the
+           base character (and its collision box) never changes. */
+        WJ.drawPlayerLook = function (ctx, x, y, w, h, p, T) {
+            const id = T.id;
+            const topY = y - h;
+            if (id === 'underwater') {
+                ctx.beginPath();
+                ctx.arc(x, y - h * 0.62, 22, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(125,211,252,0.16)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(224,242,254,0.8)';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                const t = performance.now() / 600;
+                ctx.strokeStyle = 'rgba(224,242,254,0.6)';
+                ctx.lineWidth = 1.2;
+                for (let i = 0; i < 3; i++) {
+                    const by = topY - 8 - i * 8 - ((t + i) % 3) * 3;
+                    ctx.beginPath();
+                    ctx.arc(x + 10 + i * 4, by, 2 + i * 0.8, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (p.prop <= 0 && id === 'christmas') {
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(x - 12, topY + 2);
+                ctx.quadraticCurveTo(x - 2, topY - 22, x + 14, topY + 2);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x - 13, topY + 1, 26, 4);
+                ctx.beginPath(); ctx.arc(x + 14, topY - 18, 3.5, 0, Math.PI * 2); ctx.fill();
+            } else if (p.prop <= 0 && id === 'halloween') {
+                ctx.fillStyle = '#312e81';
+                ctx.beginPath();
+                ctx.moveTo(x - 13, topY + 1);
+                ctx.lineTo(x + 13, topY + 1);
+                ctx.lineTo(x + 4, topY - 24);
+                ctx.closePath(); ctx.fill();
+                ctx.fillRect(x - 18, topY, 36, 4.5);
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(x - 3, topY - 9, 6, 5);
+            } else if (p.prop <= 0 && id === 'newyear') {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x - 11, topY + 1);
+                ctx.lineTo(x + 11, topY + 1);
+                ctx.lineTo(x, topY - 21);
+                ctx.closePath();
+                ctx.fillStyle = '#f472b6';
+                ctx.fill();
+                ctx.clip();
+                ctx.fillStyle = '#fde047';
+                for (let i = 0; i < 3; i++) ctx.fillRect(x - 14 + i * 9, topY - 23, 4, 27);
+                ctx.restore();
+                ctx.beginPath(); ctx.arc(x, topY - 22, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#fde047'; ctx.fill();
+            } else if (id === 'soccer') {
+                // jersey
+                ctx.save();
+                WJ.roundRect(ctx, x - w / 2 + 2, y - h * 0.42, w - 4, h * 0.36, 8);
+                ctx.clip();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x - w / 2 + 2, y - h * 0.42, w - 4, h * 0.36);
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(x - w / 2 + 2 + (w - 4) / 3, y - h * 0.42, (w - 4) / 3, h * 0.36);
+                ctx.restore();
+                // headband
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(x - w / 2 + 4, y - h * 0.8, w - 8, 4);
             }
         };
 
@@ -2298,19 +2977,20 @@
 
         WJ.drawHud = function (ctx) {
             const best = Math.max(Number(localStorage.getItem('wj_best') || 0), WJ.score());
+            const T = WJ.theme();
 
             // score, top-left
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
             ctx.font = 'bold 26px Fredoka, system-ui, sans-serif';
-            ctx.fillStyle = '#334155';
+            ctx.fillStyle = T.hud;
             ctx.fillText(String(WJ.score()), 14, 36);
             ctx.font = 'bold 9px Fredoka, system-ui, sans-serif';
-            ctx.fillStyle = '#94a3b8';
+            ctx.fillStyle = T.muted;
             ctx.fillText('BEST ' + best, 16, 49);
             if (WJ.streak > 1) {
                 ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
-                ctx.fillStyle = '#ea580c';
+                ctx.fillStyle = T.streak;
                 ctx.fillText('🔥 x' + WJ.streak, 16, 66);
             }
             if (typeof WJC !== 'undefined' && WJC.active) {
@@ -2354,7 +3034,7 @@
                 ctx.fillText('JUMP ON THE RIGHT WORD', WJ.W / 2, cardY + 48);
             } else {
                 ctx.font = 'bold 13px Fredoka, system-ui, sans-serif';
-                ctx.fillStyle = '#94a3b8';
+                ctx.fillStyle = T.muted;
                 ctx.fillText('Keep climbing…', WJ.W / 2, cardY + 31);
             }
 
@@ -2391,8 +3071,13 @@
                 ctx.textBaseline = 'middle';
                 ctx.font = 'bold 17px Fredoka, system-ui, sans-serif';
                 ctx.fillStyle = toast.color;
+                // A light halo keeps the coloured toast readable on the dark
+                // themes (underwater / Halloween / New Year).
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.lineWidth = 3.5;
                 // Low on the screen: at y=96 the answer feedback used to land
                 // right on top of the word tiles and hide them.
+                ctx.strokeText(toast.text, WJ.W / 2, WJ.H - 140, WJ.W - 24);
                 ctx.fillText(toast.text, WJ.W / 2, WJ.H - 140, WJ.W - 24);
                 ctx.globalAlpha = 1;
             }
@@ -3173,6 +3858,7 @@
         WJC.showModeSelect = function () {
             WJ.challenge = false;
             WJ.rng = null;
+            WJ.overlayKind = 'mode';
             WJC.syncTopicLock();
             WJC.renderRejoin();
             const blocked = WJC.cloudBlockedReason();
@@ -3192,6 +3878,7 @@
                     ${rejoin}
                     <button type="button" onclick="WJC.chooseSolo()" class="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors">Solo</button>
                     <button type="button" onclick="WJC.chooseChallenge()" class="w-full mt-2 py-3 bg-sky-500 text-white rounded-xl font-bold text-lg hover:bg-sky-600 transition-colors">Challenge friends</button>
+                    ${WJ.themePickerHTML()}
                     ${WJC.recordsButtons()}
                     ${blocked ? `<p class="text-xs text-amber-700 font-bold mt-3">${escapeHtml(blocked)}</p>` : '<p class="text-xs text-gray-400 mt-3">Challenge friends: open or join a room, pick a bird colour, then choose how to duel.</p>'}
                 </div>`, true);

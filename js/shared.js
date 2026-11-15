@@ -1991,6 +1991,11 @@
                 else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
                 requestAnimationFrame(() => WJ.mount());
             }
+            // The Error Book reminder cannot appear over a quiz or game, so it
+            // gets another chance after every view change.
+            if (typeof maybeNotifyErrorBook === 'function') {
+                setTimeout(maybeNotifyErrorBook, 450);
+            }
         }
 
         window.onload = () => {

@@ -1248,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v20）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v21）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1273,6 +1273,25 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   喺錯題簿答對就刪走。學校帳戶登入寫 `error_book`（只可以讀寫自己）；訪客用
   `sessionStorage["error_book:guest-session"]`（只留喺呢次分頁，唔會寫上雲）。
   未登入嘅舊 key 仍然係 `localStorage["error_book:guest"]`。一有學校帳戶登入就清走呢個舊 guest key，避免共用電腦串到下一個學生。
+- **錯題簿夠 10 個字會提醒**（`js/dictation.js`，本地，唔使 SQL）：
+  `maybeNotifyErrorBook()` 喺 `loadErrorBook()`、`addErrorWord()`、
+  `removeErrorWord()` 同每次 `changeView()` 之後（延遲 450ms）檢查。
+  - 門檻係 **10／20／30…**（`Math.floor(count / 10) * 10`）。一過門檻就出
+    `#eb-notice` modal：「Your Error Book is filling up — You have N words
+    saved…」，有 **📒 Open Error Book** 同 **Later**。
+  - 記住嘅 milestone 喺 `errorBookStorageKey() + ':notice'`
+    （學校帳戶 localStorage、訪客 sessionStorage、preview 分年級），
+    所以撳 Later 之後唔會同一批字再彈；跌返落 **10 以下會 reset 做 0**，
+    下次再儲夠 10 個會再提醒。
+  - **已儲夠 10 個字嘅舊用戶**：第一次載入 `loadErrorBook()` 就會即刻出
+    （key 未有 → milestone 0）。
+  - `quiz-view`／`drive-and-go-view`／`wordjump-view`／`battle-view`／
+    `error-book-view` 期間**唔會彈**，避免遮住題目／遊戲；離開後
+    `changeView()` 會再試。`#eb-notice` z-index **10050**，低過 streak
+    popup（10060），所以連勝卡會喺上面，閂咗之後仍然見到錯題簿提示。
+  - Error Book 頁面本身如果 ≥10 字，`renderErrorBook()` 會喺清單頂加
+    `.eb-full-banner`（「🔔 N words waiting…」）做持續提示。
+  - 呢個係 app 內 modal，唔係 OS push，亦唔會寫 `friend_notifications`。
 - Word Battle：topic 揀 New Vocab，再揀年級，同「Full bank／Added today」。
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
@@ -1307,8 +1326,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v20`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v21`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v21`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v22`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

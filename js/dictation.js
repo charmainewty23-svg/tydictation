@@ -175,6 +175,94 @@
             } catch (e) { return []; }
         }
 
+        /* -------- Error Book "10 words" reminder -------- */
+        // The reminder is local (per error-book owner): it never touches the
+        // shared notification tables. At 10 / 20 / 30 … words the student is
+        // nudged to clear the book; dismissing it does not repeat until the
+        // next ten. Dropping below 10 resets the milestone, so a fresh pile of
+        // ten asks again.
+        const EB_NOTICE_BUSY_VIEWS = ['quiz-view', 'drive-and-go-view', 'wordjump-view', 'battle-view', 'error-book-view'];
+        let ebNoticeKeydownBound = false;
+
+        function errorBookNoticeKey() {
+            return errorBookStorageKey() + ':notice';
+        }
+
+        function readErrorBookNoticeMilestone() {
+            try {
+                const parsed = JSON.parse(errorBookStore().getItem(errorBookNoticeKey()) || 'null');
+                return Math.max(0, Number(parsed && parsed.milestone) || 0);
+            } catch (e) { return 0; }
+        }
+
+        function writeErrorBookNoticeMilestone(value) {
+            try {
+                errorBookStore().setItem(errorBookNoticeKey(), JSON.stringify({ milestone: Math.max(0, Number(value) || 0) }));
+            } catch (e) {}
+        }
+
+        function maybeNotifyErrorBook() {
+            const count = errorBook.length;
+            const last = readErrorBookNoticeMilestone();
+            if (count < 10) {
+                if (last) writeErrorBookNoticeMilestone(0);
+                return;
+            }
+            const milestone = Math.floor(count / 10) * 10;
+            if (milestone <= last) return;
+            // Do not interrupt an active quiz or game — the next view change
+            // calls this again and shows it then.
+            if (EB_NOTICE_BUSY_VIEWS.indexOf(currentView) !== -1) return;
+            writeErrorBookNoticeMilestone(milestone);
+            showErrorBookNotice(count);
+        }
+
+        function showErrorBookNotice(count) {
+            const old = document.getElementById('eb-notice');
+            if (old) old.remove();
+            const el = document.createElement('div');
+            el.id = 'eb-notice';
+            el.setAttribute('role', 'dialog');
+            el.setAttribute('aria-modal', 'true');
+            el.setAttribute('aria-labelledby', 'eb-notice-title');
+            el.innerHTML = `
+                <div class="eb-notice-card">
+                    <div class="eb-notice-icon" aria-hidden="true">📒</div>
+                    <h2 id="eb-notice-title" class="eb-notice-title">Your Error Book is filling up</h2>
+                    <p class="eb-notice-text">You have <b>${count}</b> words saved. Answer them correctly in the Error Book to clear them.</p>
+                    <button type="button" class="eb-notice-btn" onclick="ebNoticeOpen()">📒 Open Error Book</button>
+                    <button type="button" class="eb-notice-btn eb-notice-btn-quiet" onclick="closeErrorBookNotice()">Later</button>
+                </div>`;
+            el.addEventListener('click', event => {
+                if (event.target === el) closeErrorBookNotice();
+            });
+            document.body.appendChild(el);
+            const firstBtn = el.querySelector('.eb-notice-btn');
+            if (firstBtn && firstBtn.focus) firstBtn.focus({ preventScroll: true });
+            if (!ebNoticeKeydownBound) {
+                ebNoticeKeydownBound = true;
+                document.addEventListener('keydown', errorBookNoticeKeydown);
+            }
+        }
+
+        function errorBookNoticeKeydown(event) {
+            if (event.key === 'Escape') closeErrorBookNotice();
+        }
+
+        function closeErrorBookNotice() {
+            const el = document.getElementById('eb-notice');
+            if (el) el.remove();
+            if (ebNoticeKeydownBound) {
+                ebNoticeKeydownBound = false;
+                document.removeEventListener('keydown', errorBookNoticeKeydown);
+            }
+        }
+
+        function ebNoticeOpen() {
+            closeErrorBookNotice();
+            openErrorBook();
+        }
+
         function adoptErrorBookUser() {
             if (canUseCloud()) {
                 try { localStorage.removeItem('error_book:guest'); } catch (e) {}
@@ -196,6 +284,7 @@
                     ebCloudNote = '';
                     saveErrorBookLocal();
                     if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
+                    maybeNotifyErrorBook();
                     return;
                 }
                 ebCloudNote = error && isMissingSchema(error.message)
@@ -207,6 +296,7 @@
             }
             errorBook = readErrorBookLocal();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
+            maybeNotifyErrorBook();
         }
 
         function addErrorWord(word) {
@@ -215,6 +305,7 @@
             if (!en || errorBook.some(w => w.en === en)) return;
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
+            maybeNotifyErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').upsert({
                 user_id: currentUser.id, en, zh, topic: currentTopic || ''
@@ -228,6 +319,7 @@
             if (!en) return;
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
+            maybeNotifyErrorBook();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
@@ -253,7 +345,10 @@
                 list.innerHTML = '<p class="text-gray-400 text-center py-8">No words yet. A miss in Dictation Master is added here.</p>';
                 return;
             }
-            list.innerHTML = errorBook.map(w => `
+            const full = errorBook.length >= 10
+                ? `<div class="eb-full-banner">🔔 <b>${errorBook.length} words</b> waiting — answer them correctly here to clear them.</div>`
+                : '';
+            list.innerHTML = full + errorBook.map(w => `
                 <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3">
                     <span class="font-bold text-gray-800">${escapeHtml(w.en)}</span>
                     <span class="text-gray-400">${escapeHtml(w.zh || '')}</span>

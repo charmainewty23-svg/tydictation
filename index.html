@@ -332,6 +332,44 @@
             .bottom-nav-tab { font-size: 9px; padding-left: 0; padding-right: 0; }
             .bottom-nav-tab .bottom-nav-icon { font-size: 18px; }
         }
+        /* ---- Admin: Paws daily ---- */
+        .admin-paw-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 8px 10px;
+        }
+        .admin-paw-name { flex: 1 1 180px; min-width: 0; }
+        .admin-paw-name b { color: #334155; }
+        .admin-paw-email { color: #94a3b8; font-size: 10px; }
+        .admin-paw-days {
+            display: flex;
+            gap: 3px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            flex: 1 1 260px;
+        }
+        .admin-paw-day {
+            min-width: 43px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+            padding: 2px 3px;
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .admin-paw-day b { display: block; font-size: 8px; color: #94a3b8; }
+        .admin-paw-day em { display: block; font-style: normal; font-size: 10px; color: #b45309; }
+        .admin-paw-day.today { border-color: #fbbf24; background: #fffbeb; }
+        .admin-paw-day.zero em { color: #cbd5e1; }
+        .admin-paw-summary { text-align: right; min-width: 82px; font-size: 11px; font-weight: 800; color: #9a3412; }
+        .admin-paw-balance { text-align: right; min-width: 68px; font-size: 10px; font-weight: 700; color: #047857; }
         /* ---- Store + equipped look ---- */
         .store-balance-pill {
             display: inline-flex;
@@ -3086,6 +3124,28 @@
                         <button type="button" onclick="enterStudentPreview('F6')" class="px-4 py-2 bg-amber-500 text-white rounded-full font-bold text-sm hover:bg-amber-600 transition-colors">F6</button>
                     </div>
                 </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-blue-600 mb-2">🕒 Student Logins</h2>
+                            <p class="text-gray-400 mb-6">Latest sign-in per student (school Google account)</p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="inline-flex items-center gap-1 bg-orange-50 rounded-full p-1" role="group" aria-label="Sort student logins">
+                                <button type="button" onclick="setLoginAdminSort('login')" class="login-sort-btn px-3 py-2 rounded-full font-bold text-xs bg-orange-100 text-orange-600" aria-pressed="true">Last login</button>
+                                <button type="button" onclick="setLoginAdminSort('streak')" class="login-sort-btn px-3 py-2 rounded-full font-bold text-xs bg-orange-100 text-orange-600" aria-pressed="false">🔥 Streak</button>
+                            </div>
+                            <button onclick="loadLoginAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors">↻ Refresh</button>
+                        </div>
+                    </div>
+                    <div id="login-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div id="login-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-blue-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="cat-card p-8">
                     <h2 class="text-3xl font-bold text-orange-600 mb-2">📊 Admin Dashboard</h2>
                     <p class="text-gray-400 mb-4">Student usage overview — cumulative scores</p>
@@ -3107,6 +3167,22 @@
                             <button onclick="loadAdminDashboard()" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white hover:bg-orange-600 transition-colors">↻ Refresh</button>
                         </div>
                         <div id="admin-latest-container"></div>
+                    </div>
+                </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-amber-600 mb-2">🐾 Paws daily</h2>
+                            <p class="text-gray-400 mb-6">Paws earned by students over the last 7 Hong Kong days</p>
+                        </div>
+                        <button onclick="loadAdminPaws(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 transition-colors">↻ Refresh</button>
+                    </div>
+                    <div id="admin-paws-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+                    <div id="admin-paws-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-amber-500 font-bold">Loading...</p>
+                        </div>
                     </div>
                 </div>
                 <div class="cat-card p-8 mt-6">
@@ -3153,28 +3229,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="cat-card p-8 mt-6">
-                    <div class="flex items-start justify-between gap-4 flex-wrap">
-                        <div>
-                            <h2 class="text-3xl font-bold text-blue-600 mb-2">🕒 Student Logins</h2>
-                            <p class="text-gray-400 mb-6">Latest sign-in per student (school Google account)</p>
-                        </div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <div class="inline-flex items-center gap-1 bg-orange-50 rounded-full p-1" role="group" aria-label="Sort student logins">
-                                <button type="button" onclick="setLoginAdminSort('login')" class="login-sort-btn px-3 py-2 rounded-full font-bold text-xs bg-orange-100 text-orange-600" aria-pressed="true">Last login</button>
-                                <button type="button" onclick="setLoginAdminSort('streak')" class="login-sort-btn px-3 py-2 rounded-full font-bold text-xs bg-orange-100 text-orange-600" aria-pressed="false">🔥 Streak</button>
-                            </div>
-                            <button onclick="loadLoginAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors">↻ Refresh</button>
-                        </div>
-                    </div>
-                    <div id="login-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
-                    <div id="login-admin-container">
-                        <div class="flex flex-col items-center py-10">
-                            <div class="loader mb-4"></div>
-                            <p class="text-blue-400 font-bold">Loading...</p>
                         </div>
                     </div>
                 </div>

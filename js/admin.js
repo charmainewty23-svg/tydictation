@@ -11,7 +11,9 @@
             battles: null,
             battlesError: null,
             wj: null,
-            dg: null
+            dg: null,
+            paws: null,
+            pawsError: null
         };
 
         // Teacher dashboard names open the student's profile (and Follow).
@@ -27,6 +29,134 @@
                 : "openFriendProfile('" + escapeHtml(uid) + "')";
             return '<button type="button" class="lb-name" onclick="' + handler + '" title="' +
                 (me ? 'Open my profile' : 'Open student profile and follow') + '">' + name + '</button>' + tail;
+        }
+
+        /* ---------------- Admin: Paws daily ---------------- */
+        function adminPawDayLabel(day) {
+            const d = new Date(day + 'T12:00:00+08:00');
+            return d.toLocaleDateString('en-HK', { weekday: 'short', timeZone: 'Asia/Hong_Kong' });
+        }
+
+        function adminPawDayTitle(day) {
+            return hkDateOnly(day + 'T12:00:00+08:00');
+        }
+
+        async function loadAdminPaws(force) {
+            if (!isAdmin()) return;
+            if (!force && adminCache.paws) {
+                renderAdminPaws();
+                return;
+            }
+            const statsEl = document.getElementById('admin-paws-stats');
+            const listEl = document.getElementById('admin-paws-container');
+            if (statsEl) statsEl.innerHTML = '';
+            if (listEl && !adminCache.paws) {
+                listEl.innerHTML = '<div class="flex flex-col items-center py-8"><div class="loader mb-4"></div><p class="text-amber-500 font-bold">Loading Paws...</p></div>';
+            }
+            try {
+                const { data, error } = await sb.rpc('admin_paw_daily', { p_days: 7 });
+                if (error) throw error;
+                adminCache.paws = Array.isArray(data) ? data : (data ? [data] : []);
+                adminCache.pawsError = null;
+            } catch (e) {
+                adminCache.paws = [];
+                adminCache.pawsError = e;
+            }
+            renderAdminPaws();
+        }
+
+        function renderAdminPaws() {
+            const statsEl = document.getElementById('admin-paws-stats');
+            const listEl = document.getElementById('admin-paws-container');
+            if (!statsEl || !listEl) return;
+            if (adminCache.pawsError) {
+                statsEl.innerHTML = '';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">Paws daily records need the latest <code class="text-orange-600">supabase/store.sql</code> (admin_paw_daily).</p>';
+                return;
+            }
+            const rows = adminCache.paws || [];
+            if (!rows.length) {
+                statsEl.innerHTML = '';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No Paws records yet.</p>';
+                return;
+            }
+            const daySet = {};
+            rows.forEach(r => { if (r && r.day) daySet[r.day] = true; });
+            const days = Object.keys(daySet).sort();
+            if (!days.length) {
+                statsEl.innerHTML = '';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No Paws records yet.</p>';
+                return;
+            }
+            const today = days[days.length - 1];
+            const map = {};
+            rows.forEach(r => {
+                if (!r || !r.day) return;
+                const key = String(r.user_id || r.email || '');
+                if (!key) return;
+                if (!map[key]) map[key] = {
+                    user_id: r.user_id || '',
+                    email: r.email || '',
+                    nickname: r.nickname || '',
+                    form: r.form || '',
+                    balance: Number(r.balance) || 0,
+                    days: {},
+                    earned: 0,
+                    spent: 0
+                };
+                const item = map[key];
+                item.days[r.day] = { earned: Number(r.earned) || 0, spent: Number(r.spent) || 0 };
+                item.earned += Number(r.earned) || 0;
+                item.spent += Number(r.spent) || 0;
+                item.balance = Number(r.balance) || item.balance;
+            });
+            const students = Object.values(map).filter(s => s.earned > 0 || s.spent > 0);
+            const todayEarned = students.reduce((sum, s) => sum + ((s.days[today] && s.days[today].earned) || 0), 0);
+            const periodEarned = students.reduce((sum, s) => sum + s.earned, 0);
+            const periodSpent = students.reduce((sum, s) => sum + s.spent, 0);
+            const active = students.filter(s => s.earned > 0).length;
+            statsEl.innerHTML = `
+                <div class="bg-amber-50 rounded-2xl p-5 text-center border-2 border-amber-100">
+                    <div class="text-3xl font-bold text-amber-600">${active}</div>
+                    <div class="text-sm text-gray-500 font-bold">Active Students</div>
+                </div>
+                <div class="bg-green-50 rounded-2xl p-5 text-center border-2 border-green-100">
+                    <div class="text-3xl font-bold text-green-600">+${todayEarned}</div>
+                    <div class="text-sm text-gray-500 font-bold">Paws Today</div>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center border-2 border-blue-100">
+                    <div class="text-3xl font-bold text-blue-600">+${periodEarned}</div>
+                    <div class="text-sm text-gray-500 font-bold">Paws 7 Days</div>
+                </div>
+                <div class="bg-purple-50 rounded-2xl p-5 text-center border-2 border-purple-100">
+                    <div class="text-3xl font-bold text-purple-600">${periodSpent}</div>
+                    <div class="text-sm text-gray-500 font-bold">Spent 7 Days</div>
+                </div>`;
+            if (!students.length) {
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-8">No student earned Paws in the last 7 days.</p>';
+                return;
+            }
+            students.sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+            listEl.innerHTML = renderFormSections(groupRowsByForm(students), (list) => `
+                <div class="space-y-2">
+                    ${list.map(s => {
+                        const chips = days.map(day => {
+                            const d = s.days[day] || { earned: 0, spent: 0 };
+                            const cls = 'admin-paw-day' + (day === today ? ' today' : '') + (d.earned ? '' : ' zero');
+                            return '<span class="' + cls + '" title="' + escapeHtml(adminPawDayTitle(day)) + '">' +
+                                '<b>' + escapeHtml(adminPawDayLabel(day)) + '</b>' +
+                                '<em>' + (d.earned ? '+' + d.earned : '0') + '</em></span>';
+                        }).join('');
+                        return '<div class="admin-paw-row">' +
+                            '<div class="admin-paw-name"><b>' + adminProfileName(s, classBadge(s.email, s.nickname)) + '</b>' +
+                            '<span class="admin-paw-email"> ' + escapeHtml(s.email || '') + '</span></div>' +
+                            '<div class="admin-paw-days">' + chips + '</div>' +
+                            '<div class="admin-paw-summary">+' + s.earned + ' <span class="text-[9px] text-gray-400">7d</span></div>' +
+                            '<div class="admin-paw-balance">' + s.balance + ' 🐾</div>' +
+                            '</div>';
+                    }).join('')}
+                </div>
+            `, { collapsible: true, scope: 'admin-paws', emptyAll: '<p class="text-gray-400 text-center py-10">No Paws activity in the last 7 days.</p>' });
         }
 
         async function loadAdminDashboard() {

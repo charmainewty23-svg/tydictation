@@ -2241,6 +2241,7 @@
                     loadGuestAdmin();
                     loadBattleAdmin();
                     loadWordJumpAdmin();
+                    loadAdminPaws();
                 });
             }
             if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }

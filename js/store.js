@@ -165,13 +165,20 @@ async function loadStoreState(force) {
             window.STORE_OWNED = STORE_OWNED;
             window.STORE_EQUIPPED = STORE_EQUIPPED;
             // Cross-device look (cat + free/store names). Optional: older
-            // installs without profile_looks still work.
+            // installs without profile_looks still work from the local copy.
             try {
+                storeReadLocalProfileLook();
                 const lookRes = await sb.from('profile_looks')
                     .select('cat,hat,face,outfit')
                     .eq('user_id', currentUser.id)
                     .maybeSingle();
-                if (!lookRes.error && lookRes.data) storeApplyProfileLookToDG(lookRes.data);
+                if (!lookRes.error && lookRes.data) {
+                    storeApplyProfileLookToDG(lookRes.data);
+                } else if (!lookRes.error && !lookRes.data) {
+                    // First visit after the Store update: create the row from
+                    // the local profile look so Use my look has a stable source.
+                    saveProfileLook();
+                }
                 STORE_MY_LOOK = (!lookRes.error && lookRes.data) ? lookRes.data : null;
             } catch (e) {}
             storeApplyEquippedToDG();
@@ -218,43 +225,98 @@ function storeApplyEquippedToDG() {
     if (changed) DG.saveSettings();
 }
 
+/* The Me profile look is stored separately from the Drive & Go / Word Battle
+   game look. That way changing a game chip never changes the profile, and
+   "Use my look" always has something stable to restore. */
+let STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', glasses: 'None', outfit: 'None' };
+let STORE_PROFILE_LOOK_SOURCE = 'local';
+
+function storeNormalizeProfileLook(raw) {
+    const s = raw || {};
+    const pick = (value, fallback) => (value && value !== 'undefined') ? value : fallback;
+    return {
+        cat: pick(s.cat, 'Ginger'),
+        hat: pick(s.hat, 'None'),
+        glasses: pick(s.glasses !== undefined && s.glasses !== null ? s.glasses : s.face, 'None'),
+        outfit: pick(s.outfit, 'None')
+    };
+}
+
+function storeProfileLookStorageKey() {
+    if (typeof previewStudentForm === 'function' && previewStudentForm()) {
+        return 'learniTY_profile_look:preview:' + previewStudentForm();
+    }
+    if (typeof isGuestUser === 'function' && isGuestUser()) return 'learniTY_profile_look:guest';
+    const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.id) || 'local';
+    return 'learniTY_profile_look:' + uid;
+}
+
+function storeSaveLocalProfileLook() {
+    try {
+        localStorage.setItem(storeProfileLookStorageKey(), JSON.stringify(STORE_PROFILE_LOOK));
+    } catch (e) {}
+}
+
+function storeReadLocalProfileLook() {
+    try {
+        const raw = localStorage.getItem(storeProfileLookStorageKey());
+        if (raw) {
+            STORE_PROFILE_LOOK = storeNormalizeProfileLook(JSON.parse(raw));
+            return STORE_PROFILE_LOOK;
+        }
+    } catch (e) {}
+    // First visit for this account/device. Guests and previews start from the
+    // clean look instead of whatever a game last selected.
+    STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', glasses: 'None', outfit: 'None' };
+    storeSaveLocalProfileLook();
+    return STORE_PROFILE_LOOK;
+}
+
 function storeApplyProfileLookToDG(look) {
-    if (!look || typeof DG === 'undefined' || !DG.readSettings) return;
-    const s = DG.readSettings();
-    if (look.cat && DG.CATS.indexOf(look.cat) !== -1) s.cat = look.cat;
-    if (look.hat) s.hat = look.hat;
-    if (look.face) s.glasses = look.face;
-    if (look.outfit) s.outfit = look.outfit;
-    DG.saveSettings();
+    if (!look) return;
+    STORE_PROFILE_LOOK = storeNormalizeProfileLook({
+        cat: look.cat,
+        hat: look.hat,
+        glasses: look.face,
+        outfit: look.outfit
+    });
+    STORE_PROFILE_LOOK_SOURCE = 'cloud';
+    storeSaveLocalProfileLook();
+    // Do not copy the profile over the game settings here: a student may be
+    // halfway through choosing a race look. "Use my look" applies it.
 }
 
 function saveProfileLook() {
-    if (!storeAvailable() || typeof DG === 'undefined' || !DG.readSettings) return;
-    const s = DG.readSettings();
-    STORE_MY_LOOK = { cat: s.cat, hat: s.hat, face: s.glasses, outfit: s.outfit };
+    storeSaveLocalProfileLook();
+    STORE_MY_LOOK = {
+        cat: STORE_PROFILE_LOOK.cat,
+        hat: STORE_PROFILE_LOOK.hat,
+        face: STORE_PROFILE_LOOK.glasses,
+        outfit: STORE_PROFILE_LOOK.outfit
+    };
+    if (!storeAvailable()) return;
     try {
         sb.rpc('save_profile_look', {
-            p_cat: s.cat,
-            p_hat: s.hat,
-            p_face: s.glasses,
-            p_outfit: s.outfit
+            p_cat: STORE_PROFILE_LOOK.cat,
+            p_hat: STORE_PROFILE_LOOK.hat,
+            p_face: STORE_PROFILE_LOOK.glasses,
+            p_outfit: STORE_PROFILE_LOOK.outfit
         }).then(() => {}, () => {});
     } catch (e) {}
 }
 
 function storeMyLook() {
-    const s = (typeof DG !== 'undefined' && DG.readSettings) ? DG.readSettings() : {};
-    const own = STORE_MY_LOOK || {};
+    const p = storeReadLocalProfileLook();
     const equippedName = slot => {
         const id = STORE_EQUIPPED[slot];
         const item = id ? STORE_BY_ID[id] : null;
         return item ? item.name : '';
     };
     return {
-        cat: own.cat || s.cat || 'Ginger',
-        hat: equippedName('hat') || own.hat || s.hat || 'None',
-        glasses: equippedName('face') || own.face || s.glasses || 'None',
-        outfit: equippedName('outfit') || own.outfit || s.outfit || 'None'
+        cat: p.cat || 'Ginger',
+        hat: equippedName('hat') || p.hat || 'None',
+        glasses: equippedName('face') || p.glasses || 'None',
+        outfit: equippedName('outfit') || p.outfit || 'None'
     };
 }
 
@@ -267,11 +329,11 @@ async function storeUseMyLook() {
     try {
         // The profile look may not be in memory yet when Drive & Go is opened
         // straight from the Hub, so pull it before applying.
-        let cloudLook = false;
+        let cloudLook = STORE_PROFILE_LOOK_SOURCE === 'cloud';
         if (storeAvailable()) {
             try {
                 await loadStoreState(true);
-                cloudLook = !!STORE_MY_LOOK;
+                cloudLook = STORE_PROFILE_LOOK_SOURCE === 'cloud';
             } catch (e) {}
         }
         const look = storeMyLook();
@@ -421,6 +483,11 @@ async function storeEquipItem(id) {
         const { error } = await sb.rpc('equip_store_item', { p_slot: item.slot, p_item: id });
         if (error) throw error;
         STORE_EQUIPPED[item.slot] = id;
+        const profile = storeReadLocalProfileLook();
+        const key = item.slot === 'face' ? 'glasses' : item.slot;
+        if (key === 'hat' || key === 'glasses' || key === 'outfit') profile[key] = item.name;
+        STORE_PROFILE_LOOK = profile;
+        storeSaveLocalProfileLook();
         storeApplyEquippedToDG();
         saveProfileLook();
         await loadStoreState(true);
@@ -436,9 +503,13 @@ async function storeUnequip(slot) {
         const { error } = await sb.rpc('equip_store_item', { p_slot: slot, p_item: '' });
         if (error) throw error;
         delete STORE_EQUIPPED[slot];
+        const profile = storeReadLocalProfileLook();
+        const key = slot === 'face' ? 'glasses' : slot;
+        if (key === 'hat' || key === 'glasses' || key === 'outfit') profile[key] = 'None';
+        STORE_PROFILE_LOOK = profile;
+        storeSaveLocalProfileLook();
         if (typeof DG !== 'undefined' && DG.readSettings) {
             const s = DG.readSettings();
-            const key = slot === 'face' ? 'glasses' : slot;
             if (key === 'hat' || key === 'glasses' || key === 'outfit') s[key] = 'None';
             DG.saveSettings();
         }
@@ -586,6 +657,10 @@ function storeRenderProfileLook() {
 
 function storeSetProfileCat(cat) {
     if (['Ginger', 'Ragdoll'].indexOf(cat) === -1 || typeof DG === 'undefined') return;
+    const profile = storeReadLocalProfileLook();
+    profile.cat = cat;
+    STORE_PROFILE_LOOK = profile;
+    storeSaveLocalProfileLook();
     const s = DG.readSettings();
     s.cat = cat;
     DG.saveSettings();

@@ -270,16 +270,16 @@ const DG = {
         return { cat: s.cat, glasses: s.glasses, hat: s.hat, outfit: s.outfit };
     },
 
-    /* Drive & Go only supports two cats and two glasses styles. Hats and
-       outfits still exist in the Store/Me profile and in Word Battle, but
-       the race itself stays clean. */
+    /* Drive & Go customisation only offers cats and glasses, but an equipped
+       profile look (hat / outfit / store eyewear) still shows on the cat so
+       "Use my look" has a visible effect. */
     raceLook() {
         const s = DG.readSettings();
         return {
             cat: s.cat === 'Ragdoll' ? 'Ragdoll' : 'Ginger',
-            glasses: (s.glasses && s.glasses !== 'None') ? 'Glasses' : 'None',
-            hat: 'None',
-            outfit: 'None'
+            glasses: s.glasses || 'None',
+            hat: s.hat || 'None',
+            outfit: s.outfit || 'None'
         };
     },
 

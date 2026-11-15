@@ -8,7 +8,7 @@
 -- ---------- catalog ----------
 create table if not exists public.store_items (
     id       text primary key,
-    slot     text not null check (slot in ('hat', 'face', 'outfit', 'prop', 'background')),
+    slot     text not null check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit')),
     name_en  text not null,
     name_zh  text,
     price    int not null default 0 check (price >= 0),
@@ -18,6 +18,12 @@ create table if not exists public.store_items (
     sort     int not null default 0
 );
 
+-- Older installs have the original hat/face/outfit constraint. Widen it
+-- first so updating the catalog below cannot fail.
+alter table public.store_items drop constraint if exists store_items_slot_check;
+alter table public.store_items add constraint store_items_slot_check
+    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit'));
+
 alter table public.store_items enable row level security;
 drop policy if exists "store items are public" on public.store_items;
 create policy "store items are public" on public.store_items
@@ -25,33 +31,33 @@ create policy "store items are public" on public.store_items
 grant select on public.store_items to anon, authenticated;
 
 insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji, sort) values
-    ('hat_sprout','hat','Sprout Clip','小草髮夾',80,'Common','🌱',1),
-    ('hat_lofi','hat','Lo-Fi Headphones','復古耳機',140,'Rare','🎧',2),
-    ('hat_straw','hat','Straw Hat','草帽',100,'Common','👒',3),
-    ('hat_frog','hat','Frog Hood','青蛙頭套',160,'Rare','🐸',4),
-    ('hat_chef','hat','Chef Hat','廚師高帽',120,'Rare','👨‍🍳',5),
-    ('hat_sherlock','hat','Sherlock Cap','偵探獵鹿帽',150,'Rare','🕵️',6),
-    ('hat_grad','hat','Graduation Cap','學士四方帽',180,'Rare','🎓',7),
-    ('hat_bearskin','hat','Bearskin Hat','英國衛兵高帽',220,'Epic','🐻',8),
-    ('hat_wizard','hat','Wizard Hat','魔法師尖帽',240,'Epic','🧙',9),
-    ('hat_astro','hat','Astro Helmet','太空人頭罩',280,'Epic','🚀',10),
-    ('hat_gold_crown','hat','Golden Crown','黃金皇冠',450,'Legendary','👑',11),
-    ('face_blush','face','Blush Stickers','害羞紅暈',60,'Common','😊',12),
-    ('face_round','face','Round Glasses','圓框學霸眼鏡',90,'Common','👓',13),
-    ('face_star','face','Star Sunglasses','星星太陽眼鏡',170,'Rare','⭐',14),
-    ('face_pixel','face','Pixel Sunglasses','像素黑超',140,'Rare','😎',15),
-    ('face_patch','face','Pirate Eyepatch','海盜眼罩',100,'Rare','🏴‍☠️',16),
-    ('face_monocle','face','Monocle','紳士單片眼鏡',190,'Epic','🧐',17),
-    ('face_visor','face','Cyber Visor','賽博龐克護目鏡',240,'Epic','🥽',18),
-    ('outfit_scarf','outfit','Red Scarf','紅色小領巾',80,'Common','🧣',19),
-    ('outfit_bowtie','outfit','Tweed Bow Tie','學院風煲呔',120,'Rare','🎀',20),
-    ('outfit_bread','outfit','Bread Collar','方包頸圈',150,'Rare','🍞',21),
-    ('outfit_boba','outfit','Boba Apron','珍珠奶茶圍裙',140,'Rare','🧋',22),
-    ('outfit_raincoat','outfit','Yellow Raincoat','黃色小雨衣',170,'Rare','🧥',23),
-    ('outfit_guard','outfit','Royal Guard Tunic','英國衛兵紅制服',220,'Epic','🛡️',24),
-    ('outfit_ruff','outfit','Shakespeare Ruff','莎士比亞蕾絲領',200,'Epic','🎭',25),
-    ('outfit_shark','outfit','Shark Onesie','鯊魚連身衣',260,'Epic','🦈',26),
-    ('outfit_dragon','outfit','Dragon Suit','恐龍連身衣',300,'Epic','🐉',27),
+    ('hat_sprout','head','Sprout Clip','小草髮夾',80,'Common','🌱',1),
+    ('hat_lofi','ears','Lo-Fi Headphones','復古耳機',140,'Rare','🎧',2),
+    ('hat_straw','head','Straw Hat','草帽',100,'Common','👒',3),
+    ('hat_frog','head','Frog Hood','青蛙頭套',160,'Rare','🐸',4),
+    ('hat_chef','head','Chef Hat','廚師高帽',120,'Rare','👨‍🍳',5),
+    ('hat_sherlock','head','Sherlock Cap','偵探獵鹿帽',150,'Rare','🕵️',6),
+    ('hat_grad','head','Graduation Cap','學士四方帽',180,'Rare','🎓',7),
+    ('hat_bearskin','head','Bearskin Hat','英國衛兵高帽',220,'Epic','🐻',8),
+    ('hat_wizard','head','Wizard Hat','魔法師尖帽',240,'Epic','🧙',9),
+    ('hat_astro','head','Astro Helmet','太空人頭罩',280,'Epic','🚀',10),
+    ('hat_gold_crown','head','Golden Crown','黃金皇冠',450,'Legendary','👑',11),
+    ('face_blush','cheeks','Blush Stickers','害羞紅暈',60,'Common','😊',12),
+    ('face_round','eyes','Round Glasses','圓框學霸眼鏡',90,'Common','👓',13),
+    ('face_star','eyes','Star Sunglasses','星星太陽眼鏡',170,'Rare','⭐',14),
+    ('face_pixel','eyes','Pixel Sunglasses','像素黑超',140,'Rare','😎',15),
+    ('face_patch','eyes','Pirate Eyepatch','海盜眼罩',100,'Rare','🏴‍☠️',16),
+    ('face_monocle','eyes','Monocle','紳士單片眼鏡',190,'Epic','🧐',17),
+    ('face_visor','eyes','Cyber Visor','賽博龐克護目鏡',240,'Epic','🥽',18),
+    ('outfit_scarf','neck','Red Scarf','紅色小領巾',80,'Common','🧣',19),
+    ('outfit_bowtie','neck','Tweed Bow Tie','學院風煲呔',120,'Rare','🎀',20),
+    ('outfit_bread','neck','Bread Collar','方包頸圈',150,'Rare','🍞',21),
+    ('outfit_boba','body','Boba Apron','珍珠奶茶圍裙',140,'Rare','🧋',22),
+    ('outfit_raincoat','body','Yellow Raincoat','黃色小雨衣',170,'Rare','🧥',23),
+    ('outfit_guard','body','Royal Guard Tunic','英國衛兵紅制服',220,'Epic','🛡️',24),
+    ('outfit_ruff','neck','Shakespeare Ruff','莎士比亞蕾絲領',200,'Epic','🎭',25),
+    ('outfit_shark','body','Shark Onesie','鯊魚連身衣',260,'Epic','🦈',26),
+    ('outfit_dragon','body','Dragon Suit','恐龍連身衣',300,'Epic','🐉',27),
     ('prop_pencil','prop','Pencil','巨大鉛筆',60,'Common','✏️',28),
     ('prop_boba','prop','Boba Tea','珍珠奶茶',90,'Common','🧋',29),
     ('prop_magnifier','prop','Magnifying Glass','放大鏡',110,'Rare','🔍',30),
@@ -337,12 +343,21 @@ grant select on public.store_purchases to authenticated;
 
 create table if not exists public.store_equipped (
     user_id    uuid not null references auth.users(id) on delete cascade,
-    slot       text not null check (slot in ('hat', 'face', 'outfit', 'prop', 'background')),
+    slot       text not null check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit')),
     item_id    text not null references public.store_items(id) on delete cascade,
     updated_at timestamptz not null default now(),
     primary key (user_id, slot)
 );
+alter table public.store_equipped drop constraint if exists store_equipped_slot_check;
+alter table public.store_equipped add constraint store_equipped_slot_check
+    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit'));
+
 alter table public.store_equipped enable row level security;
+update public.store_equipped e
+   set slot = i.slot
+  from public.store_items i
+ where i.id = e.item_id;
+
 drop policy if exists "store equipped read own" on public.store_equipped;
 create policy "store equipped read own" on public.store_equipped
     for select using (auth.uid() = user_id);
@@ -352,21 +367,37 @@ create table if not exists public.profile_looks (
     user_id    uuid primary key references auth.users(id) on delete cascade,
     cat        text not null default 'Ginger',
     hat        text not null default 'None',
+    ears       text not null default 'None',
     face       text not null default 'None',
+    cheeks     text not null default 'None',
     outfit     text not null default 'None',
+    neck       text not null default 'None',
     updated_at timestamptz not null default now()
 );
+alter table public.profile_looks add column if not exists ears   text not null default 'None';
+alter table public.profile_looks add column if not exists cheeks text not null default 'None';
+alter table public.profile_looks add column if not exists neck   text not null default 'None';
+
 alter table public.profile_looks enable row level security;
 drop policy if exists "profile look read own" on public.profile_looks;
 create policy "profile look read own" on public.profile_looks
     for select using (auth.uid() = user_id);
 grant select on public.profile_looks to authenticated;
 
+update public.profile_looks set ears = 'Lo-Fi Headphones', hat = 'None' where hat = 'Lo-Fi Headphones';
+update public.profile_looks set cheeks = 'Blush Stickers', face = 'None' where face = 'Blush Stickers';
+update public.profile_looks set neck = outfit, outfit = 'None'
+ where outfit in ('Red Scarf','Tweed Bow Tie','Bread Collar','Shakespeare Ruff');
+
+drop function if exists public.save_profile_look(text, text, text, text);
 create or replace function public.save_profile_look(
     p_cat text,
     p_hat text,
     p_face text,
-    p_outfit text
+    p_outfit text,
+    p_ears text default 'None',
+    p_cheeks text default 'None',
+    p_neck text default 'None'
 ) returns void
 language plpgsql
 security definer
@@ -378,19 +409,25 @@ declare
 begin
     if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
     if v_cat not in ('Ginger', 'Ragdoll', 'Black', 'Siamese') then v_cat := 'Ginger'; end if;
-    insert into public.profile_looks (user_id, cat, hat, face, outfit)
+    insert into public.profile_looks (user_id, cat, hat, face, outfit, ears, cheeks, neck)
     values (
         v_me,
         v_cat,
         left(coalesce(nullif(trim(p_hat), ''), 'None'), 60),
         left(coalesce(nullif(trim(p_face), ''), 'None'), 60),
-        left(coalesce(nullif(trim(p_outfit), ''), 'None'), 60)
+        left(coalesce(nullif(trim(p_outfit), ''), 'None'), 60),
+        left(coalesce(nullif(trim(p_ears), ''), 'None'), 60),
+        left(coalesce(nullif(trim(p_cheeks), ''), 'None'), 60),
+        left(coalesce(nullif(trim(p_neck), ''), 'None'), 60)
     )
     on conflict (user_id) do update set
         cat = excluded.cat,
         hat = excluded.hat,
         face = excluded.face,
         outfit = excluded.outfit,
+        ears = excluded.ears,
+        cheeks = excluded.cheeks,
+        neck = excluded.neck,
         updated_at = now();
 end;
 $fn$;
@@ -408,8 +445,11 @@ begin
         select jsonb_build_object(
             'cat', coalesce(pl.cat, 'Ginger'),
             'hat', coalesce(pl.hat, 'None'),
+            'ears', coalesce(pl.ears, 'None'),
             'face', coalesce(pl.face, 'None'),
+            'cheeks', coalesce(pl.cheeks, 'None'),
             'outfit', coalesce(pl.outfit, 'None'),
+            'neck', coalesce(pl.neck, 'None'),
             'prop', coalesce((select e.item_id from public.store_equipped e
                                where e.user_id = p_user_id and e.slot = 'prop'), ''),
             'background', coalesce((select e.item_id from public.store_equipped e
@@ -494,7 +534,7 @@ declare
     v_item public.store_items;
 begin
     if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
-    if p_slot not in ('hat', 'face', 'outfit', 'prop', 'background') then
+    if p_slot not in ('head','ears','eyes','cheeks','neck','body','prop','background') then
         raise exception 'INVALID_SLOT';
     end if;
     if p_item is null or trim(p_item) = '' then
@@ -582,7 +622,7 @@ revoke all on function public.friend_paws_daily(uuid, int) from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
 revoke all on function public.equip_store_item(text, text) from public;
-revoke all on function public.save_profile_look(text, text, text, text) from public;
+revoke all on function public.save_profile_look(text, text, text, text, text, text, text) from public;
 revoke all on function public.friend_store_look(uuid) from public;
 revoke all on function public.paw_trg_dictation() from public;
 revoke all on function public.paw_trg_wj() from public;
@@ -597,7 +637,7 @@ grant execute on function public.admin_paw_daily(int) to authenticated;
 grant execute on function public.friend_paws_daily(uuid, int) to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
-grant execute on function public.save_profile_look(text, text, text, text) to authenticated;
+grant execute on function public.save_profile_look(text, text, text, text, text, text, text) to authenticated;
 grant execute on function public.friend_store_look(uuid) to authenticated;
 
 -- ---------- in-app announcement to all users ----------
@@ -641,3 +681,5 @@ begin
     end if;
 end;
 $topup$;
+
+notify pgrst, 'reload schema';

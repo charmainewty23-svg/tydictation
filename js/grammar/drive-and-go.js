@@ -64,7 +64,10 @@ const DG = {
     CAT_OPTIONS: ['Ginger', 'Ragdoll'],
     GLASSES: ['None', 'Glasses'],
     HATS: ['None', 'Party Hat'],
+    EARS: ['None', 'Lo-Fi Headphones'],
+    CHEEKS: ['None', 'Blush Stickers'],
     OUTFITS: ['None', 'Racing Jacket'],
+    NECKS: ['None', 'Red Scarf', 'Tweed Bow Tie', 'Bread Collar', 'Shakespeare Ruff'],
     ITEM_EMOJI: { banana: '🍌', star: '⭐', redshell: '🔴', lightning: '⚡', mushroom: '🍄' },
     ITEM_NAME: { banana: 'Banana', star: 'Star', redshell: 'Red shell', lightning: 'Lightning', mushroom: 'Mushroom' },
     ITEM_HELP: {
@@ -99,7 +102,7 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', outfit: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
+        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', ears: 'None', cheeks: 'None', outfit: 'None', neck: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
     },
 
     normalizeTopic(value) {
@@ -250,7 +253,7 @@ const DG = {
 
     rememberLook(look) {
         const s = DG.readSettings();
-        s.cat = look.cat; s.glasses = look.glasses; s.hat = look.hat; s.outfit = look.outfit;
+        s.cat = look.cat; s.glasses = look.glasses; s.hat = look.hat; s.ears = look.ears; s.cheeks = look.cheeks; s.outfit = look.outfit; s.neck = look.neck;
         DG.saveSettings();
         return s;
     },
@@ -261,13 +264,16 @@ const DG = {
             cat: pick(raw && raw.cat, DG.CATS, 'Ginger'),
             glasses: pick(raw && raw.glasses, DG.GLASSES, 'None'),
             hat: pick(raw && raw.hat, DG.HATS, 'None'),
-            outfit: pick(raw && raw.outfit, DG.OUTFITS, 'None')
+            ears: pick(raw && raw.ears, DG.EARS, 'None'),
+            cheeks: pick(raw && raw.cheeks, DG.CHEEKS, 'None'),
+            outfit: pick(raw && raw.outfit, DG.OUTFITS, 'None'),
+            neck: pick(raw && raw.neck, DG.NECKS, 'None')
         };
     },
 
     currentLook() {
         const s = DG.readSettings();
-        return { cat: s.cat, glasses: s.glasses, hat: s.hat, outfit: s.outfit };
+        return { cat: s.cat, glasses: s.glasses, hat: s.hat, ears: s.ears, cheeks: s.cheeks, outfit: s.outfit, neck: s.neck };
     },
 
     /* Drive & Go customisation only offers cats and glasses, but an equipped
@@ -279,7 +285,10 @@ const DG = {
             cat: s.cat === 'Ragdoll' ? 'Ragdoll' : 'Ginger',
             glasses: s.glasses || 'None',
             hat: s.hat || 'None',
-            outfit: s.outfit || 'None'
+            ears: s.ears || 'None',
+            cheeks: s.cheeks || 'None',
+            outfit: s.outfit || 'None',
+            neck: s.neck || 'None'
         };
     },
 

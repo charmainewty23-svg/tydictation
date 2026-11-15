@@ -4260,9 +4260,13 @@
         ctx.stroke();
 
         // ----- accessories -----
+        // Layered: headphones + hat, eyes + blush, body + neckwear.
+        DG.drawCatHat(ctx, l.ears, hx, hy, S, hy - 31 * S);
         DG.drawCatHat(ctx, l.hat, hx, hy, S, hy - 31 * S);
         DG.drawCatFace(ctx, l.glasses, hx, hy, eyeY, 13 * S, S);
+        DG.drawCatFace(ctx, l.cheeks, hx, hy, eyeY, 13 * S, S);
         DG.drawCatOutfit(ctx, l.outfit, hx, hy, S, hy + 36 * S, -77 * S, -4 * S, 30 * S);
+        DG.drawCatOutfit(ctx, l.neck, hx, hy, S, hy + 36 * S, -77 * S, -4 * S, 30 * S);
 
         // little shine on the head
         ctx.fillStyle = 'rgba(255,255,255,.18)';
@@ -4477,16 +4481,19 @@
         ctx.moveTo(18 * s, hy + 16 * s); ctx.lineTo(36 * s, hy + 19 * s);
         ctx.stroke();
 
-        // Glasses / store eyewear
+        // Glasses / store eyewear + blush
         DG.drawCatFace(ctx, l.glasses, 0, hy, hy - 2 * s, 11 * s, s);
+        DG.drawCatFace(ctx, l.cheeks, 0, hy, hy - 2 * s, 11 * s, s);
 
         // Hats / store headwear (fitted to the head and ears)
+        DG.drawCatHat(ctx, l.ears, 0, hy, s, hy - 28 * s);
         DG.drawCatHat(ctx, l.hat, 0, hy, s, hy - 28 * s);
 
         // Outfits (front)
         if (['Racing Jacket', 'Sports Vest', 'Superhero Cape'].indexOf(l.outfit) === -1) {
             DG.drawCatOutfit(ctx, l.outfit, 0, hy, s, hy + 26 * s, -74 * s, -34 * s, 24 * s);
         }
+        DG.drawCatOutfit(ctx, l.neck, 0, hy, s, hy + 26 * s, -74 * s, -34 * s, 24 * s);
 
         // Boost flame
         if (o.boost) {

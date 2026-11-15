@@ -4,37 +4,37 @@
 
 const STORE_ITEMS = [
     // Hats & headwear
-    { id:'hat_sprout', slot:'hat', name:'Sprout Clip', zh:'小草髮夾', price:80, rarity:'Common', emoji:'🌱', color:'#22c55e', desc:'A tiny green sprout on the head.' },
-    { id:'hat_lofi', slot:'hat', name:'Lo-Fi Headphones', zh:'復古耳機', price:140, rarity:'Rare', emoji:'🎧', color:'#92400e', desc:'Wooden headphones for listening practice.' },
-    { id:'hat_straw', slot:'hat', name:'Straw Hat', zh:'草帽', price:100, rarity:'Common', emoji:'👒', color:'#fbbf24', desc:'A summer straw hat with a red ribbon.' },
-    { id:'hat_frog', slot:'hat', name:'Frog Hood', zh:'青蛙頭套', price:160, rarity:'Rare', emoji:'🐸', color:'#4ade80', desc:'A green frog hood.' },
-    { id:'hat_chef', slot:'hat', name:'Chef Hat', zh:'廚師高帽', price:120, rarity:'Rare', emoji:'👨‍🍳', color:'#f8fafc', desc:'A tall white chef hat.' },
-    { id:'hat_sherlock', slot:'hat', name:'Sherlock Cap', zh:'偵探獵鹿帽', price:150, rarity:'Rare', emoji:'🕵️', color:'#a16207', desc:'A checked deerstalker cap.' },
-    { id:'hat_grad', slot:'hat', name:'Graduation Cap', zh:'學士四方帽', price:180, rarity:'Rare', emoji:'🎓', color:'#111827', desc:'A black mortarboard with a gold tassel.' },
-    { id:'hat_bearskin', slot:'hat', name:'Bearskin Hat', zh:'英國衛兵高帽', price:220, rarity:'Epic', emoji:'🐻', color:'#111827', desc:'The tall black hat of a royal guard.' },
-    { id:'hat_wizard', slot:'hat', name:'Wizard Hat', zh:'魔法師尖帽', price:240, rarity:'Epic', emoji:'🧙', color:'#312e81', desc:'A navy pointed hat with stars and moons.' },
-    { id:'hat_astro', slot:'hat', name:'Astro Helmet', zh:'太空人頭罩', price:280, rarity:'Epic', emoji:'🚀', color:'#7dd3fc', desc:'A clear bubble space helmet.' },
-    { id:'hat_gold_crown', slot:'hat', name:'Golden Crown', zh:'黃金皇冠', price:450, rarity:'Legendary', emoji:'👑', color:'#f59e0b', desc:'A king’s crown with red rubies.' },
+    { id:'hat_sprout', slot:'head', name:'Sprout Clip', zh:'小草髮夾', price:80, rarity:'Common', emoji:'🌱', color:'#22c55e', desc:'A tiny green sprout on the head.' },
+    { id:'hat_lofi', slot:'ears', name:'Lo-Fi Headphones', zh:'復古耳機', price:140, rarity:'Rare', emoji:'🎧', color:'#92400e', desc:'Wooden headphones for listening practice.' },
+    { id:'hat_straw', slot:'head', name:'Straw Hat', zh:'草帽', price:100, rarity:'Common', emoji:'👒', color:'#fbbf24', desc:'A summer straw hat with a red ribbon.' },
+    { id:'hat_frog', slot:'head', name:'Frog Hood', zh:'青蛙頭套', price:160, rarity:'Rare', emoji:'🐸', color:'#4ade80', desc:'A green frog hood.' },
+    { id:'hat_chef', slot:'head', name:'Chef Hat', zh:'廚師高帽', price:120, rarity:'Rare', emoji:'👨‍🍳', color:'#f8fafc', desc:'A tall white chef hat.' },
+    { id:'hat_sherlock', slot:'head', name:'Sherlock Cap', zh:'偵探獵鹿帽', price:150, rarity:'Rare', emoji:'🕵️', color:'#a16207', desc:'A checked deerstalker cap.' },
+    { id:'hat_grad', slot:'head', name:'Graduation Cap', zh:'學士四方帽', price:180, rarity:'Rare', emoji:'🎓', color:'#111827', desc:'A black mortarboard with a gold tassel.' },
+    { id:'hat_bearskin', slot:'head', name:'Bearskin Hat', zh:'英國衛兵高帽', price:220, rarity:'Epic', emoji:'🐻', color:'#111827', desc:'The tall black hat of a royal guard.' },
+    { id:'hat_wizard', slot:'head', name:'Wizard Hat', zh:'魔法師尖帽', price:240, rarity:'Epic', emoji:'🧙', color:'#312e81', desc:'A navy pointed hat with stars and moons.' },
+    { id:'hat_astro', slot:'head', name:'Astro Helmet', zh:'太空人頭罩', price:280, rarity:'Epic', emoji:'🚀', color:'#7dd3fc', desc:'A clear bubble space helmet.' },
+    { id:'hat_gold_crown', slot:'head', name:'Golden Crown', zh:'黃金皇冠', price:450, rarity:'Legendary', emoji:'👑', color:'#f59e0b', desc:'A king’s crown with red rubies.' },
 
     // Face & eyewear
-    { id:'face_blush', slot:'face', name:'Blush Stickers', zh:'害羞紅暈', price:60, rarity:'Common', emoji:'😊', color:'#fb7185', desc:'Two pink blush lines.' },
-    { id:'face_round', slot:'face', name:'Round Glasses', zh:'圓框學霸眼鏡', price:90, rarity:'Common', emoji:'👓', color:'#111827', desc:'Thin black round glasses.' },
-    { id:'face_star', slot:'face', name:'Star Sunglasses', zh:'星星太陽眼鏡', price:170, rarity:'Rare', emoji:'⭐', color:'#fbbf24', desc:'Bold gold star-shaped sunglasses.' },
-    { id:'face_pixel', slot:'face', name:'Pixel Sunglasses', zh:'像素黑超', price:140, rarity:'Rare', emoji:'😎', color:'#111827', desc:'Classic pixel “Thug Life” shades.' },
-    { id:'face_patch', slot:'face', name:'Pirate Eyepatch', zh:'海盜眼罩', price:100, rarity:'Rare', emoji:'🏴‍☠️', color:'#111827', desc:'A black one-eye patch.' },
-    { id:'face_monocle', slot:'face', name:'Monocle', zh:'紳士單片眼鏡', price:190, rarity:'Epic', emoji:'🧐', color:'#b45309', desc:'A gold monocle with a chain.' },
-    { id:'face_visor', slot:'face', name:'Cyber Visor', zh:'賽博龐克護目鏡', price:240, rarity:'Epic', emoji:'🥽', color:'#22d3ee', desc:'A glowing neon-blue visor.' },
+    { id:'face_blush', slot:'cheeks', name:'Blush Stickers', zh:'害羞紅暈', price:60, rarity:'Common', emoji:'😊', color:'#fb7185', desc:'Two pink blush lines.' },
+    { id:'face_round', slot:'eyes', name:'Round Glasses', zh:'圓框學霸眼鏡', price:90, rarity:'Common', emoji:'👓', color:'#111827', desc:'Thin black round glasses.' },
+    { id:'face_star', slot:'eyes', name:'Star Sunglasses', zh:'星星太陽眼鏡', price:170, rarity:'Rare', emoji:'⭐', color:'#fbbf24', desc:'Bold gold star-shaped sunglasses.' },
+    { id:'face_pixel', slot:'eyes', name:'Pixel Sunglasses', zh:'像素黑超', price:140, rarity:'Rare', emoji:'😎', color:'#111827', desc:'Classic pixel “Thug Life” shades.' },
+    { id:'face_patch', slot:'eyes', name:'Pirate Eyepatch', zh:'海盜眼罩', price:100, rarity:'Rare', emoji:'🏴‍☠️', color:'#111827', desc:'A black one-eye patch.' },
+    { id:'face_monocle', slot:'eyes', name:'Monocle', zh:'紳士單片眼鏡', price:190, rarity:'Epic', emoji:'🧐', color:'#b45309', desc:'A gold monocle with a chain.' },
+    { id:'face_visor', slot:'eyes', name:'Cyber Visor', zh:'賽博龐克護目鏡', price:240, rarity:'Epic', emoji:'🥽', color:'#22d3ee', desc:'A glowing neon-blue visor.' },
 
     // Neck & outfits
-    { id:'outfit_scarf', slot:'outfit', name:'Red Scarf', zh:'紅色小領巾', price:80, rarity:'Common', emoji:'🧣', color:'#ef4444', desc:'A simple red neckerchief.' },
-    { id:'outfit_bowtie', slot:'outfit', name:'Tweed Bow Tie', zh:'學院風煲呔', price:120, rarity:'Rare', emoji:'🎀', color:'#92400e', desc:'A brown checked tweed bow tie.' },
-    { id:'outfit_bread', slot:'outfit', name:'Bread Collar', zh:'方包頸圈', price:150, rarity:'Rare', emoji:'🍞', color:'#fde68a', desc:'A slice of bread worn as a collar.' },
-    { id:'outfit_boba', slot:'outfit', name:'Boba Apron', zh:'珍珠奶茶圍裙', price:140, rarity:'Rare', emoji:'🧋', color:'#16a34a', desc:'A green boba shop apron.' },
-    { id:'outfit_raincoat', slot:'outfit', name:'Yellow Raincoat', zh:'黃色小雨衣', price:170, rarity:'Rare', emoji:'🧥', color:'#facc15', desc:'A bright yellow raincoat.' },
-    { id:'outfit_guard', slot:'outfit', name:'Royal Guard Tunic', zh:'英國衛兵紅制服', price:220, rarity:'Epic', emoji:'🛡️', color:'#dc2626', desc:'A red royal guard tunic.' },
-    { id:'outfit_ruff', slot:'outfit', name:'Shakespeare Ruff', zh:'莎士比亞蕾絲領', price:200, rarity:'Epic', emoji:'🎭', color:'#f8fafc', desc:'A white ruffled Elizabethan collar.' },
-    { id:'outfit_shark', slot:'outfit', name:'Shark Onesie', zh:'鯊魚連身衣', price:260, rarity:'Epic', emoji:'🦈', color:'#64748b', desc:'A grey shark onesie.' },
-    { id:'outfit_dragon', slot:'outfit', name:'Dragon Suit', zh:'恐龍連身衣', price:300, rarity:'Epic', emoji:'🐉', color:'#16a34a', desc:'A green spiky dragon suit.' },
+    { id:'outfit_scarf', slot:'neck', name:'Red Scarf', zh:'紅色小領巾', price:80, rarity:'Common', emoji:'🧣', color:'#ef4444', desc:'A simple red neckerchief.' },
+    { id:'outfit_bowtie', slot:'neck', name:'Tweed Bow Tie', zh:'學院風煲呔', price:120, rarity:'Rare', emoji:'🎀', color:'#92400e', desc:'A brown checked tweed bow tie.' },
+    { id:'outfit_bread', slot:'neck', name:'Bread Collar', zh:'方包頸圈', price:150, rarity:'Rare', emoji:'🍞', color:'#fde68a', desc:'A slice of bread worn as a collar.' },
+    { id:'outfit_boba', slot:'body', name:'Boba Apron', zh:'珍珠奶茶圍裙', price:140, rarity:'Rare', emoji:'🧋', color:'#16a34a', desc:'A green boba shop apron.' },
+    { id:'outfit_raincoat', slot:'body', name:'Yellow Raincoat', zh:'黃色小雨衣', price:170, rarity:'Rare', emoji:'🧥', color:'#facc15', desc:'A bright yellow raincoat.' },
+    { id:'outfit_guard', slot:'body', name:'Royal Guard Tunic', zh:'英國衛兵紅制服', price:220, rarity:'Epic', emoji:'🛡️', color:'#dc2626', desc:'A red royal guard tunic.' },
+    { id:'outfit_ruff', slot:'neck', name:'Shakespeare Ruff', zh:'莎士比亞蕾絲領', price:200, rarity:'Epic', emoji:'🎭', color:'#f8fafc', desc:'A white ruffled Elizabethan collar.' },
+    { id:'outfit_shark', slot:'body', name:'Shark Onesie', zh:'鯊魚連身衣', price:260, rarity:'Epic', emoji:'🦈', color:'#64748b', desc:'A grey shark onesie.' },
+    { id:'outfit_dragon', slot:'body', name:'Dragon Suit', zh:'恐龍連身衣', price:300, rarity:'Epic', emoji:'🐉', color:'#16a34a', desc:'A green spiky dragon suit.' },
 
     // Props & companions (Me / lobby only)
     { id:'prop_pencil', slot:'prop', name:'Pencil', zh:'巨大鉛筆', price:60, rarity:'Common', emoji:'✏️', color:'#facc15', desc:'A giant yellow HB pencil.' },
@@ -78,6 +78,38 @@ const STORE_FREE = {
     outfit: ['None', 'Racing Jacket']
 };
 
+/* Items now live on a layer (head, ears, eyes, cheeks, neck, body) while the
+   Store still groups them as Hats / Face / Outfits. One item per layer can be
+   worn at the same time, so glasses + blush, scarf + coat, hat + headphones
+   all stack. */
+const STORE_LAYER_KEY = {
+    head: 'hat',
+    ears: 'ears',
+    eyes: 'glasses',
+    cheeks: 'cheeks',
+    neck: 'neck',
+    body: 'outfit'
+};
+
+function storeLayerKey(layer) {
+    return STORE_LAYER_KEY[layer] || layer;
+}
+
+function storeLayerGroup(value) {
+    const slot = typeof value === 'string' ? value : (value && value.slot);
+    if (slot === 'head' || slot === 'ears') return 'hat';
+    if (slot === 'eyes' || slot === 'cheeks') return 'face';
+    if (slot === 'neck' || slot === 'body') return 'outfit';
+    return slot;
+}
+
+function storePrimaryLayer(group) {
+    if (group === 'hat') return 'head';
+    if (group === 'face') return 'eyes';
+    if (group === 'outfit') return 'body';
+    return group;
+}
+
 let STORE_OWNED = {};
 let STORE_EQUIPPED = {};
 let STORE_BALANCE = 0;
@@ -97,7 +129,8 @@ function storeAvailable() {
 }
 
 function storeOwnedForSlot(slot) {
-    return STORE_ITEMS.filter(it => it.slot === slot && (it.price === 0 || STORE_OWNED[it.id]));
+    const group = storeLayerGroup(slot);
+    return STORE_ITEMS.filter(it => storeLayerGroup(it) === group && (it.price === 0 || STORE_OWNED[it.id]));
 }
 
 /* Free items stay available; purchased store items appear only when owned. */
@@ -112,14 +145,19 @@ function storeLookOptions(slot, current) {
 
 function storeExtendDG() {
     if (typeof DG === 'undefined') return;
-    const add = (arr, slot) => {
-        STORE_ITEMS.filter(it => it.slot === slot).forEach(it => {
+    const add = (arr, slots) => {
+        STORE_ITEMS.filter(it => slots.indexOf(it.slot) !== -1).forEach(it => {
             if (arr.indexOf(it.name) === -1) arr.push(it.name);
         });
     };
-    add(DG.HATS, 'hat');
-    add(DG.GLASSES, 'face');
-    add(DG.OUTFITS, 'outfit');
+    // Group arrays keep the legacy single-slot customizer working, while
+    // the layer arrays let the renderer stack extras.
+    add(DG.HATS, ['head', 'ears']);
+    add(DG.EARS, ['ears']);
+    add(DG.GLASSES, ['eyes', 'cheeks']);
+    add(DG.CHEEKS, ['cheeks']);
+    add(DG.OUTFITS, ['body', 'neck']);
+    add(DG.NECKS, ['neck']);
 }
 
 window.addEventListener('load', storeExtendDG);
@@ -172,7 +210,7 @@ async function loadStoreState(force) {
             try {
                 storeReadLocalProfileLook();
                 const lookRes = await sb.from('profile_looks')
-                    .select('cat,hat,face,outfit')
+                    .select('cat,hat,face,outfit,ears,cheeks,neck')
                     .eq('user_id', currentUser.id)
                     .maybeSingle();
                 if (!lookRes.error && lookRes.data) {
@@ -208,17 +246,17 @@ function storeApplyEquippedToDG() {
     if (typeof DG === 'undefined' || !DG.readSettings) return;
     const s = DG.readSettings();
     let changed = false;
-    ['hat', 'face', 'outfit'].forEach(slot => {
-        const id = STORE_EQUIPPED[slot];
+    Object.keys(STORE_LAYER_KEY).forEach(layer => {
+        const id = STORE_EQUIPPED[layer];
         if (!id) return;
         const item = STORE_BY_ID[id];
         if (!item) return;
-        const key = slot === 'face' ? 'glasses' : slot;
+        const key = STORE_LAYER_KEY[layer];
         if (s[key] !== item.name) { s[key] = item.name; changed = true; }
     });
     // Never let a saved store name be used before it is owned (or free).
-    ['hat', 'face', 'outfit'].forEach(slot => {
-        const key = slot === 'face' ? 'glasses' : slot;
+    Object.keys(STORE_LAYER_KEY).forEach(layer => {
+        const key = STORE_LAYER_KEY[layer];
         const item = STORE_BY_NAME[s[key]];
         if (item && item.price > 0 && !STORE_OWNED[item.id]) {
             s[key] = 'None';
@@ -231,7 +269,7 @@ function storeApplyEquippedToDG() {
 /* The Me profile look is stored separately from the Drive & Go / Word Battle
    game look. That way changing a game chip never changes the profile, and
    "Use my look" always has something stable to restore. */
-let STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', glasses: 'None', outfit: 'None' };
+let STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', ears: 'None', glasses: 'None', cheeks: 'None', outfit: 'None', neck: 'None' };
 let STORE_PROFILE_LOOK_SOURCE = 'local';
 
 function storeNormalizeProfileLook(raw) {
@@ -240,8 +278,11 @@ function storeNormalizeProfileLook(raw) {
     return {
         cat: pick(s.cat, 'Ginger'),
         hat: pick(s.hat, 'None'),
+        ears: pick(s.ears, 'None'),
         glasses: pick(s.glasses !== undefined && s.glasses !== null ? s.glasses : s.face, 'None'),
-        outfit: pick(s.outfit, 'None')
+        cheeks: pick(s.cheeks, 'None'),
+        outfit: pick(s.outfit, 'None'),
+        neck: pick(s.neck, 'None')
     };
 }
 
@@ -270,7 +311,7 @@ function storeReadLocalProfileLook() {
     } catch (e) {}
     // First visit for this account/device. Guests and previews start from the
     // clean look instead of whatever a game last selected.
-    STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', glasses: 'None', outfit: 'None' };
+    STORE_PROFILE_LOOK = { cat: 'Ginger', hat: 'None', ears: 'None', glasses: 'None', cheeks: 'None', outfit: 'None', neck: 'None' };
     storeSaveLocalProfileLook();
     return STORE_PROFILE_LOOK;
 }
@@ -280,8 +321,11 @@ function storeApplyProfileLookToDG(look) {
     STORE_PROFILE_LOOK = storeNormalizeProfileLook({
         cat: look.cat,
         hat: look.hat,
+        ears: look.ears,
         glasses: look.face,
-        outfit: look.outfit
+        cheeks: look.cheeks,
+        outfit: look.outfit,
+        neck: look.neck
     });
     STORE_PROFILE_LOOK_SOURCE = 'cloud';
     storeSaveLocalProfileLook();
@@ -303,7 +347,10 @@ function saveProfileLook() {
             p_cat: STORE_PROFILE_LOOK.cat,
             p_hat: STORE_PROFILE_LOOK.hat,
             p_face: STORE_PROFILE_LOOK.glasses,
-            p_outfit: STORE_PROFILE_LOOK.outfit
+            p_outfit: STORE_PROFILE_LOOK.outfit,
+            p_ears: STORE_PROFILE_LOOK.ears,
+            p_cheeks: STORE_PROFILE_LOOK.cheeks,
+            p_neck: STORE_PROFILE_LOOK.neck
         }).then(() => {}, () => {});
     } catch (e) {}
 }
@@ -317,9 +364,12 @@ function storeMyLook() {
     };
     return {
         cat: p.cat || 'Ginger',
-        hat: equippedName('hat') || p.hat || 'None',
-        glasses: equippedName('face') || p.glasses || 'None',
-        outfit: equippedName('outfit') || p.outfit || 'None'
+        hat: equippedName('head') || p.hat || 'None',
+        ears: equippedName('ears') || p.ears || 'None',
+        glasses: equippedName('eyes') || p.glasses || 'None',
+        cheeks: equippedName('cheeks') || p.cheeks || 'None',
+        outfit: equippedName('body') || p.outfit || 'None',
+        neck: equippedName('neck') || p.neck || 'None'
     };
 }
 
@@ -343,8 +393,11 @@ async function storeUseMyLook() {
         const s = DG.readSettings();
         s.cat = look.cat;
         s.hat = look.hat;
+        s.ears = look.ears;
         s.glasses = look.glasses;
+        s.cheeks = look.cheeks;
         s.outfit = look.outfit;
+        s.neck = look.neck;
         DG.saveSettings();
         if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
             DG.showCatStep();
@@ -421,13 +474,13 @@ function renderStore() {
         note.classList.toggle('hidden', !STORE_LOAD_ERROR);
         note.innerText = STORE_LOAD_ERROR || '';
     }
-    const slots = ['hat', 'face', 'outfit', 'prop', 'background'];
+    const groups = ['hat', 'face', 'outfit', 'prop', 'background'];
     const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
-    const groups = STORE_CATEGORY === 'all' ? slots : [STORE_CATEGORY];
-    grid.innerHTML = groups.map(slot => {
-        const items = STORE_ITEMS.filter(it => it.slot === slot);
+    const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];
+    grid.innerHTML = shown.map(group => {
+        const items = STORE_ITEMS.filter(it => storeLayerGroup(it) === group);
         if (!items.length) return '';
-        return '<div class="store-group"><h3 class="store-group-title">' + labels[slot] + '</h3>' +
+        return '<div class="store-group"><h3 class="store-group-title">' + labels[group] + '</h3>' +
             '<div class="store-grid-inner">' + items.map(storeCardHTML).join('') + '</div></div>';
     }).join('');
     if (!grid.innerHTML) grid.innerHTML = '<p class="text-gray-400 text-center py-8">Nothing here yet.</p>';
@@ -487,8 +540,8 @@ async function storeEquipItem(id) {
         if (error) throw error;
         STORE_EQUIPPED[item.slot] = id;
         const profile = storeReadLocalProfileLook();
-        const key = item.slot === 'face' ? 'glasses' : item.slot;
-        if (key === 'hat' || key === 'glasses' || key === 'outfit') profile[key] = item.name;
+        const key = storeLayerKey(item.slot);
+        if (key !== 'prop' && key !== 'background') profile[key] = item.name;
         STORE_PROFILE_LOOK = profile;
         storeSaveLocalProfileLook();
         storeApplyEquippedToDG();
@@ -507,13 +560,13 @@ async function storeUnequip(slot) {
         if (error) throw error;
         delete STORE_EQUIPPED[slot];
         const profile = storeReadLocalProfileLook();
-        const key = slot === 'face' ? 'glasses' : slot;
-        if (key === 'hat' || key === 'glasses' || key === 'outfit') profile[key] = 'None';
+        const key = storeLayerKey(slot);
+        if (key !== 'prop' && key !== 'background') profile[key] = 'None';
         STORE_PROFILE_LOOK = profile;
         storeSaveLocalProfileLook();
         if (typeof DG !== 'undefined' && DG.readSettings) {
             const s = DG.readSettings();
-            if (key === 'hat' || key === 'glasses' || key === 'outfit') s[key] = 'None';
+            if (key !== 'prop' && key !== 'background') s[key] = 'None';
             DG.saveSettings();
         }
         saveProfileLook();
@@ -529,8 +582,11 @@ async function storeUnequip(slot) {
 function storeLookBits(look, prop, bg) {
     const bits = [];
     if (look && look.hat && look.hat !== 'None') bits.push('🎩 ' + look.hat);
+    if (look && look.ears && look.ears !== 'None') bits.push('🎧 ' + look.ears);
     if (look && look.glasses && look.glasses !== 'None') bits.push('😎 ' + look.glasses);
+    if (look && look.cheeks && look.cheeks !== 'None') bits.push('😊 ' + look.cheeks);
     if (look && look.outfit && look.outfit !== 'None') bits.push('👕 ' + look.outfit);
+    if (look && look.neck && look.neck !== 'None') bits.push('🧣 ' + look.neck);
     if (prop) bits.push('✨ ' + prop.name);
     if (bg) bits.push('🖼️ ' + bg.name);
     return bits;
@@ -691,8 +747,11 @@ async function storeRenderFriendLook(userId) {
     const look = {
         cat: data.cat || 'Ginger',
         hat: data.hat || 'None',
+        ears: data.ears || 'None',
         glasses: data.face || 'None',
-        outfit: data.outfit || 'None'
+        cheeks: data.cheeks || 'None',
+        outfit: data.outfit || 'None',
+        neck: data.neck || 'None'
     };
     storePaintLook(canvas, label, look, item(data.prop), item(data.background), 'Nothing equipped yet.');
 }

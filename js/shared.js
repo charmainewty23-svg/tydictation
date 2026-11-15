@@ -1612,6 +1612,14 @@
         }
 
         function notifRowHTML(n) {
+            if (n.kind === 'market') {
+                return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
+                    '<span class="notif-icon" aria-hidden="true">🛒</span>' +
+                    '<div class="min-w-0"><p class="font-bold text-gray-700 text-sm"><b>' +
+                    escapeHtml(n.actor_name || 'LearniTY Market') + '</b></p>' +
+                    '<p class="text-xs text-gray-500">' + escapeHtml(n.message || 'Market update') + '</p>' +
+                    '<p class="text-[10px] text-gray-400 mt-1">' + timeAgo(n.created_at) + '</p></div></div>';
+            }
             if (n.kind === 'nudge') {
                 return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
                     '<span class="notif-icon" aria-hidden="true">💛</span>' +

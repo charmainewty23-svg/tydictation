@@ -27,7 +27,7 @@ $kind$;
 
 alter table public.friend_notifications
     add constraint friend_notifications_kind_check
-    check (kind in ('follow', 'like', 'announcement', 'nudge'));
+    check (kind in ('follow', 'like', 'announcement', 'nudge', 'market'));
 
 drop function if exists public.nudge_streak_friends();
 

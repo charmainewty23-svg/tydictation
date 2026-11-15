@@ -25,7 +25,7 @@ $do$;
 
 alter table public.friend_notifications
     add constraint friend_notifications_kind_check
-    check (kind in ('follow', 'like', 'announcement'));
+    check (kind in ('follow', 'like', 'announcement', 'nudge', 'market'));
 
 -- Recreate the feed with the message column and the LearniTY sender name.
 drop function if exists public.friend_notification_feed();

@@ -22,6 +22,18 @@ alter table public.store_listings enable row level security;
 -- No client policies: all reads/writes go through the security-definer RPCs
 -- below, so nobody can fake a listing or move Paws directly.
 
+-- Market notifications use the existing bell. Older installs have a kind
+-- check that only allows follow/like/announcement/nudge, so widen it first.
+do $notif$
+begin
+    if to_regclass('public.friend_notifications') is not null then
+        alter table public.friend_notifications drop constraint if exists friend_notifications_kind_check;
+        alter table public.friend_notifications add constraint friend_notifications_kind_check
+            check (kind in ('follow', 'like', 'announcement', 'nudge', 'market'));
+    end if;
+end;
+$notif$;
+
 -- ---------- seller: list an owned, unequipped item ----------
 create or replace function public.create_store_listing(p_item text, p_price int)
 returns uuid
@@ -136,6 +148,8 @@ declare
     v_listing public.store_listings;
     v_item public.store_items;
     v_balance int;
+    v_buyer_name text;
+    v_seller_name text;
 begin
     if v_buyer is null then raise exception 'NOT_AUTHENTICATED'; end if;
 
@@ -187,6 +201,38 @@ begin
     update public.store_listings
        set status = 'sold', buyer_id = v_buyer, sold_at = now()
      where id = p_listing;
+
+    -- Bell notifications for both sides of the trade.
+    if to_regclass('public.friend_notifications') is not null then
+        -- Never let a notification failure roll back a completed sale.
+        begin
+            select coalesce(nullif(sl.nickname, ''), split_part(u.email, '@', 1), 'Student')
+              into v_buyer_name
+              from auth.users u
+              left join public.student_logins sl on sl.user_id = u.id
+             where u.id = v_buyer;
+            select coalesce(nullif(sl.nickname, ''), split_part(u.email, '@', 1), 'Student')
+              into v_seller_name
+              from auth.users u
+              left join public.student_logins sl on sl.user_id = u.id
+             where u.id = v_listing.seller_id;
+
+            insert into public.friend_notifications (user_id, actor_id, kind, message)
+            values (
+                v_listing.seller_id, v_buyer, 'market',
+                'Your ' || v_item.name_en || ' sold to ' || coalesce(v_buyer_name, 'a student') ||
+                ' for ' || v_listing.price || ' 🐾.'
+            );
+            insert into public.friend_notifications (user_id, actor_id, kind, message)
+            values (
+                v_buyer, v_listing.seller_id, 'market',
+                'You bought ' || v_item.name_en || ' from ' || coalesce(v_seller_name, 'a student') ||
+                ' for ' || v_listing.price || ' 🐾.'
+            );
+        exception when others then
+            null;
+        end;
+    end if;
 
     select coalesce(sum(amount), 0)::int into v_balance
       from public.paw_ledger where user_id = v_buyer;

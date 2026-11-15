@@ -97,7 +97,7 @@ create table if not exists public.friend_notifications (
     id             uuid primary key default gen_random_uuid(),
     user_id        uuid not null references auth.users(id) on delete cascade,
     actor_id       uuid not null references auth.users(id) on delete cascade,
-    kind           text not null check (kind in ('follow', 'like', 'announcement')),
+    kind           text not null check (kind in ('follow', 'like', 'announcement', 'nudge', 'market')),
     achievement_id uuid references public.streak_achievements(id) on delete cascade,
     message        text,
     created_at     timestamptz not null default now(),

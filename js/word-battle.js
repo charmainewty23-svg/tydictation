@@ -1184,22 +1184,28 @@
         }
 
         let battleVoiceOn = false;
-        try { battleVoiceOn = localStorage.getItem('battle_voice') === '1'; } catch (e) {}
+        try { battleVoiceOn = sessionStorage.getItem('battle_voice') === '1'; } catch (e) {}
+        window.battleVoiceOn = battleVoiceOn;
 
         function battleApplyVoiceUI() {
+            window.battleVoiceOn = battleVoiceOn;
             const btn = document.getElementById('battle-voice-toggle');
             if (btn) btn.innerText = battleVoiceOn ? '🔊 Voice on' : '🔇 Voice off';
             const sp = document.getElementById('battle-speaker');
             if (sp) sp.classList.toggle('hidden', !battleVoiceOn);
         }
 
-        function battleToggleVoice() {
-            battleVoiceOn = !battleVoiceOn;
-            try { localStorage.setItem('battle_voice', battleVoiceOn ? '1' : '0'); } catch (e) {}
+        function battleSetVoice(on) {
+            battleVoiceOn = !!on;
+            try { sessionStorage.setItem('battle_voice', battleVoiceOn ? '1' : '0'); } catch (e) {}
             if (!battleVoiceOn && typeof speechSynthesis !== 'undefined') {
                 try { speechSynthesis.cancel(); } catch (e) {}
             }
             battleApplyVoiceUI();
+        }
+
+        function battleToggleVoice() {
+            battleSetVoice(!battleVoiceOn);
             updateMascot(battleVoiceOn ? 'Word Battle voice is on. 🔊' : 'Word Battle voice is off. Type the spelling. 🔇');
         }
 

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Word Battle sound demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    #demo-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 52px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: #1f2937;
+        box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    #demo-bar button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 12px;
+        background: rgba(255,255,255,.12);
+        color: #e5e7eb;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #demo-bar button.active { background: #3b82f6; color: #fff; }
+    #demo-voice { background: #f59e0b !important; color: #fff !important; box-shadow: 0 3px 0 #b45309; }
+    #demo-app {
+        position: fixed;
+        top: 58px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: calc(100% - 58px);
+        border: 0;
+        background: #fff9f2;
+    }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" data-panel="lobby" class="active">Lobby</button>
+    <button type="button" data-panel="play">Play screen</button>
+    <button type="button" id="demo-default">↺ Default off</button>
+    <button type="button" id="demo-voice">🔇 Voice off</button>
+</div>
+<iframe id="demo-app" src="/index.html?word-battle-demo=1" title="Word Battle sound demo"></iframe>
+<script>
+    (function () {
+        var frame = document.getElementById('demo-app');
+        var voiceBtn = document.getElementById('demo-voice');
+        var currentPanel = 'lobby';
+
+        function wdoc() {
+            return frame.contentWindow && frame.contentWindow.document;
+        }
+
+        function syncVoice() {
+            var w = frame.contentWindow;
+            if (!w || typeof w.battleVoiceOn === 'undefined') return;
+            voiceBtn.innerText = w.battleVoiceOn ? '🔊 Voice on' : '🔇 Voice off';
+        }
+
+        function showLobby() {
+            var w = frame.contentWindow, d = wdoc();
+            if (!w || !d) return;
+            w.battleShowPanel('lobby');
+            var row = d.getElementById('battle-count-row');
+            if (row) {
+                row.classList.remove('hidden');
+                w.setTimeout(function () {
+                    try { row.scrollIntoView({ block: 'center' }); } catch (e) {}
+                }, 60);
+            }
+            var actions = d.getElementById('battle-room-actions');
+            if (actions) actions.classList.remove('hidden');
+        }
+
+        function showPlay() {
+            var w = frame.contentWindow, d = wdoc();
+            if (!w || !d) return;
+            w.battleShowPanel('play');
+            var set = function (id, text) { var el = d.getElementById(id); if (el) el.innerText = text; };
+            set('battle-progress', 'Word 1 of 10');
+            set('battle-topic-label', 'Library');
+            set('battle-prompt', '圖書館');
+            set('battle-clock', '20s');
+            set('battle-my-score', 'You: 0');
+            set('battle-opp-score', 'Rival: 0');
+            set('battle-feedback', '');
+            var inp = d.getElementById('battle-answer');
+            if (inp) inp.value = '';
+            w.battleApplyVoiceUI();
+        }
+
+        function togglePanel(name) {
+            currentPanel = name;
+            document.querySelectorAll('[data-panel]').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-panel') === name);
+            });
+            if (name === 'play') showPlay(); else showLobby();
+            syncVoice();
+        }
+
+        function defaultOff() {
+            var w = frame.contentWindow;
+            if (!w) return;
+            if (typeof w.battleSetVoice === 'function') w.battleSetVoice(false);
+            else w.battleVoiceOn = false;
+            try { w.sessionStorage.removeItem('battle_voice'); } catch (e) {}
+            w.battleApplyVoiceUI();
+            syncVoice();
+        }
+
+        function setup() {
+            var w = frame.contentWindow, d = wdoc();
+            if (!w || !d || !d.getElementById('battle-view')) {
+                setTimeout(setup, 200);
+                return;
+            }
+            var login = d.getElementById('login-view');
+            if (login) login.style.display = 'none';
+            var app = d.getElementById('app');
+            if (app) app.classList.add('logged-in');
+            d.querySelectorAll('.view').forEach(function (v) {
+                if (v.id !== 'battle-view') v.classList.add('hidden');
+            });
+            d.getElementById('battle-view').classList.remove('hidden');
+            ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+                var el = d.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+            if (typeof w.battleSetVoice === 'function') w.battleSetVoice(false);
+            else w.battleVoiceOn = false;
+            try { w.sessionStorage.removeItem('battle_voice'); } catch (e) {}
+            w.battleApplyVoiceUI();
+            togglePanel(currentPanel);
+        }
+
+        document.querySelectorAll('[data-panel]').forEach(function (b) {
+            b.addEventListener('click', function () { togglePanel(b.getAttribute('data-panel')); });
+        });
+        document.getElementById('demo-default').addEventListener('click', defaultOff);
+        voiceBtn.addEventListener('click', function () {
+            var w = frame.contentWindow;
+            if (!w || typeof w.battleToggleVoice !== 'function') return;
+            w.battleToggleVoice();
+            syncVoice();
+        });
+        frame.addEventListener('load', function () { setTimeout(setup, 500); });
+    })();
+</script>
+</body>
+</html>

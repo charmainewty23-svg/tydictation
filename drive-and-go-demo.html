@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Drive & Go! 30-player class room demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    #demo-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 52px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: #1f2937;
+        box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    #demo-bar button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 12px;
+        background: rgba(255,255,255,.12);
+        color: #e5e7eb;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #demo-bar button.active { background: #22c55e; color: #fff; }
+    #demo-app {
+        position: fixed;
+        top: 58px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: calc(100% - 58px);
+        border: 0;
+        background: #fff9f2;
+    }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" id="demo-lobby" class="active">🏁 Lobby · 30 students</button>
+    <button type="button" id="demo-live">📊 Live class board</button>
+    <button type="button" id="demo-replay">↺ Replay</button>
+</div>
+<iframe id="demo-app" src="/index.html?dg30demo=1" title="Drive and Go 30-player class room demo"></iframe>
+<script>
+    (function () {
+        var frame = document.getElementById('demo-app');
+        var hats = ['None', 'Party Hat', 'Crown', 'None', 'Party Hat'];
+        var glasses = ['None', 'Sunglasses', 'Glasses', 'None'];
+        var outfits = ['None', 'Racing Jacket', 'Red Scarf', 'None'];
+        var surnames = ['Chan','Lee','Wong','Ho','Lam','Yip','Cheung','Lau','Ng','Tsang'];
+        var players = [];
+        for (var i = 1; i <= 30; i++) {
+            var n = String(i).padStart(2, '0');
+            players.push({
+                user_id: 'student' + n,
+                email: 's' + n + '@lstyoungkhl.edu.hk',
+                nickname: '4C ' + n + ' ' + surnames[(i - 1) % surnames.length],
+                form: 'F4',
+                cat: i % 3 === 0 ? 'Ragdoll' : 'Ginger',
+                glasses: glasses[i % glasses.length],
+                hat: hats[i % hats.length],
+                outfit: outfits[i % outfits.length],
+                correct: 0,
+                distance: 0,
+                finished_at: null
+            });
+        }
+        var liveRows = players.map(function (p, i) {
+            var correct = Math.max(0, 20 - Math.floor(i * 0.55));
+            if (i < 4) correct = 20;
+            return Object.assign({}, p, {
+                correct: correct,
+                distance: 600 + (30 - i) * 73 + (i % 5) * 11,
+                finished_at: i < 4 ? new Date().toISOString() : null
+            });
+        });
+
+        function setup() {
+            var w = frame.contentWindow, d = w && w.document;
+            if (!w || !d || !d.getElementById('grammar-detail-view') || !w.DG || !w.DG.mpRenderLobby) {
+                setTimeout(setup, 200);
+                return;
+            }
+            d.getElementById('login-view').style.display = 'none';
+            var app = d.getElementById('app');
+            if (app) app.classList.add('logged-in');
+            var header = d.querySelector('#app > header');
+            if (header) header.style.display = 'none';
+            d.querySelectorAll('.view').forEach(function (v) {
+                if (v.id !== 'grammar-detail-view') v.classList.add('hidden');
+            });
+            d.getElementById('grammar-detail-view').classList.remove('hidden');
+            ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+                var el = d.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            w.eval(`(function(){
+                window.confirm = function(){ return true; };
+                currentUser = { id:'teacher-demo', email:'tywong@lstyoungkhl.edu.hk' };
+                guestSession = false;
+                DG.sessionMode = 'multi';
+                DG.mpRole = 'host';
+                DG.mpClassRoom = true;
+                DG.raceState.active = false;
+                var MPX = DG.mpState;
+                MPX.room = {
+                    id: 'demo-class-room',
+                    code: '8K2P',
+                    host_id: 'teacher-demo',
+                    max_players: 30,
+                    topic: 'tenses',
+                    question_mode: 'mixed',
+                    question_count: 20,
+                    scene: 'desert',
+                    status: 'waiting'
+                };
+                MPX.players = ${JSON.stringify(players)};
+                MPX.watchSig = '';
+            })();`);
+            showLobby();
+        }
+
+        function showLobby() {
+            var w = frame.contentWindow, d = w.document;
+            w.eval("DG.mpState.room.status = 'waiting'; DG.raceState.active = false;");
+            w.DG.mpRenderLobby();
+            d.getElementById('grammar-detail-view').scrollIntoView({ block: 'start' });
+            document.getElementById('demo-lobby').classList.add('active');
+            document.getElementById('demo-live').classList.remove('active');
+        }
+
+        function showLive() {
+            var w = frame.contentWindow;
+            w.eval(`(function(){
+                var MPX = DG.mpState;
+                MPX.room.status = 'playing';
+                MPX.players = ${JSON.stringify(liveRows)};
+                MPX.watchSig = '';
+                var old = document.getElementById('dg-watch-panel');
+                if (old) old.remove();
+                DG.mpWatchRace(MPX.room, MPX.players);
+            })();`);
+            document.getElementById('demo-live').classList.add('active');
+            document.getElementById('demo-lobby').classList.remove('active');
+        }
+
+        document.getElementById('demo-lobby').addEventListener('click', showLobby);
+        document.getElementById('demo-live').addEventListener('click', showLive);
+        document.getElementById('demo-replay').addEventListener('click', function () {
+            try { frame.contentWindow.location.reload(); } catch (e) {}
+        });
+        frame.addEventListener('load', function () { setTimeout(setup, 500); });
+    })();
+</script>
+</body>
+</html>

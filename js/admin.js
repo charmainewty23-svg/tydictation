@@ -42,11 +42,13 @@
         function renderAdminDashboard() {
             const statsEl = document.getElementById('admin-stats');
             const listEl = document.getElementById('admin-activity-container');
+            const latestEl = document.getElementById('admin-latest-container');
             if (!statsEl || !listEl || !adminCache.dictation) return;
             const rows = adminCache.dictation;
             if (adminCache.dictationError || !rows.length) {
                 statsEl.innerHTML = '';
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No data.</p>';
+                if (latestEl) latestEl.innerHTML = '<p class="text-gray-400 text-center py-6">No dictation attempts yet.</p>';
                 return;
             }
             const uniqueStudents = new Set(rows.map(r => (r.email || '').toLowerCase())).size;
@@ -105,6 +107,62 @@
                     `).join('')}
                 </div>
             `, { collapsible: true, scope: 'admin-activity' });
+
+            if (latestEl) {
+                // rows already come back newest-first, so the first hit per
+                // email is that student's latest attempt.
+                const latestMap = {};
+                rows.forEach(r => {
+                    const key = (r.email || '').toLowerCase();
+                    if (!key || latestMap[key]) return;
+                    latestMap[key] = r;
+                });
+                const latest = Object.values(latestMap).sort((a, b) =>
+                    new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                latestEl.innerHTML = latest.length
+                    ? renderFormSections(groupRowsByForm(latest), (list) => `
+                        <div class="space-y-3">${list.map(adminLatestAttemptRow).join('')}</div>
+                    `, {
+                        collapsible: true,
+                        scope: 'admin-latest',
+                        emptyAll: '<p class="text-gray-400 text-center py-6">No dictation attempts yet.</p>'
+                    })
+                    : '<p class="text-gray-400 text-center py-6">No dictation attempts yet.</p>';
+            }
+        }
+
+        /* One row: a student's most recent Dictation Master attempt. */
+        function adminLatestAttemptRow(r) {
+            const total = Math.max(0, Number(r.total) || 0);
+            const score = Math.max(0, Number(r.score) || 0);
+            const correct = (r.correct == null) ? null : Math.max(0, Number(r.correct) || 0);
+            const pct = (correct != null && total > 0) ? Math.round((correct / total) * 100) : null;
+            const mode = String(r.mode || '').toLowerCase();
+            const modeLabel = mode === 'listening'
+                ? '🎧 Listening'
+                : mode === 'recitation'
+                    ? '🗣️ Recitation'
+                    : (r.mode ? String(r.mode) : '—');
+            const icon = mode === 'listening' ? '🎧' : mode === 'recitation' ? '🗣️' : '✍️';
+            const topic = r.topic ? topicLabel(r.topic) : '—';
+            const when = r.created_at ? timeAgo(r.created_at) : '—';
+            const exact = r.created_at ? hkDate(r.created_at) : '';
+            return `
+                <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 flex-wrap">
+                    <div class="flex items-center gap-3 flex-1 min-w-[220px]">
+                        <span class="text-2xl" aria-hidden="true">${icon}</span>
+                        <div>
+                            <span class="font-bold text-gray-700">${adminProfileName(r, classBadge(r.email, r.nickname))}</span>
+                            <span class="text-gray-400 text-xs ml-2">${escapeHtml(r.email || '')}</span>
+                            <div class="text-xs text-gray-500 mt-1">${escapeHtml(topic)} · ${escapeHtml(modeLabel)}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 text-sm flex-wrap">
+                        <span class="font-bold text-orange-600">${score} / ${total} pts</span>
+                        <span class="text-gray-500">${correct == null ? '—' : correct + ' / ' + total + ' correct'}${pct == null ? '' : ' · ' + pct + '%'}</span>
+                        <span class="text-gray-400 text-xs" title="${escapeHtml(exact)}">${escapeHtml(when)}</span>
+                    </div>
+                </div>`;
         }
 
         // --- Admin: Drive & Go! records (inside the Grammar Quest card) ---

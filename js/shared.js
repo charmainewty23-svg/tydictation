@@ -460,19 +460,37 @@
                 return { extended: false, count: state.count, best: state.best, cards: state.cards, repaired: 0, today: today, recentDays: state.recentDays };
             }
             const gap = state.last ? streakGapDays(state.last, today) : NaN;
+            const delay = Math.max(0, Number(options && options.delayMs) || 0);
+            const sourceName = source || '';
+            // A repair card is never spent silently: ask the student first.
+            // The streak stays untouched until they choose.
+            if (state.count > 0 && Number.isFinite(gap) && gap > 1 && (gap - 1) <= state.cards) {
+                const ask = function () {
+                    showRepairPrompt({
+                        need: gap - 1,
+                        cards: state.cards,
+                        count: state.count,
+                        best: state.best,
+                        today: today,
+                        source: sourceName
+                    });
+                };
+                if (delay > 0) setTimeout(ask, delay);
+                else ask();
+                return { extended: false, pendingRepair: true, count: state.count, cards: state.cards, today: today };
+            }
             let count = 1;
             let cards = state.cards;
             let repaired = 0;
             if (state.last && gap === 1) {
                 count = Math.max(1, state.count + 1);
-            } else if (state.count > 0 && Number.isFinite(gap) && gap > 1 && (gap - 1) <= cards) {
-                // A repair card covers one missed day. Spend them only on a
-                // live streak, when the whole gap can be bridged; otherwise
-                // start a fresh streak without wasting cards.
-                repaired = gap - 1;
-                cards -= repaired;
-                count = Math.max(1, state.count + 1);
             }
+            return commitStreakDay(state, today, count, cards, repaired, sourceName, delay);
+        }
+
+        /* Write the new streak day and show the "You made it!" card. Used by
+           both the direct path and the repair-card prompt. */
+        function commitStreakDay(state, today, count, cards, repaired, source, delay) {
             const next = {
                 last: today,
                 count: count,
@@ -484,7 +502,6 @@
             writeStreakState(next);
             saveCloudStreak(next);
             updateStreakBadge();
-            const delay = Math.max(0, Number(options && options.delayMs) || 0);
             const info = {
                 count: count,
                 best: next.best,
@@ -493,9 +510,69 @@
                 fresh: count === 1 && !repaired,
                 source: source || ''
             };
-            if (delay > 0) setTimeout(() => showStreakPopup(info), delay);
+            const wait = Math.max(0, Number(delay) || 0);
+            if (wait > 0) setTimeout(() => showStreakPopup(info), wait);
             else showStreakPopup(info);
             return { extended: true, count: count, best: next.best, cards: next.cards, repaired: repaired, today: today, recentDays: next.recentDays };
+        }
+
+        /* -------- repair-card prompt -------- */
+        let repairPromptInfo = null;
+
+        function showRepairPrompt(info) {
+            repairPromptInfo = info;
+            const old = document.getElementById('streak-repair-prompt');
+            if (old) old.remove();
+            const need = Math.max(1, Number(info.need) || 1);
+            const cards = Math.max(0, Number(info.cards) || 0);
+            const count = Math.max(1, Number(info.count) || 1);
+            const popup = document.createElement('div');
+            popup.id = 'streak-repair-prompt';
+            popup.className = 'streak-popup';
+            popup.setAttribute('role', 'dialog');
+            popup.setAttribute('aria-modal', 'true');
+            popup.setAttribute('aria-labelledby', 'streak-repair-title');
+            popup.innerHTML = `
+                <div class="streak-popup-card">
+                    <div class="streak-popup-flame" aria-hidden="true">🔥</div>
+                    <h2 id="streak-repair-title" class="streak-popup-title">Keep your streak?</h2>
+                    <p class="streak-popup-count"><span aria-hidden="true">🔥</span> ${count} days</p>
+                    <p class="streak-popup-line">You missed ${need} day${need === 1 ? '' : 's'}. Use ${need} repair card${need === 1 ? '' : 's'} to keep your streak going?</p>
+                    <p class="streak-popup-cards">🛟 ${cards} repair card${cards === 1 ? '' : 's'} available</p>
+                    <button type="button" class="streak-popup-btn" onclick="useRepairCards()">🛟 Use ${need} repair card${need === 1 ? '' : 's'}</button>
+                    <button type="button" class="streak-popup-btn streak-popup-btn-quiet" onclick="declineRepairCards()">Start a new streak</button>
+                </div>`;
+            ['pointerdown', 'pointerup', 'pointermove', 'touchstart', 'touchmove', 'click'].forEach(type => {
+                popup.addEventListener(type, event => event.stopPropagation());
+            });
+            streakPopupHost().appendChild(popup);
+            const btn = popup.querySelector('.streak-popup-btn');
+            if (btn && btn.focus) btn.focus({ preventScroll: true });
+        }
+
+        function closeRepairPrompt() {
+            const el = document.getElementById('streak-repair-prompt');
+            if (el) el.remove();
+        }
+
+        function useRepairCards() {
+            const info = repairPromptInfo;
+            if (!info) return;
+            repairPromptInfo = null;
+            closeRepairPrompt();
+            const state = readStreakState();
+            const need = Math.max(1, Number(info.need) || 1);
+            const cards = Math.max(0, state.cards - need);
+            commitStreakDay(state, info.today, Math.max(1, state.count + 1), cards, need, info.source, 0);
+        }
+
+        function declineRepairCards() {
+            const info = repairPromptInfo;
+            if (!info) return;
+            repairPromptInfo = null;
+            closeRepairPrompt();
+            const state = readStreakState();
+            commitStreakDay(state, info.today, 1, state.cards, 0, info.source, 0);
         }
 
         function streakPopupKeydown(event) {
@@ -563,6 +640,11 @@
             document.addEventListener('keydown', streakPopupKeydown);
             const btn = popup.querySelector('.streak-popup-btn');
             if (btn && btn.focus) btn.focus({ preventScroll: true });
+            // Haptic tap when a live streak continues. Android / Chrome use
+            // navigator.vibrate; iOS Safari ignores it, so guard everything.
+            if (count > 1 && typeof navigator.vibrate === 'function') {
+                try { navigator.vibrate([45, 35, 70]); } catch (e) {}
+            }
         }
         function isGuestUser() { return !!guestSession; }
         function isTeacherAccount() { return !isGuestUser() && currentUser && currentUser.email === ADMIN_EMAIL; }

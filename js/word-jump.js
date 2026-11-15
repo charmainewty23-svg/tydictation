@@ -3077,7 +3077,9 @@
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.font = 'bold 12px Fredoka, system-ui, sans-serif';
-            let by = 26;
+            // Full screen keeps the 📱 Tilt pill under the exit button at the
+            // top-right, so the power-up badges start below it.
+            let by = WJ.fsOn() ? 108 : 26;
             badges.forEach(b => {
                 const label = b[0] + ' ' + b[1] + 's';
                 const tw = ctx.measureText(label).width + 14;

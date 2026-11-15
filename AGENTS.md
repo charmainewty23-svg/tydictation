@@ -1012,7 +1012,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Tilt（2026-11）**：手機／平板按 Start 會自動開 tilt（iOS 要喺同一個 tap 問 motion 權限，
   所以 `WJ.armTiltOnStart()` 喺 `enterFullscreen()` 之前同步呼叫）。
   `WJ.tiltRoll()` 按螢幕方向用 `gamma`（直向）或 `beta`（橫向），先至跟到「手機平衡」。
-  入全屏、轉橫豎都會重設 `tiltZero`。全屏工具列收埋咗，畫面左上角有 `#wj-tilt-fs` 開關。
+  入全屏、轉橫豎都會重設 `tiltZero`。全屏工具列收埋咗，`#wj-tilt-fs` 開關而家放喺
+  **右上角、`#wj-exit-fs` 下面**（`top:56px;right:6px`），唔會再蓋住左上角嘅分數；
+  全屏時 `WJ.drawHud()` 嘅道具 badges 由 y=26 改為 **y=108** 開始，避開個掣。
   `TILT_RANGE = 11`：實機太敏感就調大、太鈍就調細。
 - 已知限制：`canvas` 內容喺 OpenCode browser 截圖會空白（要 `toDataURL()` 轉 `<img>` 才睇到），唔係 bug。
 
@@ -1246,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v17）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v18）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1305,8 +1307,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v17`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v18`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v18`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v19`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1430,10 +1432,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **計法**：`hkDayKey()`（`Asia/Hong_Kong`）做日界。`recordDailyPractice(source, options)`
   （`js/shared.js`）只喺 `state.last !== 今日` 時寫入：
   - 上次係**昨日** → `count + 1`（連勝繼續）。
-  - 斷咗 1 日或以上，而 `state.count > 0` 且 `gap - 1 <= repairCards` → 用補救卡
-    補齊所有漏做日，`count + 1`，`cards -= gap - 1`，popup 會寫
-    「Repair card used」同剩幾張。**count 已經係 0（例如 backfill 嘅舊 streak）
-    就唔會用卡**，直接由 1 重新開始，補救卡保留。
+  - 斷咗 1 日或以上，而 `state.count > 0` 且 `gap - 1 <= repairCards` → **唔會再自動扣卡**。
+    `recordDailyPractice()` 會出 `#streak-repair-prompt`（「Keep your streak?」）問學生：
+    「🛟 Use N repair card(s)」定「Start a new streak」，尚未選擇前 streak state
+    完全唔會改。撳 Use 先會 `cards -= gap - 1`、`count + 1`，再出正常
+    「You made it!」卡（寫「Repair card used」同剩幾張）；撳 Start a new streak
+    就 `count = 1`、卡數不變。**count 已經係 0（例如 backfill 嘅舊 streak）
+    就唔會問亦唔會用卡**，直接由 1 重新開始，補救卡保留。
   - 漏做日數多過手上補救卡 → **唔會**浪費卡，`count = 1` 重新開始。
   - 從未做過 → `count = 1`，`cards` 預設 **3**。
   - 同一天再 call → `{ extended:false }`，唔彈卡、唔改數。
@@ -1489,6 +1494,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     輕微擺動（`prefers-reduced-motion` 會停）。
   - 撳 badge → `showStreakInfo()` 用 mascot bubble 講今日做咗未／仲有幾多日／
     要唔要用補救卡。
+  - **觸覺回饋**：`showStreakPopup()` 喺 `count > 1`（連勝延續）時會
+    `navigator.vibrate([45,35,70])`；第一次生火（count 1）唔會震。
+    Android／Chrome 支援；iOS Safari 冇 `navigator.vibrate`，會靜靜跳過。
   - 「You made it!」卡係 `showStreakPopup()` 動態建立嘅 `#streak-popup`
     （`z-index: 10060`），有 backdrop、`role="dialog"`、Esc／backdrop 都可以關，
     標題固定 `You made it!`，下面顯示 `🔥 N day(s)`、鼓勵句、`🛟 N repair cards
@@ -1776,11 +1784,27 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - Word Jump admin（`wj-admin`）
   - Drive & Go Solo／Multi admin（`dg-admin-solo`／`dg-admin-multi`）
   - Word Battle class live board（`battle-class`）
+  - Admin Dashboard「🕘 Latest attempts」（`admin-latest`）
   - Guest logins 卡本身有 `guest-admin` +/-。
 - Word Battle admin 每間房嘅 player list 另外用 `<details>`（summary
   `Players (N)`，預設 open），可以逐間收埋；房間列表本身仍有
   Show all／Collapse。
 - 所有 admin 名單嘅名都用 `adminProfileName()` 撳得入 profile。
+
+#### 12.7e Admin「🕘 Latest attempts」
+
+- Admin Dashboard 嘅 Student Activity 下面新增 **🕘 Latest attempts**，
+  `#admin-latest-container`，由 `renderAdminDashboard()`（`js/admin.js`）填。
+- 每位學生**只顯示最新一筆** `dictation_results`（`email` 去重，`created_at` 最新），
+  因為 `loadAdminDashboard()` 本身已經 `order("created_at", { ascending:false })`。
+- 每行顯示：模式 emoji（🎧 Listening／🗣️ Recitation／✍️）、名（可撳入 profile）、
+  email、topic（`topicLabel()`）、`score / total pts`、`correct / total correct`
+  ＋百分比、相對時間（hover 顯示香港時間）。
+- 舊 row 冇 `correct`（NULL）就顯示 `—`，唔會當 0。
+- 用 `renderFormSections(..., { collapsible:true, scope:'admin-latest' })`，
+  所以同其他 admin 名單一樣按 F3／F4／F6／Unassigned 分組同有 (+)/(-)；
+  預設收起。Refresh 掣會重新 `loadAdminDashboard()`。
+- 呢個係跟 `dictation_results` 嘅 RLS（老師讀全部），唔使新 SQL、唔使新欄。
 
 ### 12.8 首頁背景音樂（2026-11）
 

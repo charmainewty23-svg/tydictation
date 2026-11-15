@@ -535,6 +535,15 @@
             transform: translateY(2px);
             box-shadow: 0 2px 0 #b34700;
         }
+        .streak-popup-btn-quiet {
+            margin-top: 0.5rem;
+            background: #f3f4f6;
+            color: #4b5563;
+            box-shadow: 0 4px 0 #d1d5db;
+        }
+        .streak-popup-btn-quiet:active {
+            box-shadow: 0 2px 0 #d1d5db;
+        }
         /* Landscape phones (and the Drive & Go! full-screen race) are short:
            keep the whole celebration visible without scrolling. */
         @media (orientation: landscape) and (max-height: 480px) {
@@ -1244,13 +1253,16 @@
         body.wj-fs #wj-fs-enter {
             display: none;
         }
-        /* Tilt toggle in full screen (toolbar is hidden there). */
+        /* Tilt toggle in full screen (toolbar is hidden there). Top-right,
+           under the exit-full-screen pill, so the score in the top-left is
+           never covered. */
         #wj-tilt-fs {
             display: none;
             position: absolute;
             z-index: 25;
-            top: 6px;
-            left: 6px;
+            top: 56px;
+            right: 6px;
+            left: auto;
             padding: 4px 9px;
             border: 1px solid #a7f3d0;
             border-radius: 999px;
@@ -2670,6 +2682,16 @@
                             <div class="loader mb-4"></div>
                             <p class="text-orange-400 font-bold">Loading...</p>
                         </div>
+                    </div>
+                    <div class="mt-8 pt-6 border-t-2 border-orange-100">
+                        <div class="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-600 mb-1">🕘 Latest attempts</h3>
+                                <p class="text-sm text-gray-400 mb-4">Most recent Dictation Master attempt for each student — topic, mode, score and accuracy. Tap a name to open their profile.</p>
+                            </div>
+                            <button onclick="loadAdminDashboard()" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white hover:bg-orange-600 transition-colors">↻ Refresh</button>
+                        </div>
+                        <div id="admin-latest-container"></div>
                     </div>
                 </div>
                 <div class="cat-card p-8 mt-6">

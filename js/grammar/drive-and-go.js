@@ -1615,9 +1615,9 @@ const DG = {
         } else {
             DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.raceLook(), { preview: true });
         }
-        const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
-        if (propItem && typeof DG.drawCatProp === 'function') {
-            DG.drawCatProp(ctx, propItem.name, cssW * 0.70, cssH * 0.84, Math.min(cssW, cssH) / 330);
+        const propItems = (typeof storeEquippedItems === 'function') ? storeEquippedItems('prop') : [];
+        if (propItems.length && typeof DG.drawCatProps === 'function') {
+            DG.drawCatProps(ctx, propItems, cssW, cssH);
         }
     },
 

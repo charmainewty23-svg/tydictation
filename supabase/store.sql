@@ -65,12 +65,12 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('prop_box','prop','Cardboard Box','紙皮箱',120,'Rare','📦',32),
     ('prop_dictionary','prop','Floating Dictionary','懸浮魔法字典',220,'Epic','📖',33),
     ('prop_parrot','prop','Mini Parrot','肩膀小鸚鵡',240,'Epic','🦜',34),
-    ('prop_white_flag','prop','White Flag','投降小白旗',430,'Epic','🏳️',48),
-    ('prop_rubber_duck','prop','Rubber Duck','沖涼黃色小鴨',440,'Epic','🦆',49),
-    ('prop_red_pen','prop','Red Pen','老師改卷紅筆',450,'Epic','🖊️',50),
-    ('prop_tea_scone','prop','Tea & Scone','英式下午茶',460,'Epic','🫖',51),
-    ('prop_corgi','prop','Mini Corgi','迷你哥基犬',470,'Legendary','🐕',52),
-    ('prop_boombox','prop','Boombox','復古卡式錄音機',480,'Legendary','📻',53),
+    ('prop_white_flag','prop','White Flag','投降小白旗',470,'Epic','🏳️',48),
+    ('prop_rubber_duck','prop','Rubber Duck','沖涼黃色小鴨',480,'Epic','🦆',49),
+    ('prop_red_pen','prop','Red Pen','老師改卷紅筆',490,'Epic','🖊️',50),
+    ('prop_tea_scone','prop','Tea & Scone','英式下午茶',500,'Epic','🫖',51),
+    ('prop_corgi','prop','Mini Corgi','迷你哥基犬',510,'Legendary','🐕',52),
+    ('prop_boombox','prop','Boombox','復古卡式錄音機',520,'Legendary','📻',53),
     ('bg_desk','background','Cozy Desk','溫書書桌',120,'Rare','🛋️',35),
     ('bg_library','background','Oxford Library','牛津古書庫',200,'Epic','📚',36),
     ('bg_bigben','background','Big Ben Rain','倫敦雨夜',220,'Epic','🕰️',37),
@@ -352,8 +352,14 @@ create table if not exists public.store_equipped (
     slot       text not null check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit')),
     item_id    text not null references public.store_items(id) on delete cascade,
     updated_at timestamptz not null default now(),
-    primary key (user_id, slot)
+    primary key (user_id, slot, item_id)
 );
+alter table public.store_equipped drop constraint if exists store_equipped_pkey;
+alter table public.store_equipped add primary key (user_id, slot, item_id);
+create unique index if not exists store_equipped_single_layer
+    on public.store_equipped (user_id, slot)
+    where slot <> 'prop';
+
 alter table public.store_equipped drop constraint if exists store_equipped_slot_check;
 alter table public.store_equipped add constraint store_equipped_slot_check
     check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit'));
@@ -457,7 +463,11 @@ begin
             'outfit', coalesce(pl.outfit, 'None'),
             'neck', coalesce(pl.neck, 'None'),
             'prop', coalesce((select e.item_id from public.store_equipped e
-                               where e.user_id = p_user_id and e.slot = 'prop'), ''),
+                               where e.user_id = p_user_id and e.slot = 'prop'
+                               order by e.updated_at limit 1), ''),
+            'props', coalesce((select jsonb_agg(e.item_id order by e.updated_at)
+                                 from public.store_equipped e
+                                where e.user_id = p_user_id and e.slot = 'prop'), '[]'::jsonb),
             'background', coalesce((select e.item_id from public.store_equipped e
                                      where e.user_id = p_user_id and e.slot = 'background'), '')
         )
@@ -555,9 +565,12 @@ begin
     ) then
         raise exception 'NOT_OWNED';
     end if;
+    if p_slot <> 'prop' then
+        delete from public.store_equipped where user_id = v_me and slot = p_slot;
+    end if;
     insert into public.store_equipped (user_id, slot, item_id)
     values (v_me, p_slot, p_item)
-    on conflict (user_id, slot) do update set item_id = excluded.item_id, updated_at = now();
+    on conflict (user_id, slot, item_id) do update set updated_at = now();
 end;
 $fn$;
 
@@ -683,6 +696,25 @@ revoke all on function public.admin_paw_daily(int) from public;
 revoke all on function public.friend_paws_daily(uuid, int) from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
+create or replace function public.unequip_store_item(p_slot text, p_item text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+begin
+    if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    if p_item is null or trim(p_item) = '' then
+        delete from public.store_equipped where user_id = v_me and slot = p_slot;
+    else
+        delete from public.store_equipped
+         where user_id = v_me and slot = p_slot and item_id = p_item;
+    end if;
+end;
+$fn$;
+
 revoke all on function public.equip_store_item(text, text) from public;
 revoke all on function public.pull_store_gacha() from public;
 revoke all on function public.save_profile_look(text, text, text, text, text, text, text) from public;
@@ -700,6 +732,8 @@ grant execute on function public.admin_paw_daily(int) to authenticated;
 grant execute on function public.friend_paws_daily(uuid, int) to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
+revoke all on function public.unequip_store_item(text, text) from public;
+grant execute on function public.unequip_store_item(text, text) to authenticated;
 grant execute on function public.pull_store_gacha() to authenticated;
 grant execute on function public.save_profile_look(text, text, text, text, text, text, text) to authenticated;
 grant execute on function public.friend_store_look(uuid) to authenticated;
@@ -719,7 +753,7 @@ select u.id, u.id, 'announcement',
  );
 
 -- ---------- teacher test balance ----------
--- Keeps the owner account at 2000 Paws for testing the Store. Safe to
+-- Keeps the owner account at 10,000 Paws for testing the Store. Safe to
 -- re-run: it rewrites a single ledger row, and the welcome/practice
 -- amounts are not touched. Top-up Paws do not count towards the daily cap.
 do $topup$
@@ -737,10 +771,10 @@ begin
     select coalesce(sum(amount), 0)::int into v_others
       from public.paw_ledger
      where user_id = v_teacher
-       and ref_key <> 'teacher_test_topup_2000';
-    if v_others < 2000 then
+       and ref_key <> 'teacher_test_topup_10000';
+    if v_others < 10000 then
         insert into public.paw_ledger (user_id, amount, reason, ref_key)
-        values (v_teacher, 2000 - v_others, 'teacher_test_topup', 'teacher_test_topup_2000')
+        values (v_teacher, 10000 - v_others, 'teacher_test_topup', 'teacher_test_topup_10000')
         on conflict (user_id, ref_key) do update set amount = excluded.amount;
     end if;
 end;

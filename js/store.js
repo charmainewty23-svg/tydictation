@@ -44,12 +44,12 @@ const STORE_ITEMS = [
     { id:'prop_box', slot:'prop', name:'Cardboard Box', zh:'紙皮箱', price:120, rarity:'Rare', emoji:'📦', color:'#b45309', desc:'A “Fragile” delivery box.' },
     { id:'prop_dictionary', slot:'prop', name:'Floating Dictionary', zh:'懸浮魔法字典', price:220, rarity:'Epic', emoji:'📖', color:'#2563eb', desc:'A glowing dictionary that turns its own pages.' },
     { id:'prop_parrot', slot:'prop', name:'Mini Parrot', zh:'肩膀小鸚鵡', price:240, rarity:'Epic', emoji:'🦜', color:'#22c55e', desc:'A colourful parrot on your shoulder.' },
-    { id:'prop_white_flag', slot:'prop', name:'White Flag', zh:'投降小白旗', price:430, rarity:'Epic', emoji:'🏳️', color:'#f8fafc', desc:'A little white flag that says “Too Hard!”.' },
-    { id:'prop_rubber_duck', slot:'prop', name:'Rubber Duck', zh:'沖涼黃色小鴨', price:440, rarity:'Epic', emoji:'🦆', color:'#facc15', desc:'The classic yellow debugging duck.' },
-    { id:'prop_red_pen', slot:'prop', name:'Red Pen', zh:'老師改卷紅筆', price:450, rarity:'Epic', emoji:'🖊️', color:'#dc2626', desc:'A giant red marking pen, ready for homework.' },
-    { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:460, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
-    { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:470, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
-    { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:480, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
+    { id:'prop_white_flag', slot:'prop', name:'White Flag', zh:'投降小白旗', price:470, rarity:'Epic', emoji:'🏳️', color:'#f8fafc', desc:'A little white flag that says “Too Hard!”.' },
+    { id:'prop_rubber_duck', slot:'prop', name:'Rubber Duck', zh:'沖涼黃色小鴨', price:480, rarity:'Epic', emoji:'🦆', color:'#facc15', desc:'The classic yellow debugging duck.' },
+    { id:'prop_red_pen', slot:'prop', name:'Red Pen', zh:'老師改卷紅筆', price:490, rarity:'Epic', emoji:'🖊️', color:'#dc2626', desc:'A giant red marking pen, ready for homework.' },
+    { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:500, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
+    { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
+    { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:520, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
 
     // Backgrounds & effects (Me / lobby only)
     { id:'bg_desk', slot:'background', name:'Cozy Desk', zh:'溫書書桌', price:120, rarity:'Rare', emoji:'🛋️', color:'#d97706', desc:'A wooden desk with a lamp and tea.' },
@@ -198,9 +198,11 @@ async function loadStoreState(force) {
             if (equipped.error) throw equipped.error;
             STORE_OWNED = free;
             (purchases.data || []).forEach(row => { if (row && row.item_id) STORE_OWNED[row.item_id] = true; });
-            STORE_EQUIPPED = {};
+            STORE_EQUIPPED = { prop: [] };
             (equipped.data || []).forEach(row => {
-                if (row && row.slot && row.item_id) STORE_EQUIPPED[row.slot] = row.item_id;
+                if (!row || !row.slot || !row.item_id) return;
+                if (row.slot === 'prop') STORE_EQUIPPED.prop.push(row.item_id);
+                else STORE_EQUIPPED[row.slot] = row.item_id;
             });
             STORE_BALANCE = Math.max(0, Number(bal.data) || 0);
             try {
@@ -375,7 +377,8 @@ function storeMyLook() {
         glasses: equippedName('eyes') || p.glasses || 'None',
         cheeks: equippedName('cheeks') || p.cheeks || 'None',
         outfit: equippedName('body') || p.outfit || 'None',
-        neck: equippedName('neck') || p.neck || 'None'
+        neck: equippedName('neck') || p.neck || 'None',
+        props: (STORE_EQUIPPED.prop || []).map(id => STORE_BY_ID[id] && STORE_BY_ID[id].name).filter(Boolean)
     };
 }
 
@@ -429,7 +432,17 @@ function storeShowLookNote(text) {
     }, 2400);
 }
 
+function storeEquippedItems(slot) {
+    if (slot === 'prop') {
+        return (STORE_EQUIPPED.prop || []).map(id => STORE_BY_ID[id]).filter(Boolean);
+    }
+    const id = STORE_EQUIPPED[slot];
+    const item = id ? STORE_BY_ID[id] : null;
+    return item ? [item] : [];
+}
+
 function storeEquippedItem(slot) {
+    if (slot === 'prop') return storeEquippedItems('prop')[0] || null;
     const id = STORE_EQUIPPED[slot];
     return id ? STORE_BY_ID[id] : null;
 }
@@ -568,12 +581,14 @@ function renderStore() {
 
 function storeCardHTML(item) {
     const owned = item.price === 0 || !!STORE_OWNED[item.id];
-    const equipped = STORE_EQUIPPED[item.slot] === item.id;
+    const equipped = item.slot === 'prop'
+        ? (STORE_EQUIPPED.prop || []).indexOf(item.id) !== -1
+        : STORE_EQUIPPED[item.slot] === item.id;
     let action;
     if (!storeAvailable()) {
         action = '<span class="store-card-note">Sign in to buy</span>';
     } else if (equipped) {
-        action = '<button type="button" class="store-btn store-btn-quiet" onclick="storeUnequip(\'' + item.slot + '\')">Unequip</button>';
+        action = '<button type="button" class="store-btn store-btn-quiet" onclick="storeUnequip(\'' + item.slot + '\',\'' + item.id + '\')">Unequip</button>';
     } else if (owned) {
         action = '<button type="button" class="store-btn" onclick="storeEquipItem(\'' + item.id + '\')">Equip</button>';
     } else {
@@ -618,7 +633,13 @@ async function storeEquipItem(id) {
     try {
         const { error } = await sb.rpc('equip_store_item', { p_slot: item.slot, p_item: id });
         if (error) throw error;
-        STORE_EQUIPPED[item.slot] = id;
+        if (item.slot === 'prop') {
+            const list = STORE_EQUIPPED.prop || [];
+            if (list.indexOf(id) === -1) list.push(id);
+            STORE_EQUIPPED.prop = list;
+        } else {
+            STORE_EQUIPPED[item.slot] = id;
+        }
         const profile = storeReadLocalProfileLook();
         const key = storeLayerKey(item.slot);
         if (key !== 'prop' && key !== 'background') profile[key] = item.name;
@@ -633,23 +654,33 @@ async function storeEquipItem(id) {
     }
 }
 
-async function storeUnequip(slot) {
+async function storeUnequip(slot, itemId) {
     if (!storeAvailable()) return;
     try {
-        const { error } = await sb.rpc('equip_store_item', { p_slot: slot, p_item: '' });
-        if (error) throw error;
-        delete STORE_EQUIPPED[slot];
-        const profile = storeReadLocalProfileLook();
-        const key = storeLayerKey(slot);
-        if (key !== 'prop' && key !== 'background') profile[key] = 'None';
-        STORE_PROFILE_LOOK = profile;
-        storeSaveLocalProfileLook();
-        if (typeof DG !== 'undefined' && DG.readSettings) {
-            const s = DG.readSettings();
-            if (key !== 'prop' && key !== 'background') s[key] = 'None';
-            DG.saveSettings();
+        let res = await sb.rpc('unequip_store_item', { p_slot: slot, p_item: itemId || '' });
+        if (res.error && /PGRST202|Could not find the function|does not exist/i.test(res.error.message || '')) {
+            res = await sb.rpc('equip_store_item', { p_slot: slot, p_item: '' });
         }
-        saveProfileLook();
+        if (res.error) throw res.error;
+        if (slot === 'prop') {
+            const list = STORE_EQUIPPED.prop || [];
+            STORE_EQUIPPED.prop = itemId ? list.filter(id => id !== itemId) : [];
+        } else {
+            delete STORE_EQUIPPED[slot];
+        }
+        const key = storeLayerKey(slot);
+        if (key !== 'prop' && key !== 'background') {
+            const profile = storeReadLocalProfileLook();
+            profile[key] = 'None';
+            STORE_PROFILE_LOOK = profile;
+            storeSaveLocalProfileLook();
+            if (typeof DG !== 'undefined' && DG.readSettings) {
+                const s = DG.readSettings();
+                s[key] = 'None';
+                DG.saveSettings();
+            }
+            saveProfileLook();
+        }
         await loadStoreState(true);
         updateMascot('Item unequipped.');
     } catch (e) {
@@ -667,7 +698,8 @@ function storeLookBits(look, prop, bg) {
     if (look && look.cheeks && look.cheeks !== 'None') bits.push('😊 ' + look.cheeks);
     if (look && look.outfit && look.outfit !== 'None') bits.push('👕 ' + look.outfit);
     if (look && look.neck && look.neck !== 'None') bits.push('🧣 ' + look.neck);
-    if (prop) bits.push('✨ ' + prop.name);
+    const props = Array.isArray(prop) ? prop : (prop ? [prop] : []);
+    props.forEach(p => { if (p && p.name) bits.push('✨ ' + p.name); });
     if (bg) bits.push('🖼️ ' + bg.name);
     return bits;
 }
@@ -757,8 +789,8 @@ function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     } else if (typeof DG !== 'undefined' && DG.drawKart) {
         DG.drawKart(ctx, cssW / 2, cssH * 0.84, Math.min(cssW / 250, cssH / 190), look, { preview: true });
     }
-    if (prop && typeof DG !== 'undefined' && DG.drawCatProp) {
-        DG.drawCatProp(ctx, prop.name, cssW * 0.70, cssH * 0.84, Math.min(cssW, cssH) / 330);
+    if (typeof DG !== 'undefined' && DG.drawCatProps) {
+        DG.drawCatProps(ctx, prop, cssW, cssH);
     }
     if (bg) {
         ctx.font = '22px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
@@ -785,7 +817,7 @@ function storeRenderProfileLook() {
     if (balance) balance.innerText = storeAvailable() ? (STORE_BALANCE + ' 🐾 Total') : 'Sign in to earn Paws';
     if (today) today.innerText = storeAvailable() ? ('+' + STORE_PAWS_TODAY + ' 🐾 Today') : '';
     const look = (typeof storeMyLook === 'function') ? storeMyLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
-    storePaintLook(canvas, label, look, storeEquippedItem('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
+    storePaintLook(canvas, label, look, storeEquippedItems('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
     document.querySelectorAll('#profile-cat-picker [data-profile-cat]').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-profile-cat') === look.cat);
     });
@@ -830,7 +862,10 @@ async function storeRenderFriendLook(userId) {
         outfit: data.outfit || 'None',
         neck: data.neck || 'None'
     };
-    storePaintLook(canvas, label, look, item(data.prop), item(data.background), 'Nothing equipped yet.');
+    const props = Array.isArray(data.props)
+        ? data.props.map(item).filter(Boolean)
+        : (data.prop ? [item(data.prop)].filter(Boolean) : []);
+    storePaintLook(canvas, label, look, props, item(data.background), 'Nothing equipped yet.');
 }
 
 async function storeRenderFriendPaws(userId) {

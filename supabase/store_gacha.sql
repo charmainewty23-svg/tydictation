@@ -3,12 +3,12 @@
 
 -- ---------- 1. new Props & Companions ----------
 insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji, sort) values
-    ('prop_white_flag','prop','White Flag','投降小白旗',430,'Epic','🏳️',48),
-    ('prop_rubber_duck','prop','Rubber Duck','沖涼黃色小鴨',440,'Epic','🦆',49),
-    ('prop_red_pen','prop','Red Pen','老師改卷紅筆',450,'Epic','🖊️',50),
-    ('prop_tea_scone','prop','Tea & Scone','英式下午茶',460,'Epic','🫖',51),
-    ('prop_corgi','prop','Mini Corgi','迷你哥基犬',470,'Legendary','🐕',52),
-    ('prop_boombox','prop','Boombox','復古卡式錄音機',480,'Legendary','📻',53)
+    ('prop_white_flag','prop','White Flag','投降小白旗',470,'Epic','🏳️',48),
+    ('prop_rubber_duck','prop','Rubber Duck','沖涼黃色小鴨',480,'Epic','🦆',49),
+    ('prop_red_pen','prop','Red Pen','老師改卷紅筆',490,'Epic','🖊️',50),
+    ('prop_tea_scone','prop','Tea & Scone','英式下午茶',500,'Epic','🫖',51),
+    ('prop_corgi','prop','Mini Corgi','迷你哥基犬',510,'Legendary','🐕',52),
+    ('prop_boombox','prop','Boombox','復古卡式錄音機',520,'Legendary','📻',53)
 on conflict (id) do update set
     slot = excluded.slot,
     name_en = excluded.name_en,

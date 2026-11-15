@@ -3580,6 +3580,20 @@
        lobby cat customisers. The race itself still uses DG.drawKart(). */
     /* ---------- Props drawn beside the cat ---------- */
 
+    DG.drawCatProps = function (ctx, props, w, h) {
+        const list = (Array.isArray(props) ? props : (props ? [props] : [])).filter(Boolean);
+        if (!list.length) return;
+        const n = list.length;
+        // Spread the equipped props beside the cat. More props = slightly
+        // smaller drawings so they still fit on a phone.
+        const S = Math.min(w, h) / (330 + Math.max(0, n - 1) * 42);
+        list.forEach((p, i) => {
+            const t = n === 1 ? 0.5 : i / (n - 1);
+            const x = w * (0.58 + t * 0.34);
+            DG.drawCatProp(ctx, (p && p.name) || p, x, h * 0.84, S);
+        });
+    };
+
     DG.drawCatProp = function (ctx, name, x, y, S) {
         if (!name || name === 'None') return;
         const rr = (px, py, w, h, r) => { ctx.beginPath(); ctx.roundRect(px, py, w, h, r); };

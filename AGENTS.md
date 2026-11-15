@@ -1421,7 +1421,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -2218,6 +2218,13 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     同 Market。Demo：`/market-demo.html`（iframe 載入真 Store，用 mock
     listings 示範 Buy／Cancel／Original price）。
   - 價錢由賣家自由設定（1–5000 Paws），成交全數俾賣家，冇手續費。
+  - **成交 bell 通知**：`buy_store_listing()` 為買家、賣家各插一條
+    `friend_notifications` `kind='market'`；老師 `tywong@…` 亦會收到
+    「Market: …」摘要（老師本身係買家／賣家就唔重複）。通知 insert 有
+    exception guard，失敗唔會 rollback 交易。`notifRowHTML()` 用 🛒。
+  - **全體公告**：`supabase/store_market_announcement.sql`（可重跑）會為
+    所有 `auth.users` insert 一條 `announcement`「🛒 New: the Second-hand
+    Market is open! …」；同一 message 唔會重複。
   - `store_market.sql`（可重跑）；未跑會顯示提示，Store 其他功能照用。
   - Class battle 完全冇改。
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。

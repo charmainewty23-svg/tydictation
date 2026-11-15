@@ -541,6 +541,32 @@
         .store-gacha-emoji { font-size: 2.6rem; line-height: 1; }
         .store-gacha-result b { color: #92400e; }
         .store-gacha-result p { margin: 0; font-size: 0.85rem; font-weight: 700; color: #b45309; }
+        .store-market-entry {
+            min-height: 44px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 999px;
+            background: #7c3aed;
+            color: #fff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 800;
+            font-size: 0.82rem;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #4c1d95;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .store-market-entry.active { background: #5b21b6; transform: translateY(1px); box-shadow: 0 2px 0 #4c1d95; }
+        .store-market-new {
+            padding: 1px 5px;
+            border-radius: 999px;
+            background: #fde047;
+            color: #78350f;
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+        }
         .store-market-list, .store-market-sell { display: flex; flex-direction: column; gap: 8px; }
         .store-market-row {
             display: flex;
@@ -3561,6 +3587,7 @@
                             <p class="text-gray-400 text-sm">Spend Paws on hats, glasses, outfits, props and backgrounds.</p>
                         </div>
                         <div class="flex items-center gap-2 flex-wrap justify-end">
+                            <button type="button" id="store-market-btn" class="store-market-entry" onclick="storeSetCategory('market')">🛒 Market <span class="store-market-new">NEW</span></button>
                             <div class="store-balance-pill" aria-live="polite">
                                 <span id="store-balance">…</span>
                             </div>
@@ -3576,7 +3603,6 @@
                         <button type="button" class="store-cat-btn" data-store-cat="outfit" onclick="storeSetCategory('outfit')">👕 Outfits</button>
                         <button type="button" class="store-cat-btn" data-store-cat="prop" onclick="storeSetCategory('prop')">✨ Props</button>
                         <button type="button" class="store-cat-btn" data-store-cat="background" onclick="storeSetCategory('background')">🖼️ Backgrounds</button>
-                        <button type="button" class="store-cat-btn" data-store-cat="market" onclick="storeSetCategory('market')">🛒 Market</button>
                     </div>
                     <div id="store-gacha-card" class="store-gacha-card">
                         <div>

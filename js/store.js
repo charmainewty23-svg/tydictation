@@ -610,7 +610,7 @@ function storeRenderMarketList(rows) {
         const mine = !!row.is_mine;
         return '<div class="store-market-row">' +
             '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(row.emoji || '🎁') + '</div>' +
-            '<div class="store-market-info"><b>' + name + (mine ? ' <span class="text-[10px] text-orange-500">(your listing)</span>' : '') + '</b><small>' + zh + (zh ? ' · ' : '') + seller + form + '</small></div>' +
+            '<div class="store-market-info"><b>' + name + (mine ? ' <span class="text-[10px] text-orange-500">(your listing)</span>' : '') + '</b><small>' + zh + (zh ? ' · ' : '') + seller + form + (row.original_price ? ' · Original ' + Number(row.original_price) + ' 🐾' : '') + '</small></div>' +
             '<div class="store-market-price">' + Number(row.price || 0) + ' 🐾</div>' +
             (mine
                 ? '<button type="button" class="store-market-btn quiet" onclick="storeCancelListing(\'' + row.listing_id + '\')">Cancel</button>'
@@ -633,7 +633,7 @@ function storeRenderSellList(rows) {
         const suggested = Math.max(10, Math.round((Number(it.price) || 100) / 2));
         return '<div class="store-market-row">' +
             '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(it.emoji || '🎁') + '</div>' +
-            '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + '</small></div>' +
+            '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(it.price) + ' 🐾</small></div>' +
             '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
             '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
             '</div>';
@@ -735,6 +735,8 @@ function renderStore() {
         note.innerText = STORE_LOAD_ERROR || '';
     }
     const market = STORE_CATEGORY === 'market';
+    const marketBtn = document.getElementById('store-market-btn');
+    if (marketBtn) marketBtn.classList.toggle('active', market);
     const marketEl = document.getElementById('store-market');
     const gachaCard = document.getElementById('store-gacha-card');
     const gachaResult = document.getElementById('store-gacha-result');

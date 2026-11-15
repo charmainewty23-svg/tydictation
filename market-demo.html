@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Second-hand Market demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    #demo-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 52px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: #1f2937;
+        box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    #demo-bar button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 12px;
+        background: rgba(255,255,255,.12);
+        color: #e5e7eb;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #demo-bar button.active { background: #7c3aed; color: #fff; }
+    #demo-app {
+        position: fixed;
+        top: 58px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: calc(100% - 58px);
+        border: 0;
+        background: #fff9f2;
+    }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" id="demo-market" class="active">🛒 Market</button>
+    <button type="button" id="demo-sell">🏷️ Sell list</button>
+    <button type="button" id="demo-replay">↺ Replay</button>
+</div>
+<iframe id="demo-app" src="/index.html?market-demo=1" title="Second-hand Market demo"></iframe>
+<script>
+    (function () {
+        var frame = document.getElementById('demo-app');
+        var initialRows = [
+            { listing_id: 'demo-l1', item_id: 'prop_boombox', name_en: 'Boombox', name_zh: '復古卡式錄音機', emoji: '📻', rarity: 'Legendary', price: 350, original_price: 520, seller_name: '4C 02 Lee', seller_form: 'F4', is_mine: false },
+            { listing_id: 'demo-l2', item_id: 'hat_gold_crown', name_en: 'Golden Crown', name_zh: '黃金皇冠', emoji: '👑', rarity: 'Legendary', price: 300, original_price: 450, seller_name: '3A 08 Chan', seller_form: 'F3', is_mine: false },
+            { listing_id: 'demo-l3', item_id: 'prop_corgi', name_en: 'Mini Corgi', name_zh: '迷你哥基犬', emoji: '🐕', rarity: 'Legendary', price: 250, original_price: 510, seller_name: 'You', seller_form: 'F4', is_mine: true }
+        ];
+
+        function setup() {
+            var w = frame.contentWindow, d = w && w.document;
+            if (!w || !d || !d.getElementById('store-view') || typeof w.storeSetCategory !== 'function') {
+                setTimeout(setup, 200);
+                return;
+            }
+            // Show only the real Store view inside the iframe.
+            d.getElementById('login-view').style.display = 'none';
+            var app = d.getElementById('app');
+            if (app) app.classList.add('logged-in');
+            d.querySelectorAll('.view').forEach(function (v) {
+                if (v.id !== 'store-view') v.classList.add('hidden');
+            });
+            d.getElementById('store-view').classList.remove('hidden');
+            ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+                var el = d.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            // Demo state: signed in, some owned items, one equipped prop.
+            w.eval(`(function(){
+                window.confirm = function(){ return true; };
+                storeAvailable = function(){ return true; };
+                loadStoreState = async function(){};
+                STORE_BALANCE = 1250;
+                STORE_OWNED = {
+                    prop_corgi:true, prop_white_flag:true, prop_boombox:true,
+                    hat_gold_crown:true, face_visor:true, bg_pink:true, outfit_scarf:true
+                };
+                STORE_EQUIPPED = { head:'hat_gold_crown', prop:['prop_boombox'] };
+                STORE_LOAD_ERROR = '';
+                window.__marketRows = ${JSON.stringify(initialRows)};
+                sb.rpc = async function(name, args){
+                    if (name === 'store_market_listings') {
+                        return { data: window.__marketRows.slice(), error: null };
+                    }
+                    if (name === 'buy_store_listing') {
+                        window.__marketRows = window.__marketRows.filter(function(r){ return r.listing_id !== args.p_listing; });
+                        return { data: { name: 'demo item' }, error: null };
+                    }
+                    if (name === 'cancel_store_listing') {
+                        window.__marketRows = window.__marketRows.filter(function(r){ return r.listing_id !== args.p_listing; });
+                        return { data: null, error: null };
+                    }
+                    if (name === 'create_store_listing') {
+                        return { data: 'demo', error: null };
+                    }
+                    return { data: null, error: null };
+                };
+            })();`);
+            w.storeSetCategory('market');
+            setTimeout(function () {
+                w.renderStore();
+                var panel = d.getElementById('store-market');
+                if (panel) panel.scrollIntoView({ block: 'start' });
+            }, 350);
+        }
+
+        function scrollSell() {
+            var w = frame.contentWindow, d = w && w.document;
+            if (!d) return;
+            w.storeSetCategory('market');
+            setTimeout(function () {
+                var el = d.getElementById('store-market-sell');
+                if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            }, 250);
+        }
+
+        document.getElementById('demo-market').addEventListener('click', function () {
+            frame.contentWindow.storeSetCategory('market');
+        });
+        document.getElementById('demo-sell').addEventListener('click', scrollSell);
+        document.getElementById('demo-replay').addEventListener('click', function () {
+            try { frame.contentWindow.location.reload(); } catch (e) {}
+        });
+        frame.addEventListener('load', function () { setTimeout(setup, 500); });
+    })();
+</script>
+</body>
+</html>

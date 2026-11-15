@@ -1356,7 +1356,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v53）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v54）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1446,8 +1446,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v53`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v54`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v54`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v55`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2083,7 +2083,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v53。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v54。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2192,7 +2192,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   已裝 `store.sql` 嘅老師跑短檔
   `supabase/store_gacha.sql`（`https://tydictation.vercel.app/supabase/store_gacha.sql`，
   可重跑）；新安裝用更新咗嘅 `store.sql` 已經有齊。
-- **🛒 Second-hand Market（2026-11 加）**：Store 新增 **✨ New** 快捷分頁（只列六件新 props，卡上有 NEW badge）同 **🛒 Market** 分頁，
+- **🛒 Second-hand Market（2026-11 加）**：Store header 右邊新增獨立 **🛒 Market（NEW badge）** 掣（同 balance／How to earn 平排，唔再係 category tab），另有 **✨ New** 快捷分頁（只列六件新 props，卡上有 NEW badge），
   學生可以自由標價買賣已擁有嘅 items。
   - 表 `store_listings`：`seller_id`、`item_id`、`price`（1–5000）、
     `status`（active／sold／cancelled）、`buyer_id`、`created_at`、`sold_at`；
@@ -2204,11 +2204,14 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `buy_store_listing(p_listing)`（`for update` 鎖 listing、雙方 wallet
     用 sorted advisory locks；扣買家、加賣家、轉 `store_purchases`、
     刪賣家 equip；防止自己買自己、重複擁有、賣家已 equip／唔再擁有）。
-  - UI：`storeSetCategory('market')` 顯示 Market panel；For sale 列出
-    其他學生 listings（Buy），自己 listings 亦會顯示 `(your listing)`＋
-    Cancel；下面 Sell your items 列出已擁有、未 equip、未 listed 嘅 items，
-    每個有價格輸入（預設半價）＋ List。買／賣後 refresh balance、Store
-    state 同 Market。
+  - UI：header `#store-market-btn`（🛒 Market + NEW）call
+    `storeSetCategory('market')` 顯示 Market panel；For sale 列出其他學生
+    listings（Buy），自己 listings 亦會顯示 `(your listing)`＋Cancel；
+    每行會寫 **Original N 🐾**（該 item 嘅官方原價）。下面 Sell your items
+    列出已擁有、未 equip、未 listed 嘅 items，每行亦顯示 **Original N 🐾**
+    ＋價格輸入（預設半價）＋ List。買／賣後 refresh balance、Store state
+    同 Market。Demo：`/market-demo.html`（iframe 載入真 Store，用 mock
+    listings 示範 Buy／Cancel／Original price）。
   - 價錢由賣家自由設定（1–5000 Paws），成交全數俾賣家，冇手續費。
   - `store_market.sql`（可重跑）；未跑會顯示提示，Store 其他功能照用。
   - Class battle 完全冇改。

@@ -77,6 +77,7 @@ end;
 $fn$;
 
 -- ---------- public board ----------
+drop function if exists public.store_market_listings();
 create or replace function public.store_market_listings()
 returns table (
     listing_id uuid,
@@ -86,6 +87,7 @@ returns table (
     emoji text,
     rarity text,
     price int,
+    original_price int,
     seller_name text,
     seller_form text,
     is_mine boolean,
@@ -107,6 +109,7 @@ begin
            i.emoji,
            i.rarity,
            l.price,
+           i.price as original_price,
            coalesce(nullif(sl.nickname, ''), split_part(u.email, '@', 1), 'Student') as seller_name,
            sl.form,
            (l.seller_id = v_me) as is_mine,

@@ -29,6 +29,7 @@
         activeQ: null,
         gates: [],
         gatesResolved: false,
+        wrongList: [],
         gateDist: 0,
         nextGateAt: 0,
         nextGateDist: 0,
@@ -192,6 +193,7 @@
         S.activeQ = null;
         S.gates = [];
         S.gatesResolved = false;
+        S.wrongList = [];
         S.gateDist = DG.START_GATE_DIST;
         S.nextGateAt = 0;
         S.nextGateDist = 0;
@@ -549,6 +551,16 @@
             p.score = Math.max(0, p.score - 25);
             p.speed = Math.min(p.speed, 25);
             p.spinUntil = now + DG.SPIN_TIME;
+            const chosenGate = S.gates.find(g => Number(g.lane) === Number(lane));
+            const prompt = (typeof DG.displayPrompt === 'function')
+                ? DG.displayPrompt(S.activeQ, S.gates)
+                : String((S.activeQ && S.activeQ.prompt) || '');
+            S.wrongList.push({
+                prompt: prompt,
+                correct: correctGates.map(g => g.label).join(' / '),
+                chosen: chosenGate ? chosenGate.label : '',
+                section: S.activeQ && S.activeQ.section ? S.activeQ.section : ''
+            });
             DG.toast('❌ Correct: ' + correctGates.map(g => g.label).join(' / '), 2200);
         }
         S.nextGateDist = Math.max(S.gateDist + DG.GATE_GAP, p.dist + 300);
@@ -1155,6 +1167,22 @@
         return '<div class="dg-result-grid mb-5">' + cells.join('') + '</div>';
     };
 
+    DG.wrongQuestionsHTML = function () {
+        const list = (S.wrongList || []).slice(0, 12);
+        if (!list.length) return '';
+        return '<div class="dg-wrong-list">' +
+            '<p class="dg-wrong-title">❌ Review these questions</p>' +
+            '<ol>' + list.map(w =>
+                '<li><span class="dg-wrong-prompt">' + DG.esc(w.prompt) + '</span>' +
+                '<span class="dg-wrong-answer">Answer: <b>' + DG.esc(w.correct) + '</b></span>' +
+                (w.chosen ? '<span class="dg-wrong-chosen">You chose: ' + DG.esc(w.chosen) + '</span>' : '') +
+                '</li>').join('') + '</ol>' +
+            ((S.wrongList || []).length > list.length
+                ? '<p class="dg-wrong-more">… and ' + (S.wrongList.length - list.length) + ' more</p>'
+                : '') +
+            '</div>';
+    };
+
     DG.bestRunLine = function (result) {
         const r = result || {};
         const n = DG.normalizeQuestionCount(r.questionCount);
@@ -1273,6 +1301,7 @@
             '<p class="text-gray-400 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
             '<p class="text-sm font-bold text-gray-500 mb-5">' + DG.esc(DG.bestRunLine(r)) + '</p>' +
+            DG.wrongQuestionsHTML() +
             DG.resultsBoardHTML('single', S.topic, S.bankMode, n) +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
@@ -1307,6 +1336,7 @@
             '<h3 class="text-3xl font-bold text-orange-600 mb-1">You finished!</h3>' +
             '<p class="text-gray-500 font-bold mb-4">' + DG.esc(DG.topicChallenge(S.topic, S.bankMode)) + ' · ' + n + ' questions</p>' +
             DG.resultGridHTML(r, { maxCombo: o.maxCombo }) +
+            DG.wrongQuestionsHTML() +
             DG.resultsBoardHTML('multi', S.topic, S.bankMode, n) +
             '<p class="text-sm font-bold text-gray-500 mb-3">' +
             (o.closed
@@ -1425,6 +1455,7 @@
             (myRun
                 ? '<p class="text-sm font-bold text-gray-500 mb-2">Your run</p>' + DG.resultGridHTML(myRun)
                 : '') +
+            DG.wrongQuestionsHTML() +
             '<div class="dg-standings mb-5">' + rows.map((r, i) =>
                 '<div class="dg-standing' + (currentUser && r.user_id === currentUser.id ? ' me' : '') + '">' +
                 '<span class="dg-medal">' + medal(i) + '</span>' +

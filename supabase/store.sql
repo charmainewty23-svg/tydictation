@@ -255,6 +255,42 @@ create trigger paw_battle_after_update
 after update on public.battle_players
 for each row execute function public.paw_trg_battle();
 
+-- Class battles: top 3 get a one-off Paws bonus (+15 / +10 / +5).
+create or replace function public.paw_trg_class_battle()
+returns trigger language plpgsql security definer set search_path = public as $fn$
+declare
+    r record;
+    v_place int := 0;
+    v_points int := 0;
+begin
+    if new.status <> 'finished'
+       or old.status is not distinct from 'finished'
+       or coalesce(to_jsonb(new) ->> 'mode', 'duel') <> 'class' then
+        return new;
+    end if;
+    for r in
+        select user_id
+          from public.battle_players
+         where room_id = new.id
+         order by score desc, total_ms asc
+         limit 3
+    loop
+        v_place := v_place + 1;
+        v_points := case v_place when 1 then 15 when 2 then 10 else 5 end;
+        insert into public.paw_ledger (user_id, amount, reason, ref_key)
+        values (r.user_id, v_points, 'class_battle',
+                'class_battle:' || new.id::text || ':' || r.user_id::text)
+        on conflict (user_id, ref_key) do nothing;
+    end loop;
+    return new;
+end;
+$fn$;
+
+drop trigger if exists paw_class_battle_after_update on public.battle_rooms;
+create trigger paw_class_battle_after_update
+after update on public.battle_rooms
+for each row execute function public.paw_trg_class_battle();
+
 -- ---------- purchases / equipped ----------
 create table if not exists public.store_purchases (
     user_id    uuid not null references auth.users(id) on delete cascade,
@@ -424,9 +460,24 @@ revoke all on function public.paw_trg_wj() from public;
 revoke all on function public.paw_trg_dg_solo() from public;
 revoke all on function public.paw_trg_dg_multi() from public;
 revoke all on function public.paw_trg_battle() from public;
+revoke all on function public.paw_trg_class_battle() from public;
 
 grant execute on function public.my_paw_balance() to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
 grant execute on function public.save_profile_look(text, text, text, text) to authenticated;
 grant execute on function public.friend_store_look(uuid) to authenticated;
+
+-- ---------- in-app announcement to all users ----------
+-- This is a bell notification, not an OS push. It runs once per user for
+-- this exact message; re-running the file does not duplicate it.
+insert into public.friend_notifications (user_id, actor_id, kind, message)
+select u.id, u.id, 'announcement',
+       '🛍️ The Store is open! Earn Paws from practice and spend them on hats, glasses, outfits, props and backgrounds. Tap Store next to Me.'
+  from auth.users u
+ where not exists (
+       select 1 from public.friend_notifications n
+        where n.user_id = u.id
+          and n.kind = 'announcement'
+          and n.message like '🛍️ The Store is open!%'
+ );

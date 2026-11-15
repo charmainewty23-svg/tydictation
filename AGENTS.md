@@ -1284,7 +1284,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v33）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v34）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1374,8 +1374,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v33`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v34`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v34`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v35`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2011,7 +2011,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v33。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v34。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2038,6 +2038,14 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - Trigger：`dictation_results`、`wj_scores`、`drive_and_go_solo_scores`、
     `drive_and_go_multi_scores`、`battle_players`（`done` false→true）。
     全部經 `paw_practice_award()`；有 `pg_advisory_xact_lock` 防同時寫爆 cap。
+  - **Class Battle top 3 額外獎勳**：`battle_rooms.status` 變 `finished`
+    時，`paw_trg_class_battle()` 按 `battle_players.score desc, total_ms asc`
+    取頭 3 名，分別 +15／+10／+5 Paws（`class_battle:<room>:<user>` unique）。
+    呢個係 bonus，唔佔 150/day practice cap。
+  - **Store 公告**：`store.sql` 最後會為所有 `auth.users` insert 一條
+    `friend_notifications` `announcement`（message 以「🛍️ The Store is
+    open!」開頭），所以所有現有 users 下次開 🔔 會見到。呢個係 **app 內
+    bell notification**，唔係 OS push；重跑 SQL 唔會重複。
 - **SQL tables／RPC**：
   - `store_items`（public select）、`store_purchases`（own select）、
     `store_equipped`（own select）、`paw_ledger`（冇 client policy）。
@@ -2089,7 +2097,12 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   之後跑，可重跑）會將**今日香港日**嘅 Dictation／Word Jump／Drive & Go
   Solo／Multi／1v1 Battle rows 逐條 call `paw_practice_award()`；已經有
   ledger ref 嘅 row 會 skip，所以唔會重複；completion／streak bonus 同
-  150/day cap 都會照計。
+  150/day cap 都會照計。Class battle 嘅 top 3 bonus 由 room finished
+  trigger 負責，唔會喺 backfill loop 重複。
+- **Drive & Go 錯題**：`S.wrongList` 會記低答錯嘅題目（prompt、正確
+  答案、你揀咗乜）；Solo／Multi 早完賽／Multi 最終結果都會用
+  `DG.wrongQuestionsHTML()` 顯示「❌ Review these questions」，最多 12 題，
+  可 scroll；start／restart 會清空。Landscape 有 compact CSS。
 - **測試**：41 cards、Paws 200→120（買 hat_sprout）、自動 equip、
   `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
   profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D

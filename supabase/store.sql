@@ -43,7 +43,7 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('face_patch','face','Pirate Eyepatch','海盜眼罩',100,'Rare','🏴‍☠️',16),
     ('face_monocle','face','Monocle','紳士單片眼鏡',190,'Epic','🧐',17),
     ('face_visor','face','Cyber Visor','賽博龐克護目鏡',240,'Epic','🥽',18),
-    ('outfit_scarf','outfit','Red Scarf','紅色小領巾',0,'Starter','🧣',19),
+    ('outfit_scarf','outfit','Red Scarf','紅色小領巾',80,'Common','🧣',19),
     ('outfit_bowtie','outfit','Tweed Bow Tie','學院風煲呔',120,'Rare','🎀',20),
     ('outfit_bread','outfit','Bread Collar','方包頸圈',150,'Rare','🍞',21),
     ('outfit_boba','outfit','Boba Apron','珍珠奶茶圍裙',140,'Rare','🧋',22),

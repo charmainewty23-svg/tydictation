@@ -3545,6 +3545,304 @@
 
     /* Draw a rear-view kart with the chosen cat. Reused by the pre-race
        preview and the multiplayer lobby SVG. */
+    /* A standalone, more realistic cat for the Store / Me preview and the
+       lobby cat customisers. The race itself still uses DG.drawKart(). */
+    DG.drawCatAvatar = function (ctx, x, y, scale, look, opts) {
+        const l = DG.normalizeLook(look);
+        const pal = DG.catPalette(l.cat);
+        const S = scale || 1;
+        const o = opts || {};
+        const fur = pal.body;
+        const shade = pal.shade;
+        const point = pal.points;
+        const cream = '#fff8ee';
+        ctx.save();
+        ctx.translate(x, y);
+
+        // soft ground shadow
+        ctx.fillStyle = 'rgba(60,40,30,.18)';
+        ctx.beginPath();
+        ctx.ellipse(0, 3 * S, 44 * S, 9 * S, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // tail (behind the body)
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = (l.cat === 'Ragdoll' || l.cat === 'Siamese') ? point : shade;
+        ctx.lineWidth = 13 * S;
+        ctx.beginPath();
+        ctx.moveTo(24 * S, -22 * S);
+        ctx.quadraticCurveTo(62 * S, -26 * S, 54 * S, -70 * S);
+        ctx.quadraticCurveTo(50 * S, -96 * S, 30 * S, -104 * S);
+        ctx.stroke();
+        ctx.strokeStyle = fur;
+        ctx.lineWidth = 7 * S;
+        ctx.beginPath();
+        ctx.moveTo(26 * S, -24 * S);
+        ctx.quadraticCurveTo(56 * S, -30 * S, 50 * S, -68 * S);
+        ctx.stroke();
+
+        // back haunches
+        ctx.fillStyle = shade;
+        [-20, 20].forEach(dx => {
+            ctx.beginPath();
+            ctx.ellipse(dx * S, -17 * S, 18 * S, 22 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // body
+        const bodyGrad = ctx.createLinearGradient(0, -82 * S, 0, -4 * S);
+        bodyGrad.addColorStop(0, fur);
+        bodyGrad.addColorStop(1, shade);
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, -37 * S, 30 * S, 40 * S, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // chest fluff
+        ctx.fillStyle = cream;
+        ctx.beginPath();
+        ctx.ellipse(0, -31 * S, 17 * S, 27 * S, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // front paws
+        ctx.fillStyle = (l.cat === 'Ragdoll' || l.cat === 'Siamese') ? point : cream;
+        [-12, 12].forEach(dx => {
+            ctx.beginPath();
+            ctx.ellipse(dx * S, -4 * S, 9 * S, 5 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(90,70,60,.24)';
+            ctx.lineWidth = 1.2 * S;
+            ctx.stroke();
+        });
+
+        // head
+        const hx = 0, hy = -91 * S;
+        const headGrad = ctx.createRadialGradient(-10 * S, hy - 12 * S, 6 * S, 0, hy, 42 * S);
+        headGrad.addColorStop(0, fur);
+        headGrad.addColorStop(1, shade);
+        ctx.fillStyle = headGrad;
+        ctx.beginPath();
+        ctx.ellipse(hx, hy, 33 * S, 31 * S, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ears
+        const ear = (side) => {
+            const sx = side * 1;
+            ctx.fillStyle = fur;
+            ctx.beginPath();
+            ctx.moveTo(sx * 24 * S, hy - 18 * S);
+            ctx.lineTo(sx * 34 * S, hy - 45 * S);
+            ctx.lineTo(sx * 7 * S, hy - 30 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#f4a9b8';
+            ctx.beginPath();
+            ctx.moveTo(sx * 24 * S, hy - 22 * S);
+            ctx.lineTo(sx * 30 * S, hy - 38 * S);
+            ctx.lineTo(sx * 12 * S, hy - 28 * S);
+            ctx.closePath();
+            ctx.fill();
+        };
+        ear(-1); ear(1);
+
+        // Ragdoll / Siamese colour-point mask
+        if (l.cat === 'Ragdoll' || l.cat === 'Siamese') {
+            ctx.fillStyle = point;
+            ctx.globalAlpha = 0.92;
+            ctx.beginPath();
+            ctx.ellipse(hx, hy - 2 * S, 30 * S, 23 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            // cream muzzle
+            ctx.fillStyle = cream;
+            ctx.beginPath();
+            ctx.ellipse(hx, hy + 13 * S, 19 * S, 11 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // muzzle
+            ctx.fillStyle = cream;
+            ctx.beginPath();
+            ctx.ellipse(hx, hy + 13 * S, 18 * S, 10 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // tabby stripes (Ginger)
+        if (l.cat === 'Ginger') {
+            ctx.strokeStyle = 'rgba(150,80,30,.35)';
+            ctx.lineWidth = 3 * S;
+            ctx.lineCap = 'round';
+            [-18, 0, 18].forEach((dx, i) => {
+                ctx.beginPath();
+                ctx.moveTo(hx + dx * S, hy - 27 * S + i * 2 * S);
+                ctx.quadraticCurveTo(hx + dx * 0.7 * S, hy - 21 * S, hx + dx * 0.5 * S, hy - 16 * S);
+                ctx.stroke();
+            });
+            ctx.beginPath();
+            ctx.moveTo(-27 * S, -52 * S);
+            ctx.quadraticCurveTo(-20 * S, -44 * S, -25 * S, -36 * S);
+            ctx.moveTo(27 * S, -52 * S);
+            ctx.quadraticCurveTo(20 * S, -44 * S, 25 * S, -36 * S);
+            ctx.stroke();
+        }
+
+        // eyes
+        const eyeY = hy - 4 * S;
+        [-13, 13].forEach(dx => {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(hx + dx * S, eyeY, 8.4 * S, 9.6 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(80,55,40,.34)';
+            ctx.lineWidth = 1 * S;
+            ctx.stroke();
+            const iris = ctx.createRadialGradient(hx + dx * S, eyeY - 2 * S, 1 * S, hx + dx * S, eyeY, 6 * S);
+            iris.addColorStop(0, pal.eye);
+            iris.addColorStop(0.65, pal.eye);
+            iris.addColorStop(1, '#1f2937');
+            ctx.fillStyle = iris;
+            ctx.beginPath();
+            ctx.arc(hx + dx * S, eyeY, 5.1 * S, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.ellipse(hx + dx * S, eyeY, 2.3 * S, 4.2 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,.9)';
+            ctx.beginPath();
+            ctx.arc(hx + dx * S - 2 * S, eyeY - 3 * S, 1.6 * S, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // nose + mouth
+        ctx.fillStyle = '#e58fa2';
+        ctx.beginPath();
+        ctx.moveTo(hx - 3.5 * S, hy + 7 * S);
+        ctx.lineTo(hx + 3.5 * S, hy + 7 * S);
+        ctx.lineTo(hx, hy + 11 * S);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(80,55,45,.6)';
+        ctx.lineWidth = 1.5 * S;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy + 11 * S);
+        ctx.quadraticCurveTo(hx - 4 * S, hy + 16 * S, hx - 8 * S, hy + 13 * S);
+        ctx.moveTo(hx, hy + 11 * S);
+        ctx.quadraticCurveTo(hx + 4 * S, hy + 16 * S, hx + 8 * S, hy + 13 * S);
+        ctx.stroke();
+
+        // whiskers
+        ctx.strokeStyle = 'rgba(70,50,40,.35)';
+        ctx.lineWidth = 1 * S;
+        [-1, 1].forEach(side => {
+            [-14, -8, 8].forEach((dy, i) => {
+                ctx.beginPath();
+                ctx.moveTo(hx + side * 17 * S, hy + 10 * S + i * 2 * S);
+                ctx.quadraticCurveTo(hx + side * 36 * S, hy + dy * S, hx + side * 44 * S, hy + (dy - 2) * S);
+                ctx.stroke();
+            });
+        });
+
+        // head outline
+        ctx.strokeStyle = 'rgba(70,50,40,.22)';
+        ctx.lineWidth = 1.4 * S;
+        ctx.beginPath();
+        ctx.ellipse(hx, hy, 33 * S, 31 * S, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // ----- accessories -----
+        const itemBy = (name) => (window.storeItemByName ? window.storeItemByName(name) : null);
+        // hat
+        if (l.hat === 'Party Hat') {
+            ctx.fillStyle = '#ec4899';
+            ctx.beginPath();
+            ctx.moveTo(hx, hy - 60 * S);
+            ctx.lineTo(hx - 18 * S, hy - 34 * S);
+            ctx.lineTo(hx + 18 * S, hy - 34 * S);
+            ctx.closePath(); ctx.fill();
+        } else if (l.hat === 'Crown') {
+            ctx.fillStyle = '#fbbf24';
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 1.4 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - 18 * S, hy - 33 * S);
+            ctx.lineTo(hx - 15 * S, hy - 50 * S);
+            ctx.lineTo(hx - 5 * S, hy - 41 * S);
+            ctx.lineTo(hx, hy - 55 * S);
+            ctx.lineTo(hx + 5 * S, hy - 41 * S);
+            ctx.lineTo(hx + 15 * S, hy - 50 * S);
+            ctx.lineTo(hx + 18 * S, hy - 33 * S);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+        } else if (l.hat !== 'None') {
+            const hat = itemBy(l.hat);
+            if (hat) {
+                ctx.font = Math.round(36 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(hat.emoji, hx, hy - 46 * S);
+            }
+        }
+        // face / glasses
+        if (l.glasses === 'Sunglasses') {
+            ctx.fillStyle = '#111827';
+            ctx.beginPath(); ctx.roundRect(hx - 22 * S, eyeY - 7 * S, 18 * S, 9 * S, 3 * S); ctx.fill();
+            ctx.beginPath(); ctx.roundRect(hx + 4 * S, eyeY - 7 * S, 18 * S, 9 * S, 3 * S); ctx.fill();
+            ctx.fillRect(hx - 5 * S, eyeY - 4 * S, 10 * S, 2 * S);
+        } else if (l.glasses === 'Glasses') {
+            ctx.strokeStyle = '#1f2937';
+            ctx.lineWidth = 2 * S;
+            ctx.beginPath();
+            ctx.arc(hx - 13 * S, eyeY, 9 * S, 0, Math.PI * 2);
+            ctx.arc(hx + 13 * S, eyeY, 9 * S, 0, Math.PI * 2);
+            ctx.moveTo(hx - 4 * S, eyeY); ctx.lineTo(hx + 4 * S, eyeY);
+            ctx.stroke();
+        } else if (l.glasses !== 'None') {
+            const face = itemBy(l.glasses);
+            if (face) {
+                ctx.font = Math.round(27 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(face.emoji, hx, eyeY);
+            }
+        }
+        // outfit
+        if (l.outfit === 'Red Scarf' || l.outfit === 'Pink Floral Scarf') {
+            ctx.fillStyle = l.outfit === 'Red Scarf' ? '#ef4444' : '#f472b6';
+            ctx.beginPath();
+            ctx.roundRect(-28 * S, -55 * S, 56 * S, 9 * S, 4 * S);
+            ctx.fill();
+        } else if (l.outfit === 'Gentleman Bowtie') {
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.moveTo(hx - 14 * S, -52 * S);
+            ctx.lineTo(hx, -46 * S);
+            ctx.lineTo(hx + 14 * S, -52 * S);
+            ctx.lineTo(hx + 14 * S, -40 * S);
+            ctx.lineTo(hx, -46 * S);
+            ctx.lineTo(hx - 14 * S, -40 * S);
+            ctx.closePath(); ctx.fill();
+        } else if (l.outfit !== 'None') {
+            const outfit = itemBy(l.outfit);
+            if (outfit) {
+                ctx.fillStyle = outfit.color || '#f97316';
+                ctx.globalAlpha = 0.9;
+                ctx.beginPath(); ctx.roundRect(-29 * S, -55 * S, 58 * S, 9 * S, 4 * S); ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.font = Math.round(24 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(outfit.emoji, 25 * S, -48 * S);
+            }
+        }
+
+        // little shine on the head
+        ctx.fillStyle = 'rgba(255,255,255,.18)';
+        ctx.beginPath();
+        ctx.ellipse(hx - 10 * S, hy - 12 * S, 15 * S, 9 * S, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    };
+
     DG.drawKart = function (ctx, x, y, scale, look, opts) {
         const o = opts || {};
         const l = DG.normalizeLook(look);

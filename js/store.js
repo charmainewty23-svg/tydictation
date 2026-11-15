@@ -26,7 +26,7 @@ const STORE_ITEMS = [
     { id:'face_visor', slot:'face', name:'Cyber Visor', zh:'賽博龐克護目鏡', price:240, rarity:'Epic', emoji:'🥽', color:'#22d3ee', desc:'A glowing neon-blue visor.' },
 
     // Neck & outfits
-    { id:'outfit_scarf', slot:'outfit', name:'Red Scarf', zh:'紅色小領巾', price:0, rarity:'Starter', emoji:'🧣', color:'#ef4444', desc:'A simple red neckerchief.' },
+    { id:'outfit_scarf', slot:'outfit', name:'Red Scarf', zh:'紅色小領巾', price:80, rarity:'Common', emoji:'🧣', color:'#ef4444', desc:'A simple red neckerchief.' },
     { id:'outfit_bowtie', slot:'outfit', name:'Tweed Bow Tie', zh:'學院風煲呔', price:120, rarity:'Rare', emoji:'🎀', color:'#92400e', desc:'A brown checked tweed bow tie.' },
     { id:'outfit_bread', slot:'outfit', name:'Bread Collar', zh:'方包頸圈', price:150, rarity:'Rare', emoji:'🍞', color:'#fde68a', desc:'A slice of bread worn as a collar.' },
     { id:'outfit_boba', slot:'outfit', name:'Boba Apron', zh:'珍珠奶茶圍裙', price:140, rarity:'Rare', emoji:'🧋', color:'#16a34a', desc:'A green boba shop apron.' },
@@ -69,7 +69,7 @@ window.storeItemByName = name => STORE_BY_NAME[name] || null;
 const STORE_FREE = {
     hat: ['None', 'Party Hat', 'Crown'],
     face: ['None', 'Sunglasses', 'Glasses'],
-    outfit: ['None', 'Red Scarf', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf']
+    outfit: ['None', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf']
 };
 
 let STORE_OWNED = {};
@@ -219,6 +219,23 @@ function storeSetCategory(cat) {
     renderStore();
 }
 
+function storeShowPawsHelp() {
+    const el = document.getElementById('paws-help');
+    if (!el) return;
+    el.classList.remove('hidden');
+    document.addEventListener('keydown', storePawsHelpKeydown);
+}
+
+function storeClosePawsHelp() {
+    const el = document.getElementById('paws-help');
+    if (el) el.classList.add('hidden');
+    document.removeEventListener('keydown', storePawsHelpKeydown);
+}
+
+function storePawsHelpKeydown(event) {
+    if (event.key === 'Escape') storeClosePawsHelp();
+}
+
 function renderStore() {
     const grid = document.getElementById('store-grid');
     const balance = document.getElementById('store-balance');
@@ -353,7 +370,10 @@ function storeRenderProfileLook() {
     ctx.beginPath();
     ctx.ellipse(cssW / 2, cssH * 0.88, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (typeof DG !== 'undefined' && DG.drawKart) {
+    if (typeof DG !== 'undefined' && DG.drawCatAvatar) {
+        const look = DG.currentLook ? DG.currentLook() : DG.readSettings();
+        DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), look);
+    } else if (typeof DG !== 'undefined' && DG.drawKart) {
         const look = DG.currentLook ? DG.currentLook() : DG.readSettings();
         DG.drawKart(ctx, cssW / 2, cssH * 0.84, Math.min(cssW / 250, cssH / 190), look, { preview: true });
     }

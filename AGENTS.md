@@ -1284,7 +1284,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v28）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v29）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1374,8 +1374,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v28`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v29`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v29`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v30`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2011,7 +2011,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v28。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v29。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2025,8 +2025,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `loadStoreState()`、`renderStore()`、`storeBuyItem()`／`storeEquipItem()`、
   `storeLookOptions()`、`storeRenderProfileLook()`。
 - **商品**：Hats 11、Face 7、Outfits 9、Props 7、Backgrounds 7 = **41**。
-  價錢 60–450 Paws；`outfit_scarf` Red Scarf 係 **Starter price 0**（免費）。
-  全部一次過上。Props／Backgrounds **只喺 Me profile 同 Drive & Go／Word
+  價錢 60–450 Paws；全部一次過上。**未買任何 item 嘅用戶 default look = 全部 None**（光身貓，Store 亦冇免費 item）；Red Scarf 而家都係 80 Paws。Props／Backgrounds **只喺 Me profile 同 Drive & Go／Word
   Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
 - **Paws 計算**（`supabase/store.sql` 嘅 trigger，唔靠 client）：
   - +1 per correct answer（Dictation／Drive & Go／Word Battle，Battle 只計
@@ -2048,11 +2047,13 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
   Equip hat／face／outfit 會寫入 `DG.readSettings()`，所以 Drive & Go
   customizer 同 Word Battle 班際貓 customizer 下次預設用該 item。
+  **默認 look 係全 None**：未買 store item 嘅用戶只有光身貓；免費 legacy
+  基本選項仍然存在，但唔會自動裝備。
   `DG.lookOptions(slot,current)` = 免費基本 items ＋已買 store items；
   `DG.HATS`／`GLASSES`／`OUTFITS` 喺 `window.load` 由 `storeExtendDG()`
   extend 齊所有 store 名，`DG.normalizeLook()` 才接受。
 - **Me profile**：`#profile-look-card` 有 `#profile-look-canvas`（背景色＋
-  貓 kart＋prop emoji）、`#profile-look-items`、`#profile-look-balance`。
+  `DG.drawCatAvatar()` 立體感貓＋prop emoji）、`#profile-look-items`、`#profile-look-balance`。
   `profileRenderFriendChrome()` 會喺朋友 profile 隱藏呢張卡；Guest 都見到
   free look 但顯示「Sign in to earn Paws」。
 - **視覺**：Drive & Go 2D `DG.drawKart()` 用 store item 嘅 emoji 做
@@ -2060,6 +2061,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `DG.makeEmojiSprite()` 加 sprite（hat y≈5.35、face y≈3.15、outfit band）。
   呢個係通用做法，唔使為 41 件逐件砌 3D model；想升級做 bespoke model
   再喺 `makeThreeKart()` 加 branch。
+- **How to earn**：Paws 數量旁有 `🐾 How to earn` 掣，開 `#paws-help`
+  modal；唔再放喺 Store 底部 details。`storeShowPawsHelp()`／
+  `storeClosePawsHelp()`；離開 store-view 會自動關。
 - **未跑 SQL**：`loadStoreState()` catch 後顯示
   `Store needs supabase/store.sql…`；Store 仍可瀏覽但買／equip 會提示；
   guest／preview 唔會 call RPC。

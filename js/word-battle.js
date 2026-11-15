@@ -365,7 +365,11 @@
             ctx.beginPath();
             ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
             ctx.fill();
-            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), battleMyLook(), { preview: true });
+            if (typeof DG.drawCatAvatar === 'function') {
+                DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), battleMyLook());
+            } else {
+                DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), battleMyLook(), { preview: true });
+            }
             const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
             if (propItem) {
                 ctx.font = '28px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';

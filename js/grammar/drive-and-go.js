@@ -1577,7 +1577,11 @@ const DG = {
         ctx.beginPath();
         ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.28, cssH * 0.08, 0, 0, Math.PI * 2);
         ctx.fill();
-        DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.currentLook(), { preview: true });
+        if (typeof DG.drawCatAvatar === 'function') {
+            DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), DG.currentLook());
+        } else {
+            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.currentLook(), { preview: true });
+        }
         const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
         if (propItem) {
             ctx.font = '30px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';

@@ -2167,6 +2167,7 @@
                 else if (!sheetCategoriesLoading) loadAllCategoriesFromSheet();
                 requestAnimationFrame(() => WJ.mount());
             }
+            if (viewId !== 'store-view' && typeof storeClosePawsHelp === 'function') storeClosePawsHelp();
         }
 
         window.onload = () => {

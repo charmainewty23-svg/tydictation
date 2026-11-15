@@ -480,7 +480,8 @@
             display: none;
         }
         /* Floating home-page music toggle, above the bottom tab bar. */
-        #home-music-btn {
+        #home-music-btn,
+        #me-store-music-btn {
             position: fixed;
             right: 16px;
             bottom: calc(4.5rem + env(safe-area-inset-bottom) + 12px);
@@ -500,11 +501,14 @@
             -webkit-tap-highlight-color: transparent;
             box-shadow: 0 8px 20px rgba(107, 90, 81, 0.18);
         }
-        #home-music-btn.hidden { display: none; }
-        #home-music-btn:hover { background: #ffedd5; }
+        #home-music-btn.hidden,
+        #me-store-music-btn.hidden { display: none; }
+        #home-music-btn:hover,
+        #me-store-music-btn:hover { background: #ffedd5; }
         #home-music-btn.on-login { bottom: calc(env(safe-area-inset-bottom) + 16px); }
         @media (min-width: 768px) {
-            #home-music-btn { right: 24px; bottom: calc(4.5rem + 12px); }
+            #home-music-btn,
+            #me-store-music-btn { right: 24px; bottom: calc(4.5rem + 12px); }
             #home-music-btn.on-login { bottom: 24px; }
         }
 
@@ -3432,6 +3436,7 @@
     </div>
 
     <button id="home-music-btn" type="button" onclick="toggleHomeMusic()" class="hidden" title="Home music" aria-label="Home music">🔊</button>
+    <button id="me-store-music-btn" type="button" onclick="toggleMeStoreMusic()" class="hidden" title="Me/Store music" aria-label="Me/Store music">🔊</button>
 
     <!-- App scripts: classic script tags, loaded synchronously in dependency order.
          They must stay in this order and must not use defer/async, because the

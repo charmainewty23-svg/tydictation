@@ -1284,7 +1284,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v31）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v32）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1374,8 +1374,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v31`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v32`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v32`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v33`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2011,7 +2011,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v31。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v32。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2085,3 +2085,21 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
   profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D
   store item 冇 throw。SQL 未喺本機實際執行（只做 code review）。
+
+### 12.10 Me／Store 背景音樂（2026-11）
+
+- 檔案：`music/ME_STORE_MUSIC.mp3`（5.8MB，**唔入** `sw.js` CORE_ASSETS；
+  第一次播由 network-first SW 自己 cache）。
+- `js/shared.js`：`ensureMeStoreMusic()` 建
+  `new Audio('/music/ME_STORE_MUSIC.mp3')`，loop、volume **0.28**、
+  preload `none`。設定 key 係 **`ME_STORE_MUSIC`**（`'0'` = 熄，預設開）。
+- **播放範圍**：`profile-view`（Me）同 `store-view`。`changeView()` 會
+  `syncMeStoreMusic(viewId)`：命中就 play，其他 view 就 pause；
+  同 home music 分開，所以入 Store／Me 時 Hub 音樂會停，返 Hub 會續播
+  Hub 音樂、Me/Store 音樂會停，唔會兩首一齊響。
+- 浮動掣 `#me-store-music-btn`（右下、同 `#home-music-btn` 同位置）：
+  只喺 Me／Store 出現，🔊／🔇 toggle，記住 `localStorage['ME_STORE_MUSIC']`。
+  `showLogin()` 會 pause + 收埋；`showApp()`／`changeView()` 會 sync。
+- Autoplay：撳 tab 本身係 user gesture，通常可播；被阻擋時
+  `armMeStoreMusicGesture()` 會喺下一次 pointerdown／keydown 再試。
+- Guest 都可以聽 Me／Store 音樂；老師 preview 一樣。

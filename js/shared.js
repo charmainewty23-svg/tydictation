@@ -1523,6 +1523,8 @@
             }
             syncHomeMusic(currentView);
             updateHomeMusicButton();
+            syncMeStoreMusic(currentView);
+            updateMeStoreMusicButton();
             setTimeout(maybeShowFriendAnnouncement, 1000);
         }
 
@@ -1532,6 +1534,8 @@
             updateBottomNav();
             syncHomeMusic('login-view');
             updateHomeMusicButton();
+            pauseMeStoreMusic();
+            updateMeStoreMusicButton();
             if (notifTimer) { clearInterval(notifTimer); notifTimer = 0; }
             const bell = document.getElementById('notif-btn');
             if (bell) bell.classList.add('hidden');
@@ -1852,6 +1856,85 @@
             else if (homeMusicView()) startHomeMusic();
         }
 
+        /* -------- Me / Store music (separate track) -------- */
+        const ME_STORE_MUSIC_KEY = 'ME_STORE_MUSIC';
+        const ME_STORE_MUSIC_VIEWS = ['profile-view', 'store-view'];
+        let meStoreMusic = null;
+        let meStoreMusicEnabled = (() => {
+            try { return localStorage.getItem(ME_STORE_MUSIC_KEY) !== '0'; } catch (e) { return true; }
+        })();
+        let meStoreMusicGestureArmed = false;
+
+        function ensureMeStoreMusic() {
+            if (meStoreMusic) return meStoreMusic;
+            try {
+                meStoreMusic = new Audio('/music/ME_STORE_MUSIC.mp3');
+                meStoreMusic.loop = true;
+                meStoreMusic.volume = 0.28;
+                meStoreMusic.preload = 'none';
+            } catch (e) { meStoreMusic = null; }
+            return meStoreMusic;
+        }
+
+        function meStoreMusicView() {
+            const app = document.getElementById('app');
+            if (!app || !app.classList.contains('logged-in')) return false;
+            return ME_STORE_MUSIC_VIEWS.indexOf(currentView) !== -1;
+        }
+
+        function armMeStoreMusicGesture() {
+            if (meStoreMusicGestureArmed) return;
+            meStoreMusicGestureArmed = true;
+            const tryPlay = () => {
+                document.removeEventListener('pointerdown', tryPlay);
+                document.removeEventListener('keydown', tryPlay);
+                meStoreMusicGestureArmed = false;
+                if (meStoreMusicEnabled && meStoreMusicView()) startMeStoreMusic();
+            };
+            document.addEventListener('pointerdown', tryPlay);
+            document.addEventListener('keydown', tryPlay);
+        }
+
+        function startMeStoreMusic() {
+            if (!meStoreMusicEnabled || !meStoreMusicView()) return;
+            const audio = ensureMeStoreMusic();
+            if (!audio) return;
+            try {
+                const p = audio.play();
+                if (p && p.catch) p.catch(() => armMeStoreMusicGesture());
+            } catch (e) { armMeStoreMusicGesture(); }
+        }
+
+        function pauseMeStoreMusic() {
+            if (!meStoreMusic) return;
+            try { meStoreMusic.pause(); } catch (e) {}
+        }
+
+        function syncMeStoreMusic(viewId) {
+            if (!meStoreMusicGestureArmed && meStoreMusicView()) startMeStoreMusic();
+            else if (ME_STORE_MUSIC_VIEWS.indexOf(viewId) === -1) pauseMeStoreMusic();
+        }
+
+        function updateMeStoreMusicButton() {
+            const btn = document.getElementById('me-store-music-btn');
+            if (!btn) return;
+            const app = document.getElementById('app');
+            const loggedIn = !!(app && app.classList.contains('logged-in'));
+            const show = loggedIn && ME_STORE_MUSIC_VIEWS.indexOf(currentView) !== -1;
+            btn.classList.toggle('hidden', !show);
+            btn.innerText = meStoreMusicEnabled ? '🔊' : '🔇';
+            btn.setAttribute('aria-label', meStoreMusicEnabled ? 'Mute Me/Store music' : 'Play Me/Store music');
+            btn.title = meStoreMusicEnabled ? 'Mute Me/Store music' : 'Play Me/Store music';
+        }
+
+        function toggleMeStoreMusic() {
+            meStoreMusicEnabled = !meStoreMusicEnabled;
+            try { localStorage.setItem(ME_STORE_MUSIC_KEY, meStoreMusicEnabled ? '1' : '0'); } catch (e) {}
+            updateMeStoreMusicButton();
+            if (!meStoreMusicEnabled) pauseMeStoreMusic();
+            else if (meStoreMusicView()) startMeStoreMusic();
+        }
+
 
         // A new login only counts if the previous one was >12h ago, so page
         // refreshes / token refreshes do not inflate login_count.
@@ -2103,6 +2186,8 @@
             updateBottomNav();
             syncHomeMusic(viewId);
             updateHomeMusicButton();
+            syncMeStoreMusic(viewId);
+            updateMeStoreMusicButton();
             
             if (viewId === 'hub-view') {
                 updateMascot("Awesome! What would you like to learn next?");

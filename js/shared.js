@@ -579,11 +579,132 @@
             if (event.key === 'Escape') closeStreakPopup();
         }
 
+        /* -------- "Nudge your friends?" after the streak card -------- */
+        let streakNudgePromise = null;
+        let streakNudgeOfferedDay = '';
+        let streakNudgeSent = false;
+
+        function streakNudgeAvailable() {
+            return canUseCloud() && !isGuestUser() && !previewStudentForm() && !isTeacherAccount();
+        }
+
+        function prepareStreakNudge() {
+            if (!streakNudgeAvailable()) { streakNudgePromise = null; return; }
+            const today = hkDayKey(new Date().toISOString());
+            if (streakNudgeOfferedDay === today) { streakNudgePromise = null; return; }
+            streakNudgePromise = (async function () {
+                try {
+                    const { data, error } = await sb.rpc('friend_overview');
+                    if (error) throw error;
+                    const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                    // Only mutual friends who have not finished a practice today.
+                    return rows.filter(r => r && r.mutual && !r.practiced_today).length;
+                } catch (e) {
+                    return 0;
+                }
+            })();
+        }
+
+        function offerStreakNudgeAfterPopup() {
+            const pending = streakNudgePromise;
+            if (!pending) return;
+            setTimeout(function () {
+                pending.then(function (n) {
+                    if (!(Number(n) > 0)) return;
+                    const today = hkDayKey(new Date().toISOString());
+                    if (streakNudgeOfferedDay === today) return;
+                    if (document.getElementById('streak-popup') || document.getElementById('streak-nudge')) return;
+                    streakNudgeOfferedDay = today;
+                    streakNudgeSent = false;
+                    showStreakNudgePrompt(Number(n));
+                }).catch(function () {});
+            }, 350);
+        }
+
+        function showStreakNudgePrompt(count) {
+            const n = Math.max(1, Number(count) || 1);
+            const old = document.getElementById('streak-nudge');
+            if (old) old.remove();
+            const el = document.createElement('div');
+            el.id = 'streak-nudge';
+            el.className = 'streak-popup';
+            el.setAttribute('role', 'dialog');
+            el.setAttribute('aria-modal', 'true');
+            el.setAttribute('aria-labelledby', 'streak-nudge-title');
+            el.innerHTML = `
+                <div class="streak-popup-card">
+                    <div class="streak-popup-flame" aria-hidden="true">💛</div>
+                    <h2 id="streak-nudge-title" class="streak-popup-title">Nudge your friends?</h2>
+                    <p class="streak-popup-line">${n} mutual friend${n === 1 ? '' : 's'} ${n === 1 ? 'has' : 'have'} not practised today. Send a reminder to keep their streak — don't give up!</p>
+                    <p class="streak-popup-cards">They will see it in their 🔔 bell.</p>
+                    <p id="streak-nudge-error" class="streak-popup-source streak-nudge-error hidden"></p>
+                    <button type="button" class="streak-popup-btn" onclick="sendStreakNudge()">💛 Nudge ${n} friend${n === 1 ? '' : 's'}</button>
+                    <button type="button" class="streak-popup-btn streak-popup-btn-quiet" onclick="closeStreakNudgePrompt()">Not now</button>
+                </div>`;
+            el.addEventListener('click', event => {
+                if (event.target === el) closeStreakNudgePrompt();
+            });
+            ['pointerdown', 'pointerup', 'pointermove', 'touchstart', 'touchmove', 'click'].forEach(type => {
+                el.addEventListener(type, event => event.stopPropagation());
+            });
+            streakPopupHost().appendChild(el);
+            const btn = el.querySelector('.streak-popup-btn');
+            if (btn && btn.focus) btn.focus({ preventScroll: true });
+        }
+
+        function closeStreakNudgePrompt() {
+            const el = document.getElementById('streak-nudge');
+            if (el) el.remove();
+        }
+
+        async function sendStreakNudge() {
+            if (streakNudgeSent) return;
+            const el = document.getElementById('streak-nudge');
+            if (!el) return;
+            const card = el.querySelector('.streak-popup-card');
+            const btn = el.querySelector('.streak-popup-btn');
+            const err = document.getElementById('streak-nudge-error');
+            streakNudgeSent = true;
+            if (btn) { btn.disabled = true; btn.innerText = 'Sending…'; }
+            if (err) { err.classList.add('hidden'); err.innerText = ''; }
+            let sent = 0;
+            try {
+                if (!streakNudgeAvailable()) throw new Error('NOT_SIGNED_IN');
+                const { data, error } = await sb.rpc('nudge_streak_friends');
+                if (error) throw error;
+                sent = Math.max(0, Number(data) || 0);
+            } catch (e) {
+                streakNudgeSent = false;
+                if (btn) { btn.disabled = false; btn.innerText = 'Try again'; }
+                if (err) {
+                    err.classList.remove('hidden');
+                    err.innerText = 'Could not send the nudge. Ask your teacher to run supabase/friend_nudges.sql.';
+                }
+                return;
+            }
+            if (!card) return;
+            card.innerHTML = sent > 0
+                ? '<div class="streak-popup-flame" aria-hidden="true">💛</div>' +
+                  '<h2 class="streak-popup-title">Nudge sent!</h2>' +
+                  '<p class="streak-popup-line">' + sent + ' friend' + (sent === 1 ? '' : 's') +
+                  ' got a reminder to keep going. 💛</p>' +
+                  '<button type="button" class="streak-popup-btn" onclick="closeStreakNudgePrompt()">Nice</button>'
+                : '<div class="streak-popup-flame" aria-hidden="true">💛</div>' +
+                  '<h2 class="streak-popup-title">All done!</h2>' +
+                  '<p class="streak-popup-line">Your friends already practised today — no nudge needed.</p>' +
+                  '<button type="button" class="streak-popup-btn" onclick="closeStreakNudgePrompt()">Nice</button>';
+            setTimeout(function () {
+                const still = document.getElementById('streak-nudge');
+                if (still) still.remove();
+            }, 1800);
+        }
+
         function closeStreakPopup() {
             const popup = document.getElementById('streak-popup');
             if (!popup) return;
             popup.remove();
             document.removeEventListener('keydown', streakPopupKeydown);
+            offerStreakNudgeAfterPopup();
         }
 
         function streakPopupHost() {
@@ -672,6 +793,7 @@
             const fresh = !!(info && info.fresh);
             const repaired = Math.max(0, Number(info && info.repaired) || 0);
             const cards = Math.max(0, Number(info && info.cards) || 0);
+            prepareStreakNudge();
             const dayWord = count === 1 ? 'day' : 'days';
             const vibeSupported = typeof navigator.vibrate === 'function';
             const teacherNote = (count > 1 && typeof isAdmin === 'function' && isAdmin())
@@ -1483,6 +1605,15 @@
         }
 
         function notifRowHTML(n) {
+            if (n.kind === 'nudge') {
+                return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +
+                    '<span class="notif-icon" aria-hidden="true">💛</span>' +
+                    '<div class="min-w-0"><p class="font-bold text-gray-700 text-sm"><b>' +
+                    escapeHtml(n.actor_name || 'A friend') + '</b></p>' +
+                    '<p class="text-xs text-gray-500">' +
+                    escapeHtml(n.message || 'Keep your streak alive — don\u2019t give up!') + '</p>' +
+                    '<p class="text-[10px] text-gray-400 mt-1">' + timeAgo(n.created_at) + '</p></div></div>';
+            }
             if (n.kind === 'suggestion') {
                 const uid = escapeHtml(n.user_id || '');
                 return '<div class="notif-row' + (n.read_at ? '' : ' unread') + '">' +

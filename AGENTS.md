@@ -1281,7 +1281,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v25）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v26）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1341,7 +1341,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1371,8 +1371,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v25`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v26`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v26`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v27`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -1936,6 +1936,43 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - 改動提示：suggestion 原因由 `profileSuggestionReason()` 砌；
   想改顯示數量改 `profileLoadSuggestions()` 嘅 `p_limit` 同 RPC default。
   要排除某些用戶（例如另一批老師）就改 SQL 嘅 `where`。
+
+#### 12.7g 連勝後 nudge friends（2026-11）
+
+- 完成練習、彈完 **「You made it!」** 之後，如果該學生有 **mutual friends
+  （互相 follow）而且對方今日未練習**，會再彈第二張卡：
+  **「Nudge your friends?」**
+  - 內容：`N mutual friends have not practised today. Send a reminder to
+    keep their streak — don't give up!`
+  - 掣：**💛 Nudge N friends**／**Not now**
+  - 只喺 `closeStreakPopup()` 之後 350ms 才出；唔會同「You made it」重疊。
+  - 每日最多提一次（`streakNudgeOfferedDay` 用 `hkDayKey()`）；撳 Not now
+    之後同一日唔會再問。
+  - `prepareStreakNudge()` 喺 `showStreakPopup()` 時已經 call
+    `friend_overview()`，篩 `mutual && !practiced_today`，所以彈得順。
+  - Guest、teacher preview、老師帳戶唔會出（`streakNudgeAvailable()`）。
+- 撳 Nudge 會 call RPC **`nudge_streak_friends()`**，成功就顯示
+  「Nudge sent!」再自動關；RPC 回 0 就顯示「All done! 朋友今日已練習」；
+  未跑 SQL 會喺卡入面提示跑 `supabase/friend_nudges.sql`。
+- 朋友嘅 **🔔 bell** 會收到 DB notification，`kind = 'nudge'`，
+  message「Keep your streak alive — don't give up! 💛」。`notifRowHTML()`
+  有 💛 nudge row；`unread_notification_count()` 照計。開 bell 會 mark read。
+- SQL：`supabase/friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql`
+  之後跑，可重跑）：
+  - 將 `friend_notifications.kind` check constraint 擴展到
+    `follow`／`like`／`announcement`／`nudge`。
+  - `nudge_streak_friends()` 只會通知**互相 follow**、而且
+    `user_streaks.last_practice_date <> 今日（HK）` 嘅朋友；
+    同一個 actor 對同一個朋友每日只會有一條 nudge（HK 日界），
+    避免 spam。回傳實際插入數量。
+  - `security definer`，只 grant authenticated，revoke public/anon。
+- 冇新 table；如果舊安裝未跑呢份 SQL，nudge 卡仍會出（因為
+  `friend_overview` 已有），但撳落會顯示錯誤提示。
+- 測試：2 個 mutual 未練習 + 1 個已練習 + 1 個非 mutual → 卡顯示 2；
+  撳 Nudge → mock 插入 2；再 close 唔會重彈；bell row 有 💛 同 message。
+- 改動提示：想只喺連勝 >1 才問，喺 `showStreakPopup()` 嘅
+  `prepareStreakNudge()` 加 `count > 1` 條件；想改 message 改 SQL 同
+  `notifRowHTML` 嘅 fallback。
 
 ### 12.8 首頁背景音樂（2026-11）
 

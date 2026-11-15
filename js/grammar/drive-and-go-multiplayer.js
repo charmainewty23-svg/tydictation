@@ -430,7 +430,7 @@
     /* ---------------- create / join ---------------- */
 
     DG.mpLookArgs = function () {
-        const l = DG.currentLook();
+        const l = DG.raceLook();
         return { p_cat: l.cat, p_glasses: l.glasses, p_hat: l.hat, p_outfit: l.outfit };
     };
 

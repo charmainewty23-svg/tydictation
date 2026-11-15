@@ -232,7 +232,7 @@
             lane: 1, laneX: 1, dist: 0, speed: 0, score: 0, combo: 0, maxCombo: 0,
             correct: 0, wrong: 0, item: null, spinUntil: 0, slowUntil: 0,
             nitroUntil: 0, boostUntil: 0, starUntil: 0, shrinkUntil: 0,
-            finished: false, finishAt: 0, look: DG.currentLook(), name: currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'You'
+            finished: false, finishAt: 0, look: DG.raceLook(), name: currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'You'
         };
         S.rivals = [];
         if (mode === 'single') {

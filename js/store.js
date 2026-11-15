@@ -68,7 +68,7 @@ window.storeItemByName = name => STORE_BY_NAME[name] || null;
 
 const STORE_FREE = {
     hat: ['None', 'Party Hat'],
-    face: ['None', 'Sunglasses'],
+    face: ['None', 'Glasses'],
     outfit: ['None', 'Racing Jacket']
 };
 

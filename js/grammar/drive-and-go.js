@@ -62,7 +62,7 @@ const DG = {
     TIME_BONUS_FACTOR: 4000,
     CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
     CAT_OPTIONS: ['Ginger', 'Ragdoll'],
-    GLASSES: ['None', 'Sunglasses'],
+    GLASSES: ['None', 'Glasses'],
     HATS: ['None', 'Party Hat'],
     OUTFITS: ['None', 'Racing Jacket'],
     ITEM_EMOJI: { banana: '🍌', star: '⭐', redshell: '🔴', lightning: '⚡', mushroom: '🍄' },
@@ -268,6 +268,19 @@ const DG = {
     currentLook() {
         const s = DG.readSettings();
         return { cat: s.cat, glasses: s.glasses, hat: s.hat, outfit: s.outfit };
+    },
+
+    /* Drive & Go only supports two cats and two glasses styles. Hats and
+       outfits still exist in the Store/Me profile and in Word Battle, but
+       the race itself stays clean. */
+    raceLook() {
+        const s = DG.readSettings();
+        return {
+            cat: s.cat === 'Ragdoll' ? 'Ragdoll' : 'Ginger',
+            glasses: s.glasses === 'Glasses' ? 'Glasses' : 'None',
+            hat: 'None',
+            outfit: 'None'
+        };
     },
 
     /* ---------------- CSV / question bank ---------------- */
@@ -1529,9 +1542,8 @@ const DG = {
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
             '<div class="text-center mb-4"><button type="button" class="dg-menu-button" onclick="storeUseMyLook()">✨ Use my look</button></div>' +
             row('Cat', 'cat', DG.catOptions(s.cat), s.cat) +
-            row('Glasses', 'glasses', DG.lookOptions('face', s.glasses), s.glasses) +
-            row('Hat', 'hat', DG.lookOptions('hat', s.hat), s.hat) +
-            row('Outfit', 'outfit', DG.lookOptions('outfit', s.outfit), s.outfit) +
+            row('Glasses', 'glasses', ['None', 'Glasses'],
+                ['None', 'Glasses'].indexOf(s.glasses) === -1 ? 'None' : s.glasses) +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' +
             ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showMultiplayerEntryStep()' : 'DG.showChallengeStep()') +
@@ -1587,9 +1599,9 @@ const DG = {
         ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.28, cssH * 0.08, 0, 0, Math.PI * 2);
         ctx.fill();
         if (typeof DG.drawCatAvatar === 'function') {
-            DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), DG.currentLook());
+            DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), DG.raceLook());
         } else {
-            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.currentLook(), { preview: true });
+            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.raceLook(), { preview: true });
         }
         const propItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('prop') : null;
         if (propItem) {

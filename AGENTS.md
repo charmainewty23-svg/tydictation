@@ -767,14 +767,15 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
     `battleCloseTrophy()`。只顯示 Top 3；少過 3 人時缺嘅名次唔會出。
   - 3D 用 `DG.drawCatAvatar()`；CSS 喺 `index.html` 的
     `/* Class battle trophy ceremony */`（z-index 10080，landscape
-    `max-height:480px` 有 compact 版）。Demo：`/drive-and-go-demo.html`（iframe 載入真 Drive & Go!，
-  用 30 個 mock 學生示範 **Class race lobby 30/30** 同老師
-  **Live class board** 30 行；有 Lobby／Live board／Replay 切換，
-  手機 320／390／iPad 768 實測 `overflowX = 0`）。
-  `Demo：`/class-battle-demo.html`
-    （iframe 載入真 app，用 mock Top 3 播同一段頒獎禮）。Demo 預設係
-    **iPad 打橫 1024×768**，頂部有 Phone／iPad ↕／iPad ↔ 切換，
-    iframe 會按瀏覽器可用空間等比縮放；▶ Replay 可以重播。
+    `max-height:480px` 有 compact 版）。
+  - Demo：`/class-battle-demo.html`（iframe 載入真 app，用 mock Top 3
+    播同一段頒獎禮）。Demo 預設係 **iPad 打橫 1024×768**，頂部有
+    Phone／iPad ↕／iPad ↔ 切換，iframe 會按瀏覽器可用空間等比縮放；
+    ▶ Replay 可以重播。
+  - Demo：`/drive-and-go-demo.html`（iframe 載入真 Drive & Go!，用
+    30 個 mock 學生示範 **Class race lobby 30/30** 同老師
+    **Live class board** 30 行；有 Lobby／Live board／Replay 切換，
+    手機 320／390／iPad 768 實測 `overflowX = 0`）。
   - **手機／iPad 實測**（demo iframe resize）：320×568、375×667、390×844、
     430×932、768×1024、834×1194、1024×768、1180×820、1194×834、844×390
     全部 `overflowX = 0`、card `scrollWidth = clientWidth`；✕ 掣 44×44；

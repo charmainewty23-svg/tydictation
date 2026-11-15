@@ -290,15 +290,37 @@
         WJ.themeId = (function () {
             try {
                 const v = localStorage.getItem(WJ.THEME_KEY);
-                return WJ.THEMES.some(t => t.id === v) ? v : 'paper';
+                return (WJ.THEMES.some(t => t.id === v) || v === 'random') ? v : 'paper';
             } catch (e) {
                 return 'paper';
             }
         })();
 
+        WJ.RANDOM_THEME = { id: 'random', name: 'Random', icon: '🎲' };
+
+        WJ.themeOptions = function () {
+            return WJ.THEMES.concat([WJ.RANDOM_THEME]);
+        };
+
+        /* Random run worlds use Math.random, never WJ.nextRand(), so a shared
+           challenge seed still builds the same course for everyone. */
+        WJ.pickRunTheme = function (excludeId) {
+            const pool = WJ.THEMES.filter(t => t.id !== excludeId);
+            const list = pool.length ? pool : WJ.THEMES;
+            return list[Math.floor(Math.random() * list.length)].id;
+        };
+
+        WJ.activeThemeId = (WJ.themeId === 'random') ? WJ.pickRunTheme('') : WJ.themeId;
+
+        WJ.applyThemeForRun = function () {
+            if (WJ.themeId === 'random') WJ.activeThemeId = WJ.pickRunTheme(WJ.activeThemeId);
+            else WJ.activeThemeId = WJ.themeId;
+        };
+
         WJ.theme = function () {
+            const id = WJ.activeThemeId || WJ.themeId;
             for (let i = 0; i < WJ.THEMES.length; i++) {
-                if (WJ.THEMES[i].id === WJ.themeId) return WJ.THEMES[i];
+                if (WJ.THEMES[i].id === id) return WJ.THEMES[i];
             }
             return WJ.THEMES[0];
         };
@@ -306,14 +328,15 @@
         WJ.populateThemes = function () {
             const sel = document.getElementById('wj-theme');
             if (!sel) return;
-            sel.innerHTML = WJ.THEMES.map(t =>
+            sel.innerHTML = WJ.themeOptions().map(t =>
                 '<option value="' + t.id + '">' + t.icon + ' ' + t.name + '</option>').join('');
             sel.value = WJ.themeId;
         };
 
         WJ.setTheme = function (id, fromPicker) {
-            if (!WJ.THEMES.some(t => t.id === id)) return;
+            if (!(WJ.THEMES.some(t => t.id === id) || id === 'random')) return;
             WJ.themeId = id;
+            WJ.activeThemeId = (id === 'random') ? WJ.pickRunTheme(WJ.activeThemeId) : id;
             try { localStorage.setItem(WJ.THEME_KEY, id); } catch (e) {}
             const sel = document.getElementById('wj-theme');
             if (sel) sel.value = id;
@@ -330,7 +353,7 @@
             return '<div class="mb-4">' +
                 '<p class="text-[10px] font-bold tracking-widest text-gray-400 mb-1 text-center">WORLD</p>' +
                 '<div class="flex flex-wrap justify-center gap-1.5">' +
-                WJ.THEMES.map(t => {
+                WJ.themeOptions().map(t => {
                     const on = t.id === WJ.themeId;
                     return '<button type="button" onclick="WJ.setTheme(\'' + t.id + '\', true)" ' +
                         'class="px-2.5 py-1.5 rounded-full text-xs font-bold border-2 ' +
@@ -511,6 +534,7 @@
             } else {
                 WJ.enterFullscreen();
             }
+            WJ.applyThemeForRun();
             WJ.reset();
             WJ.hideOverlay();
             WJ.state = 'playing';
@@ -520,6 +544,7 @@
             cancelAnimationFrame(WJ.raf);
             WJ.raf = requestAnimationFrame(WJ.frame);
             WJ.startMusic(true);
+            if (WJ.themeId === 'random') WJ.toast('🎲 ' + WJ.theme().name, '#0f766e');
             WJ.updateNav();
             setTimeout(WJ.revealStage, 60);
         };
@@ -734,6 +759,7 @@
                 if (!window.confirm('Restart this run? Your score will be lost.')) return;
             }
             WJ.hideOverlay();
+            WJ.applyThemeForRun();
             WJ.reset();
             WJ.state = 'playing';
             WJ.paused = false;
@@ -743,7 +769,7 @@
             WJ.raf = requestAnimationFrame(WJ.frame);
             WJ.startMusic(true);
             WJ.updateNav();
-            WJ.toast('↺ New run', '#0f766e');
+            WJ.toast(WJ.themeId === 'random' ? ('↺ New run · 🎲 ' + WJ.theme().name) : '↺ New run', '#0f766e');
         };
 
         WJ.showIntro = function () {
@@ -4292,6 +4318,7 @@
             const me = opts && opts.restore;
             if (me) WJC.restoreClimb(me);
             else {
+                WJ.applyThemeForRun();
                 WJ.reset();
             }
             WJ.hideOverlay();

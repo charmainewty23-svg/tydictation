@@ -1193,7 +1193,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 10.15 Word Jump 主題世界（2026-11 加）
 
-六個**純視覺**世界，玩法、物理、題目、分數完全唔變：
+六個**純視覺**世界＋一個 **🎲 Random** 選項，玩法、物理、題目、分數完全唔變：
 
 | id | 名 | 外觀 |
 |---|---|---|
@@ -1203,14 +1203,25 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 | `halloween` | 🎃 Halloween | 紫黑夜空、月亮、蝙蝠、墓碑、南瓜；女巫帽 |
 | `soccer` | ⚽ Soccer | 草地間條、白線、中圈、看台、國旗；怪物著國家球衣＋小國旗＋3 字母代號 |
 | `newyear` | 🎆 New Year | 深藍夜空、煙花、燈籠、彩色紙碎；派對帽 |
+| `random` | 🎲 Random | 唔係獨立畫風；每局開始隨機抽一個上面嘅世界 |
 
 - **平台顏色唔會跟主題改**：綠／藍／灰／棕／黃／白／紫仍然代表原本行為，
   所以轉主題唔會要玩家重新學規則。只係加裝飾（例如聖誕平台加雪）。
 - 數據：`WJ.THEMES`（`sky`、`grid`、`hud`、`muted`、`streak`、`line`、
-  `linePass`、`edge`、`edgePass`、`hole`）、`WJ.themeId`、
-  `WJ.theme()`、`WJ.setTheme()`、`WJ.changeTheme()`、`WJ.populateThemes()`、
-  `WJ.themePickerHTML()`。記住喺 `localStorage['learniTY_wj_theme']`
-  （預設 `paper`，未知值 fallback `paper`）。
+  `linePass`、`edge`、`edgePass`、`hole`）、`WJ.RANDOM_THEME`、
+  `WJ.themeOptions()`、`WJ.themeId`（設定值，可以係 `random`）、
+  `WJ.activeThemeId`（今局實際畫邊個世界）、`WJ.theme()`、
+  `WJ.pickRunTheme()`、`WJ.applyThemeForRun()`、`WJ.setTheme()`、
+  `WJ.changeTheme()`、`WJ.populateThemes()`、`WJ.themePickerHTML()`。
+  記住喺 `localStorage['learniTY_wj_theme']`（預設 `paper`，未知值 fallback
+  `paper`）。
+- **🎲 Random**：`themeId = 'random'` 時，`WJ.activeThemeId` 只係今局抽到嘅
+  世界。`WJ.start()`、`WJ.restart()`、Challenge 第一次 `WJC.beginMatch()`
+  會 call `WJ.applyThemeForRun()`，用 `Math.random` 抽一個**同上一局唔同**
+  嘅世界（六個之中）；唔會用 `WJ.nextRand()`，所以 Challenge seed 照舊。
+  Rejoin／restore 唔會重抽。開局會 toast `🎲 Underwater` 話你知今局邊個
+  世界；Restart 就 `↺ New run · 🎲 …`。工具列 select 仍然顯示 `🎲 Random`
+  （記住嘅係「每局隨機」，唔係某一個世界）。
 - **揀主題**：
   - 工具列新 `#wj-theme` `<select>`（`WJ.populateThemes()` 喺 `WJ.mount()` 填）。
   - 模式選擇（Solo／Challenge friends）同 intro overlay 都有 `WORLD` 膠囊
@@ -1235,7 +1246,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v16）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v17）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1294,8 +1305,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v16`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v17`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v17`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v18`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

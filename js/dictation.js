@@ -200,7 +200,9 @@
         let ebNoticeKeydownBound = false;
 
         function errorBookNoticeKey() {
-            return errorBookStorageKey() + ':notice';
+            // v2: bumping the key once re-reminds every existing student who
+            // already had ten or more words before this feature shipped.
+            return errorBookStorageKey() + ':notice:v2';
         }
 
         function readErrorBookNoticeMilestone() {
@@ -216,7 +218,23 @@
             } catch (e) {}
         }
 
-        function maybeNotifyErrorBook() {
+        /* The reminder is a login reminder: loadErrorBook() schedules it once
+           per sign-in. Adding a word during a quiz does not pop a modal; the
+           student sees it next time they log in. */
+        let ebReminderTimer = 0;
+
+        function scheduleErrorBookLoginReminder() {
+            if (ebReminderTimer) return;
+            ebReminderTimer = setTimeout(function () {
+                ebReminderTimer = 0;
+                maybeNotifyErrorBook(0);
+            }, 1200);
+        }
+
+        function maybeNotifyErrorBook(attempt) {
+            const tries = Number(attempt) || 0;
+            const app = document.getElementById('app');
+            if (!app || !app.classList.contains('logged-in') || !isSignedIn()) return;
             const count = errorBook.length;
             const last = readErrorBookNoticeMilestone();
             if (count < 10) {
@@ -225,9 +243,13 @@
             }
             const milestone = Math.floor(count / 10) * 10;
             if (milestone <= last) return;
-            // Do not interrupt an active quiz or game — the next view change
-            // calls this again and shows it then.
-            if (EB_NOTICE_BUSY_VIEWS.indexOf(currentView) !== -1) return;
+            // The app normally lands on the Hub after login. If an auth event
+            // arrives while a quiz/game is still showing, wait for one of the
+            // allowed views instead of covering it.
+            if (EB_NOTICE_BUSY_VIEWS.indexOf(currentView) !== -1) {
+                if (tries < 6) setTimeout(() => maybeNotifyErrorBook(tries + 1), 1500);
+                return;
+            }
             writeErrorBookNoticeMilestone(milestone);
             showErrorBookNotice(count);
         }
@@ -243,10 +265,10 @@
             el.innerHTML = `
                 <div class="eb-notice-card">
                     <div class="eb-notice-icon" aria-hidden="true">📒</div>
-                    <h2 id="eb-notice-title" class="eb-notice-title">Your Error Book is filling up</h2>
-                    <p class="eb-notice-text">You have <b>${count}</b> words saved. Answer them correctly in the Error Book to clear them.</p>
+                    <h2 id="eb-notice-title" class="eb-notice-title">Clear your Error Book?</h2>
+                    <p class="eb-notice-text">You have <b>${count}</b> words saved. Do you want to clear them by answering correctly in the Error Book?</p>
                     <button type="button" class="eb-notice-btn" onclick="ebNoticeOpen()">📒 Open Error Book</button>
-                    <button type="button" class="eb-notice-btn eb-notice-btn-quiet" onclick="closeErrorBookNotice()">Later</button>
+                    <button type="button" class="eb-notice-btn eb-notice-btn-quiet" onclick="closeErrorBookNotice()">Not now</button>
                 </div>`;
             el.addEventListener('click', event => {
                 if (event.target === el) closeErrorBookNotice();
@@ -300,7 +322,7 @@
                     saveErrorBookLocal();
                     updateErrorBookTileCount();
                     if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
-                    maybeNotifyErrorBook();
+                    scheduleErrorBookLoginReminder();
                     return;
                 }
                 ebCloudNote = error && isMissingSchema(error.message)
@@ -313,7 +335,7 @@
             errorBook = readErrorBookLocal();
             updateErrorBookTileCount();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
-            maybeNotifyErrorBook();
+            scheduleErrorBookLoginReminder();
         }
 
         function addErrorWord(word) {
@@ -323,7 +345,6 @@
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
             updateErrorBookTileCount();
-            maybeNotifyErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').upsert({
                 user_id: currentUser.id, en, zh, topic: currentTopic || ''
@@ -338,7 +359,6 @@
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
             updateErrorBookTileCount();
-            maybeNotifyErrorBook();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').delete().eq('user_id', currentUser.id).eq('en', en).then(({ error }) => {
@@ -377,14 +397,6 @@
         function startErrorBookQuiz(mode) {
             currentTopic = ERROR_BOOK;
             startQuiz(mode, 'errorbook');
-        }
-
-        function showErrorBookRevision() {
-            if (!errorBook.length) {
-                updateMascot("Your error book is empty. Miss a word in dictation and it will show up here.");
-                return;
-            }
-            showWordList(ERROR_BOOK);
         }
 
         function openActivity(type) {

@@ -1248,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v22）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v23）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1273,22 +1273,27 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   喺錯題簿答對就刪走。學校帳戶登入寫 `error_book`（只可以讀寫自己）；訪客用
   `sessionStorage["error_book:guest-session"]`（只留喺呢次分頁，唔會寫上雲）。
   未登入嘅舊 key 仍然係 `localStorage["error_book:guest"]`。一有學校帳戶登入就清走呢個舊 guest key，避免共用電腦串到下一個學生。
-- **錯題簿夠 10 個字會提醒**（`js/dictation.js`，本地，唔使 SQL）：
-  `maybeNotifyErrorBook()` 喺 `loadErrorBook()`、`addErrorWord()`、
-  `removeErrorWord()` 同每次 `changeView()` 之後（延遲 450ms）檢查。
-  - 門檻係 **10／20／30…**（`Math.floor(count / 10) * 10`）。一過門檻就出
-    `#eb-notice` modal：「Your Error Book is filling up — You have N words
-    saved…」，有 **📒 Open Error Book** 同 **Later**。
-  - 記住嘅 milestone 喺 `errorBookStorageKey() + ':notice'`
-    （學校帳戶 localStorage、訪客 sessionStorage、preview 分年級），
-    所以撳 Later 之後唔會同一批字再彈；跌返落 **10 以下會 reset 做 0**，
-    下次再儲夠 10 個會再提醒。
-  - **已儲夠 10 個字嘅舊用戶**：第一次載入 `loadErrorBook()` 就會即刻出
-    （key 未有 → milestone 0）。
-  - `quiz-view`／`drive-and-go-view`／`wordjump-view`／`battle-view`／
-    `error-book-view` 期間**唔會彈**，避免遮住題目／遊戲；離開後
-    `changeView()` 會再試。`#eb-notice` z-index **10050**，低過 streak
-    popup（10060），所以連勝卡會喺上面，閂咗之後仍然見到錯題簿提示。
+- **錯題簿夠 10 個字：登入提醒**（`js/dictation.js`，本地，唔使 SQL）：
+  - **只喺登入／載入錯題簿之後**觸發。`loadErrorBook()` 會 call
+    `scheduleErrorBookLoginReminder()`（延遲 1.2 秒），再經
+    `maybeNotifyErrorBook()` 出 `#eb-notice` modal。**唔會**喺
+    `addErrorWord()`／`removeErrorWord()`／`changeView()` 期間彈，
+    所以唔會遮住 quiz／遊戲；今次 session 儲夠 10 個要等下次登入才提醒。
+  - 門檻係 **10／20／30…**（`Math.floor(count / 10) * 10`）。modal 問
+    **「Clear your Error Book?」**：「You have N words saved. Do you want to
+    clear them by answering correctly in the Error Book?」，有
+    **📒 Open Error Book** 同 **Not now**。
+  - milestone 記喺 `errorBookStorageKey() + ':notice:v2'`
+    （學校帳戶 localStorage、訪客 sessionStorage、preview 分年級）。
+    **v2 key 係一次性 reset**：之前已出過舊 key 嘅學生，只要而家 ≥10 字，
+    下次登入都會再出一次，符合「現有 10 字用戶全部要有一個 noti」。
+    撳 Not now 之後同一批字唔會再彈；跌返落 **10 以下會 reset 做 0**。
+  - 如果 auth event 到嗰陣仲喺 quiz／game view，`maybeNotifyErrorBook()`
+    會每 1.5 秒重試最多 6 次，等 app 返到 Hub 才出。
+    `#eb-notice` z-index **10050**，低過 streak popup（10060）。
+  - Error Book view **冇 Revision 分格**：一撳入去 `#eb-list` 已經列出
+    所有字，再開 Revision 只會重複同一份清單，所以得返 **Listening** 同
+    **Recitation** 兩個掣（`sm:grid-cols-2`）。
   - Error Book 頁面本身如果 ≥10 字，`renderErrorBook()` 會喺清單頂加
     `.eb-full-banner`（「🔔 N words waiting…」）做持續提示。
   - **Dictation 揀 topic 頁嘅 Error Book 格**有數字 badge
@@ -1333,8 +1338,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v22`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v23`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v23`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v24`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

@@ -1248,7 +1248,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v21）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v22）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1291,6 +1291,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     popup（10060），所以連勝卡會喺上面，閂咗之後仍然見到錯題簿提示。
   - Error Book 頁面本身如果 ≥10 字，`renderErrorBook()` 會喺清單頂加
     `.eb-full-banner`（「🔔 N words waiting…」）做持續提示。
+  - **Dictation 揀 topic 頁嘅 Error Book 格**有數字 badge
+    (`#error-book-count`，絕對定位右上角)：0 個隱藏、1–9 個橙色、
+    ≥10 個紅色（`.is-full`）。`appendDictationTile()` 收
+    `{ id, count }`；`updateErrorBookTileCount()` 喺
+    `loadErrorBook()`／`addErrorWord()`／`removeErrorWord()` 即時更新，
+    `renderCategories()` 重畫時亦會用 `errorBook.length`，所以 quiz
+    完返去會自動顯示最新數字。
   - 呢個係 app 內 modal，唔係 OS push，亦唔會寫 `friend_notifications`。
 - Word Battle：topic 揀 New Vocab，再揀年級，同「Full bank／Added today」。
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
@@ -1326,8 +1333,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v21`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v22`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v22`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v23`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

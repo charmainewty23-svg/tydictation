@@ -172,6 +172,33 @@
             justify-content: center;
             aspect-ratio: 1 / 1;
             padding: 1rem;
+            position: relative;
+        }
+
+        /* Number of words waiting in the Error Book tile. */
+        .dictation-count-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            min-width: 30px;
+            height: 30px;
+            padding: 0 9px;
+            border-radius: 999px;
+            background: #e8590c;
+            color: #ffffff;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 30px;
+            text-align: center;
+            box-shadow: 0 3px 8px rgba(232, 89, 12, 0.3);
+        }
+        .dictation-count-badge.is-full {
+            background: #b91c1c;
+            box-shadow: 0 3px 8px rgba(185, 28, 28, 0.35);
+        }
+        .dictation-count-badge.hidden {
+            display: none;
         }
 
         .category-box:hover {

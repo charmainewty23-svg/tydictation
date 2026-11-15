@@ -116,7 +116,7 @@
             if (!container) return;
             container.innerHTML = "";
             appendDictationTile(container, '🆕', 'New Vocab', () => selectTopic(NEW_VOCAB));
-            appendDictationTile(container, '📒', 'Error Book', () => openErrorBook());
+            appendDictationTile(container, '📒', 'Error Book', () => openErrorBook(), { id: 'error-book-count', count: errorBook.length });
             SHEET_NAMES.forEach(cat => {
                 if (!categories[cat]) return;
                 const emojis = { "charity": "❤️", "entertainment": "🎬", "environmental issues": "🌱", "family": "🏠", "fashion": "👗", "festivals": "🎉", "food and restaurants": "🍕", "health": "🏥", "housing": "🏢", "law and order": "⚖️", "modern communication": "📱", "people": "👥", "animals and pets": "🐱", "school": "🏫", "Shopping": "🛍️", "social affairs": "🤝", "MTR stations": "🚇", "sports": "⚽", "exam focus": "📝", "basics": "🔤" };
@@ -130,12 +130,27 @@
             }
         }
 
-        function appendDictationTile(container, emoji, label, onclick) {
+        function appendDictationTile(container, emoji, label, onclick, badge) {
             const div = document.createElement('div');
             div.className = "category-box shadow-sm";
             div.onclick = onclick;
-            div.innerHTML = `<div class="text-4xl mb-4">${emoji}</div><div class="font-bold text-center leading-tight">${label}</div>`;
+            const n = Math.max(0, Number(badge && badge.count) || 0);
+            const badgeHTML = badge
+                ? `<span${badge.id ? ' id="' + badge.id + '"' : ''} class="dictation-count-badge${n >= 10 ? ' is-full' : ''}${n ? '' : ' hidden'}">${n}</span>`
+                : '';
+            div.innerHTML = `<div class="text-4xl mb-4">${emoji}</div><div class="font-bold text-center leading-tight">${label}</div>${badgeHTML}`;
             container.appendChild(div);
+        }
+
+        /* The tile count is patched in place when the Error Book changes
+           without re-rendering the whole grid. */
+        function updateErrorBookTileCount() {
+            const el = document.getElementById('error-book-count');
+            if (!el) return;
+            const n = Math.max(0, errorBook.length);
+            el.textContent = String(n);
+            el.classList.toggle('hidden', n === 0);
+            el.classList.toggle('is-full', n >= 10);
         }
 
         function selectTopic(topic) {
@@ -283,6 +298,7 @@
                     errorBook = data.map(w => ({ en: w.en, zh: w.zh || '', topic: w.topic || '' }));
                     ebCloudNote = '';
                     saveErrorBookLocal();
+                    updateErrorBookTileCount();
                     if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
                     maybeNotifyErrorBook();
                     return;
@@ -295,6 +311,7 @@
                 ebCloudNote = '';
             }
             errorBook = readErrorBookLocal();
+            updateErrorBookTileCount();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
             maybeNotifyErrorBook();
         }
@@ -305,6 +322,7 @@
             if (!en || errorBook.some(w => w.en === en)) return;
             errorBook.push({ en, zh, topic: currentTopic });
             saveErrorBookLocal();
+            updateErrorBookTileCount();
             maybeNotifyErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;
             sb.from('error_book').upsert({
@@ -319,6 +337,7 @@
             if (!en) return;
             errorBook = errorBook.filter(w => w.en !== en);
             saveErrorBookLocal();
+            updateErrorBookTileCount();
             maybeNotifyErrorBook();
             if (document.getElementById('error-book-view') && !document.getElementById('error-book-view').classList.contains('hidden')) renderErrorBook();
             if (!canUseCloud() || previewStudentForm()) return;

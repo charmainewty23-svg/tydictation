@@ -424,6 +424,16 @@
         }
         .store-card.equipped { border-color: #fbbf24; background: #fffbeb; }
         .store-card-emoji { font-size: 2.6rem; line-height: 1.1; }
+        .store-card-new {
+            align-self: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #7c3aed;
+            color: #fff;
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: .08em;
+        }
         .store-card-name { font-weight: 800; color: #374151; font-size: 0.9rem; line-height: 1.15; }
         .store-card-zh { font-size: 0.75rem; color: #9ca3af; font-weight: 700; }
         .store-card-rarity { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
@@ -3559,6 +3569,7 @@
                     </div>
                     <p id="store-note" class="hidden text-sm font-bold text-amber-700 mb-4"></p>
                     <div id="store-categories" class="flex gap-2 flex-wrap mb-5">
+                        <button type="button" class="store-cat-btn" data-store-cat="new" onclick="storeSetCategory('new')">✨ New</button>
                         <button type="button" class="store-cat-btn active" data-store-cat="all" onclick="storeSetCategory('all')">All</button>
                         <button type="button" class="store-cat-btn" data-store-cat="hat" onclick="storeSetCategory('hat')">🎩 Hats</button>
                         <button type="button" class="store-cat-btn" data-store-cat="face" onclick="storeSetCategory('face')">😎 Face</button>

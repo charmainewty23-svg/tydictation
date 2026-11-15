@@ -456,6 +456,10 @@ function storeBalanceLabel() {
 /* ---------------- Mystery Gacha ---------------- */
 
 const STORE_GACHA_COST = 200;
+const STORE_NEW_IDS = [
+    'prop_white_flag', 'prop_rubber_duck', 'prop_red_pen',
+    'prop_tea_scone', 'prop_corgi', 'prop_boombox'
+];
 
 function storeShowGachaResult(html) {
     const box = document.getElementById('store-gacha-result');
@@ -745,6 +749,13 @@ function renderStore() {
     grid.classList.remove('hidden');
     if (marketEl) marketEl.classList.add('hidden');
     if (gachaCard) gachaCard.classList.remove('hidden');
+    if (STORE_CATEGORY === 'new') {
+        const fresh = STORE_ITEMS.filter(it => STORE_NEW_IDS.indexOf(it.id) !== -1);
+        grid.innerHTML = fresh.length
+            ? '<div class="store-group"><h3 class="store-group-title">✨ New in Props</h3><div class="store-grid-inner">' + fresh.map(storeCardHTML).join('') + '</div></div>'
+            : '<p class="text-gray-400 text-center py-8">New items are loading…</p>';
+        return;
+    }
     const groups = ['hat', 'face', 'outfit', 'prop', 'background'];
     const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
     const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];
@@ -773,6 +784,7 @@ function storeCardHTML(item) {
         action = '<button type="button" class="store-btn" onclick="storeBuyItem(\'' + item.id + '\')">Buy · ' + item.price + ' 🐾</button>';
     }
     return '<div class="store-card' + (equipped ? ' equipped' : '') + '">' +
+        (STORE_NEW_IDS.indexOf(item.id) !== -1 ? '<span class="store-card-new">NEW</span>' : '') +
         '<div class="store-card-emoji" aria-hidden="true">' + item.emoji + '</div>' +
         '<p class="store-card-name">' + escapeHtml(item.name) + '</p>' +
         '<p class="store-card-zh">' + escapeHtml(item.zh) + '</p>' +
@@ -798,9 +810,15 @@ async function storeBuyItem(id) {
         await storeEquipItem(id);
     } catch (e) {
         const msg = String(e && (e.message || e));
-        updateMascot(/NOT_ENOUGH_PAWS/.test(msg)
-            ? 'Not enough Paws yet — practise to earn more!'
-            : (/ALREADY_OWNED/.test(msg) ? 'You already own that item.' : 'Could not buy that item. Ask your teacher to run supabase/store.sql.'));
+        if (/NOT_ENOUGH_PAWS/.test(msg)) {
+            updateMascot('Not enough Paws — this item costs ' + item.price + ' 🐾 and you have ' + STORE_BALANCE + ' 🐾.');
+        } else if (/ALREADY_OWNED/.test(msg)) {
+            updateMascot('You already own that item.');
+        } else if (/ITEM_NOT_FOUND/.test(msg)) {
+            updateMascot('This item is not in the Store catalog yet — the teacher needs to run supabase/store_gacha.sql.');
+        } else {
+            updateMascot('Could not buy that item. Ask your teacher to run supabase/store.sql.');
+        }
     }
 }
 

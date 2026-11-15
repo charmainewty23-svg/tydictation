@@ -335,6 +335,10 @@
             DG.saveSettings();
         }
 
+        function battleClassPaws(place) {
+            return [15, 10, 5][place] || 0;
+        }
+
         function battleSaveLookToRoom() {
             if (!battleRoom || !currentUser) return;
             sb.from('battle_players').update(battleMyLook())
@@ -428,10 +432,14 @@
 
         function battleShowTrophy(top) {
             battleCloseTrophy(true);
-            const places = [];
-            if (top[2]) places.push({ p: top[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third' });
-            if (top[1]) places.push({ p: top[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second' });
-            if (top[0]) places.push({ p: top[0], label: 'CHAMPION', medal: '🥇', cls: 'champion' });
+            const third = top[2] ? { p: top[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third', paws: 5 } : null;
+            const second = top[1] ? { p: top[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second', paws: 10 } : null;
+            const champion = top[0] ? { p: top[0], label: 'CHAMPION', medal: '🥇', cls: 'champion', paws: 15 } : null;
+            // Visual order: champion at the very top. Reveal order: 2nd
+            // runner-up first, then 1st runner-up, champion last.
+            const revealOrder = [third, second, champion].filter(Boolean);
+            revealOrder.forEach((x, i) => { x.reveal = i; });
+            const places = [champion, second, third].filter(Boolean);
             if (!places.length) return;
             const overlay = document.createElement('div');
             overlay.id = 'battle-trophy-overlay';
@@ -441,12 +449,13 @@
                 '<h2 id="battle-trophy-title" class="battle-trophy-heading">🏆 Class Battle</h2>' +
                 places.map((x, i) => {
                     const name = displayName(x.p);
-                    return '<div class="battle-trophy-place ' + x.cls + '" data-trophy-place="' + i + '">' +
+                    return '<div class="battle-trophy-place ' + x.cls + '" data-trophy-place="' + i + '" data-reveal="' + x.reveal + '">' +
                         '<div class="battle-trophy-medal">' + x.medal + '</div>' +
                         '<div class="battle-trophy-label">' + x.label + '</div>' +
                         '<canvas class="battle-trophy-cat" data-trophy-cat="' + i + '" width="180" height="130" aria-label="' + escapeHtml(name) + ' cat"></canvas>' +
                         '<div class="battle-trophy-name">' + escapeHtml(name) + '</div>' +
                         '<div class="battle-trophy-score">' + (Number(x.p.score) || 0) + ' pts</div>' +
+                        '<div class="battle-trophy-paws">+' + x.paws + ' 🐾</div>' +
                         '</div>';
                 }).join('') +
                 '<button type="button" class="battle-trophy-continue hidden" onclick="battleCloseTrophy()">Continue</button>' +
@@ -454,14 +463,21 @@
             document.body.appendChild(overlay);
             const nodes = Array.from(overlay.querySelectorAll('.battle-trophy-place'));
             battleTrophyTimers = [];
-            nodes.forEach((node, i) => {
+            nodes.forEach(node => {
+                const reveal = Number(node.getAttribute('data-reveal'));
                 battleTrophyTimers.push(setTimeout(function () {
                     node.classList.add('show');
-                    if (i === nodes.length - 1) {
+                    if (reveal === revealOrder.length - 1) {
+                        // Champion is the first card, so pin the scroll to the
+                        // top instead of letting scrollIntoView centre it.
+                        const card = overlay.querySelector('.battle-trophy-card');
+                        if (card) card.scrollTop = 0;
                         const btn = overlay.querySelector('.battle-trophy-continue');
                         if (btn) btn.classList.remove('hidden');
+                    } else {
+                        try { node.scrollIntoView({ block: 'nearest' }); } catch (e) { try { node.scrollIntoView(); } catch (e2) {} }
                     }
-                }, 650 + i * 1600));
+                }, 650 + reveal * 1600));
             });
             try {
                 battleTrophyAudio = new Audio('/music/trophyMusic.mp3');
@@ -473,10 +489,12 @@
 
         function battleDrawTrophyCats(overlay, top) {
             if (!overlay || typeof DG === 'undefined' || typeof DG.drawCatAvatar !== 'function') return;
+            // Must match the visual DOM order in battleShowTrophy:
+            // champion, 1st runner-up, 2nd runner-up.
             const places = [];
-            if (top[2]) places.push(top[2]);
-            if (top[1]) places.push(top[1]);
             if (top[0]) places.push(top[0]);
+            if (top[1]) places.push(top[1]);
+            if (top[2]) places.push(top[2]);
             overlay.querySelectorAll('canvas[data-trophy-cat]').forEach(canvas => {
                 const i = Number(canvas.getAttribute('data-trophy-cat'));
                 const p = places[i];
@@ -525,6 +543,7 @@
                         <div class="battle-podium-medal">${medals[i] || (i + 1) + '.'}</div>
                         <p class="battle-podium-name">${escapeHtml(displayName(p))}</p>
                         <p class="battle-podium-score">${Number(p.score) || 0} pts</p>
+                        ${battleClassPaws(i) ? `<p class="battle-podium-paws">+${battleClassPaws(i)} 🐾</p>` : ''}
                     </div>
                 </div>`;
             };
@@ -1103,7 +1122,9 @@
                         <span>${p.score} pts</span>
                     </div>`).join('');
                 if (battleRoom.status === 'finished' && battleRoom.finished_at) {
-                    body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>` +
+                    const myPaws = battleClassPaws(rank - 1);
+                    body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)` +
+                        (myPaws ? ` · <span class="font-bold text-amber-600">+${myPaws} 🐾</span>` : '') + `</div>` +
                         (sorted.length ? battlePodiumHTML(sorted) : '<p class="text-gray-400">No results recorded.</p>');
                     battleDrawPodiumCats(body, sorted);
                     battleMaybeTrophy(sorted);
@@ -1293,6 +1314,7 @@
                             ${stalled ? `<span class="text-xs font-bold text-red-500">idle ${idleSec}s</span>`
                                 : p.done ? '' : `<span class="text-xs text-gray-400">${idleSec !== null ? idleSec + 's ago' : ''}</span>`}
                             <span class="font-bold text-indigo-600 w-16 text-right">${p.score} pts</span>
+                            ${battleRoom.status === 'finished' && battleClassPaws(everyone.indexOf(p)) ? `<span class="text-xs font-bold text-amber-600">+${battleClassPaws(everyone.indexOf(p))} 🐾</span>` : ''}
                         </div>
                     </div>`;
             };

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Class Battle Top 3 demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #111827; }
+    iframe {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: 48px;
+        width: 100%;
+        height: calc(100% - 48px);
+        border: 0;
+    }
+    #demo-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 12px;
+        background: #1f2937;
+        color: #fef3c7;
+        font: 700 12px/1.2 Fredoka, system-ui, sans-serif;
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    #demo-bar span { flex: 1 1 auto; min-width: 0; }
+    #demo-replay {
+        flex: 0 0 auto;
+        min-height: 36px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 999px;
+        background: #f59e0b;
+        color: #fff;
+        font: 800 13px Fredoka, system-ui, sans-serif;
+        box-shadow: 0 3px 0 #b45309;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <span>Class Battle demo · Paws +15 / +10 / +5</span>
+    <button id="demo-replay" type="button">▶ Replay</button>
+</div>
+<iframe id="demo-app" src="/index.html?class-battle-demo=1" title="Class battle demo"></iframe>
+<script>
+    (function () {
+        var frame = document.getElementById('demo-app');
+        var players = [
+            { user_id: 'demo1', nickname: '4C 01 Chan', email: 'demo1@lstyoungkhl.edu.hk', score: 120, total_ms: 50000, correct: 10, cat: 'Ragdoll', glasses: 'Cyber Visor', hat: 'Lo-Fi Headphones', outfit: 'Red Scarf' },
+            { user_id: 'demo2', nickname: '4C 02 Lee', email: 'demo2@lstyoungkhl.edu.hk', score: 100, total_ms: 55000, correct: 8, cat: 'Ginger', glasses: 'Star Sunglasses', hat: 'Straw Hat', outfit: 'Boba Apron' },
+            { user_id: 'demo3', nickname: '4C 03 Wong', email: 'demo3@lstyoungkhl.edu.hk', score: 80, total_ms: 60000, correct: 7, cat: 'Ragdoll', glasses: 'Glasses', hat: 'Golden Crown', outfit: 'Royal Guard Tunic' }
+        ];
+
+        function show() {
+            var w = frame.contentWindow;
+            if (!w || !w.battleShowTrophy || !w.DG || !w.DG.drawCatAvatar) {
+                setTimeout(show, 200);
+                return;
+            }
+            var old = w.document.getElementById('battle-trophy-overlay');
+            if (old) old.remove();
+            w.battleRoom = {
+                id: 'demo-room',
+                mode: 'class',
+                status: 'finished',
+                finished_at: 'demo',
+                code: '1234',
+                question_count: 10
+            };
+            w.battleShowTrophy(players);
+        }
+
+        frame.addEventListener('load', function () { setTimeout(show, 500); });
+        document.getElementById('demo-replay').addEventListener('click', function () {
+            setTimeout(show, 30);
+        });
+    })();
+</script>
+</body>
+</html>

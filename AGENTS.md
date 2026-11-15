@@ -739,8 +739,11 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   老師 class board 同學生 result 都會彈全螢幕 `#battle-trophy-overlay`
   （`battleMaybeTrophy()` 用 `room.id + finished_at` 做 key，所以 poll
   再 render 唔會重開；rematch 有新 `finished_at` 才會再彈）。
-  - 次序：**2ND RUNNER UP** → **1ST RUNNER UP** → **CHAMPION**，
-    每 1.6 秒彈一個，`battleTrophyPop` 由 0.55 scale 彈到 1.06 再回 1。
+  - **版面次序**：CHAMPION 喺**最頂**，下面 1ST RUNNER UP、2ND RUNNER UP。
+    **彈出次序**仍然係 2ND RUNNER UP → 1ST RUNNER UP → CHAMPION（每 1.6 秒
+    一個），所以 champion 最後先喺頂部出現；每次彈出會自動 scroll 到該卡，
+    champion 出現時 `card.scrollTop = 0` 保證見到頂部。`battleTrophyPop`
+    由 0.55 scale 彈到 1.06 再回 1。
   - 每個名次都係大大張卡：🥉／🥈／🥇、英文 label、用自己貓 look 嘅
     `DG.drawCatAvatar()`、名、分數；CHAMPION 字同獎牌最大、金色底＋光暈。
   - `music/trophyMusic.mp3`（545K，**唔入** `sw.js` CORE_ASSETS，
@@ -751,7 +754,18 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
     `battleCloseTrophy()`。只顯示 Top 3；少過 3 人時缺嘅名次唔會出。
   - 3D 用 `DG.drawCatAvatar()`；CSS 喺 `index.html` 的
     `/* Class battle trophy ceremony */`（z-index 10080，landscape
-    `max-height:480px` 有 compact 版）。
+    `max-height:480px` 有 compact 版）。Demo：`/class-battle-demo.html`
+    （iframe 載入真 app，用 mock Top 3 播同一段頒獎禮）。
+  - **手機／iPad 實測**（demo iframe resize）：320×568、375×667、390×844、
+    430×932、768×1024、1024×768、844×390 全部 `overflowX = 0`、
+    card `scrollWidth = clientWidth`；✕ 掣 44×44；Continue 48px（landscape
+    44px）；iPad 直／橫向三張卡一次過見晒；窄手機同 844×390 要 scroll，
+    但每次彈出會自動 scroll，champion 出現後 `scrollTop = 0` 一定見到頂。
+  - **Paws 數量**：Top 3 會顯示 `+15 🐾`（冠軍）／`+10 🐾`（亞軍）／
+    `+5 🐾`（季軍）。`battleClassPaws(place)` 回 0-based 名次嘅 bonus；
+    頒獎禮卡、prize stand、學生 result（`Your score … · +N 🐾`）同老師
+    class board 名單都有。呢個係 `paw_trg_class_battle()` 寫入
+    `paw_ledger` 嘅同一個數（class battle 唔會另有每題 +1 Paws）。
   - **Top 3 用每個學生自己嘅 look**：頒獎禮同 prize stand 都用
     `battlePlayerLook(p)`（`battle_players.cat/glasses/hat/outfit`），
     再交俾 `DG.drawCatAvatar()`／`DG.drawKart()` 畫，所以帽、眼鏡、
@@ -764,7 +778,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - **改動提示**：加新貓選項要同時改 `DG.CATS`／`DG.GLASSES`／`DG.HATS`／
   `DG.OUTFITS`，Word Battle 會自動跟。頒獎台只顯示 Top 5；要顯示更多就改
   `battlePodiumHTML()` 個 `slice(0,5)` 同 CSS。想改頒獎禮節奏改
-  `battleShowTrophy()` 的 `650 + i * 1600`；想換音樂換
+  `battleShowTrophy()` 的 `650 + reveal * 1600`；想換音樂換
   `/music/trophyMusic.mp3`（記得唔好加入 CORE_ASSETS）。
 
 ---
@@ -1312,7 +1326,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v42）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v44）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1402,8 +1416,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v42`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v43`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v44`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v45`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2039,7 +2053,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v42。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v44。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

@@ -1232,7 +1232,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 | id | 名 | 外觀 |
 |---|---|---|
-| `paper` | 📄 Paper | 原本米白紙＋藍格（預設） |
+| `paper` | 📄 Paper | 原本米白紙＋藍格（要自己揀；預設係 Random） |
 | `underwater` | 🌊 Underwater | 深藍海水、光影、水波、珊瑚、魚、水母、氣泡；玩家戴潛水頭盔，怪物變河豚 |
 | `christmas` | 🎄 Christmas | 淺藍雪景、松樹、燈串、飄雪、聖誕帽；平台加雪 |
 | `halloween` | 🎃 Halloween | 紫黑夜空、月亮、蝙蝠、墓碑、南瓜；女巫帽 |
@@ -1248,8 +1248,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `WJ.activeThemeId`（今局實際畫邊個世界）、`WJ.theme()`、
   `WJ.pickRunTheme()`、`WJ.applyThemeForRun()`、`WJ.setTheme()`、
   `WJ.changeTheme()`、`WJ.populateThemes()`、`WJ.themePickerHTML()`。
-  記住喺 `localStorage['learniTY_wj_theme']`（預設 `paper`，未知值 fallback
-  `paper`）。
+  記住喺 `localStorage['learniTY_wj_theme']`。**冇存過／未知值一律
+  fallback `random`**：所有新用戶（同未揀過主題嘅舊用戶）每局隨機轉世界，
+  直到佢自己喺 picker／工具列揀一個固定主題（包括 Paper）先會固定落嚟。
 - **🎲 Random**：`themeId = 'random'` 時，`WJ.activeThemeId` 只係今局抽到嘅
   世界。`WJ.start()`、`WJ.restart()`、Challenge 第一次 `WJC.beginMatch()`
   會 call `WJ.applyThemeForRun()`，用 `Math.random` 抽一個**同上一局唔同**
@@ -1281,7 +1282,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v26）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v27）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1371,8 +1372,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v26`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v27`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v27`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v28`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 19 個：`index.html`、manifest、4 個圖示、
   12 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。

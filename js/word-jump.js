@@ -290,9 +290,9 @@
         WJ.themeId = (function () {
             try {
                 const v = localStorage.getItem(WJ.THEME_KEY);
-                return (WJ.THEMES.some(t => t.id === v) || v === 'random') ? v : 'paper';
+                return (WJ.THEMES.some(t => t.id === v) || v === 'random') ? v : 'random';
             } catch (e) {
-                return 'paper';
+                return 'random';
             }
         })();
 

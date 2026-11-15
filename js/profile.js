@@ -529,7 +529,13 @@ function profileRenderFriendChrome(friend) {
     if (back) back.classList.toggle('hidden', !friend);
     if (follow) follow.classList.toggle('hidden', !friend);
     if (banner) banner.classList.toggle('hidden', !friend);
-    if (lookCard) lookCard.classList.toggle('hidden', friend);
+    if (lookCard) lookCard.classList.remove('hidden');
+    const lookTitle = document.getElementById('profile-look-title');
+    if (lookTitle) lookTitle.innerText = friend ? '🎒 Their look' : '🎒 My look';
+    const lookBalance = document.getElementById('profile-look-balance');
+    if (lookBalance) lookBalance.classList.toggle('hidden', friend);
+    const lookStore = document.getElementById('profile-look-store-btn');
+    if (lookStore) lookStore.classList.toggle('hidden', friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
     const backLabel = document.getElementById('profile-back-label');
     if (backLabel) {
@@ -704,6 +710,7 @@ async function loadFriendProfile(userId) {
     profileFriendRow = row;
     if (nameEl) nameEl.innerText = row.nickname || 'Student';
     if (subEl) subEl.innerText = (row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned') + ' · friend profile';
+    if (typeof storeRenderFriendLook === 'function') storeRenderFriendLook(userId);
     const streakEl = document.getElementById('profile-streak');
     const unitEl = document.getElementById('profile-streak-unit');
     const streakNoteEl = document.getElementById('profile-streak-note');

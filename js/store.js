@@ -67,9 +67,9 @@ window.storeItemById = id => STORE_BY_ID[id] || null;
 window.storeItemByName = name => STORE_BY_NAME[name] || null;
 
 const STORE_FREE = {
-    hat: ['None', 'Party Hat', 'Crown'],
-    face: ['None', 'Sunglasses', 'Glasses'],
-    outfit: ['None', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf']
+    hat: ['None', 'Party Hat'],
+    face: ['None', 'Sunglasses'],
+    outfit: ['None', 'Racing Jacket']
 };
 
 let STORE_OWNED = {};
@@ -154,6 +154,15 @@ async function loadStoreState(force) {
             STORE_LOADED = true;
             window.STORE_OWNED = STORE_OWNED;
             window.STORE_EQUIPPED = STORE_EQUIPPED;
+            // Cross-device look (cat + free/store names). Optional: older
+            // installs without profile_looks still work.
+            try {
+                const lookRes = await sb.from('profile_looks')
+                    .select('cat,hat,face,outfit')
+                    .eq('user_id', currentUser.id)
+                    .maybeSingle();
+                if (!lookRes.error && lookRes.data) storeApplyProfileLookToDG(lookRes.data);
+            } catch (e) {}
             storeApplyEquippedToDG();
         } catch (e) {
             STORE_OWNED = free;
@@ -195,6 +204,29 @@ function storeApplyEquippedToDG() {
         }
     });
     if (changed) DG.saveSettings();
+}
+
+function storeApplyProfileLookToDG(look) {
+    if (!look || typeof DG === 'undefined' || !DG.readSettings) return;
+    const s = DG.readSettings();
+    if (look.cat && DG.CATS.indexOf(look.cat) !== -1) s.cat = look.cat;
+    if (look.hat) s.hat = look.hat;
+    if (look.face) s.glasses = look.face;
+    if (look.outfit) s.outfit = look.outfit;
+    DG.saveSettings();
+}
+
+function saveProfileLook() {
+    if (!storeAvailable() || typeof DG === 'undefined' || !DG.readSettings) return;
+    const s = DG.readSettings();
+    try {
+        sb.rpc('save_profile_look', {
+            p_cat: s.cat,
+            p_hat: s.hat,
+            p_face: s.glasses,
+            p_outfit: s.outfit
+        }).then(() => {}, () => {});
+    } catch (e) {}
 }
 
 function storeEquippedItem(slot) {
@@ -314,6 +346,7 @@ async function storeEquipItem(id) {
         if (error) throw error;
         STORE_EQUIPPED[item.slot] = id;
         storeApplyEquippedToDG();
+        saveProfileLook();
         await loadStoreState(true);
         updateMascot(item.name + ' equipped!');
     } catch (e) {
@@ -333,6 +366,7 @@ async function storeUnequip(slot) {
             if (key === 'hat' || key === 'glasses' || key === 'outfit') s[key] = 'None';
             DG.saveSettings();
         }
+        saveProfileLook();
         await loadStoreState(true);
         updateMascot('Item unequipped.');
     } catch (e) {
@@ -342,12 +376,18 @@ async function storeUnequip(slot) {
 
 /* ---------------- Me profile look ---------------- */
 
-function storeRenderProfileLook() {
-    const canvas = document.getElementById('profile-look-canvas');
-    const label = document.getElementById('profile-look-items');
-    const balance = document.getElementById('profile-look-balance');
+function storeLookBits(look, prop, bg) {
+    const bits = [];
+    if (look && look.hat && look.hat !== 'None') bits.push('🎩 ' + look.hat);
+    if (look && look.glasses && look.glasses !== 'None') bits.push('😎 ' + look.glasses);
+    if (look && look.outfit && look.outfit !== 'None') bits.push('👕 ' + look.outfit);
+    if (prop) bits.push('✨ ' + prop.name);
+    if (bg) bits.push('🖼️ ' + bg.name);
+    return bits;
+}
+
+function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     if (!canvas) return;
-    if (balance) balance.innerText = storeBalanceLabel();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cssW = canvas.clientWidth || 300;
     const cssH = canvas.clientHeight || 190;
@@ -355,7 +395,6 @@ function storeRenderProfileLook() {
     canvas.height = Math.round(cssH * dpr);
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const bg = storeEquippedItem('background');
     const grd = ctx.createLinearGradient(0, 0, 0, cssH);
     if (bg) {
         grd.addColorStop(0, bg.color);
@@ -371,13 +410,10 @@ function storeRenderProfileLook() {
     ctx.ellipse(cssW / 2, cssH * 0.88, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
     ctx.fill();
     if (typeof DG !== 'undefined' && DG.drawCatAvatar) {
-        const look = DG.currentLook ? DG.currentLook() : DG.readSettings();
         DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), look);
     } else if (typeof DG !== 'undefined' && DG.drawKart) {
-        const look = DG.currentLook ? DG.currentLook() : DG.readSettings();
         DG.drawKart(ctx, cssW / 2, cssH * 0.84, Math.min(cssW / 250, cssH / 190), look, { preview: true });
     }
-    const prop = storeEquippedItem('prop');
     if (prop) {
         ctx.font = '32px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
         ctx.textAlign = 'left';
@@ -389,16 +425,48 @@ function storeRenderProfileLook() {
         ctx.textAlign = 'right';
         ctx.fillText(bg.emoji, cssW - 12, 26);
     }
-    if (label) {
-        const bits = [];
-        const hat = storeEquippedItem('hat');
-        const face = storeEquippedItem('face');
-        const outfit = storeEquippedItem('outfit');
-        if (hat) bits.push('🎩 ' + hat.name);
-        if (face) bits.push('😎 ' + face.name);
-        if (outfit) bits.push('👕 ' + outfit.name);
-        if (prop) bits.push('✨ ' + prop.name);
-        if (bg) bits.push('🖼️ ' + bg.name);
-        label.innerText = bits.length ? bits.join(' · ') : 'No store items equipped yet.';
+    if (labelEl) {
+        const bits = storeLookBits(look, prop, bg);
+        labelEl.innerText = bits.length ? bits.join(' · ') : (emptyText || 'Nothing equipped yet.');
     }
+}
+
+function storeRenderProfileLook() {
+    // If the Me tab is currently showing someone else, keep their look.
+    if (typeof profileFriendId !== 'undefined' && profileFriendId) {
+        storeRenderFriendLook(profileFriendId);
+        return;
+    }
+    const canvas = document.getElementById('profile-look-canvas');
+    const label = document.getElementById('profile-look-items');
+    const balance = document.getElementById('profile-look-balance');
+    if (!canvas) return;
+    if (balance) balance.innerText = storeBalanceLabel();
+    const look = (typeof DG !== 'undefined' && DG.currentLook) ? DG.currentLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
+    storePaintLook(canvas, label, look, storeEquippedItem('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
+}
+
+async function storeRenderFriendLook(userId) {
+    const canvas = document.getElementById('profile-look-canvas');
+    const label = document.getElementById('profile-look-items');
+    if (!canvas || !userId) return;
+    let data = null;
+    try {
+        const res = await sb.rpc('friend_store_look', { p_user_id: userId });
+        if (res.error) throw res.error;
+        data = res.data;
+    } catch (e) {
+        storePaintLook(canvas, label, { cat: 'Ginger', hat: 'None', glasses: 'None', outfit: 'None' },
+            null, null, 'Their look is unavailable until the teacher runs supabase/store.sql.');
+        return;
+    }
+    if (!data) data = {};
+    const item = id => (id ? STORE_BY_ID[id] || null : null);
+    const look = {
+        cat: data.cat || 'Ginger',
+        hat: data.hat || 'None',
+        glasses: data.face || 'None',
+        outfit: data.outfit || 'None'
+    };
+    storePaintLook(canvas, label, look, item(data.prop), item(data.background), 'Nothing equipped yet.');
 }

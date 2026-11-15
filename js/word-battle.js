@@ -336,6 +336,7 @@
             const s = DG.readSettings();
             s[key] = value;
             DG.saveSettings();
+            if (typeof saveProfileLook === 'function') saveProfileLook();
             battleRenderCatCustomizer();
             battleSaveLookToRoom();
         }
@@ -388,7 +389,7 @@
                 options.map(opt => `<button type="button" class="battle-cat-chip${opt === current ? ' active' : ''}" onclick="battleSetLook('${key}','${escapeHtml(opt)}')">${escapeHtml(opt)}</button>`).join('') +
                 '</div></div>';
             box.innerHTML =
-                row('Cat', 'cat', DG.CATS, look.cat) +
+                row('Cat', 'cat', DG.catOptions ? DG.catOptions(look.cat) : DG.CATS, look.cat) +
                 row('Glasses', 'glasses', DG.lookOptions ? DG.lookOptions('face', look.glasses) : DG.GLASSES, look.glasses) +
                 row('Hat', 'hat', DG.lookOptions ? DG.lookOptions('hat', look.hat) : DG.HATS, look.hat) +
                 row('Outfit', 'outfit', DG.lookOptions ? DG.lookOptions('outfit', look.outfit) : DG.OUTFITS, look.outfit);

@@ -281,6 +281,79 @@ create policy "store equipped read own" on public.store_equipped
     for select using (auth.uid() = user_id);
 grant select on public.store_equipped to authenticated;
 
+create table if not exists public.profile_looks (
+    user_id    uuid primary key references auth.users(id) on delete cascade,
+    cat        text not null default 'Ginger',
+    hat        text not null default 'None',
+    face       text not null default 'None',
+    outfit     text not null default 'None',
+    updated_at timestamptz not null default now()
+);
+alter table public.profile_looks enable row level security;
+drop policy if exists "profile look read own" on public.profile_looks;
+create policy "profile look read own" on public.profile_looks
+    for select using (auth.uid() = user_id);
+grant select on public.profile_looks to authenticated;
+
+create or replace function public.save_profile_look(
+    p_cat text,
+    p_hat text,
+    p_face text,
+    p_outfit text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_cat text := coalesce(nullif(trim(p_cat), ''), 'Ginger');
+begin
+    if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    if v_cat not in ('Ginger', 'Ragdoll', 'Black', 'Siamese') then v_cat := 'Ginger'; end if;
+    insert into public.profile_looks (user_id, cat, hat, face, outfit)
+    values (
+        v_me,
+        v_cat,
+        left(coalesce(nullif(trim(p_hat), ''), 'None'), 60),
+        left(coalesce(nullif(trim(p_face), ''), 'None'), 60),
+        left(coalesce(nullif(trim(p_outfit), ''), 'None'), 60)
+    )
+    on conflict (user_id) do update set
+        cat = excluded.cat,
+        hat = excluded.hat,
+        face = excluded.face,
+        outfit = excluded.outfit,
+        updated_at = now();
+end;
+$fn$;
+
+create or replace function public.friend_store_look(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+begin
+    if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    if p_user_id is null then return '{}'::jsonb; end if;
+    return (
+        select jsonb_build_object(
+            'cat', coalesce(pl.cat, 'Ginger'),
+            'hat', coalesce(pl.hat, 'None'),
+            'face', coalesce(pl.face, 'None'),
+            'outfit', coalesce(pl.outfit, 'None'),
+            'prop', coalesce((select e.item_id from public.store_equipped e
+                               where e.user_id = p_user_id and e.slot = 'prop'), ''),
+            'background', coalesce((select e.item_id from public.store_equipped e
+                                     where e.user_id = p_user_id and e.slot = 'background'), '')
+        )
+          from (select 1) one
+          left join public.profile_looks pl on pl.user_id = p_user_id
+    );
+end;
+$fn$;
+
 create or replace function public.buy_store_item(p_item text)
 returns int
 language plpgsql
@@ -344,6 +417,8 @@ revoke all on function public.my_paw_balance() from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
 revoke all on function public.equip_store_item(text, text) from public;
+revoke all on function public.save_profile_look(text, text, text, text) from public;
+revoke all on function public.friend_store_look(uuid) from public;
 revoke all on function public.paw_trg_dictation() from public;
 revoke all on function public.paw_trg_wj() from public;
 revoke all on function public.paw_trg_dg_solo() from public;
@@ -353,3 +428,5 @@ revoke all on function public.paw_trg_battle() from public;
 grant execute on function public.my_paw_balance() to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
+grant execute on function public.save_profile_look(text, text, text, text) to authenticated;
+grant execute on function public.friend_store_look(uuid) to authenticated;

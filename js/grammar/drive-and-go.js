@@ -61,9 +61,10 @@ const DG = {
     // Time bonus factor used by DG.timeBonus / DG.scoreRun (see those helpers).
     TIME_BONUS_FACTOR: 4000,
     CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
-    GLASSES: ['None', 'Sunglasses', 'Glasses'],
-    HATS: ['None', 'Party Hat', 'Crown'],
-    OUTFITS: ['None', 'Red Scarf', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf'],
+    CAT_OPTIONS: ['Ginger', 'Ragdoll'],
+    GLASSES: ['None', 'Sunglasses'],
+    HATS: ['None', 'Party Hat'],
+    OUTFITS: ['None', 'Racing Jacket'],
     ITEM_EMOJI: { banana: '🍌', star: '⭐', redshell: '🔴', lightning: '⚡', mushroom: '🍄' },
     ITEM_NAME: { banana: 'Banana', star: 'Star', redshell: 'Red shell', lightning: 'Lightning', mushroom: 'Mushroom' },
     ITEM_HELP: {
@@ -1526,7 +1527,7 @@ const DG = {
             DG.stepDots('cat') +
             DG.stepHeading('cat', 'Customize your cat driver') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
-            row('Cat', 'cat', DG.CATS, s.cat) +
+            row('Cat', 'cat', DG.catOptions(s.cat), s.cat) +
             row('Glasses', 'glasses', DG.lookOptions('face', s.glasses), s.glasses) +
             row('Hat', 'hat', DG.lookOptions('hat', s.hat), s.hat) +
             row('Outfit', 'outfit', DG.lookOptions('outfit', s.outfit), s.outfit) +
@@ -1536,6 +1537,12 @@ const DG = {
             '">← Back</button>' +
             '<button type="button" class="btn-paw" onclick="DG.showControlsStep()">Next: Controls →</button></div>';
         requestAnimationFrame(() => DG.renderCatPreview());
+    },
+
+    catOptions(current) {
+        const opts = DG.CAT_OPTIONS.slice();
+        if (current && opts.indexOf(current) === -1) return [current].concat(opts).slice(0, 2);
+        return opts;
     },
 
     lookOptions(slot, current) {
@@ -1549,6 +1556,7 @@ const DG = {
         const s = DG.readSettings();
         s[key] = value;
         DG.saveSettings();
+        if (typeof saveProfileLook === 'function') saveProfileLook();
         DG.showCatStep();
     },
 
@@ -2014,10 +2022,22 @@ const DG = {
     },
 
     catPalette(cat) {
-        if (cat === 'Ragdoll') return { body: '#fffaf3', shade: '#efe4d8', points: '#6b5a51', eye: '#4dabf7', nose: '#f2a6b8' };
-        if (cat === 'Black') return { body: '#34343c', shade: '#222228', points: '#18181d', eye: '#f5c542', nose: '#e88a9b' };
-        if (cat === 'Siamese') return { body: '#f3e3c8', shade: '#e3d0b0', points: '#5b4636', eye: '#63b3ed', nose: '#e7a0ae' };
-        return { body: '#e8893c', shade: '#c96f2b', points: '#a9541b', eye: '#5aa9e6', nose: '#f2a6b8' };
+        if (cat === 'Ragdoll') return {
+            body: '#f7f0e6', shade: '#e6d8c8', light: '#fffaf2', stripe: null,
+            points: '#6b5148', eye: '#4dabf7', nose: '#e7a0ae', innerEar: '#e8b6c0'
+        };
+        if (cat === 'Black') return {
+            body: '#33343c', shade: '#1e1f26', light: '#4b4c58', stripe: null,
+            points: '#15161b', eye: '#e3bd4a', nose: '#c98a98', innerEar: '#7a5a66'
+        };
+        if (cat === 'Siamese') return {
+            body: '#f1e3cb', shade: '#ddc9a8', light: '#fdf6e8', stripe: null,
+            points: '#4b392e', eye: '#63b3ed', nose: '#d99aaa', innerEar: '#c99aa6'
+        };
+        return {
+            body: '#d98645', shade: '#b96a2e', light: '#f3c18d', stripe: '#a95823',
+            points: '#8b4a20', eye: '#c9a227', nose: '#d98b98', innerEar: '#e8a6ad'
+        };
     },
 
     /* Inline SVG used by the multiplayer lobby (so each player's chosen cat

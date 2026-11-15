@@ -336,7 +336,6 @@
             const s = DG.readSettings();
             s[key] = value;
             DG.saveSettings();
-            if (typeof saveProfileLook === 'function') saveProfileLook();
             battleRenderCatCustomizer();
             battleSaveLookToRoom();
         }

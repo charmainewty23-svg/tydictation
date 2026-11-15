@@ -47,7 +47,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | # | 檔案 | 內容 |
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
-| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（41 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
+| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（44 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
@@ -92,7 +92,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
-| `store-view` | 🛍️ Store：41 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
+| `store-view` | 🛍️ Store：44 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
 | `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均正確率、Word Jump 最佳、首次練習日期（見 §12.6） |
 
 ### Grammar Quest tenses
@@ -1303,7 +1303,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v39）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v40）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1393,8 +1393,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v39`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v40`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v40`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v41`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2030,7 +2030,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v39。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v40。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2039,13 +2039,15 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   HTML button `data-nav-view="store-view"`。320px 時 6 格、label 9px
   （`@media (max-width:360px)`），實測 `overflowX = 0`。
 - **`js/store.js`**：喺 `js/shared.js` 之後、`js/dictation.js` 之前載入。
-  有 `STORE_ITEMS`（41 件，id／slot／name／zh／price／rarity／emoji／color）、
+  有 `STORE_ITEMS`（44 件，id／slot／name／zh／price／rarity／emoji／color）、
   `storeItemByName`、`STORE_OWNED`／`STORE_EQUIPPED`／`STORE_BALANCE`、
   `loadStoreState()`、`renderStore()`、`storeBuyItem()`／`storeEquipItem()`、
   `storeLookOptions()`、`storeRenderProfileLook()`。
-- **商品**：Hats 11、Face 7、Outfits 9、Props 7、Backgrounds 7 = **41**。
-  價錢 60–450 Paws；全部一次過上。**未買任何 item 嘅用戶 default look = 全部 None**（光身貓，Store 亦冇免費 item）；Red Scarf 而家都係 80 Paws。Props／Backgrounds **只喺 Me profile 同 Drive & Go／Word
-  Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
+- **商品**：Hats 11、Face 7、Outfits 9、Props 7、Backgrounds 10 = **44**。
+  價錢 60–450 Paws；全部一次過上。**未買任何 item 嘅用戶 default look = 全部 None**（光身貓，Store 亦冇免費 item）；Red Scarf 而家都係 80 Paws。Backgrounds 除咗原有 7 個，2026-11 再加
+  **Pink（130）／Blue（130）／Floral（180）**；`storePaintBackground()` 會畫
+  心心、雲朵同花瓣圖案，唔止純色漸變。Props／Backgrounds **只喺 Me profile
+  同 Drive & Go／Word Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
 - **Paws 計算**（`supabase/store.sql` 嘅 trigger，唔靠 client）：
   - +1 per correct answer（Dictation／Drive & Go／Word Battle，Battle 只計
     1v1、class room 唔計）；Word Jump +1 per word（每局 cap 40）。
@@ -2069,7 +2071,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - `store_items`（public select）、`store_purchases`（own select）、
     `store_equipped`（own select）、`paw_ledger`（冇 client policy）。
   - `profile_looks`（cat／hat／face／outfit，自己 select）、
-    `save_profile_look()`（customizer 每次改動都 fire-and-forget）、
+    `save_profile_look()`（**只由 Me 嘅 profile cat picker／Store equip 寫**；Drive & Go 同 Word Battle customizer 唔會再覆寫 profile look）、
     `friend_store_look(p_user_id)`（回 jsonb：cat／hat／face／outfit＋
     prop／background 的 item id；只係 cosmetic，冇 email）。
   - `my_paw_balance()`、`my_paws_today()`（今日香港日 practice／class
@@ -2120,6 +2122,12 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   （冇雲端就 `✅ Your saved look is on`，2.4 秒後自動收埋），
   mascot 亦會講「Your own look is on! ✨」。（Drive & Go 只會顯示
   cat／glasses 嘅效果。）
+  重要：**Drive & Go／Word Battle 個 customizer 已經唔會再寫
+  `save_profile_look()`**；揀 chip 只改 `DG.readSettings()`（該局造型）。
+  Profile look 只由 Me 嘅 cat picker 同 Store equip 控制，所以撳
+  Use my look 一定會回到 Me 顯示嗰個 look。Me 頁 `storeRenderProfileLook()`
+  亦改用 `storeMyLook()`（profile_looks＋store_equipped），唔會再被遊戲
+  最後揀嘅造型蓋過。
 - **Profile cat**：Me → 🎒 My look 有 `#profile-cat-picker`，所有用戶
   （包括 guest／未買任何 item）都可以揀 **🐱 Ginger／🐱 Ragdoll**；
   `storeSetProfileCat()` 寫入 `DG.readSettings().cat` + `save_profile_look`，
@@ -2138,11 +2146,17 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   資料經 RPC `friend_paws_daily(p_user_id, p_days)`（`security definer`，
   只 grant authenticated，回 `day`／`earned`）。未跑最新 `store.sql`
   時整張卡自動收埋（`.catch` 後 `hidden`），朋友 profile 其他部分照用。
-- **視覺**：Drive & Go 2D `DG.drawKart()` 用 store item 嘅 emoji 做
-  hat／face／outfit fallback；3D `DG.makeThreeKart()` 用
-  `DG.makeEmojiSprite()` 加 sprite（hat y≈5.35、face y≈3.15、outfit band）。
-  呢個係通用做法，唔使為 41 件逐件砌 3D model；想升級做 bespoke model
-  再喺 `makeThreeKart()` 加 branch。
+- **視覺**：3D `DG.makeThreeKart()` 仍然用 `DG.makeEmojiSprite()` 加
+  sprite（hat y≈5.35、face y≈3.15、outfit band），因為 3D 車仔細，唔另砌
+  model；想升級再喺 `makeThreeKart()` 加 branch。
+  2D／profile 嘅 store 飾物已經**逐件畫到 fit 落隻貓**：`DG.drawCatHat()`
+  （Lo-Fi Headphones 嘅耳罩套住耳仔、帽／頭盔坐落頭頂）、`DG.drawCatFace()`
+  （glasses 對正雙眼、單片眼鏡、眼罩、Cyber Visor 發光罩眼）、
+  `DG.drawCatOutfit()`（領巾／煲呔／圍裙／雨衣／制服／ruff／鯊魚／恐龍
+  連身衣畫喺頸同身）。`DG.drawCatAvatar()`（Me profile、Drive & Go preview、
+  Word Battle preview／頒獎台）同 `DG.drawKart()`（賽道、lobby 小貓）都用
+  同一組 helper，唔會再有 emoji 浮喺頭頂。未知／將來新增 item 會 fallback
+  返 emoji。
 - **How to earn**：Paws 數量旁有 `🐾 How to earn` 掣，開 `#paws-help`
   modal；唔再放喺 Store 底部 details。`storeShowPawsHelp()`／
   `storeClosePawsHelp()`；離開 store-view 會自動關。
@@ -2163,7 +2177,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   答案、你揀咗乜）；Solo／Multi 早完賽／Multi 最終結果都會用
   `DG.wrongQuestionsHTML()` 顯示「❌ Review these questions」，最多 12 題，
   可 scroll；start／restart 會清空。Landscape 有 compact CSS。
-- **測試**：41 cards、Paws 200→120（買 hat_sprout）、自動 equip、
+- **測試**：44 cards、10 個 backgrounds（Pink／Blue／Floral 圖案）、Paws 200→120（買 hat_sprout）、自動 equip、
   `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
   profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D
   store item 冇 throw。SQL 未喺本機實際執行（只做 code review）。

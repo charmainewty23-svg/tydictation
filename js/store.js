@@ -52,7 +52,10 @@ const STORE_ITEMS = [
     { id:'bg_galaxy', slot:'background', name:'Starry Galaxy', zh:'星空宇宙', price:240, rarity:'Epic', emoji:'🌌', color:'#1e1b4b', desc:'Planets and shooting stars.' },
     { id:'bg_aplus', slot:'background', name:'Floating A+', zh:'滿分飄浮特效', price:300, rarity:'Legendary', emoji:'💯', color:'#f59e0b', desc:'Glowing A+ marks and gold stars.' },
     { id:'bg_sakura', slot:'background', name:'Cherry Blossoms', zh:'櫻花飄落', price:180, rarity:'Rare', emoji:'🌸', color:'#f9a8d4', desc:'Pink cherry blossom petals.' },
-    { id:'bg_cyber', slot:'background', name:'Cyber Grid', zh:'霓虹網格', price:260, rarity:'Epic', emoji:'🌐', color:'#7c3aed', desc:'Purple-blue neon grid lines.' }
+    { id:'bg_cyber', slot:'background', name:'Cyber Grid', zh:'霓虹網格', price:260, rarity:'Epic', emoji:'🌐', color:'#7c3aed', desc:'Purple-blue neon grid lines.' },
+    { id:'bg_pink', slot:'background', name:'Pink', zh:'粉紅', price:130, rarity:'Common', emoji:'🩷', color:'#f9a8d4', desc:'A soft pink background.' },
+    { id:'bg_blue', slot:'background', name:'Blue', zh:'藍色', price:130, rarity:'Common', emoji:'🩵', color:'#93c5fd', desc:'A calm sky-blue background.' },
+    { id:'bg_floral', slot:'background', name:'Floral', zh:'碎花', price:180, rarity:'Rare', emoji:'🌷', color:'#fda4af', desc:'A floral pattern with soft petals.' }
 ];
 
 window.STORE_ITEMS = STORE_ITEMS;
@@ -278,7 +281,6 @@ async function storeUseMyLook() {
         s.glasses = look.glasses;
         s.outfit = look.outfit;
         DG.saveSettings();
-        if (typeof saveProfileLook === 'function') saveProfileLook();
         if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
             DG.showCatStep();
             storeShowLookNote(cloudLook ? '✅ Your profile look is on' : '✅ Your saved look is on');
@@ -460,6 +462,62 @@ function storeLookBits(look, prop, bg) {
     return bits;
 }
 
+/* Soft decorations for the three plain-colour backgrounds. The gradient
+   itself comes from the item colour, so unknown backgrounds still work. */
+function storePaintBackground(ctx, bg, w, h) {
+    if (!bg || !w || !h) return;
+    ctx.save();
+    if (bg.id === 'bg_pink') {
+        ctx.fillStyle = 'rgba(255,255,255,.5)';
+        for (let y = 26; y < h; y += 44) {
+            for (let x = 20 + (Math.round(y / 44) % 2) * 26; x < w; x += 54) {
+                const r = 4.4;
+                ctx.beginPath();
+                ctx.moveTo(x, y + r * 1.6);
+                ctx.bezierCurveTo(x - r * 2.4, y - r * 0.6, x - r * 0.8, y - r * 2, x, y - r * 0.6);
+                ctx.bezierCurveTo(x + r * 0.8, y - r * 2, x + r * 2.4, y - r * 0.6, x, y + r * 1.6);
+                ctx.fill();
+            }
+        }
+    } else if (bg.id === 'bg_blue') {
+        ctx.fillStyle = 'rgba(255,255,255,.72)';
+        const cloud = (x, y, s) => {
+            ctx.beginPath();
+            ctx.arc(x, y, 11 * s, 0, Math.PI * 2);
+            ctx.arc(x + 13 * s, y + 3 * s, 8 * s, 0, Math.PI * 2);
+            ctx.arc(x - 13 * s, y + 3 * s, 7 * s, 0, Math.PI * 2);
+            ctx.arc(x + 2 * s, y - 6 * s, 8 * s, 0, Math.PI * 2);
+            ctx.fill();
+        };
+        cloud(w * 0.22, h * 0.2, 1);
+        cloud(w * 0.76, h * 0.32, 0.8);
+        cloud(w * 0.42, h * 0.72, 0.65);
+    } else if (bg.id === 'bg_floral') {
+        const petal = (x, y, r, color) => {
+            ctx.fillStyle = color;
+            for (let i = 0; i < 5; i++) {
+                const a = (Math.PI * 2 / 5) * i - Math.PI / 2;
+                ctx.beginPath();
+                ctx.ellipse(x + Math.cos(a) * r, y + Math.sin(a) * r, r * 0.72, r * 0.48, a, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.42, 0, Math.PI * 2);
+            ctx.fill();
+        };
+        const colors = ['rgba(255,255,255,.85)', 'rgba(251,113,133,.7)', 'rgba(196,181,253,.75)'];
+        let n = 0;
+        for (let y = 24; y < h; y += 52) {
+            for (let x = 24 + (Math.round(y / 52) % 2) * 30; x < w; x += 64) {
+                petal(x, y, 6.5, colors[n % colors.length]);
+                n++;
+            }
+        }
+    }
+    ctx.restore();
+}
+
 function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     if (!canvas) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -479,6 +537,7 @@ function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     }
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, cssW, cssH);
+    storePaintBackground(ctx, bg, cssW, cssH);
     ctx.fillStyle = 'rgba(120,113,108,.22)';
     ctx.beginPath();
     ctx.ellipse(cssW / 2, cssH * 0.88, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
@@ -518,7 +577,7 @@ function storeRenderProfileLook() {
     if (!canvas) return;
     if (balance) balance.innerText = storeAvailable() ? (STORE_BALANCE + ' 🐾 Total') : 'Sign in to earn Paws';
     if (today) today.innerText = storeAvailable() ? ('+' + STORE_PAWS_TODAY + ' 🐾 Today') : '';
-    const look = (typeof DG !== 'undefined' && DG.currentLook) ? DG.currentLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
+    const look = (typeof storeMyLook === 'function') ? storeMyLook() : { hat: 'None', glasses: 'None', outfit: 'None', cat: 'Ginger' };
     storePaintLook(canvas, label, look, storeEquippedItem('prop'), storeEquippedItem('background'), 'No store items equipped yet.');
     document.querySelectorAll('#profile-cat-picker [data-profile-cat]').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-profile-cat') === look.cat);

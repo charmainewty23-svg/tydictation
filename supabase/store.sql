@@ -65,7 +65,10 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('bg_galaxy','background','Starry Galaxy','星空宇宙',240,'Epic','🌌',38),
     ('bg_aplus','background','Floating A+','滿分飄浮特效',300,'Legendary','💯',39),
     ('bg_sakura','background','Cherry Blossoms','櫻花飄落',180,'Rare','🌸',40),
-    ('bg_cyber','background','Cyber Grid','霓虹網格',260,'Epic','🌐',41)
+    ('bg_cyber','background','Cyber Grid','霓虹網格',260,'Epic','🌐',41),
+    ('bg_pink','background','Pink','粉紅',130,'Common','🩷',42),
+    ('bg_blue','background','Blue','藍色',130,'Common','🩵',43),
+    ('bg_floral','background','Floral','碎花',180,'Rare','🌷',44)
 on conflict (id) do update set
     slot = excluded.slot,
     name_en = excluded.name_en,

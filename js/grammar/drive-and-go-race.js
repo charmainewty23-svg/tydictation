@@ -3578,6 +3578,485 @@
        preview and the multiplayer lobby SVG. */
     /* A standalone, more realistic cat for the Store / Me preview and the
        lobby cat customisers. The race itself still uses DG.drawKart(). */
+    /* ---------- Store accessories drawn to fit the cat ---------- */
+
+    DG.drawCatHat = function (ctx, name, hx, hy, S, topY) {
+        if (!name || name === 'None') return;
+        const top = (topY === undefined) ? hy - 31 * S : topY;
+        const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+        ctx.save();
+        ctx.lineJoin = 'round';
+
+        if (name === 'Party Hat') {
+            ctx.fillStyle = '#ec4899';
+            ctx.beginPath();
+            ctx.moveTo(hx, top - 30 * S);
+            ctx.lineTo(hx - 20 * S, top + 2 * S);
+            ctx.lineTo(hx + 20 * S, top + 2 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fde047';
+            ctx.beginPath(); ctx.arc(hx, top - 32 * S, 4 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(hx - 7 * S, top - 12 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#60a5fa';
+            ctx.beginPath(); ctx.arc(hx + 7 * S, top - 8 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Crown' || name === 'Golden Crown') {
+            const wide = name === 'Golden Crown' ? 1.08 : 1;
+            ctx.fillStyle = '#fbbf24';
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 1.6 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - 21 * S * wide, top + 2 * S);
+            ctx.lineTo(hx - 18 * S * wide, top - 18 * S);
+            ctx.lineTo(hx - 7 * S * wide, top - 9 * S);
+            ctx.lineTo(hx, top - 23 * S);
+            ctx.lineTo(hx + 7 * S * wide, top - 9 * S);
+            ctx.lineTo(hx + 18 * S * wide, top - 18 * S);
+            ctx.lineTo(hx + 21 * S * wide, top + 2 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(hx, top - 4 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath(); ctx.arc(hx - 12 * S, top - 5 * S, 2 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(hx + 12 * S, top - 5 * S, 2 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Sprout Clip') {
+            ctx.strokeStyle = '#16a34a';
+            ctx.lineWidth = 3 * S;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(hx + 8 * S, top + 2 * S);
+            ctx.quadraticCurveTo(hx + 13 * S, top - 6 * S, hx + 9 * S, top - 13 * S);
+            ctx.stroke();
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath(); ctx.ellipse(hx + 6 * S, top - 15 * S, 5 * S, 9 * S, -0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(hx + 15 * S, top - 11 * S, 5 * S, 9 * S, 0.7, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Lo-Fi Headphones') {
+            const bandR = 36 * S;
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 6 * S;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(hx, hy - 2 * S, bandR, Math.PI * 1.02, Math.PI * 1.98);
+            ctx.stroke();
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 2 * S;
+            ctx.beginPath();
+            ctx.arc(hx, hy - 2 * S, bandR, Math.PI * 1.02, Math.PI * 1.98);
+            ctx.stroke();
+            // Earcups sit on the ears, not floating above the head.
+            [-1, 1].forEach(side => {
+                const ex = hx + side * 33 * S;
+                const ey = hy - 18 * S;
+                ctx.fillStyle = '#78350f';
+                rr(ex - 8 * S, ey - 13 * S, 16 * S, 26 * S, 7 * S); ctx.fill();
+                ctx.fillStyle = '#f59e0b';
+                rr(ex - 5 * S, ey - 9 * S, 10 * S, 18 * S, 5 * S); ctx.fill();
+                ctx.fillStyle = '#fde68a';
+                ctx.beginPath(); ctx.arc(ex, ey, 3 * S, 0, Math.PI * 2); ctx.fill();
+            });
+        } else if (name === 'Straw Hat') {
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath(); ctx.ellipse(hx, top - 1 * S, 46 * S, 10 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath(); ctx.ellipse(hx, top - 10 * S, 23 * S, 15 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ef4444';
+            rr(hx - 23 * S, top - 9 * S, 46 * S, 5 * S, 2 * S); ctx.fill();
+        } else if (name === 'Frog Hood') {
+            ctx.fillStyle = '#4ade80';
+            ctx.beginPath();
+            ctx.arc(hx, hy - 6 * S, 38 * S, Math.PI * 0.97, Math.PI * 2.03);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 3 * S;
+            ctx.beginPath();
+            ctx.arc(hx, hy - 6 * S, 35 * S, Math.PI * 1.02, Math.PI * 1.98);
+            ctx.stroke();
+            [-1, 1].forEach(side => {
+                const fx = hx + side * 18 * S;
+                const fy = top - 8 * S;
+                ctx.fillStyle = '#86efac';
+                ctx.beginPath(); ctx.arc(fx, fy, 10 * S, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(fx, fy, 7 * S, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#111827';
+                ctx.beginPath(); ctx.arc(fx + side * 1.5 * S, fy, 3.4 * S, 0, Math.PI * 2); ctx.fill();
+            });
+        } else if (name === 'Chef Hat') {
+            ctx.fillStyle = '#fff';
+            rr(hx - 22 * S, top - 22 * S, 44 * S, 24 * S, 9 * S); ctx.fill();
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1.6 * S;
+            ctx.stroke();
+            ctx.beginPath(); ctx.arc(hx - 14 * S, top - 24 * S, 11 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(hx + 14 * S, top - 24 * S, 11 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(hx, top - 31 * S, 13 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            rr(hx - 22 * S, top - 4 * S, 44 * S, 7 * S, 3 * S); ctx.fill();
+        } else if (name === 'Sherlock Cap') {
+            ctx.fillStyle = '#a16207';
+            ctx.beginPath(); ctx.ellipse(hx, top - 1 * S, 36 * S, 13 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#854d0e';
+            ctx.beginPath(); ctx.ellipse(hx, top + 4 * S, 30 * S, 6 * S, 0, 0, Math.PI * 2); ctx.fill();
+            [-1, 1].forEach(side => {
+                ctx.fillStyle = '#a16207';
+                rr(hx + side * 30 * S - 5 * S, top - 3 * S, 10 * S, 17 * S, 4 * S); ctx.fill();
+            });
+            ctx.fillStyle = '#713f12';
+            ctx.beginPath(); ctx.arc(hx, top - 12 * S, 3 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Graduation Cap') {
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.moveTo(hx, top - 27 * S);
+            ctx.lineTo(hx + 25 * S, top - 14 * S);
+            ctx.lineTo(hx, top - 1 * S);
+            ctx.lineTo(hx - 25 * S, top - 14 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#1f2937';
+            rr(hx - 15 * S, top - 8 * S, 30 * S, 8 * S, 2 * S); ctx.fill();
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx + 21 * S, top - 15 * S);
+            ctx.lineTo(hx + 26 * S, top + 1 * S);
+            ctx.stroke();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath(); ctx.arc(hx + 26 * S, top + 3 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Bearskin Hat') {
+            ctx.fillStyle = '#111827';
+            rr(hx - 20 * S, top - 34 * S, 40 * S, 38 * S, 14 * S); ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,.14)';
+            ctx.lineWidth = 1.4 * S;
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(hx + i * 7 * S, top - 32 * S);
+                ctx.lineTo(hx + i * 5 * S, top + 1 * S);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#b45309';
+            rr(hx - 21 * S, top + 1 * S, 42 * S, 5 * S, 2 * S); ctx.fill();
+        } else if (name === 'Wizard Hat') {
+            ctx.fillStyle = '#312e81';
+            ctx.beginPath();
+            ctx.moveTo(hx, top - 40 * S);
+            ctx.lineTo(hx - 22 * S, top + 3 * S);
+            ctx.lineTo(hx + 22 * S, top + 3 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#1e1b4b';
+            ctx.beginPath(); ctx.ellipse(hx, top + 3 * S, 28 * S, 6 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fde047';
+            [[-8, -12], [6, -20], [11, -6], [-2, -28]].forEach(([dx, dy]) => {
+                ctx.beginPath(); ctx.arc(hx + dx * S, top + dy * S, 2 * S, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.fillStyle = '#fef3c7';
+            ctx.beginPath(); ctx.arc(hx + 4 * S, top - 12 * S, 3.2 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Astro Helmet') {
+            ctx.fillStyle = 'rgba(125,211,252,.22)';
+            ctx.beginPath(); ctx.arc(hx, hy - 4 * S, 40 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(125,211,252,.9)';
+            ctx.lineWidth = 2.6 * S;
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,.75)';
+            ctx.lineWidth = 3 * S;
+            ctx.beginPath();
+            ctx.arc(hx, hy - 4 * S, 33 * S, Math.PI * 1.12, Math.PI * 1.45);
+            ctx.stroke();
+            ctx.fillStyle = '#94a3b8';
+            rr(hx - 24 * S, hy + 29 * S, 48 * S, 8 * S, 4 * S); ctx.fill();
+        } else {
+            const item = window.storeItemByName && window.storeItemByName(name);
+            if (item) {
+                ctx.font = Math.round(26 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.emoji, hx, top - 4 * S);
+            }
+        }
+        ctx.restore();
+    };
+
+    DG.drawCatFace = function (ctx, name, hx, hy, eyeY, eyeDx, S) {
+        if (!name || name === 'None') return;
+        const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+        const star = (cx, cy, outer, inner) => {
+            ctx.beginPath();
+            for (let i = 0; i < 10; i++) {
+                const a = (Math.PI / 5) * i - Math.PI / 2;
+                const r = i % 2 ? inner : outer;
+                const px = cx + Math.cos(a) * r;
+                const py = cy + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+        };
+        ctx.save();
+        if (name === 'Sunglasses' || name === 'Pixel Sunglasses') {
+            ctx.fillStyle = '#111827';
+            const w = name === 'Pixel Sunglasses' ? 20 * S : 18 * S;
+            const h = name === 'Pixel Sunglasses' ? 11 * S : 9 * S;
+            rr(hx - eyeDx - w / 2, eyeY - h / 2, w, h, 2.5 * S); ctx.fill();
+            rr(hx + eyeDx - w / 2, eyeY - h / 2, w, h, 2.5 * S); ctx.fill();
+            ctx.fillRect(hx - 5 * S, eyeY - 1.5 * S, 10 * S, 3 * S);
+            if (name === 'Pixel Sunglasses') {
+                ctx.fillStyle = 'rgba(255,255,255,.55)';
+                ctx.fillRect(hx - eyeDx - 6 * S, eyeY - 3 * S, 3 * S, 3 * S);
+                ctx.fillRect(hx + eyeDx - 6 * S, eyeY - 3 * S, 3 * S, 3 * S);
+            }
+        } else if (name === 'Glasses' || name === 'Round Glasses') {
+            ctx.strokeStyle = name === 'Round Glasses' ? '#111827' : '#1f2937';
+            ctx.lineWidth = 2.2 * S;
+            const r = name === 'Round Glasses' ? 10 * S : 9 * S;
+            ctx.beginPath();
+            ctx.arc(hx - eyeDx, eyeY, r, 0, Math.PI * 2);
+            ctx.arc(hx + eyeDx, eyeY, r, 0, Math.PI * 2);
+            ctx.moveTo(hx - 4 * S, eyeY);
+            ctx.lineTo(hx + 4 * S, eyeY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(hx - eyeDx - r, eyeY);
+            ctx.lineTo(hx - 30 * S, eyeY - 2 * S);
+            ctx.moveTo(hx + eyeDx + r, eyeY);
+            ctx.lineTo(hx + 30 * S, eyeY - 2 * S);
+            ctx.stroke();
+        } else if (name === 'Star Sunglasses') {
+            ctx.fillStyle = 'rgba(251,191,36,.9)';
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 1.6 * S;
+            star(hx - eyeDx, eyeY, 13 * S, 5.5 * S); ctx.fill(); ctx.stroke();
+            star(hx + eyeDx, eyeY, 13 * S, 5.5 * S); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = '#b45309';
+            ctx.beginPath(); ctx.moveTo(hx - 5 * S, eyeY); ctx.lineTo(hx + 5 * S, eyeY); ctx.stroke();
+            ctx.fillStyle = 'rgba(146,64,14,.55)';
+            ctx.beginPath(); ctx.arc(hx - eyeDx, eyeY, 4 * S, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(hx + eyeDx, eyeY, 4 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Blush Stickers') {
+            ctx.fillStyle = 'rgba(251,113,133,.8)';
+            [-1, 1].forEach(side => {
+                ctx.beginPath();
+                ctx.ellipse(hx + side * 20 * S, hy + 12 * S, 7 * S, 3.4 * S, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(hx + side * 24 * S, hy + 9 * S, 3 * S, 1.8 * S, -0.4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        } else if (name === 'Pirate Eyepatch') {
+            ctx.fillStyle = '#111827';
+            ctx.beginPath();
+            ctx.ellipse(hx - eyeDx, eyeY, 11 * S, 9 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#111827';
+            ctx.lineWidth = 2.4 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - eyeDx - 10 * S, eyeY - 4 * S);
+            ctx.lineTo(hx - 32 * S, eyeY - 16 * S);
+            ctx.moveTo(hx - eyeDx + 9 * S, eyeY + 2 * S);
+            ctx.lineTo(hx + 30 * S, eyeY - 8 * S);
+            ctx.stroke();
+        } else if (name === 'Monocle') {
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 2.6 * S;
+            ctx.beginPath(); ctx.arc(hx + eyeDx, eyeY, 11 * S, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(180,83,9,.7)';
+            ctx.lineWidth = 1.4 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx + eyeDx + 10 * S, eyeY + 4 * S);
+            ctx.quadraticCurveTo(hx + 26 * S, eyeY + 18 * S, hx + 16 * S, hy + 30 * S);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,.8)';
+            ctx.lineWidth = 1.6 * S;
+            ctx.beginPath(); ctx.arc(hx + eyeDx - 3 * S, eyeY - 4 * S, 4 * S, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
+        } else if (name === 'Cyber Visor') {
+            ctx.save();
+            ctx.shadowColor = 'rgba(34,211,238,.9)';
+            ctx.shadowBlur = 12 * S;
+            ctx.fillStyle = 'rgba(34,211,238,.72)';
+            rr(hx - 30 * S, eyeY - 8 * S, 60 * S, 16 * S, 6 * S); ctx.fill();
+            ctx.restore();
+            ctx.strokeStyle = '#0891b2';
+            ctx.lineWidth = 2 * S;
+            rr(hx - 30 * S, eyeY - 8 * S, 60 * S, 16 * S, 6 * S); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,.8)';
+            ctx.lineWidth = 1.6 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - 24 * S, eyeY - 4 * S);
+            ctx.lineTo(hx + 24 * S, eyeY - 4 * S);
+            ctx.stroke();
+        } else {
+            const item = window.storeItemByName && window.storeItemByName(name);
+            if (item) {
+                ctx.fillStyle = 'rgba(15,23,42,.28)';
+                rr(hx - 28 * S, eyeY - 7 * S, 56 * S, 14 * S, 5 * S); ctx.fill();
+            }
+        }
+        ctx.restore();
+    };
+
+    DG.drawCatOutfit = function (ctx, name, hx, hy, S, neckY, bodyTop, bodyBottom, halfW) {
+        if (!name || name === 'None') return;
+        const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+        const NW = Math.max(22 * S, halfW * 0.9);
+        const top = Math.max(bodyTop, hy + 32 * S);
+        ctx.save();
+        ctx.lineJoin = 'round';
+
+        if (name === 'Red Scarf' || name === 'Pink Floral Scarf') {
+            const col = name === 'Red Scarf' ? '#ef4444' : '#f472b6';
+            ctx.fillStyle = col;
+            rr(hx - NW, neckY - 5 * S, NW * 2, 10 * S, 5 * S); ctx.fill();
+            rr(hx + NW * 0.28, neckY + 3 * S, 8 * S, 17 * S, 3 * S); ctx.fill();
+            if (name === 'Pink Floral Scarf') {
+                ctx.fillStyle = '#fde68a';
+                [-2, 0, 2].forEach(i => {
+                    ctx.beginPath(); ctx.arc(hx + i * 9 * S, neckY, 1.8 * S, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+        } else if (name === 'Tweed Bow Tie' || name === 'Gentleman Bowtie') {
+            const col = name === 'Tweed Bow Tie' ? '#92400e' : '#111827';
+            ctx.fillStyle = col;
+            ctx.beginPath();
+            ctx.moveTo(hx, neckY);
+            ctx.lineTo(hx - 15 * S, neckY - 7 * S);
+            ctx.lineTo(hx - 15 * S, neckY + 7 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(hx, neckY);
+            ctx.lineTo(hx + 15 * S, neckY - 7 * S);
+            ctx.lineTo(hx + 15 * S, neckY + 7 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = name === 'Tweed Bow Tie' ? '#b45309' : '#374151';
+            ctx.beginPath(); ctx.arc(hx, neckY, 4 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Bread Collar') {
+            ctx.fillStyle = '#fde68a';
+            rr(hx - NW, neckY - 9 * S, NW * 2, 18 * S, 7 * S); ctx.fill();
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 2 * S;
+            ctx.stroke();
+            ctx.fillStyle = '#f59e0b';
+            rr(hx - NW, neckY - 9 * S, NW * 2, 4 * S, 2 * S); ctx.fill();
+            ctx.strokeStyle = 'rgba(180,83,9,.5)';
+            ctx.lineWidth = 1.4 * S;
+            [-1, 1].forEach(side => {
+                ctx.beginPath();
+                ctx.moveTo(hx + side * 8 * S, neckY - 2 * S);
+                ctx.lineTo(hx + side * 12 * S, neckY + 5 * S);
+                ctx.stroke();
+            });
+        } else if (name === 'Boba Apron') {
+            ctx.fillStyle = '#16a34a';
+            ctx.beginPath();
+            ctx.moveTo(hx - 17 * S, neckY);
+            ctx.lineTo(hx + 17 * S, neckY);
+            ctx.lineTo(hx + 22 * S, bodyBottom);
+            ctx.lineTo(hx - 22 * S, bodyBottom);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#15803d';
+            ctx.lineWidth = 2 * S;
+            rr(hx - 11 * S, neckY + 10 * S, 22 * S, 17 * S, 4 * S); ctx.stroke();
+            ctx.fillStyle = '#78350f';
+            [[-5, 20], [0, 22], [5, 20]].forEach(([dx, dy]) => {
+                ctx.beginPath(); ctx.arc(hx + dx * S, neckY + dy * S, 1.8 * S, 0, Math.PI * 2); ctx.fill();
+            });
+        } else if (name === 'Yellow Raincoat') {
+            ctx.fillStyle = '#facc15';
+            rr(hx - halfW - 2 * S, top, (halfW + 2 * S) * 2, bodyBottom - top, 12 * S); ctx.fill();
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 2 * S;
+            rr(hx - halfW - 2 * S, top, (halfW + 2 * S) * 2, bodyBottom - top, 12 * S); ctx.stroke();
+            ctx.fillStyle = '#eab308';
+            ctx.beginPath(); ctx.ellipse(hx, neckY, NW, 7 * S, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#a16207';
+            [0.25, 0.55, 0.85].forEach(t => {
+                ctx.beginPath();
+                ctx.arc(hx, top + (bodyBottom - top) * t, 2.2 * S, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        } else if (name === 'Royal Guard Tunic') {
+            ctx.fillStyle = '#dc2626';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(hx - halfW, bodyBottom - 8 * S, halfW * 2, 7 * S);
+            ctx.fillStyle = '#fbbf24';
+            [0.3, 0.55, 0.8].forEach(t => {
+                ctx.beginPath();
+                ctx.arc(hx, top + (bodyBottom - top) * t, 2.4 * S, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            [-1, 1].forEach(side => {
+                ctx.fillStyle = '#fbbf24';
+                rr(hx + side * (halfW - 2 * S) - 6 * S, top + 2 * S, 12 * S, 6 * S, 3 * S); ctx.fill();
+            });
+        } else if (name === 'Shakespeare Ruff') {
+            ctx.fillStyle = '#f8fafc';
+            ctx.strokeStyle = '#d1d5db';
+            ctx.lineWidth = 1.4 * S;
+            for (let i = -3; i <= 3; i++) {
+                ctx.beginPath();
+                ctx.arc(hx + i * 8 * S, neckY + Math.abs(i) * 1.6 * S, 5.6 * S, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+        } else if (name === 'Shark Onesie') {
+            ctx.fillStyle = '#64748b';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 12 * S); ctx.fill();
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.ellipse(hx, bodyBottom - 6 * S, halfW * 0.6, 12 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(hx + halfW * 0.7, neckY + 10 * S);
+            ctx.lineTo(hx + halfW + 12 * S, neckY - 2 * S);
+            ctx.lineTo(hx + halfW * 0.55, neckY + 24 * S);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            [-3, -1, 1, 3].forEach(i => {
+                ctx.beginPath();
+                ctx.moveTo(hx + i * 4 * S, neckY - 5 * S);
+                ctx.lineTo(hx + i * 4 * S + 3 * S, neckY + 1 * S);
+                ctx.lineTo(hx + i * 4 * S + 6 * S, neckY - 5 * S);
+                ctx.closePath();
+                ctx.fill();
+            });
+        } else if (name === 'Dragon Suit') {
+            ctx.fillStyle = '#16a34a';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 12 * S); ctx.fill();
+            ctx.fillStyle = '#bbf7d0';
+            ctx.beginPath();
+            ctx.ellipse(hx, bodyBottom - 7 * S, halfW * 0.55, 12 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#15803d';
+            [-1, 1].forEach(side => {
+                for (let i = 0; i < 3; i++) {
+                    const y = neckY + 4 * S + i * 9 * S;
+                    ctx.beginPath();
+                    ctx.moveTo(hx + side * halfW, y);
+                    ctx.lineTo(hx + side * (halfW + 9 * S), y - 4 * S);
+                    ctx.lineTo(hx + side * halfW, y + 6 * S);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            });
+        } else if (name === 'Racing Jacket') {
+            ctx.fillStyle = '#ef4444';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.fill();
+            ctx.fillStyle = '#fde047';
+            ctx.fillRect(hx - halfW, bodyBottom - 12 * S, halfW * 2, 4 * S);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(hx - 2 * S, top, 4 * S, bodyBottom - top);
+        } else if (name === 'Sports Vest') {
+            ctx.fillStyle = '#22c55e';
+            rr(hx - halfW * 0.8, top, halfW * 1.6, bodyBottom - top, 9 * S); ctx.fill();
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(hx - 2 * S, top, 4 * S, bodyBottom - top);
+        }
+        ctx.restore();
+    };
+
     DG.drawCatAvatar = function (ctx, x, y, scale, look, opts) {
         const l = DG.normalizeLook(look);
         const pal = DG.catPalette(l.cat);
@@ -3781,89 +4260,9 @@
         ctx.stroke();
 
         // ----- accessories -----
-        const itemBy = (name) => (window.storeItemByName ? window.storeItemByName(name) : null);
-        // hat
-        if (l.hat === 'Party Hat') {
-            ctx.fillStyle = '#ec4899';
-            ctx.beginPath();
-            ctx.moveTo(hx, hy - 60 * S);
-            ctx.lineTo(hx - 18 * S, hy - 34 * S);
-            ctx.lineTo(hx + 18 * S, hy - 34 * S);
-            ctx.closePath(); ctx.fill();
-        } else if (l.hat === 'Crown') {
-            ctx.fillStyle = '#fbbf24';
-            ctx.strokeStyle = '#d97706';
-            ctx.lineWidth = 1.4 * S;
-            ctx.beginPath();
-            ctx.moveTo(hx - 18 * S, hy - 33 * S);
-            ctx.lineTo(hx - 15 * S, hy - 50 * S);
-            ctx.lineTo(hx - 5 * S, hy - 41 * S);
-            ctx.lineTo(hx, hy - 55 * S);
-            ctx.lineTo(hx + 5 * S, hy - 41 * S);
-            ctx.lineTo(hx + 15 * S, hy - 50 * S);
-            ctx.lineTo(hx + 18 * S, hy - 33 * S);
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-        } else if (l.hat !== 'None') {
-            const hat = itemBy(l.hat);
-            if (hat) {
-                ctx.font = Math.round(36 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(hat.emoji, hx, hy - 46 * S);
-            }
-        }
-        // face / glasses
-        if (l.glasses === 'Sunglasses') {
-            ctx.fillStyle = '#111827';
-            ctx.beginPath(); ctx.roundRect(hx - 22 * S, eyeY - 7 * S, 18 * S, 9 * S, 3 * S); ctx.fill();
-            ctx.beginPath(); ctx.roundRect(hx + 4 * S, eyeY - 7 * S, 18 * S, 9 * S, 3 * S); ctx.fill();
-            ctx.fillRect(hx - 5 * S, eyeY - 4 * S, 10 * S, 2 * S);
-        } else if (l.glasses === 'Glasses') {
-            ctx.strokeStyle = '#1f2937';
-            ctx.lineWidth = 2 * S;
-            ctx.beginPath();
-            ctx.arc(hx - 13 * S, eyeY, 9 * S, 0, Math.PI * 2);
-            ctx.arc(hx + 13 * S, eyeY, 9 * S, 0, Math.PI * 2);
-            ctx.moveTo(hx - 4 * S, eyeY); ctx.lineTo(hx + 4 * S, eyeY);
-            ctx.stroke();
-        } else if (l.glasses !== 'None') {
-            const face = itemBy(l.glasses);
-            if (face) {
-                ctx.font = Math.round(27 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(face.emoji, hx, eyeY);
-            }
-        }
-        // outfit
-        if (l.outfit === 'Red Scarf' || l.outfit === 'Pink Floral Scarf') {
-            ctx.fillStyle = l.outfit === 'Red Scarf' ? '#ef4444' : '#f472b6';
-            ctx.beginPath();
-            ctx.roundRect(-28 * S, -55 * S, 56 * S, 9 * S, 4 * S);
-            ctx.fill();
-        } else if (l.outfit === 'Gentleman Bowtie') {
-            ctx.fillStyle = '#111827';
-            ctx.beginPath();
-            ctx.moveTo(hx - 14 * S, -52 * S);
-            ctx.lineTo(hx, -46 * S);
-            ctx.lineTo(hx + 14 * S, -52 * S);
-            ctx.lineTo(hx + 14 * S, -40 * S);
-            ctx.lineTo(hx, -46 * S);
-            ctx.lineTo(hx - 14 * S, -40 * S);
-            ctx.closePath(); ctx.fill();
-        } else if (l.outfit !== 'None') {
-            const outfit = itemBy(l.outfit);
-            if (outfit) {
-                ctx.fillStyle = outfit.color || '#f97316';
-                ctx.globalAlpha = 0.9;
-                ctx.beginPath(); ctx.roundRect(-29 * S, -55 * S, 58 * S, 9 * S, 4 * S); ctx.fill();
-                ctx.globalAlpha = 1;
-                ctx.font = Math.round(24 * S) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(outfit.emoji, 25 * S, -48 * S);
-            }
-        }
+        DG.drawCatHat(ctx, l.hat, hx, hy, S, hy - 31 * S);
+        DG.drawCatFace(ctx, l.glasses, hx, hy, eyeY, 13 * S, S);
+        DG.drawCatOutfit(ctx, l.outfit, hx, hy, S, hy + 36 * S, -77 * S, -4 * S, 30 * S);
 
         // little shine on the head
         ctx.fillStyle = 'rgba(255,255,255,.18)';
@@ -4078,114 +4477,15 @@
         ctx.moveTo(18 * s, hy + 16 * s); ctx.lineTo(36 * s, hy + 19 * s);
         ctx.stroke();
 
-        // Glasses
-        if (l.glasses === 'Sunglasses') {
-            ctx.fillStyle = '#111827';
-            ctx.beginPath();
-            ctx.roundRect(-22 * s, hy - 7 * s, 18 * s, 9 * s, 3 * s);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.roundRect(4 * s, hy - 7 * s, 18 * s, 9 * s, 3 * s);
-            ctx.fill();
-            ctx.fillRect(-5 * s, hy - 4 * s, 10 * s, 2 * s);
-        } else if (l.glasses === 'Glasses') {
-            ctx.strokeStyle = '#1f2937';
-            ctx.lineWidth = 2 * s;
-            ctx.beginPath();
-            ctx.arc(-11 * s, hy - 2 * s, 9 * s, 0, Math.PI * 2);
-            ctx.arc(11 * s, hy - 2 * s, 9 * s, 0, Math.PI * 2);
-            ctx.moveTo(-2 * s, hy - 2 * s);
-            ctx.lineTo(2 * s, hy - 2 * s);
-            ctx.stroke();
-        }
-        const storeFace = (l.glasses !== 'None' && l.glasses !== 'Sunglasses' && l.glasses !== 'Glasses' && window.storeItemByName)
-            ? window.storeItemByName(l.glasses) : null;
-        if (storeFace) {
-            ctx.font = Math.max(16, 26 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(storeFace.emoji, 0, hy - 1 * s);
-        }
+        // Glasses / store eyewear
+        DG.drawCatFace(ctx, l.glasses, 0, hy, hy - 2 * s, 11 * s, s);
 
-        // Hats
-        if (l.hat === 'Party Hat') {
-            ctx.fillStyle = '#ec4899';
-            ctx.beginPath();
-            ctx.moveTo(0, hy - 58 * s);
-            ctx.lineTo(-22 * s, hy - 25 * s);
-            ctx.lineTo(22 * s, hy - 25 * s);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#fde047';
-            ctx.beginPath(); ctx.arc(-7 * s, hy - 40 * s, 2.4 * s, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(7 * s, hy - 33 * s, 2.4 * s, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#60a5fa';
-            ctx.beginPath(); ctx.arc(0, hy - 28 * s, 2.4 * s, 0, Math.PI * 2); ctx.fill();
-        } else if (l.hat === 'Crown') {
-            ctx.fillStyle = '#fbbf24';
-            ctx.strokeStyle = '#d97706';
-            ctx.lineWidth = 1.6 * s;
-            ctx.beginPath();
-            ctx.moveTo(-22 * s, hy - 24 * s);
-            ctx.lineTo(-18 * s, hy - 44 * s);
-            ctx.lineTo(-7 * s, hy - 34 * s);
-            ctx.lineTo(0, hy - 50 * s);
-            ctx.lineTo(7 * s, hy - 34 * s);
-            ctx.lineTo(18 * s, hy - 44 * s);
-            ctx.lineTo(22 * s, hy - 24 * s);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-        }
-        const storeHat = (l.hat !== 'None' && l.hat !== 'Party Hat' && l.hat !== 'Crown' && window.storeItemByName)
-            ? window.storeItemByName(l.hat) : null;
-        if (storeHat) {
-            ctx.font = Math.max(20, 34 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(storeHat.emoji, 0, hy - 38 * s);
-        }
+        // Hats / store headwear (fitted to the head and ears)
+        DG.drawCatHat(ctx, l.hat, 0, hy, s, hy - 28 * s);
 
         // Outfits (front)
-        if (l.outfit === 'Red Scarf' || l.outfit === 'Pink Floral Scarf') {
-            const col = l.outfit === 'Red Scarf' ? '#ef4444' : '#f472b6';
-            ctx.fillStyle = col;
-            ctx.beginPath();
-            ctx.roundRect(-27 * s, -70 * s, 54 * s, 8 * s, 4 * s);
-            ctx.fill();
-            if (l.outfit === 'Pink Floral Scarf') {
-                ctx.fillStyle = '#fde68a';
-                for (let i = -2; i <= 2; i++) {
-                    ctx.beginPath();
-                    ctx.arc(i * 9 * s, -66 * s, 1.8 * s, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        } else if (l.outfit === 'Gentleman Bowtie') {
-            ctx.fillStyle = '#111827';
-            ctx.beginPath();
-            ctx.moveTo(-14 * s, -66 * s);
-            ctx.lineTo(0, -60 * s);
-            ctx.lineTo(14 * s, -66 * s);
-            ctx.lineTo(14 * s, -54 * s);
-            ctx.lineTo(0, -60 * s);
-            ctx.lineTo(-14 * s, -54 * s);
-            ctx.closePath();
-            ctx.fill();
-        }
-        const storeOutfit = (['None', 'Red Scarf', 'Racing Jacket', 'Superhero Cape', 'Gentleman Bowtie', 'Sports Vest', 'Pink Floral Scarf'].indexOf(l.outfit) === -1 && window.storeItemByName)
-            ? window.storeItemByName(l.outfit) : null;
-        if (storeOutfit) {
-            ctx.fillStyle = storeOutfit.color || '#f97316';
-            ctx.globalAlpha = 0.9;
-            ctx.beginPath();
-            ctx.roundRect(-30 * s, -72 * s, 60 * s, 9 * s, 4 * s);
-            ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.font = Math.max(16, 24 * s) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(storeOutfit.emoji, 24 * s, -60 * s);
+        if (['Racing Jacket', 'Sports Vest', 'Superhero Cape'].indexOf(l.outfit) === -1) {
+            DG.drawCatOutfit(ctx, l.outfit, 0, hy, s, hy + 26 * s, -74 * s, -34 * s, 24 * s);
         }
 
         // Boost flame

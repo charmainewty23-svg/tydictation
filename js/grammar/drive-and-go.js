@@ -1572,7 +1572,6 @@ const DG = {
         const s = DG.readSettings();
         s[key] = value;
         DG.saveSettings();
-        if (typeof saveProfileLook === 'function') saveProfileLook();
         DG.showCatStep();
     },
 
@@ -1597,6 +1596,7 @@ const DG = {
         }
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, cssW, cssH);
+        if (typeof storePaintBackground === 'function') storePaintBackground(ctx, bgItem, cssW, cssH);
         ctx.fillStyle = 'rgba(120,113,108,.22)';
         ctx.beginPath();
         ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.28, cssH * 0.08, 0, 0, Math.PI * 2);

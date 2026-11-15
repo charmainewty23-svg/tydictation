@@ -415,6 +415,41 @@ begin
 end;
 $fn$;
 
+create or replace function public.friend_paws_daily(p_user_id uuid, p_days int default 7)
+returns table (day date, earned int)
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_days int := greatest(1, least(coalesce(p_days, 7), 31));
+    v_today date := (now() at time zone 'Asia/Hong_Kong')::date;
+    v_start timestamptz :=
+        ((v_today - (v_days - 1))::timestamp at time zone 'Asia/Hong_Kong');
+begin
+    if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
+    if p_user_id is null then return; end if;
+    return query
+    with days as (
+        select generate_series(v_today - (v_days - 1), v_today, interval '1 day')::date as d
+    ),
+    daily as (
+        select (l.created_at at time zone 'Asia/Hong_Kong')::date as d,
+               sum(l.amount)::int as earned
+          from public.paw_ledger l
+         where l.user_id = p_user_id
+           and l.amount > 0
+           and l.created_at >= v_start
+           and (l.reason like 'practice:%' or l.reason = 'class_battle')
+         group by (l.created_at at time zone 'Asia/Hong_Kong')::date
+    )
+    select days.d as day, coalesce(daily.earned, 0)::int as earned
+      from days
+      left join daily on daily.d = days.d
+     order by days.d;
+end;
+$fn$;
+
 create or replace function public.buy_store_item(p_item text)
 returns int
 language plpgsql
@@ -537,6 +572,7 @@ $fn$;
 revoke all on function public.my_paw_balance() from public;
 revoke all on function public.my_paws_today() from public;
 revoke all on function public.admin_paw_daily(int) from public;
+revoke all on function public.friend_paws_daily(uuid, int) from public;
 revoke all on function public.paw_practice_award(uuid, text, text, int) from public;
 revoke all on function public.buy_store_item(text) from public;
 revoke all on function public.equip_store_item(text, text) from public;
@@ -552,6 +588,7 @@ revoke all on function public.paw_trg_class_battle() from public;
 grant execute on function public.my_paw_balance() to authenticated;
 grant execute on function public.my_paws_today() to authenticated;
 grant execute on function public.admin_paw_daily(int) to authenticated;
+grant execute on function public.friend_paws_daily(uuid, int) to authenticated;
 grant execute on function public.buy_store_item(text) to authenticated;
 grant execute on function public.equip_store_item(text, text) to authenticated;
 grant execute on function public.save_profile_look(text, text, text, text) to authenticated;
@@ -570,3 +607,31 @@ select u.id, u.id, 'announcement',
           and n.kind = 'announcement'
           and n.message like '🛍️ The Store is open!%'
  );
+
+-- ---------- teacher test balance ----------
+-- Keeps the owner account at 2000 Paws for testing the Store. Safe to
+-- re-run: it rewrites a single ledger row, and the welcome/practice
+-- amounts are not touched. Top-up Paws do not count towards the daily cap.
+do $topup$
+declare
+    v_teacher uuid;
+    v_others int;
+begin
+    select id into v_teacher
+      from auth.users
+     where lower(email) = 'tywong@lstyoungkhl.edu.hk'
+     limit 1;
+    if v_teacher is null then
+        return;
+    end if;
+    select coalesce(sum(amount), 0)::int into v_others
+      from public.paw_ledger
+     where user_id = v_teacher
+       and ref_key <> 'teacher_test_topup_2000';
+    if v_others < 2000 then
+        insert into public.paw_ledger (user_id, amount, reason, ref_key)
+        values (v_teacher, 2000 - v_others, 'teacher_test_topup', 'teacher_test_topup_2000')
+        on conflict (user_id, ref_key) do update set amount = excluded.amount;
+    end if;
+end;
+$topup$;

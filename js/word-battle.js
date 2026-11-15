@@ -397,6 +397,103 @@
             requestAnimationFrame(battleDrawCatPreview);
         }
 
+        let battleTrophyKey = '';
+        let battleTrophyTimers = [];
+        let battleTrophyAudio = null;
+
+        function battleMaybeTrophy(players) {
+            if (!battleRoom || battleRoom.mode !== 'class') return;
+            if (battleRoom.status !== 'finished' || !battleRoom.finished_at) return;
+            const top = (players || []).slice(0, 3);
+            if (!top.length) return;
+            const key = battleRoom.id + ':' + battleRoom.finished_at;
+            if (battleTrophyKey === key) return;
+            battleTrophyKey = key;
+            battleShowTrophy(top);
+        }
+
+        function battleShowTrophy(top) {
+            battleCloseTrophy(true);
+            const places = [];
+            if (top[2]) places.push({ p: top[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third' });
+            if (top[1]) places.push({ p: top[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second' });
+            if (top[0]) places.push({ p: top[0], label: 'CHAMPION', medal: '🥇', cls: 'champion' });
+            if (!places.length) return;
+            const overlay = document.createElement('div');
+            overlay.id = 'battle-trophy-overlay';
+            overlay.className = 'battle-trophy-overlay';
+            overlay.innerHTML = '<div class="battle-trophy-card" role="dialog" aria-modal="true" aria-labelledby="battle-trophy-title">' +
+                '<button type="button" class="battle-trophy-close" aria-label="Close" onclick="battleCloseTrophy()">✕</button>' +
+                '<h2 id="battle-trophy-title" class="battle-trophy-heading">🏆 Class Battle</h2>' +
+                places.map((x, i) => {
+                    const name = displayName(x.p);
+                    return '<div class="battle-trophy-place ' + x.cls + '" data-trophy-place="' + i + '">' +
+                        '<div class="battle-trophy-medal">' + x.medal + '</div>' +
+                        '<div class="battle-trophy-label">' + x.label + '</div>' +
+                        '<canvas class="battle-trophy-cat" data-trophy-cat="' + i + '" width="180" height="130" aria-label="' + escapeHtml(name) + ' cat"></canvas>' +
+                        '<div class="battle-trophy-name">' + escapeHtml(name) + '</div>' +
+                        '<div class="battle-trophy-score">' + (Number(x.p.score) || 0) + ' pts</div>' +
+                        '</div>';
+                }).join('') +
+                '<button type="button" class="battle-trophy-continue hidden" onclick="battleCloseTrophy()">Continue</button>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            const nodes = Array.from(overlay.querySelectorAll('.battle-trophy-place'));
+            battleTrophyTimers = [];
+            nodes.forEach((node, i) => {
+                battleTrophyTimers.push(setTimeout(function () {
+                    node.classList.add('show');
+                    if (i === nodes.length - 1) {
+                        const btn = overlay.querySelector('.battle-trophy-continue');
+                        if (btn) btn.classList.remove('hidden');
+                    }
+                }, 650 + i * 1600));
+            });
+            try {
+                battleTrophyAudio = new Audio('/music/trophyMusic.mp3');
+                battleTrophyAudio.volume = 0.45;
+                battleTrophyAudio.play().catch(function () {});
+            } catch (e) { battleTrophyAudio = null; }
+            requestAnimationFrame(function () { battleDrawTrophyCats(overlay, top); });
+        }
+
+        function battleDrawTrophyCats(overlay, top) {
+            if (!overlay || typeof DG === 'undefined' || typeof DG.drawCatAvatar !== 'function') return;
+            const places = [];
+            if (top[2]) places.push(top[2]);
+            if (top[1]) places.push(top[1]);
+            if (top[0]) places.push(top[0]);
+            overlay.querySelectorAll('canvas[data-trophy-cat]').forEach(canvas => {
+                const i = Number(canvas.getAttribute('data-trophy-cat'));
+                const p = places[i];
+                if (!p) return;
+                const dpr = Math.min(2, window.devicePixelRatio || 1);
+                const w = canvas.clientWidth || 160;
+                const h = canvas.clientHeight || 112;
+                canvas.width = Math.round(w * dpr);
+                canvas.height = Math.round(h * dpr);
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, w, h);
+                DG.drawCatAvatar(ctx, w / 2, h * 0.94, Math.min(w / 210, h / 190), battlePlayerLook(p));
+            });
+        }
+
+        function battleCloseTrophy(keepKey) {
+            battleTrophyTimers.forEach(id => clearTimeout(id));
+            battleTrophyTimers = [];
+            if (battleTrophyAudio) {
+                try { battleTrophyAudio.pause(); battleTrophyAudio.currentTime = 0; } catch (e) {}
+                battleTrophyAudio = null;
+            }
+            const overlay = document.getElementById('battle-trophy-overlay');
+            if (overlay) overlay.remove();
+            if (!keepKey) {
+                // Closing the ceremony keeps the room key so a poll does not
+                // reopen it; a rematch has a new finished_at anyway.
+            }
+        }
+
         function battlePodiumPlayers() {
             return (battlePlayers || []).slice()
                 .sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
@@ -992,6 +1089,7 @@
                     body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>` +
                         (sorted.length ? battlePodiumHTML(sorted) : '<p class="text-gray-400">No results recorded.</p>');
                     battleDrawPodiumCats(body, sorted);
+                    battleMaybeTrophy(sorted);
                 } else {
                     body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>
                                       <div class="max-w-sm mx-auto text-left space-y-1">${top}</div>`;
@@ -1138,6 +1236,7 @@
                     podiumEl.innerHTML = '<h3 class="text-2xl font-bold text-indigo-700 mb-4">🏆 Prize stand</h3>' +
                         (everyone.length ? battlePodiumHTML(everyone) : '<p class="text-gray-400">No results recorded.</p>');
                     battleDrawPodiumCats(podiumEl, everyone);
+                    battleMaybeTrophy(everyone);
                 } else {
                     podiumEl.classList.add('hidden');
                     podiumEl.innerHTML = '';

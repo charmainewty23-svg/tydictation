@@ -540,6 +540,8 @@ function profileRenderFriendChrome(friend) {
     if (lookStore) lookStore.classList.toggle('hidden', friend);
     const catPicker = document.getElementById('profile-cat-picker');
     if (catPicker) catPicker.classList.toggle('hidden', friend);
+    const friendPaws = document.getElementById('profile-friend-paws');
+    if (friendPaws) friendPaws.classList.toggle('hidden', !friend);
     if (cardsLabel) cardsLabel.innerText = friend ? 'Friend streak' : 'Repair cards';
     const backLabel = document.getElementById('profile-back-label');
     if (backLabel) {
@@ -718,6 +720,7 @@ async function loadFriendProfile(userId) {
     if (nameEl) nameEl.innerText = row.nickname || 'Student';
     if (subEl) subEl.innerText = (row.form ? formLabel(normalizeForm(row.form)) : 'Unassigned') + ' · friend profile';
     if (typeof storeRenderFriendLook === 'function') storeRenderFriendLook(userId);
+    if (typeof storeRenderFriendPaws === 'function') storeRenderFriendPaws(userId);
     const streakEl = document.getElementById('profile-streak');
     const unitEl = document.getElementById('profile-streak-unit');
     const streakNoteEl = document.getElementById('profile-streak-note');

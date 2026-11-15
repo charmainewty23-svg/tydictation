@@ -735,9 +735,28 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   - 多過 5 人只顯示 Top 5，下面註明 `Top 5 shown of N players`
   - 未 finished 時照舊顯示「Waiting for the teacher…」＋文字排名，唔會出 podium
 - **手機**：≤480px 台階 78px、≤360px 60px＋gap 4px，320px 都唔會橫向爆版。
+- **🏆 冠軍頒獎禮（2026-11 加）**：班際房一變成 `finished`，
+  老師 class board 同學生 result 都會彈全螢幕 `#battle-trophy-overlay`
+  （`battleMaybeTrophy()` 用 `room.id + finished_at` 做 key，所以 poll
+  再 render 唔會重開；rematch 有新 `finished_at` 才會再彈）。
+  - 次序：**2ND RUNNER UP** → **1ST RUNNER UP** → **CHAMPION**，
+    每 1.6 秒彈一個，`battleTrophyPop` 由 0.55 scale 彈到 1.06 再回 1。
+  - 每個名次都係大大張卡：🥉／🥈／🥇、英文 label、用自己貓 look 嘅
+    `DG.drawCatAvatar()`、名、分數；CHAMPION 字同獎牌最大、金色底＋光暈。
+  - `music/trophyMusic.mp3`（545K，**唔入** `sw.js` CORE_ASSETS，
+    由 network-first SW 自己 cache）用 `new Audio('/music/trophyMusic.mp3')`
+    播一次，volume 0.45；關卡／離開時 `battleCloseTrophy()` 會 pause。
+    Browser 阻擋 autoplay 就靜靜咁冇聲（畫面照彈），冇另加音樂掣。
+  - 全部人彈完才顯示 **Continue**；右上角 ✕ 同 Continue 都 call
+    `battleCloseTrophy()`。只顯示 Top 3；少過 3 人時缺嘅名次唔會出。
+  - 3D 用 `DG.drawCatAvatar()`；CSS 喺 `index.html` 的
+    `/* Class battle trophy ceremony */`（z-index 10080，landscape
+    `max-height:480px` 有 compact 版）。
 - **改動提示**：加新貓選項要同時改 `DG.CATS`／`DG.GLASSES`／`DG.HATS`／
   `DG.OUTFITS`，Word Battle 會自動跟。頒獎台只顯示 Top 5；要顯示更多就改
-  `battlePodiumHTML()` 個 `slice(0,5)` 同 CSS。
+  `battlePodiumHTML()` 個 `slice(0,5)` 同 CSS。想改頒獎禮節奏改
+  `battleShowTrophy()` 的 `650 + i * 1600`；想換音樂換
+  `/music/trophyMusic.mp3`（記得唔好加入 CORE_ASSETS）。
 
 ---
 
@@ -1284,7 +1303,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v36）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v37）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1374,8 +1393,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v36`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v37`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v37`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v38`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2011,7 +2030,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v36。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v37。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2094,6 +2113,14 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   朋友嘅 Paws 餘額／Store 掣會隱藏，只畫佢嘅 cat、hat、face、outfit、prop、
   background。`profileRenderFriendChrome(true)` 唔會再 hide 呢張卡。
   Guest 都見到 free look 但顯示「Sign in to earn Paws」。
+- **朋友每日 Paws 紀錄（2026-11 加）**：朋友 profile 的 `🎒 Their look`
+  下面有 `#profile-friend-paws`（`storeRenderFriendPaws(userId)`），
+  顯示最近 7 個香港日每日賺到幾多 Paws（`friend-paw-day` chips，今日
+  唔另外 highlight）＋ `+N Paws in the last 7 days`。只計**正數**
+  練習／class battle ledger，唔會顯示買嘢支出，亦唔會顯示對方 balance。
+  資料經 RPC `friend_paws_daily(p_user_id, p_days)`（`security definer`，
+  只 grant authenticated，回 `day`／`earned`）。未跑最新 `store.sql`
+  時整張卡自動收埋（`.catch` 後 `hidden`），朋友 profile 其他部分照用。
 - **視覺**：Drive & Go 2D `DG.drawKart()` 用 store item 嘅 emoji 做
   hat／face／outfit fallback；3D `DG.makeThreeKart()` 用
   `DG.makeEmojiSprite()` 加 sprite（hat y≈5.35、face y≈3.15、outfit band）。
@@ -2111,6 +2138,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   ledger ref 嘅 row 會 skip，所以唔會重複；completion／streak bonus 同
   150/day cap 都會照計。Class battle 嘅 top 3 bonus 由 room finished
   trigger 負責，唔會喺 backfill loop 重複。
+- **老師測試餘額**：`store.sql` 最尾有一小段 `do $topup$`，會搵
+  `tywong@lstyoungkhl.edu.hk`，用單一 ledger row
+  `teacher_test_topup_2000` 將餘額保持喺 **2000 Paws**。可重跑；只會改
+  嗰一條 top-up row，唔會碰 welcome／practice 紀錄，亦唔計入 150/day cap。
 - **Drive & Go 錯題**：`S.wrongList` 會記低答錯嘅題目（prompt、正確
   答案、你揀咗乜）；Solo／Multi 早完賽／Multi 最終結果都會用
   `DG.wrongQuestionsHTML()` 顯示「❌ Review these questions」，最多 12 題，

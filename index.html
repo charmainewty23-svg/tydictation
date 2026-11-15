@@ -520,6 +520,21 @@
             border-color: #f97316;
             color: #fff;
         }
+        .friend-paw-days { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+        .friend-paw-day {
+            min-width: 43px;
+            text-align: center;
+            border: 1px solid #ffedd5;
+            border-radius: 9px;
+            background: #fff;
+            padding: 3px 4px;
+            font-size: 9px;
+            font-weight: 700;
+            color: #9a3412;
+        }
+        .friend-paw-day b { display: block; font-size: 8px; color: #9ca3af; }
+        .friend-paw-day em { display: block; font-style: normal; font-size: 10px; color: #047857; }
+        .friend-paw-day.zero em { color: #cbd5e1; }
         /* Reserve room for the fixed bar so it never covers the last card. */
         body.has-bottom-nav #app {
             padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
@@ -1511,6 +1526,120 @@
             font-size: 11px;
             font-weight: 700;
             color: #6b7280;
+        }
+        /* Class battle trophy ceremony */
+        .battle-trophy-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10080;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background: rgba(15, 23, 42, 0.82);
+        }
+        .battle-trophy-card {
+            position: relative;
+            width: min(420px, 100%);
+            max-height: calc(100dvh - 28px);
+            overflow: auto;
+            border-radius: 26px;
+            border: 4px solid #fbbf24;
+            background: radial-gradient(circle at 50% 0%, #fffbeb 0%, #fff7ed 55%, #fef3c7 100%);
+            padding: 16px 14px 18px;
+            text-align: center;
+            font-family: Fredoka, system-ui, sans-serif;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+        .battle-trophy-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.8);
+            color: #6b7280;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .battle-trophy-heading {
+            margin: 0 0 8px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #b45309;
+        }
+        .battle-trophy-place {
+            margin: 0 auto 10px;
+            padding: 8px 10px 10px;
+            border-radius: 18px;
+            border: 2px solid #fde68a;
+            background: rgba(255, 255, 255, 0.9);
+            opacity: 0;
+            transform: scale(0.55) translateY(18px);
+            max-width: 340px;
+        }
+        .battle-trophy-place.show {
+            animation: battleTrophyPop 0.55s cubic-bezier(0.18, 0.9, 0.32, 1.25) forwards;
+        }
+        @keyframes battleTrophyPop {
+            0% { opacity: 0; transform: scale(0.55) translateY(18px); }
+            70% { opacity: 1; transform: scale(1.06) translateY(0); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .battle-trophy-place.champion {
+            border-color: #f59e0b;
+            background: linear-gradient(180deg, #fef3c7 0%, #fffbeb 100%);
+            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.2);
+        }
+        .battle-trophy-medal { font-size: 34px; line-height: 1; }
+        .battle-trophy-place.champion .battle-trophy-medal { font-size: 44px; }
+        .battle-trophy-label {
+            margin-top: 2px;
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            font-weight: 800;
+            color: #9a3412;
+        }
+        .battle-trophy-cat { display: block; width: 150px; height: 102px; margin: 0 auto; }
+        .battle-trophy-name {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #1f2937;
+            line-height: 1.15;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .battle-trophy-place.champion .battle-trophy-name { font-size: 1.55rem; }
+        .battle-trophy-score { font-size: 0.9rem; font-weight: 800; color: #4f46e5; }
+        .battle-trophy-continue {
+            width: 100%;
+            min-height: 48px;
+            margin-top: 4px;
+            border: 0;
+            border-radius: 999px;
+            background: #f59e0b;
+            color: #fff;
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #b45309;
+        }
+        .battle-trophy-continue:active { transform: translateY(2px); box-shadow: 0 2px 0 #b45309; }
+        @media (max-height: 480px) {
+            .battle-trophy-heading { font-size: 1rem; margin-bottom: 4px; }
+            .battle-trophy-place { margin-bottom: 5px; padding: 4px 8px 5px; }
+            .battle-trophy-medal { font-size: 24px; }
+            .battle-trophy-place.champion .battle-trophy-medal { font-size: 30px; }
+            .battle-trophy-cat { width: 110px; height: 72px; }
+            .battle-trophy-name { font-size: 1rem; }
+            .battle-trophy-place.champion .battle-trophy-name { font-size: 1.25rem; }
+            .battle-trophy-score { font-size: 0.8rem; }
+            .battle-trophy-continue { min-height: 42px; font-size: 0.9rem; }
         }
         @media (max-width: 480px) {
             .battle-podium-step { width: 78px; }
@@ -3372,6 +3501,11 @@
                         <span class="text-xs font-bold text-gray-400">Profile cat</span>
                         <button type="button" class="profile-cat-btn" data-profile-cat="Ginger" onclick="storeSetProfileCat('Ginger')">🐱 Ginger</button>
                         <button type="button" class="profile-cat-btn" data-profile-cat="Ragdoll" onclick="storeSetProfileCat('Ragdoll')">🐱 Ragdoll</button>
+                    </div>
+                    <div id="profile-friend-paws" class="hidden mt-4 pt-3 border-t-2 border-orange-100">
+                        <p class="text-xs font-bold text-orange-700 mb-2">🐾 Daily Paws · last 7 days</p>
+                        <div id="profile-friend-paws-chips" class="friend-paw-days"></div>
+                        <p id="profile-friend-paws-total" class="text-xs font-bold text-gray-500 mt-2"></p>
                     </div>
                 </div>
 

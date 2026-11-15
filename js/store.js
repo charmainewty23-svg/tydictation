@@ -530,3 +530,31 @@ async function storeRenderFriendLook(userId) {
     };
     storePaintLook(canvas, label, look, item(data.prop), item(data.background), 'Nothing equipped yet.');
 }
+
+async function storeRenderFriendPaws(userId) {
+    const box = document.getElementById('profile-friend-paws');
+    const chips = document.getElementById('profile-friend-paws-chips');
+    const totalEl = document.getElementById('profile-friend-paws-total');
+    if (!box || !chips || !totalEl || !userId) return;
+    box.classList.add('hidden');
+    try {
+        const { data, error } = await sb.rpc('friend_paws_daily', { p_user_id: userId, p_days: 7 });
+        if (error) throw error;
+        const rows = Array.isArray(data) ? data : (data ? [data] : []);
+        if (!rows.length) return;
+        let total = 0;
+        chips.innerHTML = rows.map(r => {
+            const earned = Math.max(0, Number(r.earned) || 0);
+            total += earned;
+            const d = new Date(r.day + 'T12:00:00+08:00');
+            const label = d.toLocaleDateString('en-HK', { weekday: 'short', timeZone: 'Asia/Hong_Kong' });
+            const title = hkDateOnly(r.day + 'T12:00:00+08:00');
+            return '<span class="friend-paw-day' + (earned ? '' : ' zero') + '" title="' + escapeHtml(title) + '">' +
+                '<b>' + escapeHtml(label) + '</b><em>+' + earned + '</em></span>';
+        }).join('');
+        totalEl.innerText = '+' + total + ' Paws in the last 7 days';
+        box.classList.remove('hidden');
+    } catch (e) {
+        box.classList.add('hidden');
+    }
+}

@@ -607,6 +607,7 @@
             if (actions) actions.classList.remove('hidden');
             const countRow = document.getElementById('battle-count-row');
             if (countRow) countRow.classList.remove('hidden');
+            battleApplyVoiceUI();
             battleRenderRejoin();
             if (battleRoom) {
                 battlePoll();
@@ -1182,7 +1183,28 @@
             }
         }
 
+        let battleVoiceOn = false;
+        try { battleVoiceOn = localStorage.getItem('battle_voice') === '1'; } catch (e) {}
+
+        function battleApplyVoiceUI() {
+            const btn = document.getElementById('battle-voice-toggle');
+            if (btn) btn.innerText = battleVoiceOn ? '🔊 Voice on' : '🔇 Voice off';
+            const sp = document.getElementById('battle-speaker');
+            if (sp) sp.classList.toggle('hidden', !battleVoiceOn);
+        }
+
+        function battleToggleVoice() {
+            battleVoiceOn = !battleVoiceOn;
+            try { localStorage.setItem('battle_voice', battleVoiceOn ? '1' : '0'); } catch (e) {}
+            if (!battleVoiceOn && typeof speechSynthesis !== 'undefined') {
+                try { speechSynthesis.cancel(); } catch (e) {}
+            }
+            battleApplyVoiceUI();
+            updateMascot(battleVoiceOn ? 'Word Battle voice is on. 🔊' : 'Word Battle voice is off. Type the spelling. 🔇');
+        }
+
         function battleSpeak() {
+            if (!battleVoiceOn) return;
             const w = battleWords[battleIdx];
             if (!w) return;
             const utterance = new SpeechSynthesisUtterance(primaryAnswer(w.en));

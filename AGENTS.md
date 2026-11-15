@@ -247,6 +247,16 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 流程：create → 等 guest → host 按 Start → 20 秒一題 → 兩邊 done 後 `finish_battle`
   才轉 `finished`。中離：guest 走 → 房回 waiting；host 走 → 房刪除（**只限未開始**）。
 - 同步方式：**1.5 秒輪詢**（`battlePoll`），冇用 Realtime，唔使開 dashboard 設定。
+- **輸入／語音（2026-11）**：`#battle-answer` 加咗
+  `autocomplete="off" autocapitalize="none" autocorrect="off"
+  spellcheck="false"`，盡量阻止電話鍵盤自動改正／自動大寫。瀏覽器層面
+  冇辦法 100% 封鎖語音輸入（keyboard dictation 會當普通文字送入），
+  但可以關閉遊戲自己嘅 TTS。
+  Lobby 有 `#battle-voice-toggle`：預設 **🔇 Voice off**（唔會自動讀字、
+  🔊 掣收埋），撳一下變 **🔊 Voice on**；設定記喺
+  `localStorage['battle_voice']`（`'1'` = on），每部機自己記住。
+  `battleSpeak()` 喺 off 時直接 return，`battleApplyVoiceUI()` 同步掣字同
+  隱藏 speaker。
 - Admin 卡片「⚔️ Battles」→ `loadBattleAdmin()`，睇最近 24 小時房間同即時比數。
  **未成功連線嘅房唔顯示**：1v1 未有 guest（而且未開始）會被 `battleRoomPaired()` 濾走；
  class 房要至少有一個學生先出現。已開始／已完結、或者 1v1 兩個位都坐滿嘅房照出。
@@ -771,6 +781,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
     （768×1024、834×1194）本身都一次過見晒。窄手機同 844×390 仍然要
     scroll，但每次彈出會自動 scroll，champion 出現後 `scrollTop = 0`
     一定見到頂。
+  - **老師同學生都會見到**：`battleMaybeTrophy()` 同時喺
+    `battleRenderClassHost()`（老師 class board）同 `battleRenderResult()`
+    （每個學生 result）call，所以班際房一 `finished`，老師部機同**每個
+    學生嘅手機**都會各自彈同一個頒獎禮（各自用 `room.id + finished_at`
+    做 key，poll 再 render 唔會重開）。Look 同 Paws 都係讀
+    `battle_players`／固定 +15/+10/+5，所以三邊顯示一致。訪客冇班際房，
+    唔會見到。
   - **Paws 數量**：Top 3 會顯示 `+15 🐾`（冠軍）／`+10 🐾`（亞軍）／
     `+5 🐾`（季軍）。`battleClassPaws(place)` 回 0-based 名次嘅 bonus；
     頒獎禮卡、prize stand、學生 result（`Your score … · +N 🐾`）同老師
@@ -1336,7 +1353,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v45）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v46）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1426,8 +1443,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v45`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v46`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v46`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v47`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2063,7 +2080,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v45。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v46。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

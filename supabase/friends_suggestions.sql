@@ -72,7 +72,7 @@ as $fn$
                 coalesce(sl.form, '') <> ''
                 and coalesce(sl.form, '') = coalesce(my.form, '')
             ) as same_form,
-            us.last_practice_date,
+            us.last_practice_date as last_practice,
             case
                 when us.last_practice_date is not null
                  and us.last_practice_date >= (select d from today) - 1

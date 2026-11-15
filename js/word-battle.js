@@ -320,6 +320,21 @@
             };
         }
 
+        async function battleSeedLookFromProfile() {
+            if (!battleRoom || battleRoom.mode !== 'class') return;
+            if (typeof storeMyLook !== 'function' || typeof DG === 'undefined' || !DG.readSettings) return;
+            if (typeof storeAvailable === 'function' && storeAvailable() && typeof loadStoreState === 'function') {
+                try { await loadStoreState(true); } catch (e) {}
+            }
+            const look = storeMyLook();
+            const s = DG.readSettings();
+            s.cat = look.cat;
+            s.glasses = look.glasses;
+            s.hat = look.hat;
+            s.outfit = look.outfit;
+            DG.saveSettings();
+        }
+
         function battleSaveLookToRoom() {
             if (!battleRoom || !currentUser) return;
             sb.from('battle_players').update(battleMyLook())
@@ -657,13 +672,16 @@
             battleAdoptRoom(data);
         }
 
-        function battleAdoptRoom(data) {
+        async function battleAdoptRoom(data) {
             const room = Array.isArray(data) ? data[0] : data;
             if (!room || !room.id) return battleSetError('Could not open that room.');
             battleRoom = room;
             battleRoundSeed = null;
             battleDoneLocal = false;
             battlePlayers = [];
+            // Class battles show every student's own profile look on the
+            // podium, so seed the room row from it before saving.
+            await battleSeedLookFromProfile();
             battleSaveLookToRoom();
             battleSaveResume();
             battleStartPolling();

@@ -53,9 +53,12 @@ const STORE_ITEMS = [
     { id:'bg_aplus', slot:'background', name:'Floating A+', zh:'滿分飄浮特效', price:300, rarity:'Legendary', emoji:'💯', color:'#f59e0b', desc:'Glowing A+ marks and gold stars.' },
     { id:'bg_sakura', slot:'background', name:'Cherry Blossoms', zh:'櫻花飄落', price:180, rarity:'Rare', emoji:'🌸', color:'#f9a8d4', desc:'Pink cherry blossom petals.' },
     { id:'bg_cyber', slot:'background', name:'Cyber Grid', zh:'霓虹網格', price:260, rarity:'Epic', emoji:'🌐', color:'#7c3aed', desc:'Purple-blue neon grid lines.' },
-    { id:'bg_pink', slot:'background', name:'Pink', zh:'粉紅', price:130, rarity:'Common', emoji:'🩷', color:'#f9a8d4', desc:'A soft pink background.' },
-    { id:'bg_blue', slot:'background', name:'Blue', zh:'藍色', price:130, rarity:'Common', emoji:'🩵', color:'#93c5fd', desc:'A calm sky-blue background.' },
-    { id:'bg_floral', slot:'background', name:'Floral', zh:'碎花', price:180, rarity:'Rare', emoji:'🌷', color:'#fda4af', desc:'A floral pattern with soft petals.' }
+    { id:'bg_pink', slot:'background', name:'Pink', zh:'粉紅', price:400, rarity:'Epic', emoji:'🩷', color:'#f9a8d4', desc:'A soft pink background.' },
+    { id:'bg_blue', slot:'background', name:'Blue', zh:'藍色', price:420, rarity:'Epic', emoji:'🩵', color:'#93c5fd', desc:'A calm sky-blue background.' },
+    { id:'bg_floral', slot:'background', name:'Floral', zh:'碎花', price:520, rarity:'Legendary', emoji:'🌷', color:'#fda4af', desc:'A floral pattern with soft petals.' },
+    { id:'bg_yellow', slot:'background', name:'Yellow', zh:'黃色', price:160, rarity:'Common', emoji:'💛', color:'#fde047', desc:'A bright plain yellow background.' },
+    { id:'bg_black', slot:'background', name:'Black', zh:'黑色', price:220, rarity:'Rare', emoji:'🖤', color:'#1f2937', desc:'A plain black background.' },
+    { id:'bg_gray', slot:'background', name:'Grey', zh:'灰色', price:220, rarity:'Rare', emoji:'🩶', color:'#9ca3af', desc:'A plain grey background.' }
 ];
 
 window.STORE_ITEMS = STORE_ITEMS;

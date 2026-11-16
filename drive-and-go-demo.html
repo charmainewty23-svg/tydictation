@@ -51,6 +51,7 @@
 <div id="demo-bar">
     <button type="button" id="demo-lobby" class="active">🏁 Lobby · 30 students</button>
     <button type="button" id="demo-live">📊 Live class board</button>
+    <button type="button" id="demo-end">🏆 End battle demo</button>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
 <iframe id="demo-app" src="/index.html?dg30demo=1" title="Drive and Go 30-player class room demo"></iframe>
@@ -73,6 +74,7 @@
                 glasses: glasses[i % glasses.length],
                 hat: hats[i % hats.length],
                 outfit: outfits[i % outfits.length],
+                car: ['Stock','Sunset Racer','Ocean Bolt','Neon Drift','Jungle Buggy','Golden GT'][i % 6],
                 correct: 0,
                 distance: 0,
                 finished_at: null
@@ -116,6 +118,16 @@
                 DG.mpRole = 'host';
                 DG.mpClassRoom = true;
                 DG.raceState.active = false;
+                DG.mpSubmitMultiBoard = function(){};
+                sb.rpc = async function(name, args){
+                    if (name === 'end_drive_and_go_room') {
+                        DG.mpState.room.status = 'finished';
+                        DG.mpState.room.finished_at = 'demo-finish';
+                        DG.mpState.room.winner_id = 'student01';
+                        return { data: [DG.mpState.room], error: null };
+                    }
+                    return { data: null, error: null };
+                };
                 var MPX = DG.mpState;
                 MPX.room = {
                     id: 'demo-class-room',
@@ -158,8 +170,16 @@
             document.getElementById('demo-lobby').classList.remove('active');
         }
 
+        function showEnd() {
+            var w = frame.contentWindow;
+            document.getElementById('demo-live').classList.add('active');
+            document.getElementById('demo-lobby').classList.remove('active');
+            w.eval("(function(){ var MPX=DG.mpState; MPX.room.status='playing'; MPX.players=" + JSON.stringify(liveRows) + "; MPX.watchSig=''; DG.mpEndClassBattle(); })()");
+        }
+
         document.getElementById('demo-lobby').addEventListener('click', showLobby);
         document.getElementById('demo-live').addEventListener('click', showLive);
+        document.getElementById('demo-end').addEventListener('click', showEnd);
         document.getElementById('demo-replay').addEventListener('click', function () {
             try { frame.contentWindow.location.reload(); } catch (e) {}
         });

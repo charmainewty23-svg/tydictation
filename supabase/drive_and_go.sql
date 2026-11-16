@@ -26,7 +26,7 @@ create table if not exists public.drive_and_go_rooms (
     question_mode    text not null default 'av'
                      check (question_mode in ('av', 'pv', 'mixed', 'gapfill', 'choose')),
     question_count   int not null default 20
-                     check (question_count in (20, 25, 30, 35, 40, 50)),
+                     check (question_count in (10, 20, 25, 30, 35, 40, 50)),
     scene            text not null default 'desert'
                      check (scene in ('desert', 'stadium', 'jungle')),
     seed             bigint not null,
@@ -93,7 +93,7 @@ begin
         begin
             alter table public.drive_and_go_rooms
                 add constraint drive_and_go_rooms_question_count_chk
-                check (question_count in (20, 25, 30, 35, 40, 50));
+                check (question_count in (10, 20, 25, 30, 35, 40, 50));
         exception when others then
             -- Fresh tables already have the same check inline on the column.
             null;
@@ -227,7 +227,7 @@ begin
             v_mode := 'av';
         end if;
     end if;
-    if v_count not in (20, 25, 30, 35, 40, 50) then
+    if v_count not in (10, 20, 25, 30, 35, 40, 50) then
         v_count := 20;
     end if;
     if v_scene not in ('desert', 'stadium', 'jungle') then

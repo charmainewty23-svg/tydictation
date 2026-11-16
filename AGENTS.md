@@ -51,7 +51,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
-| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（**第一步 Solo／Multiplayer**）：Solo → Topic（Tenses／Agreement）→ Challenge → Cat → Controls → 題數 → Course → 直接開賽（冇舊嘅最後 Game mode 步）；Multi → Create／Join → 房主揀 Topic／Challenge／題數／Course，加入者只揀 Cat／Controls 再入房碼。Tenses 題庫（Google Sheet 頁 `tenses`／`Passives`，AV／PV／Mixed）＋ Agreement 題庫（頁 `Agreement`，Gap-fill／Choose／Mixed）、同一動詞時態干擾項、Agreement 三閘、貓仔造型、Tilt／Swipe／按鈕、題數（20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`／`laneStep`、`displayPrompt`、`submitCloudRun`（Solo／Multi 榜） |
+| 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（**第一步 Solo／Multiplayer**）：Solo → Topic（Tenses／Agreement）→ Challenge → Cat → Controls → 題數 → Course → 直接開賽（冇舊嘅最後 Game mode 步）；Multi → Create／Join → 房主揀 Topic／Challenge／題數／Course，加入者只揀 Cat／Controls 再入房碼。Tenses 題庫（Google Sheet 頁 `tenses`／`Passives`，AV／PV／Mixed）＋ Agreement 題庫（頁 `Agreement`，Gap-fill／Choose／Mixed）、同一動詞時態干擾項、Agreement 三閘、貓仔造型、Tilt／Swipe／按鈕、題數（10／20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`／`laneStep`、`displayPrompt`、`submitCloudRun`（Solo／Multi 榜） |
 | 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子／進度／用時、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、按住加速（ACCEL／↑／W／Space，`ACCEL_KMH 110`／`SPEED_CAP 340`，唔會用蘑菇）、analog tilt、單人到 N 題正確完結、五種道具使用、三個場嘅天空／背景／景物／路面 |
 | 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 同**場**適用全房（`p_scene`）；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間先貼 `supabase/drive_and_go_question_count.sql`，再貼 `supabase/drive_and_go_scenes_and_boards.sql`）；單人唔使 SQL；**唔好**用 plugin 跑 SQL |
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard`／`renderDriveAndGoLeaderboard`（Solo／Multi 兩塊榜） |
@@ -100,7 +100,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `Drive & Go!`（`showDriveAndGo()`）。9 個時態（`tenseData`，包括 `future perfect tense`）喺
   `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
 - `Drive & Go!` 係 Mario Kart 式文法賽車：`showDriveAndGo()` 喺 `#grammar-detail-view`
-  行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、題數 20／25／30／35／40／50、單人或多人），然後入 `#drive-and-go-view`
+  行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、題數 10／20／25／30／35／40／50、單人或多人），然後入 `#drive-and-go-view`
   比賽。Back 返 `grammar-revision-view`，並會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。
 - 題庫用現有 Google Sheet（`SPREADSHEET_ID`）gviz CSV：AV 讀頁名剛好係 `tenses`，PV 讀
   `Passives`（複數；唔好用錯 `passive`），Mixed 兩頁一齊洗牌。只由題庫出題，唔好發明題目。
@@ -553,6 +553,12 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   - 全屏時 canvas 仍然係 `100vw×100dvh`；橫向 CSS 照樣套用，HUD 61px 不變
     （844×390 實測 hud 61、qcard 4–39、stats 42–61）。冇加 manifest／
     `apple-mobile-web-app-capable`。
+- **10 題選擇（2026-11）**：`DG.QUESTION_COUNTS` 同所有 Drive & Go! 題數
+  validation 已加入 **10**，所以 Solo／Multi／Class room 都可以揀
+  10／20／25／30／35／40／50。已裝 Drive & Go! 嘅老師跑
+  `supabase/drive_and_go_ten_questions.sql`（可重跑）放寬 room check 同
+  `create_drive_and_go_room`／`create_drive_and_go_class_room` validation；
+  未跑之前 server 會繼續將 10 當 20。
 - **SQL（Agreement）**：已有 Drive & Go! 嘅老師只需要喺 live project
   `mggnwzirjmibreimrwiq` 嘅 SQL editor 貼
   `supabase/drive_and_go_agreement_topic.sql`（可重複跑）。**唔好**為呢個改動再貼
@@ -571,7 +577,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
   返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
 - **完賽一定有結果畫面，唔會自動彈走（2026-11）**：solo／multi 都係一到 N 題正確
-  （N = 自己揀或房主揀嘅 20／25／30／35／40／50，**唔可以**寫死 20）就即刻出結果，
+  （N = 自己揀或房主揀嘅 10／20／25／30／35／40／50，**唔可以**寫死 20）就即刻出結果，
   唔會 call `changeView`／`backToTenses`／`showSessionStep`／`showMultiplayerMenu`，
   亦唔會自己離開房間。共通數字格係 `DG.resultGridHTML()`：composite、race score、
   time bonus、時間、正確率、`correct / N`（solo 另加 wrong／max combo）。
@@ -699,7 +705,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   同 Word Jump 一樣有 **🏆 Top 7**，唔使返 Hub 才睇到。
 - **公平性**：只比較**完全相同 setup** 嘅 run：
   `topic`（tenses／agreement）＋ `bank_mode`（AV／PV／Mixed／Gap-fill／
-  Choose）＋ `question_count`（20／25／30／35／40／50）。因為 50 題嘅
+  Choose）＋ `question_count`（10／20／25／30／35／40／50）。因為 50 題嘅
   time bonus 天生大過 20 題，所以**唔會**攞 20 題同 50 題一齊排。
   Solo 同 Multi 亦分開（各自讀 `drive_and_go_solo_scores`／
   `drive_and_go_multi_scores`）。
@@ -1361,7 +1367,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v61）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v62）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1421,7 +1427,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1451,8 +1457,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v61`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v62`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v62`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v63`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2093,7 +2099,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v61。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v62。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

@@ -79,7 +79,7 @@ begin
     if v_mode not in ('av', 'pv', 'mixed') then
         v_mode := 'av';
     end if;
-    if v_count not in (20, 25, 30, 35, 40, 50) then
+    if v_count not in (10, 20, 25, 30, 35, 40, 50) then
         v_count := 20;
     end if;
     if v_scene not in ('desert', 'stadium', 'jungle') then

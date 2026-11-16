@@ -39,7 +39,7 @@ begin
         begin
             alter table public.drive_and_go_rooms
                 add constraint drive_and_go_rooms_question_count_chk
-                check (question_count in (20, 25, 30, 35, 40, 50));
+                check (question_count in (10, 20, 25, 30, 35, 40, 50));
         exception when others then
             -- Fresh tables already have the same check inline on the column.
             null;
@@ -80,7 +80,7 @@ begin
     if v_mode not in ('av', 'pv', 'mixed') then
         v_mode := 'av';
     end if;
-    if v_count not in (20, 25, 30, 35, 40, 50) then
+    if v_count not in (10, 20, 25, 30, 35, 40, 50) then
         v_count := 20;
     end if;
 

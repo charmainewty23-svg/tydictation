@@ -28,7 +28,7 @@ const DG = {
     MODE_SHORT: { av: 'AV', pv: 'PV', mixed: 'Mixed' },
     AGREEMENT_MODE_LABEL: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
     AGREEMENT_MODE_SHORT: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
-    QUESTION_COUNTS: [20, 25, 30, 35, 40, 50],
+    QUESTION_COUNTS: [10, 20, 25, 30, 35, 40, 50],
     // Three playable courses. The exact ids / names are stored in Supabase
     // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
     SCENES: ['desert', 'stadium', 'jungle'],

@@ -711,5 +711,127 @@
         setTimeout(autoScroll, 900);
     };
 
+    /* ---------- prize stand (podium) ceremony ---------- */
+
+    VICTORY.showPodium = function (opts) {
+        const o = opts || {};
+        const top = (o.top || []).slice(0, 3);
+        const rest = (o.rest || []).filter(Boolean).slice(0, 40);
+        const nameOf = o.nameOf || function (p) { return (p && (p.nickname || p.name || p.email)) || ''; };
+        const ptsOf = o.ptsOf || function (p) { return Number(p && (p.composite_score != null ? p.composite_score : p.score)) || 0; };
+        const prev = document.getElementById('victory-podium');
+        if (prev) prev.remove();
+        const box = document.createElement('div');
+        box.id = 'victory-podium';
+        box.className = 'victory-podium-overlay';
+        box.innerHTML =
+            '<div class="vp-head"><div><p class="vp-kicker">' + escapeHtml(o.kicker || 'Class battle') + '</p>' +
+            '<h2 class="vp-title">' + escapeHtml(o.title || '🏆 Prize stand') + '</h2></div>' +
+            '<button type="button" class="vp-close" aria-label="Close">✕</button></div>' +
+            '<canvas id="vp-canvas"></canvas>' +
+            '<div class="vp-extras"></div>';
+        document.body.appendChild(box);
+        document.body.classList.add('ceremony-on');
+        const canvas = box.querySelector('#vp-canvas');
+        const extras = box.querySelector('.vp-extras');
+
+        let audio = null;
+        try { audio = new Audio('/music/trophyMusic.mp3'); audio.volume = 0.42; audio.play().catch(function () {}); } catch (e) {}
+
+        function close() {
+            if (audio) { try { audio.pause(); } catch (e) {} }
+            if (box.parentNode) box.remove();
+            document.body.classList.remove('ceremony-on');
+            if (typeof o.onClose === 'function') o.onClose();
+        }
+        box.querySelector('.vp-close').addEventListener('click', close);
+
+        const t0 = performance.now();
+        const ORDER = [2, 1, 0];           // reveal 3rd -> 2nd -> 1st
+        const AT = { 2: 0.4, 1: 1.5, 0: 2.6, rest: 4.0 };
+        let raf = 0;
+        let extrasShown = false;
+
+        function draw() {
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            const w = canvas.clientWidth || 640, h = canvas.clientHeight || 400;
+            canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const t = (performance.now() - t0) / 1000;
+            const g = ctx.createLinearGradient(0, 0, 0, h);
+            g.addColorStop(0, '#13203a'); g.addColorStop(1, '#050a14');
+            ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+
+            const k = Math.min(w / 720, h / 420);
+            const baseY = h * 0.86;
+            const cx = w / 2;
+            const stepW = 150 * k, sideW = 120 * k;
+            const heights = [64 * k, 46 * k, 34 * k];    // 1st, 2nd, 3rd
+            const xFor = [-1, 1, 2].map((v, i) => cx + (i === 0 ? 0 : (i === 1 ? -(sideW + stepW / 2 + 6 * k) : (sideW + stepW / 2 + 6 * k))));
+
+            // steps + cats, revealed in order
+            ORDER.forEach(function (idx, n) {
+                const start = AT[idx];
+                if (t < start) return;
+                const pop = Math.min(1, (t - start) / 0.4);
+                const x = xFor[idx];
+                const hh = heights[idx];
+                ctx.fillStyle = idx === 0 ? '#f59e0b' : '#334155';
+                ctx.fillRect(x - (idx === 0 ? stepW : sideW) / 2, baseY - hh, idx === 0 ? stepW : sideW, hh);
+                const p = top[idx];
+                if (!p) return;
+                const look = window.DG && window.DG.normalizeLook
+                    ? window.DG.normalizeLook({ cat: p.cat, glasses: p.glasses, hat: p.hat, outfit: p.outfit, ears: p.ears, cheeks: p.cheeks, neck: p.neck })
+                    : { cat: 'Ginger' };
+                const catScale = 1.15 * k * (0.6 + 0.4 * pop);
+                if (window.DG && window.DG.drawCatAvatar) {
+                    window.DG.drawCatAvatar(ctx, x, baseY - hh, catScale, look);
+                }
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = '800 ' + Math.round(17 * k) + 'px Fredoka, system-ui, sans-serif';
+                ctx.fillText(String(nameOf(p)).slice(0, 18), x, baseY - hh - 150 * k * (0.6 + 0.4 * pop));
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = '800 ' + Math.round(14 * k) + 'px Fredoka, system-ui, sans-serif';
+                ctx.fillText(['🥇', '🥈', '🥉'][idx] + ' ' + ptsOf(p) + ' pts', x, baseY - hh - 132 * k * (0.6 + 0.4 * pop));
+            });
+
+            // everyone else gathers around the stand
+            if (t >= AT.rest && rest.length) {
+                const done = Math.min(1, (t - AT.rest) / 1.2);
+                ctx.textAlign = 'center';
+                rest.forEach(function (p, i) {
+                    const n = rest.length;
+                    const span = Math.min(w * 0.92, 90 * k * n);
+                    const x = cx - span / 2 + (n === 1 ? span / 2 : (span * i) / (n - 1));
+                    const y = baseY - 6 * k - (i % 2) * 16 * k * done;
+                    const look = window.DG && window.DG.normalizeLook
+                        ? window.DG.normalizeLook({ cat: p.cat, glasses: p.glasses, hat: p.hat, outfit: p.outfit })
+                        : { cat: 'Ginger' };
+                    if (window.DG && window.DG.drawCatAvatar) {
+                        window.DG.drawCatAvatar(ctx, x, y, 0.42 * k * done, look);
+                    }
+                    ctx.fillStyle = 'rgba(226,232,240,.9)';
+                    ctx.font = '700 ' + Math.round(10 * k) + 'px system-ui, sans-serif';
+                    ctx.fillText(String(nameOf(p)).split('@')[0].slice(0, 10), x, y + 12 * k);
+                });
+            }
+
+            if (!extrasShown && t >= AT.rest + 0.6) {
+                extrasShown = true;
+                VICTORY.ceremonyExtras(box, {
+                    roomId: o.roomId,
+                    players: (o.top || []).concat(o.rest || []),
+                    championId: top[0] && top[0].user_id,
+                    nameOf: nameOf
+                });
+            }
+            if (t < 30) raf = requestAnimationFrame(draw);
+        }
+        raf = requestAnimationFrame(draw);
+        return { close: close };
+    };
+
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };
 })();

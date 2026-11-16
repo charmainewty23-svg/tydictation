@@ -1447,6 +1447,23 @@
     };
 
     DG.showKartTrophy = function (room, rows) {
+        if (typeof VICTORY !== 'undefined' && VICTORY.showPodium) {
+            const sorted = (rows || []).slice().sort(function (a, b) {
+                return (Number(b.composite_score != null ? b.composite_score : b.score) || 0) -
+                       (Number(a.composite_score != null ? a.composite_score : a.score) || 0);
+            });
+            VICTORY.showPodium({
+                title: '🏆 Kart class battle',
+                kicker: DG.topicChallenge(room.topic, room.question_mode) + ' · ' + DG.normalizeQuestionCount(room.question_count) + ' questions',
+                roomId: room && room.id,
+                top: sorted.slice(0, 3),
+                rest: sorted.slice(3),
+                nameOf: DG.mpPlayerName,
+                ptsOf: function (r) { return Number(r.composite_score != null ? r.composite_score : r.score) || 0; },
+                onClose: function () { DG.closeKartTrophy(true); }
+            });
+            return;
+        }
         if (!room || !rows || !rows.length) return;
         const key = room.id + ':' + (room.finished_at || '');
         if (DG.kartTrophyKey === key) return;

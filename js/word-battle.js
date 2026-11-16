@@ -433,6 +433,20 @@
 
         function battleShowTrophy(top) {
             battleCloseTrophy(true);
+            if (typeof VICTORY !== 'undefined' && VICTORY.showPodium) {
+                const sorted = battlePlayers.slice().sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
+                VICTORY.showPodium({
+                    title: '🏆 Class Battle',
+                    kicker: 'Word Battle · ' + ((battleRoom && battleRoom.question_count) || 10) + ' questions',
+                    roomId: battleRoom && battleRoom.id,
+                    top: sorted.slice(0, 3),
+                    rest: sorted.slice(3),
+                    nameOf: displayName,
+                    ptsOf: function (p) { return Number(p && p.score) || 0; },
+                    onClose: function () { battleCloseTrophy(true); }
+                });
+                return;
+            }
             const third = top[2] ? { p: top[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third', paws: 5 } : null;
             const second = top[1] ? { p: top[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second', paws: 10 } : null;
             const champion = top[0] ? { p: top[0], label: 'CHAMPION', medal: '🥇', cls: 'champion', paws: 15 } : null;

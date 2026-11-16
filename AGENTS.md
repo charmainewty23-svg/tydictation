@@ -1165,7 +1165,8 @@ Canvas 邏輯座標固定 **400×600**，實際 bitmap 按 CSS 尺寸 × DPR（�
   顯示嘅係 `WJ.activeRow()` = 玩家頭上最近而未答嗰排，所以唔會預早爆雷。
 - 踩中正確字磚：**彈高 465px**（`WJ.WORD_BOOST = -1064` 取代原本 `JUMP_V -882`
   嘅反彈，`h = 1064² / (2 × 1217) = 465`）、`+60 + 字長×5 + min(90, 連對×10)` 分、
-  讀出英文（SpeechSynthesis）、toast ✅ 顯示 `⬆ 465px`；每連續 5 題送護盾 8 秒
+  toast ✅ 顯示 `⬆ 465px`（**冇朗讀**：Word Jump 只有背景音樂＋beep 音效，
+  見 §10.14）；每連續 5 題送護盾 8 秒
   （7000 分後呢個係唯一獲得護盾嘅方法，見 §10.4）。
   **呢個係主要上分途徑**：彈高直接推高 `maxClimb`，即係 height 分。
   `land()` 讀 `WJ.boostPending`（`answerRow()` 答對時設 true），所以一定要
@@ -1430,6 +1431,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `WJ.gameOver()`、`WJ.toggleSound()` 熄聲時停；`WJ.togglePause()` 暫停／繼續。
 - 音樂跟現有 `WJ.soundOn` 同一個 🔊 掣（即係 SFX 同音樂一齊開關），冇另加
   音樂掣；全屏時工具列收埋，要離開全屏才改。
+- **Word Jump 冇朗讀（2026-11）**：`WJ.answerRow()` 以前會用
+  `speechSynthesis.speak()` 讀出答對嘅字，**已經完全刪除**（連
+  `WJ.stopSpeech()` 同 `speechSynthesis` 都冇再 call）。Word Jump 只有
+  **背景音樂 `music/jump_music.mp3` ＋ `WJ.beep()` 音效**。
+  兩者跟同一個 `WJ.soundOn` 🔊／🔇 掣（冇另加音樂掣），開關狀態記喺
+  `localStorage['learniTY_wj_sound']`（`'0'` = 熄，預設開），
+  `WJ.mount()` 用 `WJ.applySoundPref()` 還原並同步 `#wj-sound-btn` 個字，
+  所以撳過一次 🔇 之後再入 Word Jump 都仍然係靜音。
+  想再加朗讀就自己喺 `WJ.answerRow()` 加，但要跟 `WJ.soundOn`。
 - Autoplay：`WJ.mount()` 由 `changeView` 的 click 觸發，通常可播；如果 browser
   阻擋，`WJ.start()` 的 Start／Play again 手勢會再試。
 - 未跑 SQL、未改 PWA 清單；2D canvas 遊戲本身不受影響。

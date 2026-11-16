@@ -211,6 +211,9 @@
             } catch (e) {}
         };
 
+        // Word Jump has no spoken audio: only the background music and the
+        // beeps, both controlled by the single 🔊 / 🔇 switch.
+
         WJ.pauseMusic = function () {
             if (!WJ.music) return;
             try { WJ.music.pause(); } catch (e) {}
@@ -461,6 +464,7 @@
             WJ.overlay = document.getElementById('wj-overlay');
             WJ.mounted = true;
             WJ.autoFs = true;
+            WJ.applySoundPref();
             WJ.bindInput();
             WJ.resize();
             if (!WJ.platforms.length) WJ.reset();
@@ -715,10 +719,19 @@
             WJ.updateNav();
         };
 
+        WJ.applySoundPref = function () {
+            let on = true;
+            try { on = localStorage.getItem('learniTY_wj_sound') !== '0'; } catch (e) {}
+            WJ.soundOn = on;
+            const b = document.getElementById('wj-sound-btn');
+            if (b) b.innerText = on ? '🔊 On' : '🔇 Off';
+        };
+
         WJ.toggleSound = function () {
             WJ.soundOn = !WJ.soundOn;
             const b = document.getElementById('wj-sound-btn');
             if (b) b.innerText = WJ.soundOn ? '🔊 On' : '🔇 Off';
+            try { localStorage.setItem('learniTY_wj_sound', WJ.soundOn ? '1' : '0'); } catch (e) {}
             if (WJ.soundOn) {
                 WJ.beep(660, 0.08, 'sine', 0.04);
                 if (WJ.state === 'playing' && !WJ.paused) WJ.startMusic(false);
@@ -1082,14 +1095,6 @@
                 WJ.beep(880, 0.09, 'triangle', 0.05);
                 WJ.beep(1180, 0.12, 'triangle', 0.04);
                 WJ.toast('✅ ' + row.en + '  +' + gain + '  ·  ⬆ ' + lift + 'px', '#15803d');
-                if (window.speechSynthesis) {
-                    try {
-                        const u = new SpeechSynthesisUtterance(row.en.toLowerCase());
-                        u.lang = 'en-US';
-                        u.rate = 0.9;
-                        window.speechSynthesis.speak(u);
-                    } catch (e) { /* speech is optional */ }
-                }
                 if (WJ.streak > 0 && WJ.streak % 5 === 0) {
                     WJ.player.shield = Math.max(WJ.player.shield, 8);
                     WJ.toast('🔥 ' + WJ.streak + ' in a row — shield!', '#0ea5e9');

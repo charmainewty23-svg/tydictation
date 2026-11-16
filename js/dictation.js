@@ -74,6 +74,45 @@
         let quizRevealMode = false;     // 3rd wrong: the answer is shown and the
                                         // student must type it to move on.
 
+        // Listening voice: 'us' (default) or 'uk'. Remembered per device.
+        let quizAccent = 'us';
+        try {
+            if (localStorage.getItem('learniTY_voice_accent') === 'uk') quizAccent = 'uk';
+        } catch (e) {}
+
+        function quizAccentLabel() {
+            return quizAccent === 'uk' ? '🇬🇧 UK voice' : '🇺🇸 US voice';
+        }
+
+        function syncQuizAccentButton() {
+            const btn = document.getElementById('quiz-accent-btn');
+            if (btn) btn.innerText = quizAccentLabel();
+        }
+
+        // Pick the best installed voice for the chosen accent. Some phones
+        // only ship one English voice, so fall back to any English voice.
+        function quizVoice() {
+            if (typeof speechSynthesis === 'undefined' || !speechSynthesis.getVoices) return null;
+            const voices = speechSynthesis.getVoices() || [];
+            if (!voices.length) return null;
+            const want = quizAccent === 'uk' ? 'en-gb' : 'en-us';
+            const lang = v => String(v.lang || '').toLowerCase().replace('_', '-');
+            let voice = voices.find(v => lang(v) === want);
+            if (!voice) voice = voices.find(v => lang(v).indexOf(want) === 0);
+            if (!voice) voice = voices.find(v => lang(v).indexOf('en') === 0);
+            return voice || null;
+        }
+
+        function toggleQuizAccent() {
+            quizAccent = quizAccent === 'uk' ? 'us' : 'uk';
+            try { localStorage.setItem('learniTY_voice_accent', quizAccent); } catch (e) {}
+            syncQuizAccentButton();
+            updateMascot(quizAccent === 'uk'
+                ? 'British pronunciation 🇬🇧 — listen again!'
+                : 'American pronunciation 🇺🇸 — listen again!');
+            if (quizMode === 'listening') setTimeout(speakCurrentWord, 120);
+        }
+
         async function loadAllCategoriesFromSheet() {
             if (sheetCategoriesLoading) return;
             const fresh = readSheetCache(false);
@@ -494,6 +533,7 @@
                     hint.innerText = '';
                     hint.classList.add('hidden');
                 }
+                syncQuizAccentButton();
             } else {
                 document.getElementById('giant-chinese-prompt').innerText = word.zh || 'Type the English word';
             }
@@ -518,7 +558,9 @@
             if (quizIdx >= quizWords.length) return;
             const word = primaryAnswer(quizWords[quizIdx].en);
             const utterance = new SpeechSynthesisUtterance(word);
-            utterance.lang = 'en-US';
+            const voice = quizVoice();
+            if (voice) utterance.voice = voice;
+            utterance.lang = (voice && voice.lang) || (quizAccent === 'uk' ? 'en-GB' : 'en-US');
             utterance.rate = 0.9;
             speechSynthesis.speak(utterance);
         }
@@ -823,4 +865,9 @@
         document.getElementById('quiz-answer-input')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') checkAnswer();
         });
+
+        // Some browsers fill speechSynthesis.getVoices() asynchronously.
+        if (typeof speechSynthesis !== 'undefined' && speechSynthesis.addEventListener) {
+            speechSynthesis.addEventListener('voiceschanged', syncQuizAccentButton);
+        }
 

@@ -2045,12 +2045,107 @@
             return answerNormalize(s);
         }
 
+        // British / American spellings are both accepted (colour = color,
+        // centre = center, organise = organize, travelled = traveled). The map
+        // is built once from the pairs below, including common plurals and the
+        // -ise / -ize past + -ing forms.
+        const UK_US_PAIRS = [
+            ['colour', 'color'], ['favourite', 'favorite'], ['flavour', 'flavor'],
+            ['behaviour', 'behavior'], ['neighbour', 'neighbor'], ['honour', 'honor'],
+            ['labour', 'labor'], ['humour', 'humor'], ['rumour', 'rumor'],
+            ['harbour', 'harbor'], ['armour', 'armor'], ['endeavour', 'endeavor'],
+            ['odour', 'odor'], ['vapour', 'vapor'], ['savour', 'savor'],
+            ['valour', 'valor'], ['vigour', 'vigor'], ['tumour', 'tumor'],
+            ['parlour', 'parlor'], ['candour', 'candor'], ['fervour', 'fervor'],
+            ['rancour', 'rancor'], ['splendour', 'splendor'], ['succour', 'succor'],
+            ['centre', 'center'], ['theatre', 'theater'], ['metre', 'meter'],
+            ['litre', 'liter'], ['fibre', 'fiber'], ['calibre', 'caliber'],
+            ['sombre', 'somber'], ['spectre', 'specter'], ['lustre', 'luster'],
+            ['meagre', 'meager'], ['ochre', 'ocher'], ['sceptre', 'scepter'],
+            ['manoeuvre', 'maneuver'],
+            ['organise', 'organize'], ['realise', 'realize'], ['recognise', 'recognize'],
+            ['apologise', 'apologize'], ['criticise', 'criticize'], ['memorise', 'memorize'],
+            ['summarise', 'summarize'], ['specialise', 'specialize'], ['emphasise', 'emphasize'],
+            ['socialise', 'socialize'], ['categorise', 'categorize'], ['modernise', 'modernize'],
+            ['prioritise', 'prioritize'], ['visualise', 'visualize'], ['stabilise', 'stabilize'],
+            ['characterise', 'characterize'], ['dramatise', 'dramatize'], ['fantasise', 'fantasize'],
+            ['legalise', 'legalize'], ['mobilise', 'mobilize'], ['normalise', 'normalize'],
+            ['penalise', 'penalize'], ['polarise', 'polarize'], ['publicise', 'publicize'],
+            ['sensitise', 'sensitize'], ['symbolise', 'symbolize'], ['vandalise', 'vandalize'],
+            ['authorise', 'authorize'], ['civilise', 'civilize'], ['globalise', 'globalize'],
+            ['idolise', 'idolize'], ['industrialise', 'industrialize'], ['initialise', 'initialize'],
+            ['optimise', 'optimize'], ['sterilise', 'sterilize'], ['terrorise', 'terrorize'],
+            ['utilise', 'utilize'], ['fertilise', 'fertilize'], ['hypnotise', 'hypnotize'],
+            ['privatise', 'privatize'], ['rationalise', 'rationalize'], ['standardise', 'standardize'],
+            ['capitalise', 'capitalize'],
+            ['analyse', 'analyze'], ['paralyse', 'paralyze'], ['catalyse', 'catalyze'],
+            ['hydrolyse', 'hydrolyze'], ['dialyse', 'dialyze'],
+            ['defence', 'defense'], ['offence', 'offense'], ['licence', 'license'],
+            ['pretence', 'pretense'],
+            ['catalogue', 'catalog'], ['dialogue', 'dialog'], ['analogue', 'analog'],
+            ['grey', 'gray'], ['programme', 'program'], ['tyre', 'tire'],
+            ['kerb', 'curb'], ['aluminium', 'aluminum'], ['mum', 'mom'],
+            ['pyjamas', 'pajamas'], ['aeroplane', 'airplane'], ['maths', 'math'],
+            ['sceptical', 'skeptical'], ['sceptic', 'skeptic'], ['plough', 'plow'],
+            ['mould', 'mold'], ['smoulder', 'smolder'], ['draught', 'draft'],
+            ['sulphur', 'sulfur'], ['cosy', 'cozy'], ['enrol', 'enroll'],
+            ['fulfil', 'fulfill'], ['skilful', 'skillful'], ['instal', 'install'],
+            ['wilful', 'willful'], ['jewellery', 'jewelry'], ['marvellous', 'marvelous'],
+            ['counselling', 'counseling'], ['travelled', 'traveled'], ['travelling', 'traveling'],
+            ['cancelled', 'canceled'], ['cancelling', 'canceling'],
+            ['labelled', 'labeled'], ['labelling', 'labeling'],
+            ['modelled', 'modeled'], ['modelling', 'modeling'],
+            ['fuelled', 'fueled'], ['fuelling', 'fueling'],
+            ['quarrelled', 'quarreled'], ['quarrelling', 'quarreling'],
+            ['signalled', 'signaled'], ['signalling', 'signaling'],
+            ['totalled', 'totaled'], ['totalling', 'totaling'],
+            ['levelled', 'leveled'], ['levelling', 'leveling'],
+            ['marvelled', 'marveled'], ['panelled', 'paneled'],
+            ['tunnelled', 'tunneled'], ['dialled', 'dialed'], ['dialling', 'dialing'],
+            ['jewelled', 'jeweled'], ['woollen', 'woolen']
+        ];
+
+        const SPELLING_ALTERNATES = (function () {
+            const map = Object.create(null);
+            const add = function (a, b) {
+                if (!a || !b || a === b) return;
+                if (!map[a]) map[a] = [];
+                if (map[a].indexOf(b) === -1) map[a].push(b);
+                if (!map[b]) map[b] = [];
+                if (map[b].indexOf(a) === -1) map[b].push(a);
+            };
+            UK_US_PAIRS.forEach(function (pair) {
+                const uk = pair[0], us = pair[1];
+                add(uk, us);
+                if (/(ed|ing)$/.test(uk)) return;       // already inflected
+                add(uk + 's', us + 's');                // colours / colors
+                if (/ise$/.test(uk) && /ize$/.test(us)) {
+                    add(uk + 'd', us + 'd');                                // organised
+                    add(uk.slice(0, -1) + 'ing', us.slice(0, -1) + 'ing');  // organising
+                }
+                if (/our$/.test(uk) && /or$/.test(us)) {
+                    add(uk + 'ed', us + 'ed');          // honoured / honored
+                    add(uk + 'able', us + 'able');      // honourable / honorable
+                }
+            });
+            return map;
+        })();
+
+        function spellingAlternates(word) {
+            return SPELLING_ALTERNATES[word] || [];
+        }
+
         // `normalize` lets the battle mode reuse its punctuation-insensitive rules.
+        // British and American spellings both count as correct.
         function isAnswerCorrect(input, en, normalize) {
             const norm = normalize || quizNormalize;
             const typed = norm(input);
             if (!typed) return false;
-            return answerVariants(en).some(v => norm(v) === typed);
+            return answerVariants(en).some(v => {
+                const want = norm(v);
+                if (want === typed) return true;
+                return spellingAlternates(want).indexOf(typed) !== -1;
+            });
         }
 
 

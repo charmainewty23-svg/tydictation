@@ -35,6 +35,15 @@
   `toLowerCase()`、去掉 `.,!?;:"'“”‘’()`、壓縮空格。所以 `MTR`＝`mtr`、
   `dont`＝`don't`、`hello  world`＝`hello world`；`apple` 對 `orange`
   仍然係錯。`quizNormalize()` 同 `battleNormalize()` 都只係 call 佢。
+- **英式／美式串法都當對**：`shared.js` 嘅 `UK_US_PAIRS`（約 130 對）＋
+  `SPELLING_ALTERNATES` 會自動加 `+s`（colours／colors）、`-ise/-ize`
+  嘅 `+d`／`-ing`（organised／organized、organising／organizing）同
+  `-our` 嘅 `+ed`／`+able`（honoured／honored、honourable／honorable）。
+  另外明列 double-L 過去式（travelled／traveled、cancelled／canceled…）。
+  `isAnswerCorrect()` 先比原本寫法，再比 `spellingAlternates()`。所以
+  `color`＝`colour`、`center`＝`centre`、`gray`＝`grey`、`program`＝
+  `programme`、`mom`＝`mum`。**加新一對**：只喺 `UK_US_PAIRS` 加
+  `['英式','美式']` 就得（會自動生成常見變化）。
 - **加新 topic 三步**：Sheet 加新 tab（同樣三欄格式）→ `SHEET_NAMES` 加名 →
   `renderCategories()` 嘅 emoji map 加 icon。缺 emoji 會 fallback 📦。
   想個名顯示得靚（例如 `basics` → `Basics`）就加落 `TOPIC_LABELS`。
@@ -144,6 +153,14 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   掣字會變 `Type it to continue →`（`#quiz-check-btn`），答對先 `advanceQuiz()`。
   所以以前「撳三次 Check Next 就飛走」嘅漏洞已經封死（Listening 同
   Recitation 共用）。
+- **英／美發音（2026-11）**：Listening 個 🔊 下面有 `#quiz-accent-btn`
+  （`🇺🇸 US voice`／`🇬🇧 UK voice`）。`quizAccent` 存
+  `localStorage['learniTY_voice_accent']`（`uk`／`us`，預設 `us`）；
+  `toggleQuizAccent()` 會即刻重讀當前字。`quizVoice()` 揀
+  `en-GB`／`en-US` voice（例如 Daniel／Aaron），搵唔到就 fallback 任何
+  `en-*`，再冇就用 `utterance.lang`。`speakCurrentWord()` 只係讀
+  `quizVoice()`；`updateQuizUI()` 同 `voiceschanged` 會同步掣字。
+  Word Battle 仍然固定 en-US。
 
 ## 4. 資料流
 

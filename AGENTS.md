@@ -2404,6 +2404,18 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     撳 **▶ Play the ceremony on both** 兩邊一齊播）。
   - 示範：`/word-battle-end-demo.html`（假學生 `4C 07 Chan`；老師撳
     **Finish now** → 冠軍結果 → 頒獎禮 → 關閉後播 Victory effect）。
+  - **📣 Ask the class to buy effects（2026-11）**：老師喺 Word Battle 班際
+    waiting／lobby 同 Drive & Go! class lobby 撳 **📣 Ask class to buy effects**
+    → `VICTORY.quickBuy()` 彈 `#vp-quick` 面板（7 個 effect，每個有
+    Rent 20%／Buy）。面板有右上 ✕ 同底部 **← Back**（Esc／撳 backdrop 都關），
+    下面 `vp-quick-status` 即時顯示結果：Notify 成功寫
+    `✅ Notified N classmates…`，同一個房再撳會寫
+    `Already announced for this room — no duplicate was sent.`；
+    RPC 未跑／未登入會轉做 `Run supabase/store_flash_sale.sql`／
+    `Sign in with a school account` 提示。Call RPC 期間 button 會 disable，
+    唔會再靜靜咁「撳完冇反應」。真正通知用
+    `announce_store_sale(p_key, p_message)`，寫入所有用戶
+    `friend_notifications`（kind `announcement`）。
   - SQL：`supabase/store_victory.sql`（可重跑；未跑會提示）。**改動提示**：
     加新特效＝`STORE_ITEMS` 加 `slot:'victory'` item ＋ `js/victory.js` 的
     `EFFECTS` 加名 ＋ `drawFrame` 加 branch ＋ SQL 加 `store_items` row。

@@ -924,23 +924,98 @@
     };
 
     VICTORY.quickBuy = function (o) {
+        o = o || {};
         const old = document.getElementById('vp-quick'); if (old) old.remove();
         const box = document.createElement('div'); box.id='vp-quick'; box.className='vp-quick';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
         box.innerHTML='<div class="vp-quick-card"><button type="button" class="vp-close" aria-label="Close">✕</button>'+
           '<h3>'+escapeHtml(o.title||'Victory effects')+'</h3><p>'+escapeHtml(o.message||'')+'</p>'+
           '<div class="vp-quick-list">'+Object.keys(EFFECTS).map(function(id){
              return '<div class="vp-quick-row"><b>'+escapeHtml(EFFECTS[id].name)+'</b>'+
-               '<button data-rent="'+id+'">🎟 Rent 20%</button>'+
-               '<button data-buy="'+id+'">Buy</button></div>';
+               '<button type="button" data-rent="'+id+'">🎟 Rent 20%</button>'+
+               '<button type="button" data-buy="'+id+'">Buy</button></div>';
           }).join('')+'</div>'+
-          '<button type="button" class="vp-quick-notify">📣 Notify the class</button></div>';
+          '<p class="vp-quick-status" role="status" aria-live="polite"></p>'+
+          '<button type="button" class="vp-quick-notify">📣 Notify the class</button>'+
+          '<div class="vp-quick-actions"><button type="button" class="vp-quick-back">← Back</button></div>'+
+          '</div>';
         document.body.appendChild(box);
-        const done=()=>box.remove();
-        box.querySelector('.vp-close').onclick=done;
-        box.onclick=e=>{if(e.target===box)done();};
-        box.querySelectorAll('[data-rent]').forEach(b=>b.onclick=()=>{sb.rpc('rent_victory_effect',{p_item:b.getAttribute('data-rent')}).then(()=>updateMascot('Trial pass bought for the next class battle! 🎟'),()=>{});});
-        box.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{sb.rpc('buy_store_item',{p_item:b.getAttribute('data-buy')}).then(()=>updateMascot('Effect bought! Equip it in Store → 🏆 Victory.'),()=>{});});
-        box.querySelector('.vp-quick-notify').onclick=()=>{try{sb.rpc('announce_store_sale',{p_key:o.roomKey,p_message:o.message}).then(()=>updateMascot('Class notified 🔔'),()=>{});}catch(e){}};
+
+        const statusEl = box.querySelector('.vp-quick-status');
+        const setStatus = function (text, warn) {
+            statusEl.textContent = text || '';
+            statusEl.classList.toggle('warn', !!warn);
+        };
+        const onKey = function (e) { if (e.key === 'Escape') done(); };
+        function done() {
+            document.removeEventListener('keydown', onKey);
+            box.remove();
+        }
+        // Turn the raw PostgREST errors into something a teacher can act on.
+        function showError(err) {
+            const msg = String((err && (err.message || err.details || err.error_description)) || err || '');
+            if (/does not exist|schema cache|42883|PGRST202/i.test(msg)) {
+                setStatus('The teacher needs to run supabase/store_flash_sale.sql once.', true);
+            } else if (/check constraint|friend_notifications_kind/i.test(msg)) {
+                setStatus('Run supabase/friend_nudges.sql so the bell can take announcements.', true);
+            } else if (/permission denied|NOT_AUTHENTICATED|JWT|not signed/i.test(msg)) {
+                setStatus('Sign in with a school account to notify the class.', true);
+            } else {
+                setStatus(msg || 'That did not work — please try again.', true);
+            }
+        }
+        function callRpc(name, args, onDone) {
+            return Promise.resolve()
+                .then(function () { return sb.rpc(name, args); })
+                .then(function (res) {
+                    if (res && res.error) { showError(res.error); return; }
+                    onDone(res);
+                })
+                .catch(showError);
+        }
+
+        box.querySelector('.vp-close').onclick = done;
+        box.querySelector('.vp-quick-back').onclick = done;
+        box.onclick = function (e) { if (e.target === box) done(); };
+        document.addEventListener('keydown', onKey);
+
+        box.querySelectorAll('[data-rent]').forEach(function (b) {
+            b.onclick = function () {
+                if (b.disabled) return;
+                b.disabled = true;
+                setStatus('Buying a trial pass…');
+                callRpc('rent_victory_effect', { p_item: b.getAttribute('data-rent') }, function () {
+                    setStatus('🎟 Trial pass ready for your next class battle.');
+                }).then(function () { b.disabled = false; });
+            };
+        });
+        box.querySelectorAll('[data-buy]').forEach(function (b) {
+            b.onclick = function () {
+                if (b.disabled) return;
+                b.disabled = true;
+                setStatus('Buying this effect…');
+                callRpc('buy_store_item', { p_item: b.getAttribute('data-buy') }, function () {
+                    setStatus('✅ Effect bought! Equip it in Store → 🏆 Victory.');
+                }).then(function () { b.disabled = false; });
+            };
+        });
+
+        const notifyBtn = box.querySelector('.vp-quick-notify');
+        notifyBtn.onclick = function () {
+            if (notifyBtn.disabled) return;
+            notifyBtn.disabled = true;
+            setStatus('Sending the announcement…');
+            callRpc('announce_store_sale', { p_key: o.roomKey, p_message: o.message }, function (res) {
+                const n = Number(res && res.data) || 0;
+                if (n > 0) {
+                    setStatus('✅ Notified ' + n + ' classmate' + (n === 1 ? '' : 's') + ' — they will see it in the 🔔 bell.');
+                    notifyBtn.textContent = '📣 Notify again';
+                } else {
+                    setStatus('Already announced for this room — no duplicate was sent.');
+                }
+            }).then(function () { notifyBtn.disabled = false; });
+        };
     };
 
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };

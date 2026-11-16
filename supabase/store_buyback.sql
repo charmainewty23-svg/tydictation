@@ -1,9 +1,9 @@
--- LearniTY Store: official buyback at 65% of the price the student paid.
+-- LearniTY Store: official buyback at 35% of what the student paid (65% off).
 -- Run AFTER supabase/store.sql, store_gacha.sql and store_market.sql.
 -- Safe to re-run.
 
 -- Track what each student actually paid, so a cheap Market flip cannot be
--- sold back for 65% of the full store price.
+-- sold back for 35% of the full store price.
 alter table public.store_purchases add column if not exists paid_price int not null default 0;
 update public.store_purchases p
    set paid_price = i.price
@@ -264,9 +264,9 @@ begin
         raise exception 'ITEM_LISTED';
     end if;
 
-    -- Official buyback pays 65% of what the student paid (or 65% of the
-    -- original price for very old rows with no paid_price).
-    v_refund := greatest(1, floor(coalesce(nullif(v_paid, 0), v_item.price) * 0.65)::int);
+    -- Official buyback pays 35% of what the student paid (65% off), or
+    -- 35% of the original price for very old rows with no paid_price.
+    v_refund := greatest(1, floor(coalesce(nullif(v_paid, 0), v_item.price) * 0.35)::int);
     v_ref := 'buyback:' || v_me::text || ':' || p_item || ':' ||
              extract(epoch from clock_timestamp())::text || ':' ||
              floor(random() * 1000000)::text;
@@ -286,7 +286,7 @@ begin
         'emoji', v_item.emoji,
         'paid', coalesce(nullif(v_paid, 0), v_item.price),
         'refund', v_refund,
-        'rate', 0.65,
+        'rate', 0.35,
         'balance', v_balance
     );
 end;

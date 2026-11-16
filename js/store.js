@@ -636,7 +636,7 @@ function storeRenderMarketList(rows) {
 function storeBuybackPrice(item) {
     if (!item) return 0;
     const paid = Number(STORE_PAID[item.id]) || Number(item.price) || 0;
-    return Math.max(1, Math.floor(paid * 0.65));
+    return Math.max(1, Math.floor(paid * 0.35));
 }
 
 async function storeBuybackItem(itemId) {
@@ -644,7 +644,7 @@ async function storeBuybackItem(itemId) {
     const item = STORE_BY_ID[itemId];
     if (!item) return;
     const refund = storeBuybackPrice(item);
-    if (!window.confirm('Sell ' + item.name + ' to the official buyback for ' + refund + ' Paws? (65% of what you paid)')) return;
+    if (!window.confirm('Sell ' + item.name + ' to the official buyback for ' + refund + ' Paws? (35% of what you paid — 65% off)')) return;
     try {
         const { error } = await sb.rpc('sell_item_to_store', { p_item: itemId });
         if (error) throw error;
@@ -673,7 +673,7 @@ function storeRenderSellList(rows) {
             '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(it.price) + ' 🐾</small></div>' +
             '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
             '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
-            '<button type="button" class="store-market-btn buyback" onclick="storeBuybackItem(\'' + it.id + '\')" title="Official buyback: 65% of what you paid">↩ +' + storeBuybackPrice(it) + ' 🐾</button>' +
+            '<button type="button" class="store-market-btn buyback" onclick="storeBuybackItem(\'' + it.id + '\')" title="Official buyback: 35% of what you paid (65% off)">↩ +' + storeBuybackPrice(it) + ' 🐾</button>' +
             '</div>';
     }).join('');
 }

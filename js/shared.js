@@ -2032,8 +2032,17 @@
             return answerVariants(en)[0];
         }
 
+        // One rule for Dictation, Word Battle and Class Battle: upper/lower
+        // case, extra spaces and punctuation never decide whether an answer is
+        // right. `dont` accepts `don't`, `MTR` accepts `mtr`.
+        function answerNormalize(s) {
+            return String(s || '').toLowerCase().trim()
+                .replace(/[.,!?;:"'“”‘’()]/g, '')
+                .replace(/\s+/g, ' ');
+        }
+
         function quizNormalize(s) {
-            return String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+            return answerNormalize(s);
         }
 
         // `normalize` lets the battle mode reuse its punctuation-insensitive rules.

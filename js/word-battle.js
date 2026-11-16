@@ -127,10 +127,10 @@
             return { topic, words: arr.slice(0, Math.min(Number(room.question_count) || BATTLE_QUESTION_COUNT, arr.length)) };
         }
 
+        // Same rule as Dictation (shared.js answerNormalize): case, spacing and
+        // punctuation are ignored on both sides of the comparison.
         function battleNormalize(s) {
-            return String(s || '').toLowerCase().trim()
-                .replace(/[.,!?;:"'“”‘’()]/g, '')
-                .replace(/\s+/g, ' ');
+            return answerNormalize(s);
         }
 
         function battleErrorMessage(error) {

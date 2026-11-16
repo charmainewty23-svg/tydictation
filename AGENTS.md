@@ -30,6 +30,11 @@
 - **一個 cell 多個答案**：例如 `plaza / square / mall`、`flat/unit`。
   `answerVariants()` 用 `/` 切開，`isAnswerCorrect()` 接受任何一個寫法；
   語音朗讀同 hint 只用**第一個**（`primaryAnswer()`）。新增題目照舊用 ` / ` 分隔就得。
+- **大小寫／標點唔計**：`shared.js` 嘅 `answerNormalize()` 係 Dictation、
+  Word Battle 同 Class Battle 共用嘅唯一比對規則 —— 兩邊都
+  `toLowerCase()`、去掉 `.,!?;:"'“”‘’()`、壓縮空格。所以 `MTR`＝`mtr`、
+  `dont`＝`don't`、`hello  world`＝`hello world`；`apple` 對 `orange`
+  仍然係錯。`quizNormalize()` 同 `battleNormalize()` 都只係 call 佢。
 - **加新 topic 三步**：Sheet 加新 tab（同樣三欄格式）→ `SHEET_NAMES` 加名 →
   `renderCategories()` 嘅 emoji map 加 icon。缺 emoji 會 fallback 📦。
   想個名顯示得靚（例如 `basics` → `Basics`）就加落 `TOPIC_LABELS`。

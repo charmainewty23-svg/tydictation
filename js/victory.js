@@ -516,6 +516,11 @@
         const key = String(roomId || 'once');
         if (claimed[key]) return '';
         let id = '';
+        try {
+            if (typeof STORE_EQUIPPED !== 'undefined' && STORE_EQUIPPED && STORE_EQUIPPED.victory) {
+                id = STORE_EQUIPPED.victory;
+            }
+        } catch (e) {}
         // The equipped effect may not be in memory yet (the student may not
         // have opened the Store this session), so pull the Store state first.
         try {

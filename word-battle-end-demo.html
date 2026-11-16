@@ -93,7 +93,8 @@
                     glasses: 'Cyber Visor', cheeks: 'None',
                     outfit: 'Royal Guard Tunic', neck: 'None', car: 'Stock', props: [] };
             };
-            STORE_EQUIPPED = { prop: [], victory: 'victory_moneygun' };
+            var NO_EFFECT = /effect=0/.test(location.search);
+            STORE_EQUIPPED = { prop: [], victory: NO_EFFECT ? '' : 'victory_moneygun' };
             STORE_OWNED = { victory_moneygun: true };
             battleRoom = {
                 id: 'demo-wb-end', code: 'B7QX', host_id: 'teacher-demo', mode: 'class',

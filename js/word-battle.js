@@ -1226,6 +1226,23 @@
         }
 
         async function battleStart() {
+            // Teacher reminder: offer a one-tap nudge about the 1-battle
+            // Victory trial passes before the room starts.
+            if (battleRoom && battleRoom.mode === 'class' && isAdmin()) {
+                const ok = window.confirm(
+                    'Remind the class about Victory trial passes?\n\n' +
+                    'Students can rent an effect for THIS battle for 20% of its price ' +
+                    '(Store → 🏆 Victory → 🎟 1-battle trial).'
+                );
+                if (ok) {
+                    try {
+                        sb.rpc('announce_store_sale', {
+                            p_key: 'trial-nudge:' + battleRoom.id,
+                            p_message: '🏆 Class battle starting! Rent a Victory Animation trial pass in Store → 🏆 Victory (20% of the price) and flex on the podium if you win.'
+                        }).catch(function () {});
+                    } catch (e) {}
+                }
+            }
             const { error } = await sb.rpc('start_battle', { p_room_id: battleRoom.id });
             if (error) return battleSetError(battleErrorMessage(error));
             // Class rooms can carry a teacher-set time limit. Best effort: if

@@ -1076,6 +1076,21 @@
             DG.mpSetStatus('This room can have at most ' + maxPlayers + ' players.', true);
             return;
         }
+        if (DG.mpClassRoom && typeof isAdmin === 'function' && isAdmin()) {
+            const ok = window.confirm(
+                'Remind the class about Victory trial passes?\n\n' +
+                'Students can rent an effect for THIS race for 20% of its price ' +
+                '(Store → 🏆 Victory → 🎟 1-battle trial).'
+            );
+            if (ok) {
+                try {
+                    sb.rpc('announce_store_sale', {
+                        p_key: 'trial-nudge:' + MP.room.id,
+                        p_message: '🏆 Class race starting! Rent a Victory Animation trial pass in Store → 🏆 Victory (20% of the price) and flex on the podium if you win.'
+                    }).catch(function () {});
+                } catch (e) {}
+            }
+        }
         DG.mpSetStatus('Starting race…', false);
         const hostOnly = DG.mpClassRoom && !MP.players.some(p => p && p.user_id === (currentUser && currentUser.id));
         sb.rpc('start_drive_and_go_room', { p_room_id: MP.room.id }).then(({ data, error }) => {

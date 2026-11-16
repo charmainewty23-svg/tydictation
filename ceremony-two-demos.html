@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LearniTY · Ceremony with / without a Victory effect</title>
+<style>
+html,body{margin:0;height:100%;background:#0b1220;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif}
+body{display:flex;flex-direction:column}
+#bar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px;background:#1f2937}
+#bar button{min-height:40px;border:0;border-radius:999px;padding:0 16px;background:#22c55e;color:#052e16;font:800 13px system-ui;cursor:pointer}
+#bar button.ghost{background:rgba(255,255,255,.14);color:#e5e7eb}
+#stage{flex:1;display:flex;gap:16px;padding:12px;overflow:auto;justify-content:center;align-items:stretch}
+.col{flex:1 1 0;min-width:320px;max-width:620px;display:flex;flex-direction:column;background:#111827;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.col h2{margin:0;padding:8px 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;background:#0f172a}
+.col iframe{flex:1;width:100%;border:0;background:#fff9f2}
+</style></head><body>
+<div id="bar">
+<button id="play">▶ Play both</button>
+<button class="ghost" id="reset">↺ Reset</button>
+</div>
+<div id="stage">
+<div class="col"><h2>① With Victory effect (Money Gun)</h2><iframe src="/word-battle-end-demo.html?effect=1" title="with effect"></iframe></div>
+<div class="col"><h2>② No Victory effect — 3 cats + photo + cheers</h2><iframe src="/word-battle-end-demo.html?effect=0" title="no effect"></iframe></div>
+</div>
+<script>
+function tap(id){document.querySelectorAll('#stage iframe').forEach(f=>{try{const b=f.contentWindow.document.getElementById(id);if(b)b.click();}catch(e){}});}
+document.getElementById('play').onclick=()=>tap('demo-finish');
+document.getElementById('reset').onclick=()=>document.querySelectorAll('#stage iframe').forEach(f=>{try{f.contentWindow.location.reload();}catch(e){}});
+</script></body></html>

@@ -787,7 +787,7 @@
                 ctx.closePath();
                 ctx.fill();
             }
-            const halo = ctx.createRadialGradient(cx, baseY - 90 * k, 10 * k, cx, baseY - 90 * k, 260 * k);
+            const halo = ctx.createRadialGradient(w / 2, baseY - 90 * k, 10 * k, w / 2, baseY - 90 * k, 260 * k);
             halo.addColorStop(0, 'rgba(251,191,36,.22)');
             halo.addColorStop(1, 'rgba(251,191,36,0)');
             ctx.fillStyle = halo;

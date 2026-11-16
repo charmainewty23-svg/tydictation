@@ -24,6 +24,7 @@
         let battleQStart = 0;
         let battleDeadline = 0;
         let battleRoundSeed = null;
+        let battleRoundStartedAt = null;
         let battleDoneLocal = false;
         let battleAutoEnding = false;
         let battleLastAnswer = '';
@@ -61,6 +62,7 @@
                     roomId: battleRoom.id,
                     code: battleRoom.code,
                     seed: battleRoom.seed,
+                    startedAt: battleRoom.started_at || null,
                     status: battleRoom.status,
                     idx: battleIdx,
                     score: battleScore,
@@ -695,6 +697,7 @@
             if (!room || !room.id) return battleSetError('Could not open that room.');
             battleRoom = room;
             battleRoundSeed = null;
+            battleRoundStartedAt = null;
             battleDoneLocal = false;
             battlePlayers = [];
             // Class battles show every student's own profile look on the
@@ -765,7 +768,8 @@
             }
 
             if (battleRoom.status === 'playing') {
-                if (battleRoundSeed !== battleRoom.seed) battleBeginRound();
+                if (battleRoundSeed !== battleRoom.seed ||
+                    battleRoundStartedAt !== (battleRoom.started_at || null)) battleBeginRound();
                 if (battleDoneLocal) {
                     battleShowPanel('result');
                     battleRenderResult();
@@ -781,6 +785,7 @@
         }
 
         function battleBeginRound() {
+            battleRoundStartedAt = (battleRoom && battleRoom.started_at) || null;
             const built = battleBuildQuestions(battleRoom);
             if (!built.words.length) {
                 battleShowPanel('play');
@@ -812,16 +817,34 @@
         function battleRestoreProgress() {
             const me = (battlePlayers || []).find(p => currentUser && p.user_id === currentUser.id);
             const saved = battleReadResume();
-            const same = !!(saved && battleRoom && saved.roomId === battleRoom.id && String(saved.seed) === String(battleRoom.seed));
+            const startedMs = (battleRoom && battleRoom.started_at) ? Date.parse(battleRoom.started_at) : 0;
+            const roundAgeMs = startedMs ? (Date.now() - startedMs) : Infinity;
+            const updatedMs = (me && me.updated_at) ? Date.parse(me.updated_at) : 0;
+            // start_battle writes every player row at exactly started_at, so a
+            // row only belongs to this round once it has been written more than
+            // ~2 s in (i.e. after at least one answer/progress save).
+            let staleRound = false;
+            if (me && startedMs) {
+                if (updatedMs) {
+                    staleRound = !((updatedMs - startedMs) > 2000) && roundAgeMs < 120000;
+                } else {
+                    // No battle_live.sql: only distrust a row that claims to be
+                    // finished within 20 s while scoring nothing.
+                    staleRound = !!me.done && roundAgeMs < 20000 && !me.score && !me.correct;
+                }
+            }
+            const sameRound = !!(saved && battleRoom && saved.roomId === battleRoom.id &&
+                String(saved.seed) === String(battleRoom.seed) &&
+                String(saved.startedAt || '') === String(battleRoom.started_at || ''));
             let idx = 0, score = 0, correct = 0, totalMs = 0, done = false;
-            if (me) {
+            if (me && !staleRound) {
                 done = !!me.done;
                 idx = (typeof me.progress === 'number') ? me.progress : 0;
                 score = me.score || 0;
                 correct = me.correct || 0;
                 totalMs = me.total_ms || 0;
             }
-            if (same && !done) {
+            if (sameRound && !done && !staleRound) {
                 if ((saved.idx || 0) > idx) {
                     idx = saved.idx || 0;
                     score = saved.score || 0;
@@ -1304,7 +1327,12 @@
             if (battleRoom.status === 'playing') {
                 const waiting = everyone.filter(p => !p.done).length;
                 endBtn.innerText = waiting ? 'End Battle (' + waiting + ' still playing)' : 'End Battle';
-                if (everyone.length && waiting === 0 && !battleAutoEnding) {
+                // Do not auto-end in the first 10 seconds after Start: a stale
+                // done=true row from the waiting room must not end the battle
+                // before anyone has answered a question.
+                const startedMs = battleRoom.started_at ? Date.parse(battleRoom.started_at) : 0;
+                const settled = startedMs && Date.now() - startedMs > 10000;
+                if (settled && everyone.length && waiting === 0 && !battleAutoEnding) {
                     battleAutoEnding = true;
                     battleEndClass(true).finally(function () { battleAutoEnding = false; });
                 }

@@ -312,6 +312,30 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 舊嘅 2 參數 `create_battle` / 3 參數 `create_class_battle` 已 `drop`，
   避免 PostgREST 分唔清 overload；學生舊 tab 要 refresh 一次。
 
+### 9.6d 新一局一定由第 1 題開始 — `supabase/battle_round_reset.sql`（2026-11，可重跑）
+- 症狀：班際（15 題）host 一撳 Start，部分學生**即刻彈去結果畫面**（`0 pts (0/15 correct)`），
+  或者只玩到幾題。原因係學生自己嗰行 `battle_players` 仲留住上一局嘅
+  `progress`／`done`（`progress = question_count` 就會當成做完）。當
+  `battle_class.sql` 喺 `battle_live.sql` 之後再跑過，`start_battle()` 會被
+  換成**冇清 `progress`** 嘅版本，就會發生。
+- SQL：`supabase/battle_round_reset.sql` 重寫 `start_battle()` 同
+  `rematch_battle()`，清除 `score／correct／total_ms／done／last_seen`，
+  如果 `progress／last_answer／last_correct` 存在（即跑過 `battle_live.sql`）
+  就一齊清 0，仲會刪走該房舊嘅 `battle_answers`（跑過 `battle_stats.sql` 先有）。
+  用 `information_schema`／`to_regclass` 守衛，所以未跑 `battle_live.sql`
+  都照跑得。喺 `battle_class.sql` 之後跑（唔需要重新跑其他 battle 檔）。
+- 前端（`js/word-battle.js`）加咗三重保險：
+  1. 回合身份 = `room.seed` ＋ `room.started_at`；任何一個變咗就
+     `battleBeginRound()` 由頭開始（以前只比 seed，rematch 同 seed 唔變就唔會重設）。
+  2. `battleRestoreProgress()` 用 `me.updated_at` 判斷嗰行係咪屬於今局：
+     `start_battle` 會喺 `started_at` 同一刻寫入，所以**唔夠 2 秒之後嘅寫入**
+     一律當「未開始玩」，頭 2 分鐘唔信 `progress／done`（重新整理／中途加入
+     照樣讀得返進度，因為佢哋嗰行係開賽 2 秒後才寫）。
+     未跑 `battle_live.sql`（冇 `updated_at`）時，只會唔信「20 秒內聲稱做完但 0 分 0 題正確」嘅 row。
+  3. 老師 class board 嘅自動完場要開賽 **10 秒**之後才會觸發，避免一開始就 auto-end。
+- 未跑呢份 SQL 都唔會再「一撳 Start 就彈結果」（前端保險足夠），但跑咗最乾淨：
+  舊 `progress` 會即刻清走，class board 嘅進度／idle 顯示亦由 Q1 開始。
+
 ### 9.6a 不小心彈出後重回 — `supabase/battle_rejoin.sql`（要喺 9.6 之後跑）
 - 以前「← Back to Hub」會即刻 `leave_battle`：未開始就退出／刪房，已開始嘅 1v1
   會直接完場，班際會把該學生標成 `done`，之後再用代碼加入會收到 `ROOM_ALREADY_STARTED`。
@@ -1395,7 +1419,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v67）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v68）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1455,7 +1479,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1485,8 +1509,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v67`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v68`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v68`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v69`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2127,7 +2151,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v67。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v68。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

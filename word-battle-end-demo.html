@@ -28,10 +28,13 @@
     <button type="button" id="demo-effect">✨ Victory effect</button>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
-<iframe id="demo-app" src="/index.html?wbenddemo=1" title="Class battle end demo"></iframe>
+<iframe id="demo-app" title="Class battle end demo"></iframe>
 <script>
 (function () {
     var frame = document.getElementById('demo-app');
+    // Forward the ?effect=0 / ?effect=1 switch from the parent page into the
+    // app frame, otherwise that frame always keeps its default effect.
+    frame.src = '/index.html?wbenddemo=1' + (/effect=0/.test(location.search) ? '&effect=0' : '');
     var students = [
         { user_id: 'demo-student-01', nickname: '4C 07 Chan', cat: 'Ragdoll', glasses: 'Cyber Visor', hat: 'Golden Crown', outfit: 'Royal Guard Tunic', score: 148, correct: 15, total_ms: 128000, done: true, progress: 15 },
         { user_id: 'demo-student-02', nickname: '4C 02 Lee', cat: 'Ginger', glasses: 'Star Sunglasses', hat: 'Straw Hat', outfit: 'Boba Apron', score: 132, correct: 13, total_ms: 151000, done: true, progress: 15 },

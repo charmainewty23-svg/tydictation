@@ -21,7 +21,21 @@ body{display:flex;flex-direction:column}
 <div class="col"><h2>② No Victory effect — 3 cats + photo + cheers</h2><iframe src="/word-battle-end-demo.html?effect=0" title="no effect"></iframe></div>
 </div>
 <script>
-function tap(id){document.querySelectorAll('#stage iframe').forEach(f=>{try{const b=f.contentWindow.document.getElementById(id);if(b)b.click();}catch(e){}});}
+function tap(id){
+  document.querySelectorAll('#stage iframe').forEach(f=>{
+    (function attempt(n){
+      try{
+        const w=f.contentWindow, d=w.document;
+        const inner=d.getElementById('demo-app');
+        if(inner && inner.contentWindow.location.hash==='#ready'){
+          const b=d.getElementById(id);
+          if(b){b.click();return;}
+        }
+      }catch(e){}
+      if(n<80) setTimeout(()=>attempt(n+1),200);
+    })(0);
+  });
+}
 document.getElementById('play').onclick=()=>tap('demo-finish');
 document.getElementById('reset').onclick=()=>document.querySelectorAll('#stage iframe').forEach(f=>{try{f.contentWindow.location.reload();}catch(e){}});
 </script></body></html>

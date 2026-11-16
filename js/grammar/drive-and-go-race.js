@@ -1125,6 +1125,9 @@
         S.paused = !S.paused;
         if (S.paused) {
             DG.releaseAccel();
+            const hostClass = S.mode === 'multi' && DG.mpClassRoom &&
+                DG.mpState && DG.mpState.room && currentUser &&
+                DG.mpState.room.host_id === currentUser.id;
             DG.showOverlay(
                 '<div class="text-center"><div class="text-6xl mb-2">⏸</div><h3 class="text-2xl font-bold text-orange-600 mb-2">Paused</h3>' +
                 '<p class="text-gray-500 font-bold mb-5">' + (S.mode === 'multi' ? 'Other racers keep going. Accel is released until you resume.' : 'Take a breath. Your run is waiting. Accel is released.') + '</p>' +
@@ -1132,6 +1135,7 @@
                 '<button type="button" class="btn-paw" onclick="DG.togglePause()">Resume</button>' +
                 '<button type="button" class="dg-menu-button" onclick="DG.toggleRaceFullscreen()">' +
                 '<span id="dg-pause-fs">' + (DG.raceFsOn() ? '✕ Exit full screen' : '⛶ Full screen') + '</span></button>' +
+                (hostClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpEndClassBattle()">End battle</button>' : '') +
                 (S.mode === 'multi'
                     ? '<button type="button" class="dg-menu-button" onclick="DG.mpLeaveRace()">Leave race</button>'
                     : '<button type="button" class="dg-menu-button" onclick="DG.endRun()">End run</button>') +

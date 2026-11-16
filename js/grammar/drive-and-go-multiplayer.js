@@ -830,7 +830,44 @@
             '<p class="text-center text-xs font-bold text-indigo-600 mb-4">Late students can still join with this room code while the race is playing.</p>' +
             '<div id="dg-watch-panel" class="dg-menu-panel"><div class="dg-standings">' +
             (rows || '<p class="text-center font-bold text-gray-500 py-4">Waiting for students to join…</p>') +
-            '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>';
+            '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>' +
+            '<div class="flex gap-3 justify-center flex-wrap mt-4">' +
+            '<button type="button" class="btn-paw" onclick="DG.mpEndClassBattle()">End battle</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Close room</button>' +
+            '</div>';
+    };
+
+    DG.mpEndClassBattle = function () {
+        const room = MP.room;
+        if (!room || !currentUser || room.host_id !== currentUser.id) return;
+        if (room.status !== 'playing') return;
+        const n = DG.normalizeQuestionCount(room.question_count);
+        const unfinished = (MP.players || []).filter(p =>
+            !p.finished_at && (Number(p.correct) || 0) < n
+        ).length;
+        if (unfinished > 0) {
+            const ok = window.confirm(
+                unfinished + ' student' + (unfinished === 1 ? ' has' : 's have') +
+                ' not finished ' + n + ' questions yet. End the battle and show the trophy now?'
+            );
+            if (!ok) return;
+        }
+        DG.mpSetStatus('Ending the battle…', false);
+        sb.rpc('end_drive_and_go_room', { p_room_id: room.id }).then(({ data, error }) => {
+            if (error) {
+                const msg = String(error.message || error);
+                DG.mpSetStatus(/end_drive_and_go_room|PGRST202|Could not find/i.test(msg)
+                    ? 'Run supabase/drive_and_go_end_battle.sql first.'
+                    : DG.mpErrorText ? DG.mpErrorText(error) : msg, true);
+                return;
+            }
+            const updated = Array.isArray(data) ? data[0] : data;
+            if (updated) MP.room = updated;
+            DG.mpStopPoll();
+            DG.showMultiplayerResults(MP.room, MP.players || []);
+        }).catch(() => {
+            DG.mpSetStatus('Could not end the battle. Please try again.', true);
+        });
     };
 
     DG.mpCopyCode = function () {

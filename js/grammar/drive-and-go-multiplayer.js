@@ -40,6 +40,8 @@
         // Signature of the last host-only live board, so the 1s poll only
         // re-renders when a student's progress actually changes.
         watchSig: '',
+        // Teacher-set class time limit.
+        timeUpArmed: false,
         // Big-screen live leaderboard for the classroom projector.
         projector: false,
         projSig: '',
@@ -613,6 +615,7 @@
             MP.players = players;
             MP.closed = false;
             if (MP.projector) DG.mpRenderProjector();
+            DG.mpCheckDeadline();
             if (plan.kind === 'begin') {
                 // A teacher who chose "host only" has no player row. Keep the
                 // lobby poll running and show the live class board instead of
@@ -831,7 +834,8 @@
         content.innerHTML =
             '<div class="text-center mb-4"><div class="text-7xl mb-1">🏁</div>' +
             '<h3 class="text-3xl font-bold text-green-600">Class race live</h3>' +
-            '<p class="text-gray-500 font-bold">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' + n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p></div>' +
+            '<p class="text-gray-500 font-bold">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' + n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p>' +
+            (DG.mpTimeLeftText(room) ? '<p class="dg-time-left">' + DG.esc(DG.mpTimeLeftText(room)) + '</p>' : '') + '</div>' +
             '<div class="dg-room-code-wrap"><span>Room code</span><b>' + DG.esc(room.code) + '</b>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpCopyCode()">Copy</button></div>' +
             '<p class="text-center text-sm font-bold text-gray-500 mb-4">Hosting without a kart · ' + list.length + ' students racing</p>' +
@@ -841,7 +845,7 @@
             '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-4">' +
             '<button type="button" class="btn-paw" onclick="DG.mpOpenProjector()">📺 Projector board</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.mpEndClassBattle()">End battle</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpEndClassBattle()">⏹ Finish now</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Close room</button>' +
             '</div>' +
             '<p class="text-center text-xs text-gray-400 mt-2">Projector board = big live leaderboard for the class screen or a screen share.</p>';
@@ -851,6 +855,36 @@
        A big board for the classroom projector (or a screen share). It follows
        the same 1 s room poll as the host board, so it stays live without any
        extra SQL or realtime channel. */
+
+    DG.mpTimeLeftText = function (room) {
+        const r = room || MP.room;
+        if (!r || !r.ends_at) return '';
+        const left = Date.parse(r.ends_at) - Date.now();
+        if (!isFinite(left)) return '';
+        if (left <= 0) return "⏱ Time's up";
+        const t = Math.ceil(left / 1000);
+        const m = Math.floor(t / 60);
+        const sec = t % 60;
+        return '⏱ ' + m + ':' + String(sec).padStart(2, '0') + ' left';
+    };
+
+    /* The host force-finishes when the teacher's clock runs out; every other
+       client just sees the room flip to finished. */
+    DG.mpCheckDeadline = function () {
+        const room = MP.room;
+        if (!room || room.status !== 'playing') {
+            MP.timeUpArmed = false;
+            return;
+        }
+        if (!room.ends_at || !DG.mpClassRoom) return;
+        if (!currentUser || room.host_id !== currentUser.id) return;
+        if (Date.parse(room.ends_at) > Date.now()) return;
+        if (MP.timeUpArmed) return;
+        MP.timeUpArmed = true;
+        Promise.resolve(DG.mpEndClassBattle(true)).finally(function () {
+            setTimeout(function () { MP.timeUpArmed = false; }, 8000);
+        });
+    };
 
     DG.mpProjCatURL = function (p) {
         if (!MP.projCatCache) MP.projCatCache = Object.create(null);
@@ -955,7 +989,8 @@
             '<p class="dg-proj-kicker">LearniTY · Drive &amp; Go!</p>' +
             '<h2 class="dg-proj-title">🏁 ' + (finishedRoom ? 'Final results' : 'Class race live') + '</h2>' +
             '<p class="dg-proj-sub">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' +
-            n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p>' +
+            n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) +
+            (DG.mpTimeLeftText(room) ? ' · ' + DG.esc(DG.mpTimeLeftText(room)) : '') + '</p>' +
             '</div>' +
             '<div class="dg-proj-meta">' +
             '<span class="dg-proj-code">Room <b>' + DG.esc(room.code) + '</b></span>' +
@@ -967,22 +1002,23 @@
             ' · ' + done + ' of ' + list.length + ' finished · updates every second · Esc to close</p>';
     };
 
-    DG.mpEndClassBattle = function () {
-        const room = MP.room;        if (!room || !currentUser || room.host_id !== currentUser.id) return;
-        if (room.status !== 'playing') return;
+    DG.mpEndClassBattle = function (force) {
+        const room = MP.room;
+        if (!room || !currentUser || room.host_id !== currentUser.id) return Promise.resolve();
+        if (room.status !== 'playing') return Promise.resolve();
         const n = DG.normalizeQuestionCount(room.question_count);
         const unfinished = (MP.players || []).filter(p =>
             !p.finished_at && (Number(p.correct) || 0) < n
         ).length;
-        if (unfinished > 0) {
+        if (unfinished > 0 && !force) {
             const ok = window.confirm(
                 unfinished + ' student' + (unfinished === 1 ? ' has' : 's have') +
                 ' not finished ' + n + ' questions yet. End the battle and show the trophy now?'
             );
-            if (!ok) return;
+            if (!ok) return Promise.resolve();
         }
         DG.mpSetStatus('Ending the battle…', false);
-        sb.rpc('end_drive_and_go_room', { p_room_id: room.id }).then(({ data, error }) => {
+        return sb.rpc('end_drive_and_go_room', { p_room_id: room.id }).then(({ data, error }) => {
             if (error) {
                 const msg = String(error.message || error);
                 DG.mpSetStatus(/end_drive_and_go_room|PGRST202|Could not find/i.test(msg)
@@ -993,6 +1029,7 @@
             const updated = Array.isArray(data) ? data[0] : data;
             if (updated) MP.room = updated;
             DG.mpStopPoll();
+            DG.mpCloseProjector();
             DG.showMultiplayerResults(MP.room, MP.players || []);
         }).catch(() => {
             DG.mpSetStatus('Could not end the battle. Please try again.', true);
@@ -1007,6 +1044,25 @@
         } else {
             DG.mpSetStatus('Room code: ' + code, false);
         }
+    };
+
+    DG.mpApplyDeadline = function () {
+        if (!DG.mpClassRoom || !MP.room) return;
+        const mins = DG.normalizeTimeLimit(DG.readSettings().timeLimit);
+        if (!mins) return;
+        sb.rpc('set_drive_and_go_deadline', {
+            p_room_id: MP.room.id,
+            p_seconds: mins * 60
+        }).then(({ data, error }) => {
+            if (error) {
+                if (/set_drive_and_go_deadline|PGRST202|Could not find/i.test(String(error.message || error))) {
+                    DG.toastSafe('Run supabase/class_time_limit.sql to use a time limit.');
+                }
+                return;
+            }
+            if (data) MP.room.ends_at = data;
+            if (MP.projector) DG.mpRenderProjector(true);
+        }, () => {});
     };
 
     DG.mpStart = function () {
@@ -1029,6 +1085,8 @@
             }
             const room = Array.isArray(data) ? data[0] : data;
             if (room) MP.room = room;
+            MP.timeUpArmed = false;
+            DG.mpApplyDeadline();
             if (hostOnly) {
                 DG.mpWatchRace(MP.room, MP.players);
                 if (!MP.pollId) DG.mpStartLobbyPoll();
@@ -1333,6 +1391,7 @@
                 if (room) MP.room = room;
                 MP.players = players;
                 if (MP.projector) DG.mpRenderProjector();
+                DG.mpCheckDeadline();
                 DG.mpSyncRivals(players);
                 if (typeof DG.updateMpProgress === 'function') DG.updateMpProgress(players);
                 const selfRow = players.find(x => x.user_id === me);

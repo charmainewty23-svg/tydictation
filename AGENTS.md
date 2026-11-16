@@ -280,6 +280,16 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 - 學生用同一個代碼 join，全部人同一 seed → 同一批 10 題；老師按 Start 才開始。
 - `is_battle_member()` 已更新：class 學生靠 `battle_players` 嗰行做 membership，
   否則佢哋讀唔到自己間房、亦寫唔到分（**呢個係 RLS 陷阱**）。
+- **強行完成 + 時限（2026-11）**：class board 嘅掣改寫成 **⏹ Finish now**
+  （仲有學生未完成時顯示 `⏹ Finish now (N still playing)`）；撳落會 confirm，
+  確認後即刻 `end_class_battle()`，出結果／頒獎禮。老師喺 lobby 嘅
+  **Class time limit** 揀 `No limit／5／10／15／20 minutes`（記喺
+  `localStorage['battle_class_minutes']`），按 Start 後前端 call
+  `set_battle_deadline()` 寫入 `battle_rooms.ends_at`。時間到：host client
+  自動 call 一次 `battleEndClass(true)`（失敗 8 秒後才重試），所有學生即刻見到
+  結果；host class board 同學生嘅 `battle-topic-label` 會顯示
+  `⏱ 12:30 left`／`⏱ Time's up`。SQL：`supabase/class_time_limit.sql`
+  （可重跑；未跑都開得房，只係冇時限、撳掣會提示跑呢份）。
 - **歷史修正**：舊版 `leave_battle()` 一離開就 delete 房 → Admin 永遠見唔到紀錄。
   新版：未開始先 delete；已開始／已完結嘅房**保留**，所以 dashboard 有數睇。
 
@@ -612,6 +622,16 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `result_reason='time'`，立即 `showMultiplayerResults()` + kart trophy。
   Paws top3 trigger 照樣會派。SQL：`supabase/drive_and_go_end_battle.sql`
   （可重跑）；未跑會提示。
+- **⏱ Class time limit（2026-11）**：Class room 嘅 Course step 有
+  **Time limit**（`#dg-time-limit`，`No limit／5／10／15／20／30 minutes`），
+  存 `DG.readSettings().timeLimit`（`DG.normalizeTimeLimit`）。Start 之後
+  host call `set_drive_and_go_deadline()` 寫 `drive_and_go_rooms.ends_at`；
+  時間到 `DG.mpCheckDeadline()`（`mpPoll`／`mpSyncRace` 每次都會叫）
+  自動 `DG.mpEndClassBattle(true)` → 房轉 finished → 結果畫面 → trophy。
+  Host-only live board、projector 板同賽車多人進度板會顯示
+  `⏱ 12:30 left`。掣一律叫 **⏹ Finish now**（`DG.mpEndClassBattle(force)`；
+  `force` 略過 confirm，時間到時用）。SQL：`supabase/class_time_limit.sql`
+  （同 Word Battle 共用，可重跑）。
 - **Kart class trophy（2026-11）**：Drive & Go! class room（max_players > 5）
   完賽後 `showMultiplayerResults()` 會彈 `#dg-trophy-overlay`（重用
   `battle-trophy-*` CSS）：CHAMPION 最頂、下面 1ST／2ND RUNNER UP；
@@ -1436,7 +1456,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v69）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v70）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1496,7 +1516,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1526,8 +1546,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v69`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v70`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v70`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v71`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2168,7 +2188,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v69。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v70。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2327,6 +2347,25 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   只有 cat／glasses／hat／outfit，car 唔會影響班際貓）。
   `store_cars.sql`（可重跑）加 items、放寬 slot check、更新
   `equip_store_item` 接受 `car`；`/supabase/store.sql` 新安裝已包含。
+- **🏎️ 車有實際性能（2026-11）**：5 款車除咗外觀仲有 **top speed**：
+  Sunset Racer +2%、Ocean Bolt +3%、Neon Drift +4%、Jungle Buggy +5%、
+  Golden GT +7%（`STORE_ITEMS[].speed`，Stock = 0）。Store 卡同 fitting room
+  都顯示 `🏁 Top speed +N%`。賽道（`js/grammar/drive-and-go-race.js`）：
+  `DG.CAR_SPEED_BONUS`／`DG.carSpeedBonus()`／`DG.raceSpeedCap()`
+  （`SPEED_CAP 340 × (1 + bonus)`，Golden GT = 363.8），ACCEL 乘
+  `(1 + bonus)`，基礎速度乘 `(1 + bonus × 0.5)`；nitro／蘑菇上限亦改讀
+  `DG.raceSpeedCap()`。**改動提示**：呢個係刻意嘅「付費有少少優勢」，
+  幅度保持細（最多 +7%），唔好加大到蓋過答題表現。
+- **🪑 Props 實物化（2026-11）**：`DG.drawCatProp()` 全部重畫成**實體物件**
+  （中學生向，唔再係浮動 emoji）：巨型鉛筆／珍珠奶茶／放大鏡／羽毛筆＋羊皮紙
+  ＋墨水瓶／開箱紙皮箱（FRAGILE 貼紙）／懸浮字典／鸚鵡／投降旗／黃鴨／
+  紅筆／英式茶＋鬆餅／哥基／Boombox；每個有 `DG.PROP_SCALE` 獨立大小
+  （枱 1.5、Boombox 1.18、鴨 0.9…），`DG.drawCatProps()` 由
+  `min(w,h)/(300 + 54×(n-1))` 起算，比舊版大約 1.2–1.4 倍，所以
+  「Cozy Desk」係**一張真木枱**（枱面、枱腳、燈＋暖光、書、熱杯）擺喺貓旁邊。
+  新 item：`prop_cozy_desk`（560 Paws，Legendary，slot `prop`）；
+  SQL `supabase/store_cozy_desk.sql`（可重跑；未跑會買唔到，其他 props 照用）。
+  示範：`/props-demo.html`（14 件 props + 貓，逐件放大睇）。
 - **👀 Try on／fitting room（2026-11）**：未買嘅 item 卡片多一個
   **👀 Try on** 掣（`storeTryOnItem(id)`），會開 `#store-fitting` 試穿視窗：
   `storePaintLook()` 畫自己隻貓＋該 item（`head／ears／eyes／cheeks／neck／body`

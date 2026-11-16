@@ -111,7 +111,7 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', ears: 'None', cheeks: 'None', outfit: 'None', neck: 'None', car: 'Stock', controls: 'tilt', questionCount: 20, scene: 'desert' };
+        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', ears: 'None', cheeks: 'None', outfit: 'None', neck: 'None', car: 'Stock', controls: 'tilt', questionCount: 20, scene: 'desert', timeLimit: 0 };
     },
 
     normalizeTopic(value) {
@@ -174,6 +174,12 @@ const DG = {
     normalizeQuestionCount(value) {
         const n = Number(value);
         return DG.QUESTION_COUNTS.indexOf(n) !== -1 ? n : 20;
+    },
+
+    // Class-room time limit in minutes. 0 = no limit.
+    normalizeTimeLimit(value) {
+        const n = Number(value);
+        return [0, 5, 10, 15, 20, 30].indexOf(n) !== -1 ? n : 0;
     },
 
     normalizeScene(value) {
@@ -252,6 +258,7 @@ const DG = {
         if (saved && ['tilt', 'swipe', 'buttons'].indexOf(saved.controls) !== -1) DG.settings.controls = saved.controls;
         DG.settings.questionCount = DG.normalizeQuestionCount(saved && saved.questionCount);
         DG.settings.scene = DG.normalizeScene(saved && saved.scene);
+        DG.settings.timeLimit = DG.normalizeTimeLimit(saved && saved.timeLimit);
         DG.rememberLook(DG.settings);
         return DG.settings;
     },
@@ -1759,6 +1766,16 @@ const DG = {
                   '<input id="dg-teacher-plays" type="checkbox" class="mt-1 w-5 h-5">' +
                   '<span>Yes — give me a kart (31 seats: me + 30 students).' +
                   '<span class="block text-sm text-gray-400 font-normal mt-1">Leave it unticked to host only (30 student seats, default). You still start the race, show the projector board, end the battle and see the results.</span></span></label>' +
+                  '<div class="flex items-center gap-3 flex-wrap mt-4 pt-4 border-t-2 border-orange-100">' +
+                  '<label for="dg-time-limit" class="font-bold text-gray-600">Time limit</label>' +
+                  '<select id="dg-time-limit" onchange="DG.setTimeLimit(this.value)" class="p-2 px-3 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">' +
+                  [0, 5, 10, 15, 20, 30].map(function (m) {
+                      return '<option value="' + m + '"' + (DG.normalizeTimeLimit(s.timeLimit) === m ? ' selected' : '') + '>' +
+                          (m ? m + ' minutes' : 'No limit') + '</option>';
+                  }).join('') +
+                  '</select>' +
+                  '<span class="text-sm text-gray-400 font-normal">When time is up the race finishes by itself and shows the trophy. You can always press End battle earlier.</span>' +
+                  '</div>' +
                   '</div>'
                 : '') +
             (host ? '<div id="dg-mp-status" class="dg-note hidden mb-4"></div>' : '') +
@@ -1775,6 +1792,12 @@ const DG = {
         DG.readSettings().scene = DG.normalizeScene(value);
         DG.saveSettings();
         DG.showSceneStep();
+    },
+
+    setTimeLimit(value) {
+        if (!DG.canEditHostSettings()) return;
+        DG.readSettings().timeLimit = DG.normalizeTimeLimit(value);
+        DG.saveSettings();
     },
 
     /* Joiner’s last step: the host owns the challenge / question count /

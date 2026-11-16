@@ -50,12 +50,13 @@ const STORE_ITEMS = [
     { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:500, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
     { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
     { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:520, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
+    { id:'prop_cozy_desk', slot:'prop', name:'Cozy Desk', zh:'溫暖書桌', price:560, rarity:'Legendary', emoji:'🪵', color:'#a9763f', desc:'A real wooden desk with a lamp, books and a hot mug — right beside your cat.' },
     // Drive & Go! car skins
-    { id:'car_sunset', slot:'car', name:'Sunset Racer', zh:'日落賽車', price:600, rarity:'Rare', emoji:'🏎️', color:'#ef4444', desc:'A red-orange racer with gold trim.' },
-    { id:'car_ocean', slot:'car', name:'Ocean Bolt', zh:'海洋閃電', price:650, rarity:'Rare', emoji:'🏎️', color:'#38bdf8', desc:'A sky-blue kart with a white stripe.' },
-    { id:'car_neon', slot:'car', name:'Neon Drift', zh:'霓虹漂移', price:700, rarity:'Epic', emoji:'🏎️', color:'#a855f7', desc:'Purple body with a cyan glow stripe.' },
-    { id:'car_jungle', slot:'car', name:'Jungle Buggy', zh:'森林越野車', price:750, rarity:'Epic', emoji:'🏎️', color:'#22c55e', desc:'A green off-road buggy with yellow trim.' },
-    { id:'car_gold', slot:'car', name:'Golden GT', zh:'黃金跑車', price:900, rarity:'Legendary', emoji:'🏎️', color:'#fbbf24', desc:'A gold grand tourer with black trim.' },
+    { id:'car_sunset', slot:'car', name:'Sunset Racer', zh:'日落賽車', price:600, rarity:'Rare', emoji:'🏎️', color:'#ef4444', speed:2, desc:'A red-orange racer with gold trim. Top speed +2%.' },
+    { id:'car_ocean', slot:'car', name:'Ocean Bolt', zh:'海洋閃電', price:650, rarity:'Rare', emoji:'🏎️', color:'#38bdf8', speed:3, desc:'A sky-blue kart with a white stripe. Top speed +3%.' },
+    { id:'car_neon', slot:'car', name:'Neon Drift', zh:'霓虹漂移', price:700, rarity:'Epic', emoji:'🏎️', color:'#a855f7', speed:4, desc:'Purple body with a cyan glow stripe. Top speed +4%.' },
+    { id:'car_jungle', slot:'car', name:'Jungle Buggy', zh:'森林越野車', price:750, rarity:'Epic', emoji:'🏎️', color:'#22c55e', speed:5, desc:'A green off-road buggy with yellow trim. Top speed +5%.' },
+    { id:'car_gold', slot:'car', name:'Golden GT', zh:'黃金跑車', price:900, rarity:'Legendary', emoji:'🏎️', color:'#fbbf24', speed:7, desc:'A gold grand tourer with black trim. Top speed +7%.' },
 
     // Backgrounds & effects (Me / lobby only)
     { id:'bg_desk', slot:'background', name:'Cozy Desk', zh:'溫書書桌', price:120, rarity:'Rare', emoji:'🛋️', color:'#d97706', desc:'A wooden desk with a lamp and tea.' },
@@ -482,7 +483,7 @@ function storeBalanceLabel() {
 const STORE_GACHA_COST = 200;
 const STORE_NEW_IDS = [
     'prop_white_flag', 'prop_rubber_duck', 'prop_red_pen',
-    'prop_tea_scone', 'prop_corgi', 'prop_boombox'
+    'prop_tea_scone', 'prop_corgi', 'prop_boombox', 'prop_cozy_desk'
 ];
 
 function storeShowGachaResult(html) {
@@ -843,6 +844,7 @@ function storeCardHTML(item) {
         '<p class="store-card-name">' + escapeHtml(item.name) + '</p>' +
         '<p class="store-card-zh">' + escapeHtml(item.zh) + '</p>' +
         '<p class="store-card-rarity store-rarity-' + item.rarity.toLowerCase() + '">' + escapeHtml(item.rarity) + '</p>' +
+        (item.slot === 'car' ? '<p class="store-card-stat">🏁 Top speed +' + Number(item.speed || 0) + '%</p>' : '') +
         (owned && item.price > 0 ? '<p class="store-card-owned">Owned</p>' : '') +
         action + tryBtn +
         '</div>';
@@ -923,6 +925,7 @@ function storeTryOnItem(id) {
     storeFittingShell(
         '<h3 id="store-fitting-title" class="text-lg font-bold text-orange-700 mb-1">Fitting room</h3>' +
         '<p class="text-sm text-gray-500 font-bold mb-2">Trying on ' + escapeHtml(item.name) + ' · ' + item.price + ' 🐾</p>' +
+        (item.slot === 'car' ? '<p class="text-xs font-bold text-emerald-600 mb-1">🏁 Top speed +' + Number(item.speed || 0) + '% in Drive &amp; Go</p>' : '') +
         '<canvas id="store-fitting-canvas" aria-label="Item preview"></canvas>' +
         '<p id="store-fitting-items" class="text-xs text-gray-500"></p>' +
         '<p class="text-xs text-gray-400 mt-2">Free to try — buy it to keep it on your cat.</p>' +

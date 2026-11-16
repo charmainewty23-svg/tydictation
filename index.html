@@ -462,6 +462,7 @@
         .store-rarity-epic { color: #7e22ce; }
         .store-rarity-legendary { color: #b45309; }
         .store-card-owned { font-size: 0.65rem; font-weight: 800; color: #047857; }
+        .store-card-stat { font-size: 0.68rem; font-weight: 800; color: #047857; }
         .store-card-note { font-size: 0.72rem; font-weight: 700; color: #9ca3af; }
         .store-btn {
             min-height: 42px;
@@ -2481,6 +2482,18 @@
         .dg-result-grid span { color: #9a3412; font-size: 12px; font-weight: 700; }
         .dg-result-grid b { color: #1f2937; }
         .dg-standings { display: flex; flex-direction: column; gap: 5px; }
+        .dg-time-left {
+            margin: 6px 0 0;
+            font-size: 16px;
+            font-weight: 800;
+            color: #b45309;
+        }
+        .dg-mp-time {
+            margin: 0 0 4px;
+            font-size: 11px;
+            font-weight: 800;
+            color: #fbbf24;
+        }
         .dg-standing {
             display: grid;
             grid-template-columns: 34px 1fr auto auto;
@@ -3466,6 +3479,17 @@
                                     <p class="text-gray-500 text-sm">One click opens a room for up to 30 students. Everyone gets the same questions.</p>
                                 </div>
                                 <button onclick="battleCreateClassRoom()" class="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-colors">Open Class Room</button>
+                            </div>
+                            <div class="flex items-center gap-3 flex-wrap mt-4 pt-4 border-t-2 border-indigo-100">
+                                <label for="battle-class-minutes" class="text-sm font-bold text-gray-500">Class time limit</label>
+                                <select id="battle-class-minutes" onchange="localStorage.setItem('battle_class_minutes', this.value)" class="p-2 px-4 rounded-xl border-2 border-gray-200 bg-white font-bold text-gray-700">
+                                    <option value="0">No limit</option>
+                                    <option value="5">5 minutes</option>
+                                    <option value="10">10 minutes</option>
+                                    <option value="15">15 minutes</option>
+                                    <option value="20">20 minutes</option>
+                                </select>
+                                <span class="text-xs text-gray-400">Time's up = the battle finishes by itself and shows the results.</span>
                             </div>
                         </div>
                         <p id="battle-error" class="text-red-400 font-bold text-center mt-6"></p>

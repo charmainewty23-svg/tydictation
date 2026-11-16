@@ -27,6 +27,7 @@
         let battleRoundStartedAt = null;
         let battleDoneLocal = false;
         let battleAutoEnding = false;
+        let battleTimeUpArmed = false;
         let battleLastAnswer = '';
         let battleLastCorrect = null;
         let battleLiveColumns = true;   // false if battle_live.sql has not been run yet
@@ -600,6 +601,11 @@
                 const saved = localStorage.getItem('battle_qcount');
                 if (saved && Array.from(qsel.options).some(o => o.value === saved)) qsel.value = saved;
             }
+            const tsel = document.getElementById('battle-class-minutes');
+            if (tsel) {
+                const savedMin = localStorage.getItem('battle_class_minutes');
+                if (savedMin && Array.from(tsel.options).some(o => o.value === savedMin)) tsel.value = savedMin;
+            }
             battleSetError('');
             const classEntry = document.getElementById('battle-class-entry');
             if (classEntry) classEntry.classList.toggle('hidden', !isAdmin());
@@ -722,12 +728,15 @@
                 return;
             }
             battleRoom = room;
+            if (room.status !== 'playing') battleTimeUpArmed = false;
             if (room.status === 'finished') battleClearResume();
             else battleSaveResume();
             const { data: players } = await sb.from('battle_players')
                 .select('*').eq('room_id', room.id);
             battlePlayers = players || [];
             battleRender();
+            if (battleRoom && battleRoom.status === 'playing' && currentUser &&
+                battleRoom.host_id !== currentUser.id) battleUpdateTimeLeft();
         }
 
         function battleRender() {
@@ -805,6 +814,7 @@
             battleLastAnswer = '';
             battleLastCorrect = null;
             document.getElementById('battle-topic-label').innerText = 'Topic: ' + built.topic;
+            battleUpdateTimeLeft();
             battleRestoreProgress();
             if (battleDoneLocal) {
                 battleUpdateScoreboard();
@@ -812,6 +822,14 @@
             }
             battleShowQuestion();
             battleSubmitProgress(false);
+        }
+
+        function battleUpdateTimeLeft() {
+            const el = document.getElementById('battle-topic-label');
+            if (!el || !battleRoom) return;
+            const topic = el.innerText.split('  ·  ')[0];
+            const left = battleTimeLeftText(battleRoom);
+            el.innerText = left ? topic + '  ·  ' + left : topic;
         }
 
         function battleRestoreProgress() {
@@ -1188,10 +1206,37 @@
             battlePoll();
         }
 
+        function battleClassMinutes() {
+            const sel = document.getElementById('battle-class-minutes');
+            const n = sel ? parseInt(sel.value, 10) : 0;
+            return [5, 10, 15, 20].includes(n) ? n : 0;
+        }
+
         async function battleStart() {
             const { error } = await sb.rpc('start_battle', { p_room_id: battleRoom.id });
             if (error) return battleSetError(battleErrorMessage(error));
+            // Class rooms can carry a teacher-set time limit. Best effort: if
+            // class_time_limit.sql has not been run, the battle still starts.
+            const mins = battleClassMinutes();
+            if (battleRoom && battleRoom.mode === 'class' && mins > 0) {
+                const res = await sb.rpc('set_battle_deadline', {
+                    p_room_id: battleRoom.id,
+                    p_seconds: mins * 60
+                });
+                if (!res.error) battleTimeUpArmed = false;
+            }
             battlePoll();
+        }
+
+        function battleTimeLeftText(room) {
+            if (!room || !room.ends_at) return '';
+            const left = Date.parse(room.ends_at) - Date.now();
+            if (!isFinite(left)) return '';
+            if (left <= 0) return "⏱ Time's up";
+            const total = Math.ceil(left / 1000);
+            const m = Math.floor(total / 60);
+            const s = total % 60;
+            return '⏱ ' + m + ':' + String(s).padStart(2, '0') + ' left';
         }
 
         async function battleCopyCode() {
@@ -1318,6 +1363,8 @@
             }
             if (battleRoom.status === 'playing') {
                 statusText += '  ·  Late students can still join with this code';
+                const left = battleTimeLeftText(battleRoom);
+                if (left) statusText += '  ·  ' + left;
             }
             document.getElementById('battle-class-status').innerText = statusText;
 
@@ -1326,18 +1373,28 @@
             endBtn.classList.toggle('hidden', battleRoom.status !== 'playing');
             if (battleRoom.status === 'playing') {
                 const waiting = everyone.filter(p => !p.done).length;
-                endBtn.innerText = waiting ? 'End Battle (' + waiting + ' still playing)' : 'End Battle';
+                endBtn.innerText = waiting
+                    ? '⏹ Finish now (' + waiting + ' still playing)'
+                    : '⏹ Finish now';
                 // Do not auto-end in the first 10 seconds after Start: a stale
                 // done=true row from the waiting room must not end the battle
                 // before anyone has answered a question.
                 const startedMs = battleRoom.started_at ? Date.parse(battleRoom.started_at) : 0;
                 const settled = startedMs && Date.now() - startedMs > 10000;
-                if (settled && everyone.length && waiting === 0 && !battleAutoEnding) {
+                const outOfTime = battleRoom.ends_at && Date.parse(battleRoom.ends_at) <= Date.now();
+                if (outOfTime && !battleTimeUpArmed) {
+                    battleTimeUpArmed = true;
+                    battleEndClass(true).finally(function () {
+                        // If the RPC failed (SQL missing), retry in a few
+                        // seconds instead of spamming it every poll.
+                        setTimeout(function () { battleTimeUpArmed = false; }, 8000);
+                    });
+                } else if (settled && everyone.length && waiting === 0 && !battleAutoEnding) {
                     battleAutoEnding = true;
                     battleEndClass(true).finally(function () { battleAutoEnding = false; });
                 }
             } else {
-                endBtn.innerText = 'End Battle';
+                endBtn.innerText = '⏹ Finish now';
             }
             const classLeave = document.getElementById('battle-class-leave');
             if (classLeave) classLeave.classList.toggle('hidden', battleRoom.status !== 'waiting');

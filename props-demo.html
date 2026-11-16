@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Store props gallery</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    body { display: flex; flex-direction: column; }
+    #demo-bar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 8px 10px; background: #1f2937; min-height: 52px;
+    }
+    #demo-bar button {
+        min-height: 38px; border: 0; border-radius: 999px; padding: 0 16px;
+        background: #22c55e; color: #052e16; font: 800 13px system-ui, sans-serif; cursor: pointer;
+    }
+    iframe { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #fff9f2; }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" id="redraw">↺ Redraw</button>
+</div>
+<iframe id="demo-app" src="/index.html?propsgallery=1" title="Store props gallery"></iframe>
+<script>
+(function () {
+    var frame = document.getElementById('demo-app');
+
+    function draw() {
+        var w = frame.contentWindow;
+        if (!w || !w.DG || !w.DG.drawCatProp || !w.DG.drawCatAvatar) {
+            setTimeout(draw, 250);
+            return;
+        }
+        w.eval("(function(){" +
+            "var names=['Cozy Desk','Boombox','Cardboard Box','Tea & Scone','Floating Dictionary','Mini Corgi','Quill & Scroll','Red Pen','White Flag','Mini Parrot','Boba Tea','Magnifying Glass','Pencil','Rubber Duck'];" +
+            "var d=document;" +
+            "d.body.innerHTML='';" +
+            "d.body.style.background='#0f172a';" +
+            "d.body.style.margin='0';" +
+            "d.body.style.padding='18px 12px 28px';" +
+            "d.body.style.fontFamily='system-ui, -apple-system, sans-serif';" +
+            "var head=d.createElement('div');" +
+            "head.style.cssText='max-width:1080px;margin:0 auto 14px;color:#e2e8f0;text-align:center';" +
+            "head.innerHTML='<h1 style=\"margin:0 0 4px;font-size:22px\">Store props — solid objects</h1>' +" +
+            "'<p style=\"margin:0;color:#94a3b8;font-size:13px\">Every prop is drawn as a real object beside the cat. Cozy Desk is a full wooden desk with a lamp, books and a mug.</p>';" +
+            "d.body.appendChild(head);" +
+            "var wrap=d.createElement('div');" +
+            "wrap.style.cssText='max-width:1080px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px';" +
+            "var look={cat:'Ragdoll',hat:'None',glasses:'None',outfit:'None',neck:'None',ears:'None',cheeks:'None',car:'Stock'};" +
+            "names.forEach(function(n){" +
+            "  var cell=d.createElement('div');" +
+            "  cell.style.cssText='background:#fff9f2;border-radius:18px;padding:8px 8px 4px;text-align:center';" +
+            "  var c=d.createElement('canvas');" +
+            "  c.width=560; c.height=320; c.style.width='100%'; c.style.borderRadius='12px';" +
+            "  cell.appendChild(c);" +
+            "  var cap=d.createElement('p');" +
+            "  cap.style.cssText='margin:6px 0 4px;font-weight:800;color:#7c2d12;font-size:13px';" +
+            "  cap.textContent=n;" +
+            "  cell.appendChild(cap);" +
+            "  wrap.appendChild(cell);" +
+            "  var ctx=c.getContext('2d');" +
+            "  var g=ctx.createLinearGradient(0,0,0,320);" +
+            "  g.addColorStop(0,'#dbeafe'); g.addColorStop(1,'#fef3c7');" +
+            "  ctx.fillStyle=g; ctx.fillRect(0,0,560,320);" +
+            "  DG.drawCatAvatar(ctx, 240, 288, 1.15, look);" +
+            "  DG.drawCatProps(ctx, [{name:n}], 560, 320);" +
+            "});" +
+            "d.body.appendChild(wrap);" +
+            "})()");
+    }
+
+    document.getElementById('redraw').addEventListener('click', function () {
+        frame.contentWindow.location.reload();
+    });
+    frame.addEventListener('load', function () { setTimeout(draw, 400); });
+})();
+</script>
+</body>
+</html>

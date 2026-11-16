@@ -520,7 +520,19 @@
         if (!id || !EFFECTS[id]) return '';
         try { sb.rpc('log_victory_use', { p_item: id, p_room: key }); } catch (e) {}
         if (trial) { try { sb.rpc('consume_victory_rental'); } catch (e) {} }
-        setTimeout(function () { VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial })); }, 350);
+        // Let the class trophy ceremony finish first: the victory effect is
+        // the encore, not a replacement.
+        const started = Date.now();
+        const waitForTrophy = function () {
+            const trophy = document.getElementById('battle-trophy-overlay') ||
+                document.getElementById('dg-trophy-overlay');
+            if (trophy && Date.now() - started < 20000) {
+                setTimeout(waitForTrophy, 400);
+                return;
+            }
+            VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
+        };
+        setTimeout(waitForTrophy, 400);
         return id;
     };
 

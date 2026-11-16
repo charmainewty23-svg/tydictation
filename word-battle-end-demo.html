@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Class battle end + victory effect demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    body { display: flex; flex-direction: column; }
+    #demo-bar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+        padding: 7px 10px; background: #1f2937; min-height: 52px;
+    }
+    #demo-bar button {
+        min-height: 38px; border: 0; border-radius: 999px; padding: 0 14px;
+        background: rgba(255,255,255,.12); color: #e5e7eb;
+        font: 800 12px system-ui, -apple-system, sans-serif; cursor: pointer; white-space: nowrap;
+    }
+    #demo-bar button.active { background: #22c55e; color: #052e16; }
+    iframe { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #fff9f2; }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" id="demo-finish">🧑‍🏫 Teacher: Finish now</button>
+    <button type="button" id="demo-trophy">🏆 Trophy only</button>
+    <button type="button" id="demo-effect">✨ Victory effect</button>
+    <button type="button" id="demo-replay">↺ Replay</button>
+</div>
+<iframe id="demo-app" src="/index.html?wbenddemo=1" title="Class battle end demo"></iframe>
+<script>
+(function () {
+    var frame = document.getElementById('demo-app');
+    var students = [
+        { user_id: 'demo-student-01', nickname: '4C 07 Chan', cat: 'Ragdoll', glasses: 'Cyber Visor', hat: 'Golden Crown', outfit: 'Royal Guard Tunic', score: 148, correct: 15, total_ms: 128000, done: true, progress: 15 },
+        { user_id: 'demo-student-02', nickname: '4C 02 Lee', cat: 'Ginger', glasses: 'Star Sunglasses', hat: 'Straw Hat', outfit: 'Boba Apron', score: 132, correct: 13, total_ms: 151000, done: true, progress: 15 },
+        { user_id: 'demo-student-03', nickname: '4C 11 Wong', cat: 'Ragdoll', glasses: 'Glasses', hat: 'Lo-Fi Headphones', outfit: 'Red Scarf', score: 121, correct: 12, total_ms: 162000, done: true, progress: 15 },
+        { user_id: 'demo-student-04', nickname: '4C 04 Ho', cat: 'Ginger', glasses: 'None', hat: 'Party Hat', outfit: 'Racing Jacket', score: 108, correct: 11, total_ms: 170000, done: false, progress: 12 },
+        { user_id: 'demo-student-05', nickname: '4C 19 Lam', cat: 'Ragdoll', glasses: 'None', hat: 'None', outfit: 'None', score: 96, correct: 10, total_ms: 176000, done: false, progress: 11 },
+        { user_id: 'demo-student-06', nickname: '4C 08 Yip', cat: 'Ginger', glasses: 'Glasses', hat: 'Chef Hat', outfit: 'Raincoat', score: 84, correct: 9, total_ms: 181000, done: false, progress: 10 }
+    ];
+
+    function ready(w) {
+        try {
+            return !!(w && w.document && w.battleRenderClassHost && w.battleRenderResult &&
+                w.document.getElementById('battle-view') && w.VICTORY);
+        } catch (e) { return false; }
+    }
+
+    function setup(tries) {
+        tries = tries || 0;
+        var w = frame.contentWindow, d = w && w.document;
+        if (!ready(w)) {
+            if (tries < 120) setTimeout(function () { setup(tries + 1); }, 250);
+            return;
+        }
+        d.getElementById('login-view').style.display = 'none';
+        var app = d.getElementById('app');
+        if (app) app.classList.add('logged-in');
+        var brand = d.querySelector('#app > .brand-header');
+        if (brand) brand.style.display = 'none';
+        var mascot = d.querySelector('#app > header');
+        if (mascot) mascot.style.display = 'none';
+        d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
+        d.getElementById('battle-view').classList.remove('hidden');
+        ['bottom-nav', 'home-music-btn', 'me-store-music-btn', 'battle-back-btn'].forEach(function (id) {
+            var el = d.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        var card = d.querySelector('#battle-view .cat-card');
+        if (card) {
+            Array.prototype.forEach.call(card.children, function (ch) {
+                if (ch.id === 'battle-class' || ch.id === 'battle-result') return;
+                ch.style.display = 'none';
+            });
+        }
+
+        w.eval(`(function(){
+            window.confirm = function(){ return true; };
+            window.isAdmin = function(){ return false; };
+            battleSaveResume = function(){};
+            battleReadResume = function(){ return null; };
+            battleSubmitProgress = function(){};
+            battleRecordAnswer = function(){};
+            battleSpeak = function(){};
+            battleWords = Array.from({length:15}, function(_, i){ return { en: 'word' + i, zh: '第 ' + (i+1) + ' 題中文提示' }; });
+            battleRoundSeed = 4242;
+            battleRoundStartedAt = new Date().toISOString();
+            // Fake champion look so the victory stage matches the podium cat.
+            storeMyLook = function(){
+                return { cat: 'Ragdoll', hat: 'Golden Crown', ears: 'None',
+                    glasses: 'Cyber Visor', cheeks: 'None',
+                    outfit: 'Royal Guard Tunic', neck: 'None', car: 'Stock', props: [] };
+            };
+            STORE_EQUIPPED = { prop: [], victory: 'victory_moneygun' };
+            STORE_OWNED = { victory_moneygun: true };
+            battleRoom = {
+                id: 'demo-wb-end', code: 'B7QX', host_id: 'teacher-demo', mode: 'class',
+                status: 'playing', seed: 4242, question_count: 15, topic: 'charity',
+                started_at: new Date(Date.now() - 300000).toISOString(),
+                ends_at: new Date(Date.now() + 300000).toISOString(),
+                max_players: 30
+            };
+            battlePlayers = ${JSON.stringify(students)};
+            battleShowPanel('class');
+            battleRenderClassHost();
+        })()`);
+        frame.contentWindow.location.hash = '#ready';
+    }
+
+    function finish() {
+        var w = frame.contentWindow;
+        w.eval(`(function(){
+            battleRoom.status = 'finished';
+            battleRoom.finished_at = new Date().toISOString();
+            battleRoom.winner_id = 'demo-student-01';
+            currentUser = { id: 'demo-student-01', email: 's231007@lstyoungkhl.edu.hk' };
+            battleDoneLocal = true;
+            battleIdx = 15;
+            battleScore = 148;
+            battleCorrect = 15;
+            battleShowPanel('result');
+            battleRenderResult();
+            // Demo only: close the trophy after the ceremony so the victory
+            // effect can play as the encore.
+            setTimeout(function(){ if (typeof battleCloseTrophy === 'function') battleCloseTrophy(); }, 7200);
+        })()`);
+        mark('demo-finish');
+    }
+
+    function trophyOnly() {
+        var w = frame.contentWindow;
+        w.eval(`(function(){
+            battleRoom.status = 'finished';
+            battleRoom.finished_at = battleRoom.finished_at || new Date().toISOString();
+            battleRoom.winner_id = 'demo-student-01';
+            currentUser = { id: 'demo-student-01', email: 's231007@lstyoungkhl.edu.hk' };
+            battleShowPanel('result');
+            battleRenderResult();
+        })()`);
+        mark('demo-trophy');
+    }
+
+    function effectOnly() {
+        var w = frame.contentWindow;
+        w.eval("if (typeof battleCloseTrophy === 'function') battleCloseTrophy(); VICTORY.play('victory_moneygun', { title: '🏆 Class champion' });");
+        mark('demo-effect');
+    }
+
+    function mark(id) {
+        ['demo-finish', 'demo-trophy', 'demo-effect'].forEach(function (key) {
+            document.getElementById(key).classList.toggle('active', key === id);
+        });
+    }
+
+    document.getElementById('demo-finish').addEventListener('click', finish);
+    document.getElementById('demo-trophy').addEventListener('click', trophyOnly);
+    document.getElementById('demo-effect').addEventListener('click', effectOnly);
+    document.getElementById('demo-replay').addEventListener('click', function () {
+        try { frame.contentWindow.location.reload(); } catch (e) {}
+    });
+    frame.addEventListener('load', function () { setTimeout(function () { setup(0); }, 500); });
+})();
+</script>
+</body>
+</html>

@@ -39,7 +39,11 @@
         projectileRoomId: '',
         // Signature of the last host-only live board, so the 1s poll only
         // re-renders when a student's progress actually changes.
-        watchSig: ''
+        watchSig: '',
+        // Big-screen live leaderboard for the classroom projector.
+        projector: false,
+        projSig: '',
+        projCatCache: null
     };
     DG.mpState = MP;
 
@@ -608,6 +612,7 @@
             MP.room = room;
             MP.players = players;
             MP.closed = false;
+            if (MP.projector) DG.mpRenderProjector();
             if (plan.kind === 'begin') {
                 // A teacher who chose "host only" has no player row. Keep the
                 // lobby poll running and show the live class board instead of
@@ -626,11 +631,13 @@
             }
             if (plan.kind === 'results') {
                 DG.mpStopPoll();
+                DG.mpCloseProjector();
                 DG.showMultiplayerResults(room, players);
                 return;
             }
             if (plan.kind === 'results-lobby') {
                 DG.mpStopPoll();
+                DG.mpCloseProjector();
                 DG.mpShowFinishedInLobby(room, players);
                 return;
             }
@@ -783,6 +790,7 @@
                   (canStart ? 'Start race (' + players.length + ' players)' : 'Waiting for 1 more player…') + '</button></div>'
                 : '<p class="text-center font-bold text-orange-600 animate-pulse">Waiting for the host to start…</p>') +
             '<div class="flex gap-3 justify-center flex-wrap mt-5">' +
+            (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpOpenProjector()">📺 Projector board</button>' : '') +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Leave room</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpSetStatus(\'Room code: ' + DG.esc(room.code) + '\', false)">Refresh</button>' +
             '</div>' +
@@ -832,14 +840,135 @@
             (rows || '<p class="text-center font-bold text-gray-500 py-4">Waiting for students to join…</p>') +
             '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-4">' +
-            '<button type="button" class="btn-paw" onclick="DG.mpEndClassBattle()">End battle</button>' +
+            '<button type="button" class="btn-paw" onclick="DG.mpOpenProjector()">📺 Projector board</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.mpEndClassBattle()">End battle</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Close room</button>' +
-            '</div>';
+            '</div>' +
+            '<p class="text-center text-xs text-gray-400 mt-2">Projector board = big live leaderboard for the class screen or a screen share.</p>';
+    };
+
+    /* ---------- Projector / live-stream leaderboard ----------
+       A big board for the classroom projector (or a screen share). It follows
+       the same 1 s room poll as the host board, so it stays live without any
+       extra SQL or realtime channel. */
+
+    DG.mpProjCatURL = function (p) {
+        if (!MP.projCatCache) MP.projCatCache = Object.create(null);
+        const look = DG.normalizeLook({
+            cat: p && p.cat, glasses: p && p.glasses, hat: p && p.hat,
+            outfit: p && p.outfit, ears: p && p.ears,
+            cheeks: p && p.cheeks, neck: p && p.neck
+        });
+        const key = [look.cat, look.hat, look.ears, look.glasses, look.cheeks, look.outfit, look.neck].join('|');
+        if (MP.projCatCache[key] != null) return MP.projCatCache[key];
+        let url = '';
+        try {
+            const c = document.createElement('canvas');
+            c.width = 72;
+            c.height = 72;
+            const ctx = c.getContext('2d');
+            if (ctx && DG.drawCatAvatar) DG.drawCatAvatar(ctx, 36, 66, 0.34, look);
+            url = c.toDataURL();
+        } catch (e) { url = ''; }
+        MP.projCatCache[key] = url;
+        return url;
+    };
+
+    DG.mpProjectorKey = function (e) {
+        if (e.key === 'Escape' && MP.projector) DG.mpCloseProjector();
+    };
+
+    DG.mpOpenProjector = function () {
+        if (!MP.room) {
+            DG.toastSafe('Open a room first.');
+            return;
+        }
+        MP.projector = true;
+        MP.projSig = '';
+        DG.mpRenderProjector(true);
+    };
+
+    DG.mpCloseProjector = function () {
+        MP.projector = false;
+        MP.projSig = '';
+        const el = document.getElementById('dg-projector');
+        if (el) el.remove();
+        document.removeEventListener('keydown', DG.mpProjectorKey);
+    };
+
+    DG.mpProjectorList = function (players, n) {
+        const clamp = v => Math.max(0, Math.min(n, Math.floor(Number(v) || 0)));
+        return (players || []).slice().sort((a, b) => {
+            const ca = clamp(a.correct), cb = clamp(b.correct);
+            if (cb !== ca) return cb - ca;
+            const fa = a.finished_at ? 1 : 0, fb = b.finished_at ? 1 : 0;
+            if (fb !== fa) return fb - fa;
+            const sa = Number(a.composite_score) || 0, sb = Number(b.composite_score) || 0;
+            if (sb !== sa) return sb - sa;
+            return (Number(b.distance) || 0) - (Number(a.distance) || 0);
+        });
+    };
+
+    DG.mpRenderProjector = function (force) {
+        if (!MP.projector) return;
+        const room = MP.room;
+        if (!room) { DG.mpCloseProjector(); return; }
+        const n = DG.normalizeQuestionCount(room.question_count);
+        const players = MP.players || [];
+        const list = DG.mpProjectorList(players, n);
+        const sig = room.id + '|' + room.status + '|' + n + '|' + list.map(p =>
+            (p.user_id || '') + ':' + (Math.floor(Number(p.correct) || 0)) + ':' + Math.round(Number(p.distance) || 0)
+        ).join(',');
+        if (!force && sig === MP.projSig) return;
+        MP.projSig = sig;
+
+        let el = document.getElementById('dg-projector');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'dg-projector';
+            document.body.appendChild(el);
+            document.addEventListener('keydown', DG.mpProjectorKey);
+        }
+
+        const done = list.filter(p => Math.floor(Number(p.correct) || 0) >= n || !!p.finished_at).length;
+        const medals = ['🥇', '🥈', '🥉'];
+        const rows = list.length ? list.map((p, i) => {
+            const correct = Math.max(0, Math.min(n, Math.floor(Number(p.correct) || 0)));
+            const pct = n ? Math.round((correct / n) * 100) : 0;
+            const finished = correct >= n || !!p.finished_at;
+            return '<div class="dg-proj-row' + (i === 0 ? ' top1' : '') + (finished ? ' done' : '') + '">' +
+                '<span class="dg-proj-rank">' + (medals[i] || (i + 1)) + '</span>' +
+                '<img class="dg-proj-cat" src="' + DG.mpProjCatURL(p) + '" alt="">' +
+                '<div class="dg-proj-main">' +
+                '<p class="dg-proj-name">' + DG.esc(DG.mpPlayerName(p)) + (finished ? ' 🏁' : '') + '</p>' +
+                '<div class="dg-proj-bar"><span style="width:' + pct + '%"></span></div>' +
+                '</div>' +
+                '<span class="dg-proj-pts">' + correct + '/' + n + '</span>' +
+                '</div>';
+        }).join('')
+            : '<p class="dg-proj-empty">Waiting for students to join…</p>';
+
+        const finishedRoom = room.status === 'finished';
+        el.innerHTML =
+            '<div class="dg-proj-head">' +
+            '<div>' +
+            '<p class="dg-proj-kicker">LearniTY · Drive &amp; Go!</p>' +
+            '<h2 class="dg-proj-title">🏁 ' + (finishedRoom ? 'Final results' : 'Class race live') + '</h2>' +
+            '<p class="dg-proj-sub">' + DG.esc(DG.topicChallenge(room.topic, room.question_mode)) + ' · ' +
+            n + ' questions · ' + DG.esc(DG.sceneLabel(room.scene)) + '</p>' +
+            '</div>' +
+            '<div class="dg-proj-meta">' +
+            '<span class="dg-proj-code">Room <b>' + DG.esc(room.code) + '</b></span>' +
+            '<button type="button" class="dg-proj-close" onclick="DG.mpCloseProjector()" aria-label="Close projector board">✕</button>' +
+            '</div>' +
+            '</div>' +
+            '<div class="dg-proj-rows">' + rows + '</div>' +
+            '<p class="dg-proj-foot">' + (finishedRoom ? 'Finished' : 'Live leaderboard') +
+            ' · ' + done + ' of ' + list.length + ' finished · updates every second · Esc to close</p>';
     };
 
     DG.mpEndClassBattle = function () {
-        const room = MP.room;
-        if (!room || !currentUser || room.host_id !== currentUser.id) return;
+        const room = MP.room;        if (!room || !currentUser || room.host_id !== currentUser.id) return;
         if (room.status !== 'playing') return;
         const n = DG.normalizeQuestionCount(room.question_count);
         const unfinished = (MP.players || []).filter(p =>
@@ -987,6 +1116,7 @@
         if (!window.confirm('Leave this room?')) return;
         const roomId = MP.room.id;
         MP.leaving = true;
+        DG.mpCloseProjector();
         DG.mpStopPoll();
         DG.mpStopRacePoll();
         sb.rpc('leave_drive_and_go_room', { p_room_id: roomId }).then(() => {
@@ -1202,6 +1332,7 @@
                 const players = playerRes.data || [];
                 if (room) MP.room = room;
                 MP.players = players;
+                if (MP.projector) DG.mpRenderProjector();
                 DG.mpSyncRivals(players);
                 if (typeof DG.updateMpProgress === 'function') DG.updateMpProgress(players);
                 const selfRow = players.find(x => x.user_id === me);

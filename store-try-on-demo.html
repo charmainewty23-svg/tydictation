@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Store try-on demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    body { display: flex; flex-direction: column; height: 100%; }
+    #demo-bar {
+        position: static;
+        flex: 0 0 auto;
+        min-height: 52px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: #1f2937;
+        box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    #demo-bar button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 12px;
+        background: rgba(255,255,255,.12);
+        color: #e5e7eb;
+        font: 800 12px system-ui, -apple-system, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    #demo-bar button.active { background: #22c55e; color: #fff; }
+    #demo-app {
+        position: static;
+        flex: 1 1 auto;
+        width: 100%;
+        min-height: 0;
+        border: 0;
+        background: #fff9f2;
+    }
+</style>
+</head>
+<body>
+<div id="demo-bar">
+    <button type="button" id="demo-afford">👀 Try on (can afford)</button>
+    <button type="button" id="demo-poor">💪 Try on (not enough Paws)</button>
+    <button type="button" id="demo-car">🏎️ Try on a car</button>
+    <button type="button" id="demo-replay">↺ Reset</button>
+</div>
+<iframe id="demo-app" src="/index.html?storetryon=1" title="Store try-on demo"></iframe>
+<script>
+    (function () {
+        var frame = document.getElementById('demo-app');
+        var ready = false;
+
+        function setup() {
+            var w = frame.contentWindow, d = w && w.document;
+            if (!w || !d || !d.getElementById('store-view') || !w.DG || !w.DG.drawCatAvatar) {
+                setTimeout(setup, 200);
+                return;
+            }
+            d.getElementById('login-view').style.display = 'none';
+            var app = d.getElementById('app');
+            if (app) app.classList.add('logged-in');
+            var header = d.querySelector('#app > .brand-header');
+            if (header) header.style.display = 'none';
+            d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
+            d.getElementById('store-view').classList.remove('hidden');
+            ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+                var el = d.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            w.eval(`(function(){
+                window.confirm = function(){ return true; };
+                currentUser = { id:'demo-student-01', email:'s231001@lstyoungkhl.edu.hk' };
+                guestSession = false;
+                // Demo only: pretend the signed-in student has this wallet.
+                storeAvailable = function(){ return true; };
+                loadStoreState = async function(){};
+                STORE_CATEGORY = 'all';
+                STORE_OWNED = {};
+                STORE_EQUIPPED = { prop: [] };
+                STORE_BALANCE = 500;
+                STORE_PAWS_TODAY = 35;
+                renderStore();
+            })();`);
+            ready = true;
+        }
+
+        function withBalance(value, itemId) {
+            var w = frame.contentWindow;
+            w.eval("storeCloseFitting(); STORE_BALANCE = " + value + "; renderStore();");
+            w.eval("storeTryOnItem('" + itemId + "')");
+        }
+
+        function markActive(id) {
+            ['demo-afford', 'demo-poor', 'demo-car'].forEach(function (key) {
+                document.getElementById(key).classList.toggle('active', key === id);
+            });
+        }
+
+        document.getElementById('demo-afford').addEventListener('click', function () {
+            withBalance(500, 'hat_gold_crown');
+            markActive('demo-afford');
+        });
+        document.getElementById('demo-poor').addEventListener('click', function () {
+            withBalance(120, 'hat_gold_crown');
+            markActive('demo-poor');
+        });
+        document.getElementById('demo-car').addEventListener('click', function () {
+            withBalance(950, 'car_gold');
+            markActive('demo-car');
+        });
+        document.getElementById('demo-replay').addEventListener('click', function () {
+            try { frame.contentWindow.location.reload(); } catch (e) {}
+            ready = false;
+            markActive('');
+        });
+        frame.addEventListener('load', function () { setTimeout(setup, 500); });
+    })();
+</script>
+</body>
+</html>

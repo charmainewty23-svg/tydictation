@@ -834,6 +834,9 @@ function storeCardHTML(item) {
     } else {
         action = '<button type="button" class="store-btn" onclick="storeBuyItem(\'' + item.id + '\')">Buy · ' + item.price + ' 🐾</button>';
     }
+    const tryBtn = (!owned && storeAvailable())
+        ? '<button type="button" class="store-btn store-btn-try" onclick="storeTryOnItem(\'' + item.id + '\')">👀 Try on</button>'
+        : '';
     return '<div class="store-card' + (equipped ? ' equipped' : '') + '">' +
         (STORE_NEW_IDS.indexOf(item.id) !== -1 ? '<span class="store-card-new">NEW</span>' : '') +
         '<div class="store-card-emoji" aria-hidden="true">' + item.emoji + '</div>' +
@@ -841,8 +844,119 @@ function storeCardHTML(item) {
         '<p class="store-card-zh">' + escapeHtml(item.zh) + '</p>' +
         '<p class="store-card-rarity store-rarity-' + item.rarity.toLowerCase() + '">' + escapeHtml(item.rarity) + '</p>' +
         (owned && item.price > 0 ? '<p class="store-card-owned">Owned</p>' : '') +
-        action +
+        action + tryBtn +
         '</div>';
+}
+
+/* ---------------- Fitting room: try before you buy ----------------
+   Try-on is free and never saves anything. It only opens when the student
+   can already afford the item (or already owns it), so it never becomes a
+   window-shopping loop; short on Paws gets an encouraging message instead. */
+
+let STORE_TRY_ON = null;
+let STORE_FITTING_ESC = false;
+
+function storeFittingShell(html) {
+    const el = document.getElementById('store-fitting');
+    if (!el) return null;
+    el.innerHTML = '<div class="store-fitting-card" role="dialog" aria-modal="true" aria-labelledby="store-fitting-title">' +
+        '<button type="button" class="store-fitting-close" onclick="storeCloseFitting()" aria-label="Close">✕</button>' +
+        html + '</div>';
+    el.classList.remove('hidden');
+    el.onclick = function (event) { if (event.target === el) storeCloseFitting(); };
+    if (!STORE_FITTING_ESC) {
+        STORE_FITTING_ESC = true;
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') storeCloseFitting();
+        });
+    }
+    return el;
+}
+
+function storeCloseFitting() {
+    STORE_TRY_ON = null;
+    const el = document.getElementById('store-fitting');
+    if (!el) return;
+    el.classList.add('hidden');
+    el.innerHTML = '';
+}
+
+function storeTryOnLook(item) {
+    const look = storeMyLook();
+    const key = storeLayerKey(item.slot);
+    let prop = storeEquippedItems('prop');
+    let bg = storeEquippedItem('background');
+    let mode = '';
+    if (key === 'prop') {
+        prop = prop.filter(x => x && x.id !== item.id).concat([item]);
+    } else if (key === 'background') {
+        bg = item;
+    } else if (key === 'car') {
+        look.car = item.name;
+        mode = 'kart';
+    } else if (key !== 'prop' && key !== 'background') {
+        look[key] = item.name;
+    }
+    return { look, prop, bg, mode };
+}
+
+function storeTryOnItem(id) {
+    const item = STORE_BY_ID[id];
+    if (!item) return;
+    if (!storeAvailable()) {
+        updateMascot('Sign in with your school account to try items on.');
+        return;
+    }
+    const owned = item.price === 0 || !!STORE_OWNED[item.id];
+    if (owned) {
+        storeCloseFitting();
+        storeEquipItem(id);
+        return;
+    }
+    if (STORE_BALANCE < item.price) {
+        storeTryOnDenied(item);
+        return;
+    }
+
+    STORE_TRY_ON = id;
+    const view = storeTryOnLook(item);
+    storeFittingShell(
+        '<h3 id="store-fitting-title" class="text-lg font-bold text-orange-700 mb-1">Fitting room</h3>' +
+        '<p class="text-sm text-gray-500 font-bold mb-2">Trying on ' + escapeHtml(item.name) + ' · ' + item.price + ' 🐾</p>' +
+        '<canvas id="store-fitting-canvas" aria-label="Item preview"></canvas>' +
+        '<p id="store-fitting-items" class="text-xs text-gray-500"></p>' +
+        '<p class="text-xs text-gray-400 mt-2">Free to try — buy it to keep it on your cat.</p>' +
+        '<div class="store-fitting-actions">' +
+        '<button type="button" class="store-btn" onclick="storeBuyFromFitting()">Buy · ' + item.price + ' 🐾</button>' +
+        '<button type="button" class="dg-menu-button" onclick="storeCloseFitting()">Keep looking</button>' +
+        '</div>'
+    );
+    const canvas = document.getElementById('store-fitting-canvas');
+    storePaintLook(canvas, document.getElementById('store-fitting-items'), view.look, view.prop, view.bg, '', view.mode);
+    updateMascot('Trying on ' + item.name + ' ✨');
+}
+
+function storeTryOnDenied(item) {
+    STORE_TRY_ON = null;
+    const need = Math.max(0, item.price - STORE_BALANCE);
+    storeFittingShell(
+        '<div class="text-4xl mb-1" aria-hidden="true">💪</div>' +
+        '<h3 id="store-fitting-title" class="text-lg font-bold text-orange-700 mb-1">Keep earning!</h3>' +
+        '<p class="text-sm text-gray-600 font-bold">' + escapeHtml(item.name) + ' costs ' + item.price + ' 🐾.<br>' +
+        'You have ' + STORE_BALANCE + ' 🐾, so you need ' + need + ' more.</p>' +
+        '<p class="text-xs text-gray-500 mt-2">Try-on opens once you can afford the item. Every correct answer in Dictation, Drive &amp; Go or Word Battle earns a Paw — keep going! 🐾</p>' +
+        '<div class="store-fitting-actions">' +
+        '<button type="button" class="store-btn" onclick="storeCloseFitting();storeShowPawsHelp()">🐾 How to earn</button>' +
+        '<button type="button" class="dg-menu-button" onclick="storeCloseFitting()">OK</button>' +
+        '</div>'
+    );
+    updateMascot('You need ' + need + ' more 🐾 — keep practising!');
+}
+
+function storeBuyFromFitting() {
+    const id = STORE_TRY_ON;
+    storeCloseFitting();
+    if (id) storeBuyItem(id);
 }
 
 async function storeBuyItem(id) {
@@ -1008,7 +1122,7 @@ function storePaintBackground(ctx, bg, w, h) {
     ctx.restore();
 }
 
-function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
+function storePaintLook(canvas, labelEl, look, prop, bg, emptyText, mode) {
     if (!canvas) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cssW = canvas.clientWidth || 300;
@@ -1032,7 +1146,9 @@ function storePaintLook(canvas, labelEl, look, prop, bg, emptyText) {
     ctx.beginPath();
     ctx.ellipse(cssW / 2, cssH * 0.88, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (typeof DG !== 'undefined' && DG.drawCatAvatar) {
+    if (mode === 'kart' && typeof DG !== 'undefined' && DG.drawKart) {
+        DG.drawKart(ctx, cssW / 2, cssH * 0.88, Math.min(cssW / 250, cssH / 190), look, { preview: true });
+    } else if (typeof DG !== 'undefined' && DG.drawCatAvatar) {
         DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), look);
     } else if (typeof DG !== 'undefined' && DG.drawKart) {
         DG.drawKart(ctx, cssW / 2, cssH * 0.84, Math.min(cssW / 250, cssH / 190), look, { preview: true });

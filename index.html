@@ -479,6 +479,68 @@
         }
         .store-btn:active { transform: translateY(1px); }
         .store-btn-quiet { background: #f3f4f6; color: #4b5563; }
+        .store-btn-try {
+            background: #fff;
+            color: #c2410c;
+            border: 2px solid #fed7aa;
+            margin-top: 4px;
+        }
+        /* Fitting room: try an item on before buying it. */
+        #store-fitting {
+            position: fixed;
+            inset: 0;
+            z-index: 10090;
+            background: rgba(15, 23, 42, .55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        #store-fitting.hidden { display: none; }
+        .store-fitting-card {
+            position: relative;
+            width: 100%;
+            max-width: 340px;
+            max-height: calc(100dvh - 2rem);
+            overflow-y: auto;
+            background: #fff9f2;
+            border-radius: 24px;
+            padding: 18px 16px 16px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, .35);
+        }
+        .store-fitting-close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        #store-fitting-canvas {
+            display: block;
+            width: 100%;
+            height: 180px;
+            border-radius: 18px;
+            background: #e0f2fe;
+            margin: 6px 0 10px;
+        }
+        .store-fitting-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .store-fitting-actions .store-btn { width: auto; min-height: 44px; margin-top: 0; }
+        .store-fitting-actions .dg-menu-button { min-height: 44px; }
+
         .store-howto {
             border-top: 2px solid #ffedd5;
             padding-top: 12px;
@@ -2435,6 +2497,155 @@
         .dg-who { font-weight: 700; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .dg-points { font-weight: 700; color: #c2410c; font-size: 13px; }
         .dg-dist { font-size: 11px; color: #64748b; font-weight: 700; }
+        /* Projector / live-stream leaderboard for class rooms. */
+        #dg-projector {
+            position: fixed;
+            inset: 0;
+            z-index: 10070;
+            display: flex;
+            flex-direction: column;
+            padding: 16px clamp(12px, 3vw, 44px) 14px;
+            background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 55%, #020617 100%);
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+        .dg-proj-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .dg-proj-kicker {
+            margin: 0;
+            font-size: clamp(9px, 1vw, 12px);
+            letter-spacing: .22em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 800;
+        }
+        .dg-proj-title {
+            margin: 2px 0 2px;
+            font-size: clamp(22px, 3.4vw, 44px);
+            font-weight: 800;
+            color: #f8fafc;
+        }
+        .dg-proj-sub {
+            margin: 0;
+            font-size: clamp(12px, 1.4vw, 20px);
+            font-weight: 700;
+            color: #a5b4fc;
+        }
+        .dg-proj-meta { display: flex; align-items: center; gap: 10px; }
+        .dg-proj-code {
+            font-size: clamp(12px, 1.3vw, 18px);
+            font-weight: 800;
+            color: #cbd5f5;
+            background: rgba(255, 255, 255, .08);
+            border-radius: 999px;
+            padding: 6px 14px;
+        }
+        .dg-proj-code b { letter-spacing: .12em; color: #fbbf24; }
+        .dg-proj-close {
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .12);
+            color: #f8fafc;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .dg-proj-rows {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+            gap: 6px 18px;
+            align-content: start;
+        }
+        .dg-proj-row {
+            display: grid;
+            grid-template-columns: 40px 46px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .06);
+        }
+        .dg-proj-row.top1 {
+            background: linear-gradient(90deg, rgba(251, 191, 36, .32), rgba(251, 191, 36, .06));
+            border-color: rgba(251, 191, 36, .55);
+        }
+        .dg-proj-row.done { border-color: rgba(34, 197, 94, .45); }
+        .dg-proj-rank {
+            text-align: center;
+            font-size: clamp(14px, 1.5vw, 22px);
+            font-weight: 800;
+            color: #e2e8f0;
+        }
+        .dg-proj-cat {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .1);
+            display: block;
+        }
+        .dg-proj-main { min-width: 0; }
+        .dg-proj-name {
+            margin: 0;
+            font-size: clamp(13px, 1.5vw, 21px);
+            font-weight: 800;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dg-proj-bar {
+            height: 7px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .14);
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .dg-proj-bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #34d399, #22d3ee);
+        }
+        .dg-proj-pts {
+            font-size: clamp(14px, 1.6vw, 22px);
+            font-weight: 800;
+            color: #fbbf24;
+            font-variant-numeric: tabular-nums;
+        }
+        .dg-proj-foot {
+            margin: 8px 0 0;
+            text-align: center;
+            font-size: clamp(10px, 1.1vw, 14px);
+            font-weight: 700;
+            color: #94a3b8;
+        }
+        .dg-proj-empty {
+            padding: 24px 0;
+            text-align: center;
+            font-weight: 800;
+            color: #94a3b8;
+        }
+        @media (max-height: 560px) and (orientation: landscape) {
+            #dg-projector { padding: 8px clamp(10px, 2vw, 28px) 8px; }
+            .dg-proj-rows { gap: 4px 12px; margin-top: 6px; }
+            .dg-proj-row { padding: 3px 10px; grid-template-columns: 30px 36px minmax(0, 1fr) auto; }
+            .dg-proj-cat { width: 34px; height: 34px; }
+            .dg-proj-bar { height: 5px; }
+            .dg-proj-foot { display: none; }
+        }
+
         /* Word-Jump-style results board: same topic + challenge + question
            count only, so 20-question and 50-question runs never mix. */
         .dg-results-board {
@@ -3657,6 +3868,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="store-fitting" class="hidden" onclick="if(event.target===this)storeCloseFitting()"></div>
                 <div id="paws-help" class="hidden" onclick="if(event.target===this)storeClosePawsHelp()">
                     <div class="paws-help-card" role="dialog" aria-modal="true" aria-labelledby="paws-help-title">
                         <div class="text-3xl mb-1" aria-hidden="true">🐾</div>

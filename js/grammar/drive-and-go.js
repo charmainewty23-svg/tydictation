@@ -1289,6 +1289,7 @@ const DG = {
     // player navigates away from the grammar detail page.
     onLeaveView(viewId) {
         if (viewId === 'drive-and-go-view') return;
+        if (typeof DG.mpCloseProjector === 'function') DG.mpCloseProjector();
         if (typeof DG.stopRace === 'function') DG.stopRace();
         if (typeof DG.exitRaceFullscreen === 'function') DG.exitRaceFullscreen();
         if (viewId !== 'grammar-detail-view') {
@@ -1755,9 +1756,9 @@ const DG = {
                 ? '<div class="dg-menu-panel mb-4 text-left">' +
                   '<p class="font-bold text-gray-700 mb-2">Will you race too?</p>' +
                   '<label class="flex items-start gap-3 font-bold text-gray-600">' +
-                  '<input id="dg-teacher-plays" type="checkbox" checked class="mt-1 w-5 h-5">' +
+                  '<input id="dg-teacher-plays" type="checkbox" class="mt-1 w-5 h-5">' +
                   '<span>Yes — give me a kart (31 seats: me + 30 students).' +
-                  '<span class="block text-sm text-gray-400 font-normal mt-1">Uncheck to host only (30 student seats). You still start the race and watch live progress.</span></span></label>' +
+                  '<span class="block text-sm text-gray-400 font-normal mt-1">Leave it unticked to host only (30 student seats, default). You still start the race, show the projector board, end the battle and see the results.</span></span></label>' +
                   '</div>'
                 : '') +
             (host ? '<div id="dg-mp-status" class="dg-note hidden mb-4"></div>' : '') +

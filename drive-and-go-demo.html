@@ -6,11 +6,10 @@
 <title>LearniTY · Drive & Go! 30-player class room demo</title>
 <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; }
+    body { display: flex; flex-direction: column; height: 100%; }
     #demo-bar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
+        position: static;
+        flex: 0 0 auto;
         min-height: 52px;
         z-index: 20000;
         display: flex;
@@ -35,13 +34,10 @@
     }
     #demo-bar button.active { background: #22c55e; color: #fff; }
     #demo-app {
-        position: fixed;
-        top: 58px;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        position: static;
+        flex: 1 1 auto;
         width: 100%;
-        height: calc(100% - 58px);
+        min-height: 0;
         border: 0;
         background: #fff9f2;
     }
@@ -52,6 +48,7 @@
     <button type="button" id="demo-lobby" class="active">🏁 Lobby · 30 students</button>
     <button type="button" id="demo-live">📊 Live class board</button>
     <button type="button" id="demo-end">🏆 End battle demo</button>
+    <button type="button" id="demo-proj">📺 Projector board</button>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
 <iframe id="demo-app" src="/index.html?dg30demo=1" title="Drive and Go 30-player class room demo"></iframe>
@@ -100,7 +97,7 @@
             d.getElementById('login-view').style.display = 'none';
             var app = d.getElementById('app');
             if (app) app.classList.add('logged-in');
-            var header = d.querySelector('#app > header');
+            var header = d.querySelector('#app > .brand-header');
             if (header) header.style.display = 'none';
             d.querySelectorAll('.view').forEach(function (v) {
                 if (v.id !== 'grammar-detail-view') v.classList.add('hidden');
@@ -149,7 +146,7 @@
 
         function showLobby() {
             var w = frame.contentWindow, d = w.document;
-            w.eval("DG.mpState.room.status = 'waiting'; DG.raceState.active = false;");
+            w.eval("DG.mpCloseProjector(); DG.mpState.room.status = 'waiting'; DG.raceState.active = false;");
             w.DG.mpRenderLobby();
             d.getElementById('grammar-detail-view').scrollIntoView({ block: 'start' });
             document.getElementById('demo-lobby').classList.add('active');
@@ -158,6 +155,7 @@
 
         function showLive() {
             var w = frame.contentWindow;
+            w.eval("DG.mpCloseProjector();");
             w.eval(`(function(){
                 var MPX = DG.mpState;
                 MPX.room.status = 'playing';
@@ -171,16 +169,33 @@
             document.getElementById('demo-lobby').classList.remove('active');
         }
 
+        function showProjector() {
+            var w = frame.contentWindow;
+            w.eval(`(function(){
+                var MPX = DG.mpState;
+                MPX.room.status = 'playing';
+                MPX.players = ${JSON.stringify(liveRows)};
+                MPX.watchSig = '';
+                DG.mpOpenProjector();
+            })();`);
+            document.getElementById('demo-proj').classList.add('active');
+            ['demo-lobby', 'demo-live', 'demo-end'].forEach(function (id) {
+                document.getElementById(id).classList.remove('active');
+            });
+        }
+
         function showEnd() {
             var w = frame.contentWindow;
             document.getElementById('demo-live').classList.add('active');
             document.getElementById('demo-lobby').classList.remove('active');
+            w.eval("DG.mpCloseProjector();");
             w.eval("(function(){ var MPX=DG.mpState; MPX.room.status='playing'; MPX.players=" + JSON.stringify(liveRows) + "; MPX.watchSig=''; DG.mpEndClassBattle(); })()");
         }
 
         document.getElementById('demo-lobby').addEventListener('click', showLobby);
         document.getElementById('demo-live').addEventListener('click', showLive);
         document.getElementById('demo-end').addEventListener('click', showEnd);
+        document.getElementById('demo-proj').addEventListener('click', showProjector);
         document.getElementById('demo-replay').addEventListener('click', function () {
             try { frame.contentWindow.location.reload(); } catch (e) {}
         });

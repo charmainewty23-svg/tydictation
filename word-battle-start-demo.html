@@ -135,7 +135,7 @@
         if (login) login.style.display = 'none';
         var app = d.getElementById('app');
         if (app) app.classList.add('logged-in');
-        var header = d.querySelector('#app > header');
+        var header = d.querySelector('#app > .brand-header');
         if (header) header.style.display = 'none';
         d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
         var battle = d.getElementById('battle-view');

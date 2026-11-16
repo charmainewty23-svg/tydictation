@@ -699,15 +699,29 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   同 3D camera pitch 都會乘 `trackSettle`，所以一開波畫面正中、水平；
   之後先出現轉彎／上山／落山。第一個閘（320 units）仍然係直路。
 - **老師 3C 選擇：落唔落場**：Class room 嘅 Course step 有
-  `#dg-teacher-plays` checkbox（預設 checked）。
+  `#dg-teacher-plays` checkbox（**2026-11 起預設 unchecked**＝老師唔落場）。
+  - unchecked（預設）：**30 seats**（30 學生），老師唔會插入
+    `drive_and_go_players`。房主照樣按 Start；`DG.mpStart()` 後老師留喺
+    `grammar-detail-view`，`DG.mpWatchRace()` 顯示 live 名次（correct/N、距離），
+    lobby poll 繼續行，完場自動轉結果畫面。
   - checked：**31 seats**（老師＋30 學生），RPC 傳 `p_teacher_plays = true`。
-  - unchecked：**30 seats**（30 學生），老師唔會插入 `drive_and_go_players`。
-    房主照樣按 Start；`DG.mpStart()` 後老師留喺 `grammar-detail-view`，
-    `DG.mpWatchRace()` 顯示 live 名次（correct/N、距離），lobby poll 繼續行，
-    完場自動轉結果畫面。
   - `DG.mpRoomUpdatePlan()` 而家會把 `room.host_id === me` 當成員，所以
     host-only 老師唔會被當成 missing 而 rejoin／closed。
   - `DG.mpCreate()` 讀 checkbox 並傳 `p_teacher_plays`。
+- **📺 Projector／live-stream 排行榜（2026-11）**：class room 老師可以將
+  `DG.mpOpenProjector()` 嘅大螢幕排行榜投放出來（課室投影機／Zoom 分享）。
+  - 入口：host-only 嘅 `DG.mpWatchRace()` 面板（**📺 Projector board** 掣）
+    同 class lobby 左下（host 先見到）。`DG.mpCloseProjector()`／✕／Esc 關閉。
+  - 內容：`#dg-projector`（z-index 10070，低過 trophy 10080）——房號、
+    topic · challenge · 題數 · 場地、每位學生嘅貓樣（`DG.drawCatAvatar()`
+    預先做成 data URL 快取，`MP.projCatCache`）、名、`correct/N`、進度條、
+    完成者 🏁；排名同 live board 一樣（correct desc → 完成先 → composite → 距離）。
+  - 更新：唔使新 SQL／realtime。`DG.mpPoll()` 同 `DG.mpSyncRace()` 每次有新
+    `MP.players` 就 call `DG.mpRenderProjector()`，用 signature 避免無變化都重畫。
+    老師落場賽車時投影板一樣會更新（`mpSyncRace` 700ms）。
+  - 完場（poll plan `results`／`results-lobby`）會自動 `DG.mpCloseProjector()`，
+    頒獎禮／結果畫面唔會被蓋住；`DG.onLeaveView()` 同 `DG.mpLeave()` 都會關閉。
+  - 示範：`/drive-and-go-demo.html` 嘅 **📺 Projector board**（30 個 mock 學生）。
 - **老師 30 學生房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
   - `drive_and_go_rooms.max_players` 新欄，default **5**（舊房保持 5）。
   - `create_drive_and_go_class_room()` 只限 `is_drive_and_go_teacher()`
@@ -1422,7 +1436,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v68）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v69）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1512,8 +1526,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v68`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v69`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v69`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v70`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2154,7 +2168,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v68。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v69。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2313,6 +2327,21 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   只有 cat／glasses／hat／outfit，car 唔會影響班際貓）。
   `store_cars.sql`（可重跑）加 items、放寬 slot check、更新
   `equip_store_item` 接受 `car`；`/supabase/store.sql` 新安裝已包含。
+- **👀 Try on／fitting room（2026-11）**：未買嘅 item 卡片多一個
+  **👀 Try on** 掣（`storeTryOnItem(id)`），會開 `#store-fitting` 試穿視窗：
+  `storePaintLook()` 畫自己隻貓＋該 item（`head／ears／eyes／cheeks／neck／body`
+  覆蓋對應 layer；`prop` 追加；`background` 換背景；`car` 用 `mode='kart'`
+  改畫 `DG.drawKart()`）。純預覽，**唔會**寫 `store_equipped`／profile look，
+  亦唔會改 `DG.readSettings()`。
+  - **限夠錢**：`STORE_BALANCE < item.price` 時唔會試穿，改為彈
+    「Keep earning!」卡（`storeTryOnDenied()`）：寫明差幾多 🐾
+    （`N more`）＋「每題正確 +1 🐾，繼續努力」，有 **🐾 How to earn** 同 **OK**；
+    mascot 亦會講 `You need N more 🐾 — keep practising!`。
+  - 夠錢：視窗有 **Buy · N 🐾**（`storeBuyFromFitting()` → `storeBuyItem()`）
+    同 **Keep looking**；✕／backdrop／Esc 都會關閉。已擁有嘅 item 撳 Try on
+    會直接 equip（唔使試）。
+  - 示範：`/store-try-on-demo.html`（真 Store，mock 錢包：夠錢試金冠、
+    唔夠錢試金冠、試 Golden GT 跑車）。
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
   Equip hat／face／outfit 會更新 profile look 並寫入 `DG.readSettings()`。
   **默認 look 係全 None**：未買 store item 嘅用戶只有光身貓；Store 冇免費

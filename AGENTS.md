@@ -131,6 +131,14 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `quizWords`（每局隨機抽 15）、`quizIdx`、`quizScore`（每題 `max(1, 10-hintCount)`）、`hintCount`。
 - 關鍵函數：`startQuiz` → `updateQuizUI` → `speakCurrentWord`（SpeechSynthesis）
   → `provideHint` → `checkAnswer`（Enter 鍵直 call）→ **`finishQuiz()`（成績唯一寫入 hook）**。
+- **唔可以撳掣跳題（2026-11）**：`checkAnswer` 加咗 `quizAnswerLocked`（答完／
+  換題中再撳無效）同空答案保護 —— **輸入空白唔會扣一次機會**，只會提示
+  「Type your answer first」。第三次錯會 `quizRevealMode = true`：紅色顯示
+  正確答案（`updateHintDisplay()` 喺呢個 mode 一定顯示答案），**學生要
+  打啱個答案才可以去下一題**，唔會再 4 秒後自動 `advanceQuiz()`。
+  掣字會變 `Type it to continue →`（`#quiz-check-btn`），答對先 `advanceQuiz()`。
+  所以以前「撳三次 Check Next 就飛走」嘅漏洞已經封死（Listening 同
+  Recitation 共用）。
 
 ## 4. 資料流
 

@@ -68,6 +68,11 @@
         let hintCount = 0;
         let quizResults = [];
         let tryAgainCount = 0;
+        // Guards against tapping "Check Next" several times in a row (or
+        // holding Enter) to fly through a word without answering it.
+        let quizAnswerLocked = false;   // true while advancing / after a result
+        let quizRevealMode = false;     // 3rd wrong: the answer is shown and the
+                                        // student must type it to move on.
 
         async function loadAllCategoriesFromSheet() {
             if (sheetCategoriesLoading) return;
@@ -497,6 +502,15 @@
             document.getElementById('quiz-answer-input').focus();
             hintCount = 0;
             tryAgainCount = 0;
+            quizAnswerLocked = false;
+            quizRevealMode = false;
+            const hintEl = document.getElementById('hint-display');
+            if (hintEl) {
+                hintEl.classList.remove('text-red-500');
+                hintEl.classList.add('text-orange-500');
+            }
+            const checkBtn = document.getElementById('quiz-check-btn');
+            if (checkBtn) checkBtn.innerText = 'Check Next →';
             updateHintDisplay();
         }
 
@@ -519,6 +533,16 @@
 
         function updateHintDisplay() {
             const word = primaryAnswer(quizWords[quizIdx].en);
+            const hintEl = document.getElementById('hint-display');
+            if (!hintEl) return;
+            // Once the answer is revealed it stays on screen in red, even while
+            // the student types it back in.
+            if (quizRevealMode) {
+                hintEl.innerText = word;
+                hintEl.classList.add('text-red-500');
+                hintEl.classList.remove('text-orange-500');
+                return;
+            }
             const userInput = document.getElementById('quiz-answer-input').value.toLowerCase();
             let display = "";
             for (let i = 0; i < word.length; i++) {
@@ -527,7 +551,7 @@
                 else if (i < userInput.length) display += userInput[i];
                 else display += "_";
             }
-            document.getElementById('hint-display').innerText = display;
+            hintEl.innerText = display;
         }
 
         const ENCOURAGE_WORDS = ["Great!", "Awesome!", "Perfect!", "Well done!", "Brilliant!", "Excellent!", "Nice one!", "Superb!", "Amazing!", "Keep it up!"];
@@ -555,11 +579,47 @@
         }
 
         function checkAnswer() {
-            const typed = document.getElementById('quiz-answer-input').value;
-            const isCorrect = isAnswerCorrect(typed, quizWords[quizIdx].en);
+            if (quizAnswerLocked || quizIdx >= quizWords.length) return;
+            const input = document.getElementById('quiz-answer-input');
+            const typed = input ? input.value : '';
+            const trimmed = typed.trim();
+            const answer = quizWords[quizIdx].en;
+
+            // After the third wrong attempt the answer is on screen in red.
+            // The only way forward is to type it back, so tapping the button
+            // cannot skip the word.
+            if (quizRevealMode) {
+                if (!trimmed) {
+                    updateMascot('Type the red answer to continue.');
+                    if (input) input.focus();
+                    return;
+                }
+                if (isAnswerCorrect(trimmed, answer)) {
+                    quizAnswerLocked = true;
+                    updateMascot("That's it! Next word…");
+                    advanceQuiz();
+                } else {
+                    showTryAgain();
+                    updateMascot('Not quite — copy the red answer exactly.');
+                    if (input) { input.focus(); input.select(); }
+                }
+                return;
+            }
+
+            // An empty box is not an attempt. Before this guard, three empty
+            // taps on "Check Next" used up the three tries and skipped the word.
+            if (!trimmed) {
+                showTryAgain();
+                updateMascot('Type your answer first, then press Check Next.');
+                if (input) input.focus();
+                return;
+            }
+
+            const isCorrect = isAnswerCorrect(typed, answer);
 
             if (isCorrect) {
-                quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: true });
+                quizAnswerLocked = true;
+                quizResults.push({ word: answer, userAnswer: trimmed, correct: true });
                 quizScore += Math.max(1, 10 - hintCount);
                 if (quizSource === 'errorbook') removeErrorWord(quizWords[quizIdx]);
                 showEncouragement();
@@ -572,22 +632,20 @@
                     showTryAgain();
                     const hints = ["Give it another go!", "Try once more!", "You're close, try again!"];
                     updateMascot(hints[Math.floor(Math.random() * hints.length)]);
-                    document.getElementById('quiz-answer-input').value = "";
-                    document.getElementById('quiz-answer-input').focus();
+                    if (input) { input.value = ""; input.focus(); }
                     updateHintDisplay();
                 } else {
-                    // 3rd wrong — show answer and move on
-                    quizResults.push({ word: quizWords[quizIdx].en, userAnswer: document.getElementById('quiz-answer-input').value.trim(), correct: false });
+                    // 3rd wrong — record the miss, reveal the answer, and make
+                    // the student type it before the next word appears.
+                    quizResults.push({ word: answer, userAnswer: trimmed, correct: false });
                     if (quizSource !== 'errorbook') addErrorWord(quizWords[quizIdx]);
-                    document.getElementById('hint-display').innerText = quizWords[quizIdx].en;
-                    document.getElementById('hint-display').classList.add('text-red-500');
-                    document.getElementById('hint-display').classList.remove('text-orange-500');
-                    updateMascot(`The answer is "${quizWords[quizIdx].en}".`);
-                    setTimeout(() => {
-                        document.getElementById('hint-display').classList.remove('text-red-500');
-                        document.getElementById('hint-display').classList.add('text-orange-500');
-                        advanceQuiz();
-                    }, 4000);
+                    quizRevealMode = true;
+                    quizAnswerLocked = false;
+                    updateHintDisplay();
+                    const checkBtn = document.getElementById('quiz-check-btn');
+                    if (checkBtn) checkBtn.innerText = 'Type it to continue →';
+                    updateMascot(`The answer is "${primaryAnswer(answer)}". Type it to continue.`);
+                    if (input) { input.value = ''; input.focus(); }
                 }
             }
         }

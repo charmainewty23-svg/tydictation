@@ -930,8 +930,8 @@ function storeCardHTML(item) {
     ) : '';
     const topRank = item.slot === 'victory' ? storeVictoryTopRank(item.id) : -1;
     const topBadge = topRank === 0
-        ? '<span class="store-victory-badge">🔥 本週最多冠軍使用</span>'
-        : (topRank === 1 ? '<span class="store-victory-badge">👑 班際賽熱門</span>' : '');
+        ? '<span class="store-victory-badge">🔥 Most used this week</span>'
+        : (topRank === 1 ? '<span class="store-victory-badge">👑 Class battle favourite</span>' : '');
     const tryBtn = (!owned && storeAvailable())
         ? '<button type="button" class="store-btn store-btn-try" onclick="storeTryOnItem(\'' + item.id + '\')">👀 Try on</button>'
         : '';

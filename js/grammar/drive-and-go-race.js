@@ -1447,9 +1447,9 @@
         DG.kartTrophyKey = key;
         DG.closeKartTrophy();
 
-        const third = rows[2] ? { row: rows[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third' } : null;
-        const second = rows[1] ? { row: rows[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second' } : null;
-        const champion = rows[0] ? { row: rows[0], label: 'CHAMPION', medal: '🥇', cls: 'champion' } : null;
+        const third = rows[2] ? { row: rows[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third', paws: 8 } : null;
+        const second = rows[1] ? { row: rows[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second', paws: 13 } : null;
+        const champion = rows[0] ? { row: rows[0], label: 'CHAMPION', medal: '🥇', cls: 'champion', paws: 20 } : null;
         const revealOrder = [third, second, champion].filter(Boolean);
         revealOrder.forEach((x, i) => { x.reveal = i; });
         const places = [champion, second, third].filter(Boolean);
@@ -1472,7 +1472,7 @@
                     '<canvas class="battle-trophy-cat" data-dg-trophy="' + i + '" width="180" height="130" aria-label="' + DG.esc(DG.mpPlayerName(r)) + ' kart"></canvas>' +
                     '<div class="battle-trophy-name">' + DG.esc(DG.mpPlayerName(r)) + '</div>' +
                     '<div class="battle-trophy-score">' + pts + ' pts</div>' +
-                    '<div class="battle-trophy-paws">' + correct + '/' + n + ' correct</div>' +
+                    '<div class="battle-trophy-paws">' + correct + '/' + n + ' correct · +' + x.paws + ' 🐾</div>' +
                     '</div>';
             }).join('') +
             '<button type="button" class="battle-trophy-continue hidden" onclick="DG.closeKartTrophy()">Continue</button>' +

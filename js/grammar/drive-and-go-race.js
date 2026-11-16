@@ -1447,7 +1447,7 @@
             wrong: Number(mine.wrong) || 0,
             questionCount: n
         } : null;
-        DG.showOverlay(
+        const resultsHTML =
             '<div class="text-center"><div class="text-6xl mb-1">' + (youWin ? '🏆' : '🏁') + '</div>' +
             '<h3 class="text-3xl font-bold ' + (youWin ? 'text-amber-600' : 'text-orange-600') + ' mb-1">' +
             (youWin ? 'You win!' : DG.esc((winner && DG.mpPlayerName(winner)) || 'Race finished') + ' wins!') + '</h3>' +
@@ -1465,8 +1465,19 @@
                 '<span class="dg-dist">' + acc(r) + ' · ' + time(r) + '</span>' +
                 '</div>').join('') + '</div>' +
             DG.resultsBoardHTML('multi', roomTopic, roomMode, n) +
-            '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div>'
-        );
+            (((DG.raceEls && DG.raceEls.overlay))
+                ? '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div>'
+                : '<button type="button" class="btn-paw" onclick="DG.backToTenses()">Back to class</button></div>');
+
+        // The host-only teacher never entered #drive-and-go-view, so there is
+        // no race overlay. Render the final class results into the grammar
+        // detail panel instead of silently showing nothing.
+        if (DG.raceEls && DG.raceEls.overlay) {
+            DG.showOverlay(resultsHTML);
+        } else {
+            const content = (typeof DG.menuContent === 'function') ? DG.menuContent() : null;
+            if (content) content.innerHTML = '<div class="dg-menu-panel">' + resultsHTML + '</div>';
+        }
         DG.scheduleResultsBoard('multi', roomTopic, roomMode, n);
     };
 

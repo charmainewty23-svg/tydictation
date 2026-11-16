@@ -1535,6 +1535,9 @@
         let winner = rows.find(r => r.user_id === winnerId);
         if (!winner) winner = rows[0];
         const youWin = winner && currentUser && winner.user_id === currentUser.id;
+        if (youWin && room && Number(room.max_players) > 5 && typeof VICTORY !== 'undefined' && VICTORY.claimForWin) {
+            VICTORY.claimForWin(room.id, { title: '🏆 Class champion' });
+        }
         const reason = 'Highest composite score after ' + n + ' correct answers wins.';
         const medal = (i) => i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
         const points = (r) => (r.composite_score != null ? r.composite_score : r.score) || 0;

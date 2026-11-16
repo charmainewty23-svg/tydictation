@@ -463,6 +463,75 @@
         .store-rarity-legendary { color: #b45309; }
         .store-card-owned { font-size: 0.65rem; font-weight: 800; color: #047857; }
         .store-card-stat { font-size: 0.68rem; font-weight: 800; color: #047857; }
+        .store-card-stat s { color: #9ca3af; }
+        .store-sale-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: linear-gradient(90deg, #fef3c7, #ffedd5);
+            border: 2px dashed #f59e0b;
+            border-radius: 16px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-weight: 800;
+            color: #92400e;
+        }
+        .store-sale-banner b { font-size: 1rem; }
+        .store-sale-banner span { font-size: 0.78rem; color: #b45309; }
+        .store-btn-preview { background: #7c3aed; }
+        .store-btn-rent { background: #fff; color: #7c3aed; border: 2px solid #ddd6fe; margin-top: 4px; }
+        .store-victory-badge {
+            align-self: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            color: #451a03;
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: .02em;
+        }
+        .store-victory-intro { font-size: 0.8rem; color: #6b7280; font-weight: 700; margin: -4px 0 10px; }
+        .store-victory-trial { color: #7c3aed; }
+        .store-victory-top {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border: 2px solid #fbbf24;
+            border-radius: 18px;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+        }
+        .store-victory-top h3 { margin: 0 0 6px; font-size: 0.95rem; font-weight: 800; color: #92400e; }
+        .store-victory-top ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+        .store-victory-top li { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; color: #78350f; }
+        .store-victory-top li b { flex: 1 1 auto; }
+        .store-victory-top-uses { font-size: 0.72rem; color: #b45309; }
+        .store-victory-top p { margin: 6px 0 0; font-size: 0.7rem; color: #a16207; }
+
+        /* Victory animation stage */
+        #victory-stage {
+            position: fixed;
+            inset: 0;
+            z-index: 10085;
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at 50% 0%, #16233a 0%, #050b16 70%);
+            color: #e2e8f0;
+            padding: 10px 12px 8px;
+        }
+        .victory-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .victory-kicker { margin: 0; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: #94a3b8; font-weight: 800; }
+        .victory-title { margin: 2px 0 0; font-size: clamp(18px, 3vw, 30px); font-weight: 800; color: #fde68a; }
+        .victory-close {
+            width: 44px; height: 44px; border: 0; border-radius: 999px;
+            background: rgba(255,255,255,.12); color: #f8fafc; font-size: 18px; font-weight: 800; cursor: pointer;
+        }
+        #victory-canvas { flex: 1 1 auto; width: 100%; min-height: 0; display: block; }
+        .victory-foot { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 4px 0 2px; }
+        #victory-caption { font-size: 12px; font-weight: 800; color: #cbd5f5; }
+        .victory-done {
+            min-height: 44px; border: 0; border-radius: 999px; padding: 0 22px;
+            background: #22c55e; color: #052e16; font: 800 14px Fredoka, system-ui, sans-serif; cursor: pointer;
+        }
         .store-card-note { font-size: 0.72rem; font-weight: 700; color: #9ca3af; }
         .store-btn {
             min-height: 42px;
@@ -3852,6 +3921,7 @@
                         </div>
                     </div>
                     <p id="store-note" class="hidden text-sm font-bold text-amber-700 mb-4"></p>
+                    <div id="store-sale" class="hidden"></div>
                     <div id="store-categories" class="flex gap-2 flex-wrap mb-5">
                         <button type="button" class="store-cat-btn" data-store-cat="new" onclick="storeSetCategory('new')">✨ New</button>
                         <button type="button" class="store-cat-btn active" data-store-cat="all" onclick="storeSetCategory('all')">All</button>
@@ -3859,6 +3929,7 @@
                         <button type="button" class="store-cat-btn" data-store-cat="face" onclick="storeSetCategory('face')">😎 Face</button>
                         <button type="button" class="store-cat-btn" data-store-cat="outfit" onclick="storeSetCategory('outfit')">👕 Outfits</button>
                         <button type="button" class="store-cat-btn" data-store-cat="car" onclick="storeSetCategory('car')">🏎️ Cars</button>
+                        <button type="button" class="store-cat-btn" data-store-cat="victory" onclick="storeSetCategory('victory')">🏆 Victory</button>
                         <button type="button" class="store-cat-btn" data-store-cat="prop" onclick="storeSetCategory('prop')">✨ Props</button>
                         <button type="button" class="store-cat-btn" data-store-cat="background" onclick="storeSetCategory('background')">🖼️ Backgrounds</button>
                     </div>
@@ -4128,6 +4199,7 @@
          They must stay in this order and must not use defer/async, because the
          markup's onclick handlers call these globals. See AGENTS.md §3. -->
     <script src="js/shared.js"></script>
+    <script src="js/victory.js"></script>
     <script src="js/store.js"></script>
     <script src="js/dictation.js"></script>
     <script src="js/new-vocab.js"></script>

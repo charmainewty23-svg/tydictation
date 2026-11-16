@@ -58,6 +58,15 @@ const STORE_ITEMS = [
     { id:'car_jungle', slot:'car', name:'Jungle Buggy', zh:'森林越野車', price:750, rarity:'Epic', emoji:'🏎️', color:'#22c55e', speed:5, desc:'A green off-road buggy with yellow trim. Top speed +5%.' },
     { id:'car_gold', slot:'car', name:'Golden GT', zh:'黃金跑車', price:900, rarity:'Legendary', emoji:'🏎️', color:'#fbbf24', speed:7, desc:'A gold grand tourer with black trim. Top speed +7%.' },
 
+    // Victory animations (class-battle flex, 3 price tiers)
+    { id:'victory_confetti', slot:'victory', name:'Confetti Cannon', zh:'彩帶禮炮', price:250, rarity:'Common', emoji:'🎉', tier:1, desc:'A cannon of confetti and streamers at the champion’s feet.' },
+    { id:'victory_spotlight', slot:'victory', name:'Spotlight', zh:'巨星聚光燈', price:300, rarity:'Common', emoji:'🔦', tier:1, desc:'The stage goes dark and one gold beam finds the champion.' },
+    { id:'victory_emojirain', slot:'victory', name:'Emoji Rain', zh:'表情符號雨', price:350, rarity:'Rare', emoji:'😎', tier:1, desc:'😎 🔥 💯 👑 rain over the whole screen.' },
+    { id:'victory_micdrop', slot:'victory', name:'Mic Drop', zh:'掉咪走人', price:450, rarity:'Rare', emoji:'🎤', tier:2, desc:'“Peace out!” — then the mic hits the floor.' },
+    { id:'victory_dealwithit', slot:'victory', name:'Deal With It', zh:'像素黑超降臨', price:550, rarity:'Epic', emoji:'🕶️', tier:2, desc:'8-bit shades drop onto the champion’s eyes.' },
+    { id:'victory_bananaslip', slot:'victory', name:'Banana Slip', zh:'全場滑倒', price:600, rarity:'Epic', emoji:'🍌', tier:2, desc:'2nd and 3rd place slip on a banana and fly away.' },
+    { id:'victory_moneygun', slot:'victory', name:'Money Gun', zh:'積分噴鈔機', price:900, rarity:'Legendary', emoji:'💸', tier:3, desc:'The champion sprays TyDictation paw bills over the class.' },
+
     // Backgrounds & effects (Me / lobby only)
     { id:'bg_desk', slot:'background', name:'Cozy Desk', zh:'溫書書桌', price:120, rarity:'Rare', emoji:'🛋️', color:'#d97706', desc:'A wooden desk with a lamp and tea.' },
     { id:'bg_library', slot:'background', name:'Oxford Library', zh:'牛津古書庫', price:200, rarity:'Epic', emoji:'📚', color:'#92400e', desc:'Tall wooden shelves and old lamps.' },
@@ -136,12 +145,52 @@ let STORE_LOAD_ERROR = '';
 let STORE_LOAD_PROMISE = null;
 let STORE_CATEGORY = 'all';
 let STORE_SYNCED_USER = '';
+let STORE_SALE = { active: false, off_pct: 0, label: '', sale_key: '', ends_at: null };
+let STORE_VICTORY_TOP = [];
+let STORE_VICTORY_RENTAL = '';
+let STORE_SALE_ANNOUNCED = false;
 
 window.STORE_OWNED = STORE_OWNED;
 window.STORE_EQUIPPED = STORE_EQUIPPED;
 
 function storeAvailable() {
     return canUseCloud() && !isGuestUser() && !previewStudentForm();
+}
+
+function storePrice(item) {
+    if (!item) return 0;
+    if (!STORE_SALE.active || !item.price) return item.price;
+    return Math.max(0, Math.floor(item.price * (100 - STORE_SALE.off_pct) / 100));
+}
+
+function storeVictoryRent(item) {
+    return item ? Math.max(40, Math.floor(Number(item.price || 0) * 0.2)) : 0;
+}
+
+function storeVictoryTopRank(itemId) {
+    for (let i = 0; i < STORE_VICTORY_TOP.length; i++) {
+        if (STORE_VICTORY_TOP[i] && STORE_VICTORY_TOP[i].item_id === itemId) return i;
+    }
+    return -1;
+}
+
+function storeSaleBannerHTML() {
+    if (!STORE_SALE.active) return '';
+    const ends = STORE_SALE.ends_at ? new Date(STORE_SALE.ends_at) : null;
+    const when = ends ? ' · ends ' + ends.toLocaleString('en-HK', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    return '<div class="store-sale-banner" role="status">' +
+        '<b>' + escapeHtml(STORE_SALE.label || 'Flash Sale') + '</b>' +
+        '<span>' + STORE_SALE.off_pct + '% off every item today' + when + '</span></div>';
+}
+
+function storeAnnounceSale() {
+    if (STORE_SALE_ANNOUNCED || !STORE_SALE.active || !STORE_SALE.sale_key || !storeAvailable()) return;
+    STORE_SALE_ANNOUNCED = true;
+    const msg = '⚡ ' + (STORE_SALE.label || 'Flash Sale') + ': ' + STORE_SALE.off_pct +
+        '% off everything in the Store today. Spend your Paws before it ends!';
+    try {
+        sb.rpc('announce_store_sale', { p_key: STORE_SALE.sale_key, p_message: msg }).catch(function () {});
+    } catch (e) {}
 }
 
 function storeOwnedForSlot(slot) {
@@ -200,11 +249,27 @@ async function loadStoreState(force) {
             return;
         }
         try {
-            const [bal, purchasesResult, equipped] = await Promise.all([
+            const [bal, purchasesResult, equipped, saleRes, topRes, rentalRes] = await Promise.all([
                 sb.rpc('my_paw_balance'),
                 sb.from('store_purchases').select('item_id,paid_price').eq('user_id', currentUser.id),
-                sb.from('store_equipped').select('slot,item_id').eq('user_id', currentUser.id)
+                sb.from('store_equipped').select('slot,item_id').eq('user_id', currentUser.id),
+                sb.rpc('store_sale_now').catch(function () { return { data: null, error: true }; }),
+                sb.rpc('store_victory_top', { p_days: 7 }).catch(function () { return { data: null, error: true }; }),
+                sb.rpc('my_victory_rental').catch(function () { return { data: null, error: true }; })
             ]);
+            const saleRow = Array.isArray(saleRes && saleRes.data) ? saleRes.data[0] : (saleRes && saleRes.data);
+            STORE_SALE = (saleRow && saleRow.active)
+                ? {
+                    active: true,
+                    off_pct: Number(saleRow.off_pct) || 0,
+                    label: saleRow.label || 'Flash Sale',
+                    sale_key: saleRow.sale_key || '',
+                    ends_at: saleRow.ends_at || null
+                }
+                : { active: false, off_pct: 0, label: '', sale_key: '', ends_at: null };
+            STORE_VICTORY_TOP = Array.isArray(topRes && topRes.data) ? topRes.data : [];
+            STORE_VICTORY_RENTAL = (rentalRes && !rentalRes.error && rentalRes.data) ? String(rentalRes.data) : '';
+            storeAnnounceSale();
             if (bal.error) throw bal.error;
             let purchases = purchasesResult;
             if (purchases.error && /paid_price|column|42703/i.test(purchases.error.message || '')) {
@@ -784,6 +849,12 @@ function renderStore() {
         note.classList.toggle('hidden', !STORE_LOAD_ERROR);
         note.innerText = STORE_LOAD_ERROR || '';
     }
+    const saleEl = document.getElementById('store-sale');
+    if (saleEl) {
+        const html = storeSaleBannerHTML();
+        saleEl.innerHTML = html;
+        saleEl.classList.toggle('hidden', !html);
+    }
     const market = STORE_CATEGORY === 'market';
     const marketBtn = document.getElementById('store-market-btn');
     if (marketBtn) marketBtn.classList.toggle('active', market);
@@ -808,13 +879,27 @@ function renderStore() {
             : '<p class="text-gray-400 text-center py-8">New items are loading…</p>';
         return;
     }
-    const groups = ['hat', 'face', 'outfit', 'car', 'prop', 'background'];
-    const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', car: '🏎️ Drive & Go! Cars', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
+    const groups = ['victory', 'hat', 'face', 'outfit', 'car', 'prop', 'background'];
+    const labels = {
+        victory: '🏆 Victory Animations (勝利晒命特效)',
+        hat: 'Hats & Headwear',
+        face: 'Face & Eyewear',
+        outfit: 'Neck & Outfits',
+        car: '🏎️ Drive & Go! Cars',
+        prop: 'Props & Companions',
+        background: 'Backgrounds & Effects'
+    };
     const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];
-    grid.innerHTML = shown.map(group => {
+    grid.innerHTML = (STORE_CATEGORY === 'victory' ? storeVictoryTopHTML() : '') + shown.map(group => {
         const items = STORE_ITEMS.filter(it => storeLayerGroup(it) === group);
         if (!items.length) return '';
-        return '<div class="store-group"><h3 class="store-group-title">' + labels[group] + '</h3>' +
+        const trialItem = STORE_VICTORY_RENTAL ? STORE_BY_ID[STORE_VICTORY_RENTAL] : null;
+        const intro = group === 'victory'
+            ? '<p class="store-victory-intro">Win a class battle and your champion cat plays this effect. Preview any card — what you see is what the class sees.' +
+              (trialItem ? '<br><b class="store-victory-trial">🎟 Trial pass ready: ' + escapeHtml(trialItem.name) + ' (next class battle)</b>' : '') +
+              '</p>'
+            : '';
+        return '<div class="store-group"><h3 class="store-group-title">' + labels[group] + '</h3>' + intro +
             '<div class="store-grid-inner">' + items.map(storeCardHTML).join('') + '</div></div>';
     }).join('');
     if (!grid.innerHTML) grid.innerHTML = '<p class="text-gray-400 text-center py-8">Nothing here yet.</p>';
@@ -825,6 +910,8 @@ function storeCardHTML(item) {
     const equipped = item.slot === 'prop'
         ? (STORE_EQUIPPED.prop || []).indexOf(item.id) !== -1
         : STORE_EQUIPPED[item.slot] === item.id;
+    const price = storePrice(item);
+    const onSale = STORE_SALE.active && item.price > 0;
     let action;
     if (!storeAvailable()) {
         action = '<span class="store-card-note">Sign in to buy</span>';
@@ -833,8 +920,18 @@ function storeCardHTML(item) {
     } else if (owned) {
         action = '<button type="button" class="store-btn" onclick="storeEquipItem(\'' + item.id + '\')">Equip</button>';
     } else {
-        action = '<button type="button" class="store-btn" onclick="storeBuyItem(\'' + item.id + '\')">Buy · ' + item.price + ' 🐾</button>';
+        action = '<button type="button" class="store-btn" onclick="storeBuyItem(\'' + item.id + '\')">Buy · ' + price + ' 🐾</button>';
     }
+    const victoryBtns = item.slot === 'victory' ? (
+        '<button type="button" class="store-btn store-btn-preview" onclick="victoryPreview(\'' + item.id + '\')">▶ 試播特效</button>' +
+        (!owned && storeAvailable()
+            ? '<button type="button" class="store-btn store-btn-rent" onclick="storeRentVictory(\'' + item.id + '\')">🎟 單場體驗 · ' + storeVictoryRent(item) + ' 🐾</button>'
+            : '')
+    ) : '';
+    const topRank = item.slot === 'victory' ? storeVictoryTopRank(item.id) : -1;
+    const topBadge = topRank === 0
+        ? '<span class="store-victory-badge">🔥 本週最多冠軍使用</span>'
+        : (topRank === 1 ? '<span class="store-victory-badge">👑 班際賽熱門</span>' : '');
     const tryBtn = (!owned && storeAvailable())
         ? '<button type="button" class="store-btn store-btn-try" onclick="storeTryOnItem(\'' + item.id + '\')">👀 Try on</button>'
         : '';
@@ -843,10 +940,12 @@ function storeCardHTML(item) {
         '<div class="store-card-emoji" aria-hidden="true">' + item.emoji + '</div>' +
         '<p class="store-card-name">' + escapeHtml(item.name) + '</p>' +
         '<p class="store-card-zh">' + escapeHtml(item.zh) + '</p>' +
+        topBadge +
         '<p class="store-card-rarity store-rarity-' + item.rarity.toLowerCase() + '">' + escapeHtml(item.rarity) + '</p>' +
         (item.slot === 'car' ? '<p class="store-card-stat">🏁 Top speed +' + Number(item.speed || 0) + '%</p>' : '') +
+        (onSale ? '<p class="store-card-stat">⚡ Sale: <s>' + item.price + '</s> → ' + price + ' 🐾</p>' : '') +
         (owned && item.price > 0 ? '<p class="store-card-owned">Owned</p>' : '') +
-        action + tryBtn +
+        action + tryBtn + victoryBtns +
         '</div>';
 }
 
@@ -962,12 +1061,60 @@ function storeBuyFromFitting() {
     if (id) storeBuyItem(id);
 }
 
+function storeVictoryTopHTML() {
+    if (!STORE_VICTORY_TOP.length) return '';
+    const rows = STORE_VICTORY_TOP.slice(0, 5).map((row, i) => {
+        const item = STORE_BY_ID[row.item_id];
+        if (!item) return '';
+        const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+        return '<li><span>' + medal + '</span><b>' + escapeHtml(item.name) + '</b>' +
+            '<span class="store-victory-top-uses">' + (Number(row.uses) || 0) + ' champion' +
+            ((Number(row.uses) || 0) === 1 ? '' : 's') + '</span></li>';
+    }).join('');
+    if (!rows) return '';
+    return '<div class="store-victory-top"><h3>🔥 Top Sellers · this week</h3><ol>' + rows + '</ol>' +
+        '<p>Most-used victory animations in class battles over the last 7 days.</p></div>';
+}
+
+async function storeRentVictory(id) {
+    const item = STORE_BY_ID[id];
+    if (!item) return;
+    if (!storeAvailable()) {
+        updateMascot('Sign in with your school account to rent a victory effect.');
+        return;
+    }
+    if (STORE_OWNED[id]) {
+        updateMascot('You already own ' + item.name + '. Equip it instead.');
+        return;
+    }
+    const cost = storeVictoryRent(item);
+    if (STORE_BALANCE < cost) {
+        updateMascot('You need ' + (cost - STORE_BALANCE) + ' more 🐾 to rent ' + item.name + '. Keep practising!');
+        return;
+    }
+    if (!window.confirm('Rent ' + item.name + ' for your next class battle for ' + cost + ' Paws?')) return;
+    try {
+        const { data, error } = await sb.rpc('rent_victory_effect', { p_item: id });
+        if (error) throw error;
+        STORE_BALANCE = Math.max(0, Number(data) || 0);
+        STORE_VICTORY_RENTAL = id;
+        updateMascot('Trial pass ready — ' + item.name + ' plays after your next class battle win! 🎟');
+        await loadStoreState(true);
+    } catch (e) {
+        const msg = String(e && (e.message || e));
+        if (/NOT_ENOUGH_PAWS/.test(msg)) updateMascot('Not enough Paws for that trial pass.');
+        else if (/ALREADY_OWNED/.test(msg)) updateMascot('You already own this effect.');
+        else if (/ITEM_NOT_FOUND|PGRST202|Could not find/i.test(msg)) updateMascot('Run supabase/store_victory.sql to enable victory effects.');
+        else updateMascot('Could not rent that effect. Please try again.');
+    }
+}
+
 async function storeBuyItem(id) {
     const item = STORE_BY_ID[id];
     if (!item) return;
     if (!storeAvailable()) { updateMascot('Sign in with your school account to buy items.'); return; }
     if (item.price === 0) { await storeEquipItem(id); return; }
-    if (!window.confirm('Buy ' + item.name + ' for ' + item.price + ' Paws?')) return;
+    if (!window.confirm('Buy ' + item.name + ' for ' + storePrice(item) + ' Paws?')) return;
     try {
         const { data, error } = await sb.rpc('buy_store_item', { p_item: id });
         if (error) throw error;
@@ -979,7 +1126,7 @@ async function storeBuyItem(id) {
     } catch (e) {
         const msg = String(e && (e.message || e));
         if (/NOT_ENOUGH_PAWS/.test(msg)) {
-            updateMascot('Not enough Paws — this item costs ' + item.price + ' 🐾 and you have ' + STORE_BALANCE + ' 🐾.');
+            updateMascot('Not enough Paws — this item costs ' + storePrice(item) + ' 🐾 and you have ' + STORE_BALANCE + ' 🐾.');
         } else if (/ALREADY_OWNED/.test(msg)) {
             updateMascot('You already own that item.');
         } else if (/ITEM_NOT_FOUND/.test(msg)) {
@@ -1006,7 +1153,7 @@ async function storeEquipItem(id) {
         }
         const profile = storeReadLocalProfileLook();
         const key = storeLayerKey(item.slot);
-        if (key !== 'prop' && key !== 'background' && key !== 'car') profile[key] = item.name;
+        if (key !== 'prop' && key !== 'background' && key !== 'car' && key !== 'victory') profile[key] = item.name;
         STORE_PROFILE_LOOK = profile;
         storeSaveLocalProfileLook();
         storeApplyEquippedToDG();

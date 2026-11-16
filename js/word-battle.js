@@ -1168,6 +1168,11 @@
                         (sorted.length ? battlePodiumHTML(sorted) : '<p class="text-gray-400">No results recorded.</p>');
                     battleDrawPodiumCats(body, sorted);
                     battleMaybeTrophy(sorted);
+                    // Class champion flexes their Victory Animation (owned or
+                    // a 1-battle trial pass). Never touches scores.
+                    if (rank === 1 && typeof VICTORY !== 'undefined' && VICTORY.claimForWin) {
+                        VICTORY.claimForWin(battleRoom.id, { title: '🏆 Class champion' });
+                    }
                 } else {
                     body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>
                                       <div class="max-w-sm mx-auto text-left space-y-1">${top}</div>`;

@@ -48,6 +48,7 @@
     <button type="button" id="demo-afford">👀 Try on (can afford)</button>
     <button type="button" id="demo-poor">💪 Try on (not enough Paws)</button>
     <button type="button" id="demo-car">🏎️ Try on a car</button>
+    <button type="button" id="demo-victory">🏆 Victory effect</button>
     <button type="button" id="demo-replay">↺ Reset</button>
 </div>
 <iframe id="demo-app" src="/index.html?storetryon=1" title="Store try-on demo"></iframe>
@@ -100,7 +101,7 @@
         }
 
         function markActive(id) {
-            ['demo-afford', 'demo-poor', 'demo-car'].forEach(function (key) {
+            ['demo-afford', 'demo-poor', 'demo-car', 'demo-victory'].forEach(function (key) {
                 document.getElementById(key).classList.toggle('active', key === id);
             });
         }
@@ -116,6 +117,11 @@
         document.getElementById('demo-car').addEventListener('click', function () {
             withBalance(950, 'car_gold');
             markActive('demo-car');
+        });
+        document.getElementById('demo-victory').addEventListener('click', function () {
+            var w = frame.contentWindow;
+            w.eval("storeCloseFitting(); if (typeof victoryPreview === 'function') victoryPreview('victory_moneygun');");
+            markActive('demo-victory');
         });
         document.getElementById('demo-replay').addEventListener('click', function () {
             try { frame.contentWindow.location.reload(); } catch (e) {}

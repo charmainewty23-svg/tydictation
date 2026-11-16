@@ -34,7 +34,19 @@
     VICTORY.has = function (id) { return !!EFFECTS[id]; };
     VICTORY.name = function (id) { return (EFFECTS[id] && EFFECTS[id].name) || ''; };
 
-    function championLook() {
+    function championLook(opts) {
+        if (opts && opts.look) {
+            const l = opts.look;
+            return { cat: l.cat || 'Ginger', hat: l.hat, ears: l.ears, glasses: l.glasses, cheeks: l.cheeks, outfit: l.outfit, neck: l.neck, car: 'Stock' };
+        }
+        // Teacher preview: show the teacher account's own cat.
+        try {
+            if (typeof isTeacherAccount === 'function' && isTeacherAccount() &&
+                window.DG && typeof window.DG.readSettings === 'function') {
+                const t = window.DG.readSettings();
+                return { cat: t.cat || 'Ginger', hat: t.hat, ears: t.ears, glasses: t.glasses, cheeks: t.cheeks, outfit: t.outfit, neck: t.neck, car: 'Stock' };
+            }
+        } catch (e) {}
         try {
             if (typeof storeMyLook === 'function') {
                 const l = storeMyLook();
@@ -97,7 +109,7 @@
             audio.play().catch(function () {});
         } catch (e) { audio = null; }
 
-        const look = championLook();
+        const look = championLook(o);
         const state = makeState(itemId, o);
 
         const loop = function (now) {
@@ -526,14 +538,148 @@
         const waitForTrophy = function () {
             const trophy = document.getElementById('battle-trophy-overlay') ||
                 document.getElementById('dg-trophy-overlay');
-            if (trophy && Date.now() - started < 20000) {
-                setTimeout(waitForTrophy, 400);
+            if (!trophy) {
+                VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
                 return;
             }
-            VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
+            const champ = trophy.querySelector('.battle-trophy-place.champion') ||
+                trophy.querySelector('[data-trophy-place="0"]');
+            const shown = champ && champ.classList.contains('show');
+            if ((shown && Date.now() - started > 900) || Date.now() - started > 9000) {
+                setTimeout(function () {
+                    VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
+                }, 1200);
+                return;
+            }
+            setTimeout(waitForTrophy, 250);
         };
         setTimeout(waitForTrophy, 400);
         return id;
+    };
+
+    /* ---------- ceremony extras: class photo + cheers ---------- */
+
+    const CHEERS = {
+        clap: { emoji: '👏', label: 'Clap' },
+        heart: { emoji: '❤️', label: 'Hearts' },
+        ribbon: { emoji: '🎀', label: 'Ribbon' },
+        lek: { emoji: '💪', label: '叻!' }
+    };
+
+    VICTORY.ceremonyExtras = function (overlay, opts) {
+        if (!overlay || !opts || !opts.roomId) return;
+        const card = overlay.querySelector('.battle-trophy-card');
+        if (!card || card.querySelector('.victory-extras')) return;
+        const players = (opts.players || []).filter(Boolean).slice(0, 12);
+        const nameOf = function (p) {
+            const n = (opts.nameOf ? opts.nameOf(p) : '') || p.nickname || p.name || p.email || '';
+            return String(n).split('@')[0];
+        };
+        const strip = players.map(function (p, i) {
+            return '<div class="victory-photo' + (p.user_id === opts.championId ? ' champ' : '') + '">' +
+                '<canvas data-photo="' + i + '" width="96" height="96"></canvas>' +
+                '<span>' + escapeHtml(nameOf(p)) + '</span></div>';
+        }).join('');
+        const btns = Object.keys(CHEERS).map(function (kind) {
+            return '<button type="button" class="victory-cheer-btn" data-cheer="' + kind + '">' +
+                CHEERS[kind].emoji + ' ' + CHEERS[kind].label +
+                (kind === 'lek' ? '' : ' <b>0</b>') + '</button>';
+        }).join('');
+        const wrap = document.createElement('div');
+        wrap.className = 'victory-extras';
+        wrap.innerHTML =
+            '<p class="victory-photo-title">📸 Class photo · everyone who played</p>' +
+            '<div class="victory-photo-strip">' + strip + '</div>' +
+            '<p class="victory-cheer-title">Cheer for the champion — spam these!</p>' +
+            '<div class="victory-cheers">' + btns + '</div>' +
+            '<div class="victory-float" aria-hidden="true"></div>';
+        card.appendChild(wrap);
+
+        // draw each student's cat once
+        wrap.querySelectorAll('canvas[data-photo]').forEach(function (cv, i) {
+            const p = players[i];
+            const d = window.DG;
+            if (!p || !d || !d.drawCatAvatar) return;
+            const ctx = cv.getContext('2d');
+            const look = d.normalizeLook ? d.normalizeLook({ cat: p.cat, glasses: p.glasses, hat: p.hat, outfit: p.outfit, ears: p.ears, cheeks: p.cheeks, neck: p.neck }) : { cat: 'Ginger' };
+            d.drawCatAvatar(ctx, 48, 88, 0.34, look);
+        });
+
+        const totals = { clap: 0, heart: 0, ribbon: 0, lek: 0 };
+        const pending = { clap: 0, heart: 0, ribbon: 0, lek: 0 };
+        let flushTimer = 0;
+        let pollTimer = 0;
+        let alive = true;
+
+        function paint() {
+            Object.keys(CHEERS).forEach(function (kind) {
+                const b = wrap.querySelector('[data-cheer="' + kind + '"] b');
+                if (b) b.textContent = String(totals[kind] || 0);
+            });
+        }
+
+        function floatEmoji(btn, kind) {
+            const layer = wrap.querySelector('.victory-float');
+            if (!layer || !btn) return;
+            const r = btn.getBoundingClientRect();
+            const host = wrap.getBoundingClientRect();
+            const el = document.createElement('span');
+            el.textContent = CHEERS[kind].emoji;
+            el.className = 'victory-float-item';
+            el.style.left = (r.left - host.left + r.width / 2 + (Math.random() * 40 - 20)) + 'px';
+            el.style.top = (r.top - host.top) + 'px';
+            layer.appendChild(el);
+            setTimeout(function () { el.remove(); }, 1400);
+        }
+
+        function flush() {
+            flushTimer = 0;
+            const batch = Object.keys(pending).filter(function (k) { return pending[k] > 0; });
+            if (!batch.length) return;
+            batch.forEach(function (kind) {
+                const n = pending[kind];
+                pending[kind] = 0;
+                try {
+                    sb.rpc('cheer_class_battle', { p_room: String(opts.roomId), p_kind: kind, p_count: n })
+                        .then(function (res) {
+                            if (res && !res.error && Array.isArray(res.data)) {
+                                res.data.forEach(function (row) {
+                                    if (row && row.kind) totals[row.kind] = Number(row.taps) || totals[row.kind] || 0;
+                                });
+                                paint();
+                            }
+                        }, function () {});
+                } catch (e) {}
+            });
+        }
+
+        wrap.querySelectorAll('[data-cheer]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const kind = btn.getAttribute('data-cheer');
+                totals[kind] = (totals[kind] || 0) + 1;
+                pending[kind] += 1;
+                paint();
+                floatEmoji(btn, kind);
+                if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+                if (!flushTimer) flushTimer = setTimeout(flush, 450);
+            });
+        });
+
+        pollTimer = setInterval(function () {
+            if (!alive || !document.body.contains(wrap)) { clearInterval(pollTimer); alive = false; return; }
+            try {
+                sb.rpc('class_battle_cheers', { p_room: String(opts.roomId) }).then(function (res) {
+                    if (res && !res.error && Array.isArray(res.data)) {
+                        res.data.forEach(function (row) {
+                            if (row && row.kind) totals[row.kind] = Number(row.taps) || 0;
+                        });
+                        paint();
+                    }
+                }, function () {});
+            } catch (e) {}
+        }, 1500);
+
+        paint();
     };
 
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };

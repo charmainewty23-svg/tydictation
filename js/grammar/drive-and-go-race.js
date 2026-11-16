@@ -1483,6 +1483,14 @@
             '<button type="button" class="battle-trophy-continue hidden" onclick="DG.closeKartTrophy()">Continue</button>' +
             '</div>';
         document.body.appendChild(overlay);
+        if (typeof VICTORY !== 'undefined' && VICTORY.ceremonyExtras) {
+            VICTORY.ceremonyExtras(overlay, {
+                roomId: room && room.id,
+                players: rows,
+                championId: rows[0] && rows[0].user_id,
+                nameOf: DG.mpPlayerName
+            });
+        }
 
         DG.kartTrophyTimers = [];
         overlay.querySelectorAll('.battle-trophy-place[data-dg-reveal]').forEach(node => {
@@ -1536,7 +1544,7 @@
         if (!winner) winner = rows[0];
         const youWin = winner && currentUser && winner.user_id === currentUser.id;
         if (youWin && room && Number(room.max_players) > 5 && typeof VICTORY !== 'undefined' && VICTORY.claimForWin) {
-            VICTORY.claimForWin(room.id, { title: '🏆 Class champion' });
+            VICTORY.claimForWin(room.id, { title: '🏆 Class champion', look: DG.normalizeLook({ cat: winner.cat, glasses: winner.glasses, hat: winner.hat, outfit: winner.outfit }) });
         }
         const reason = 'Highest composite score after ' + n + ' correct answers wins.';
         const medal = (i) => i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));

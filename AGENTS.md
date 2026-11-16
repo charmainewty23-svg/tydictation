@@ -1456,7 +1456,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v74）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v75）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1546,8 +1546,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v74`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v75`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v75`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v76`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2188,7 +2188,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v74。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v75。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2389,6 +2389,14 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - **播映次序**：`claimForWin()` 會等頒獎禮 overlay（`#battle-trophy-overlay`／
     `#dg-trophy-overlay`）關閉後才播 Victory effect（最多等 20 秒），
     所以係「頒獎 → 關閉 → 特效」而唔會蓋住 trophy。
+  - **頒獎禮互動（2026-11）**：兩個 class trophy overlay 都會加
+    `VICTORY.ceremonyExtras()`：③ 全班合照（每位玩家隻貓＋名，冠軍有金圈）
+    ④ 四個掣 **👏 Clap／❤️ Hearts／🎀 Ribbon／叻!**，任何人（包括第 4 名後）
+    都可以狂撳；每撳一下即時浮 emoji＋震動，並經 RPC `cheer_class_battle()`
+    累加，`class_battle_cheers()` 每 1.5 秒 poll 總數。SQL：
+    `supabase/class_battle_cheers.sql`（可重跑；未跑只會本地加數）。
+    冠軍有 Victory effect 就喺冠軍卡彈出後 ~1.2 秒直接播，冇就保留三隻貓 podium。
+    老師帳戶 preview 會用**老師自己隻貓**做示範。
   - 示範：`/word-battle-end-demo.html`（假學生 `4C 07 Chan`；老師撳
     **Finish now** → 冠軍結果 → 頒獎禮 → 關閉後播 Victory effect）。
   - SQL：`supabase/store_victory.sql`（可重跑；未跑會提示）。**改動提示**：

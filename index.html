@@ -1823,6 +1823,89 @@
             font-weight: 700;
             color: #6b7280;
         }
+        /* Ceremony extras: class photo + cheers (inside the trophy card) */
+        .victory-extras {
+            margin-top: 14px;
+            border-top: 2px dashed rgba(251, 191, 36, .45);
+            padding-top: 12px;
+            position: relative;
+        }
+        .victory-photo-title,
+        .victory-cheer-title {
+            margin: 0 0 6px;
+            text-align: center;
+            font-size: .78rem;
+            font-weight: 800;
+            color: #fcd34d;
+        }
+        .victory-photo-strip {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 2px 2px 8px;
+        }
+        .victory-photo {
+            flex: 0 0 auto;
+            width: 78px;
+            text-align: center;
+        }
+        .victory-photo canvas {
+            width: 64px;
+            height: 64px;
+            display: block;
+            margin: 0 auto;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .1);
+        }
+        .victory-photo.champ canvas { background: rgba(251, 191, 36, .28); box-shadow: 0 0 0 2px #fbbf24; }
+        .victory-photo span {
+            display: block;
+            font-size: .6rem;
+            font-weight: 800;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .victory-cheers {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .victory-cheer-btn {
+            min-height: 44px;
+            border: 0;
+            border-radius: 999px;
+            padding: 0 12px;
+            background: rgba(255, 255, 255, .14);
+            color: #f8fafc;
+            font: 800 .78rem Fredoka, system-ui, sans-serif;
+            cursor: pointer;
+        }
+        .victory-cheer-btn:active { transform: scale(.95); }
+        .victory-cheer-btn b { color: #fbbf24; }
+        .victory-float {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: visible;
+        }
+        .victory-float-item {
+            position: absolute;
+            font-size: 24px;
+            animation: victoryFloat 1.3s ease-out forwards;
+        }
+        @keyframes victoryFloat {
+            0% { opacity: 1; transform: translate(-50%, 0) scale(.9); }
+            100% { opacity: 0; transform: translate(-50%, -90px) scale(1.35); }
+        }
+        @media (max-height: 560px) and (orientation: landscape) {
+            .victory-extras { margin-top: 8px; padding-top: 8px; }
+            .victory-photo canvas { width: 46px; height: 46px; }
+            .victory-photo { width: 58px; }
+            .victory-cheer-btn { min-height: 38px; font-size: .7rem; }
+        }
         /* Class battle trophy ceremony */
         .battle-trophy-overlay {
             position: fixed;

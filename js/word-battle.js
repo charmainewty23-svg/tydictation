@@ -462,6 +462,14 @@
                 '<button type="button" class="battle-trophy-continue hidden" onclick="battleCloseTrophy()">Continue</button>' +
                 '</div>';
             document.body.appendChild(overlay);
+            if (typeof VICTORY !== 'undefined' && VICTORY.ceremonyExtras) {
+                VICTORY.ceremonyExtras(overlay, {
+                    roomId: battleRoom && battleRoom.id,
+                    players: battlePlayers,
+                    championId: top[0] && top[0].user_id,
+                    nameOf: displayName
+                });
+            }
             const nodes = Array.from(overlay.querySelectorAll('.battle-trophy-place'));
             battleTrophyTimers = [];
             nodes.forEach(node => {
@@ -1171,7 +1179,7 @@
                     // Class champion flexes their Victory Animation (owned or
                     // a 1-battle trial pass). Never touches scores.
                     if (rank === 1 && typeof VICTORY !== 'undefined' && VICTORY.claimForWin) {
-                        VICTORY.claimForWin(battleRoom.id, { title: '🏆 Class champion' });
+                        VICTORY.claimForWin(battleRoom.id, { title: '🏆 Class champion', look: battlePlayerLook(sorted[0]) });
                     }
                 } else {
                     body.innerHTML = `<div class="mb-4">Your score: <b>${me.score || 0}</b> pts (${me.correct || 0}/${battleWords.length} correct)</div>

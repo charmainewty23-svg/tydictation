@@ -576,6 +576,15 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `DG.mpRejoinRoom()` 自動入返，唔會再跌落 Create／Join 或 Hub。房真的冇咗就喺
   原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
   返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
+- **Kart class trophy（2026-11）**：Drive & Go! class room（max_players > 5）
+  完賽後 `showMultiplayerResults()` 會彈 `#dg-trophy-overlay`（重用
+  `battle-trophy-*` CSS）：CHAMPION 最頂、下面 1ST／2ND RUNNER UP；
+  彈出次序 2ND → 1ST → CHAMPION（1.6s）；每位用
+  `drive_and_go_players` 嘅 cat／glasses／hat／outfit（同 `car`，冇就
+  Stock）畫 `DG.drawKart()`，顯示 composite pts＋correct/N；播
+  `music/trophyMusic.mp3`；`DG.closeKartTrophy()` 關閉。用
+  `room.id + finished_at` key 防止 poll 重開。老師 host-only 同學生
+  結果畫面都會彈。
 - **Host-only 老師結果（2026-11）**：老師揀「唔落場」時冇
   `#drive-and-go-view`／`raceEls.overlay`，所以 `showMultiplayerResults()`
   以前會靜靜咁咩都唔出。而家會 fallback 將最終排名寫入

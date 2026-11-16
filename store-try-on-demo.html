@@ -67,6 +67,8 @@
             if (app) app.classList.add('logged-in');
             var header = d.querySelector('#app > .brand-header');
             if (header) header.style.display = 'none';
+            var mascot = d.querySelector('#app > header');
+            if (mascot) mascot.style.display = 'none';
             d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
             d.getElementById('store-view').classList.remove('hidden');
             ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {

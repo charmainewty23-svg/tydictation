@@ -93,7 +93,7 @@
     </div>
     <div class="col">
         <div class="col-head">
-            <span class="col-title">😺 After（v68）</span>
+            <span class="col-title">😺 After（v69）</span>
             <span class="badge" id="badge-after">測試中…</span>
         </div>
         <div class="phone"><iframe id="frame-after" src="/index.html?wbstartdemo=after" title="After fix"></iframe></div>
@@ -137,6 +137,8 @@
         if (app) app.classList.add('logged-in');
         var header = d.querySelector('#app > .brand-header');
         if (header) header.style.display = 'none';
+        var mascot = d.querySelector('#app > header');
+        if (mascot) mascot.style.display = 'none';
         d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
         var battle = d.getElementById('battle-view');
         if (battle) battle.classList.remove('hidden');
@@ -160,9 +162,40 @@
 
     function ready(w) {
         try {
-            if (!w || !w.document || !w.battleBeginRound || !w.battleRender) return false;
-            return !!evalIn(w, "(function(){ try { return Object.keys(categories||{}).some(function(k){ return (categories[k]||[]).some(function(x){ return !!x.en; }); }); } catch (e) { return false; } })()");
+            return !!(w && w.document && w.battleBeginRound && w.battleRender &&
+                w.document.getElementById('battle-view'));
         } catch (e) { return false; }
+    }
+
+    // The demo must not depend on the Google Sheet: seed 15 charity words when
+    // the word bank has not arrived yet (or the tab is rate-limited).
+    var DEMO_WORDS = [
+        { en: 'charity', zh: 'n 慈善機構' },
+        { en: 'donation', zh: 'n 捐款' },
+        { en: 'volunteer', zh: 'n/v 義工；自願' },
+        { en: 'fundraising', zh: 'n 籌款' },
+        { en: 'shelter', zh: 'n 收容所；庇護' },
+        { en: 'sponsor', zh: 'v/n 贊助；贊助人' },
+        { en: 'relief', zh: 'n 救援；寬慰' },
+        { en: 'campaign', zh: 'n 運動；活動' },
+        { en: 'orphan', zh: 'n 孤兒' },
+        { en: 'community', zh: 'n 社區' },
+        { en: 'generous', zh: 'adj 慷慨的' },
+        { en: 'awareness', zh: 'n 意識' },
+        { en: 'benefit', zh: 'n/v 益處；受惠' },
+        { en: 'support', zh: 'n/v 支持' },
+        { en: 'rescue', zh: 'n/v 拯救' }
+    ];
+
+    function seedWords(w) {
+        try {
+            evalIn(w, "(function(){ var pool = " + JSON.stringify(DEMO_WORDS) + ";" +
+                "var bank = (typeof categories !== 'undefined' && categories) ? categories : {};" +
+                "if (!(bank['charity'] || []).filter(function(x){ return !!x.en; }).length) {" +
+                "  bank['charity'] = pool;" +
+                "  categories = bank;" +
+                "}})()");
+        } catch (e) {}
     }
 
     function stubNetwork(w) {
@@ -221,6 +254,7 @@
 
         hideChrome(w.document);
         stubNetwork(w);
+        seedWords(w);
         if (mode === 'before') useOldLogic(w); else useNewLogic(w);
 
         var started = new Date().toISOString();
@@ -247,6 +281,11 @@
             "head: document.getElementById('battle-result-headline').innerText," +
             "body: document.getElementById('battle-result-body').innerText.replace(/\\s+/g, ' ').slice(0, 90)" +
             "})"));
+
+        // Keep the outer demo page at the top: the app focuses its answer box,
+        // which would otherwise scroll this page to the middle.
+        try { evalIn(w, "try{document.getElementById('battle-answer').blur()}catch(e){}"); } catch (e) {}
+        window.scrollTo(0, 0);
 
         var isBad = state.done || state.resultVisible;
         var badgeId = mode === 'before' ? 'badge-before' : 'badge-after';

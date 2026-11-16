@@ -12,7 +12,7 @@
 -- ---------- 1. allow the new layer names ----------
 alter table public.store_items drop constraint if exists store_items_slot_check;
 alter table public.store_items add constraint store_items_slot_check
-    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background',
+    check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background',
                     'hat','face','outfit'));
 
 -- ---------- 2. move catalog items onto their wear layer ----------
@@ -31,7 +31,7 @@ update public.store_equipped e
   from public.store_items i
  where i.id = e.item_id;
 alter table public.store_equipped add constraint store_equipped_slot_check
-    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background',
+    check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background',
                     'hat','face','outfit'));
 
 -- ---------- 4. profile look gets the extra layers ----------

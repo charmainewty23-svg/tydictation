@@ -50,6 +50,12 @@ const STORE_ITEMS = [
     { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:500, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
     { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
     { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:520, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
+    // Drive & Go! car skins
+    { id:'car_sunset', slot:'car', name:'Sunset Racer', zh:'日落賽車', price:600, rarity:'Rare', emoji:'🏎️', color:'#ef4444', desc:'A red-orange racer with gold trim.' },
+    { id:'car_ocean', slot:'car', name:'Ocean Bolt', zh:'海洋閃電', price:650, rarity:'Rare', emoji:'🏎️', color:'#38bdf8', desc:'A sky-blue kart with a white stripe.' },
+    { id:'car_neon', slot:'car', name:'Neon Drift', zh:'霓虹漂移', price:700, rarity:'Epic', emoji:'🏎️', color:'#a855f7', desc:'Purple body with a cyan glow stripe.' },
+    { id:'car_jungle', slot:'car', name:'Jungle Buggy', zh:'森林越野車', price:750, rarity:'Epic', emoji:'🏎️', color:'#22c55e', desc:'A green off-road buggy with yellow trim.' },
+    { id:'car_gold', slot:'car', name:'Golden GT', zh:'黃金跑車', price:900, rarity:'Legendary', emoji:'🏎️', color:'#fbbf24', desc:'A gold grand tourer with black trim.' },
 
     // Backgrounds & effects (Me / lobby only)
     { id:'bg_desk', slot:'background', name:'Cozy Desk', zh:'溫書書桌', price:120, rarity:'Rare', emoji:'🛋️', color:'#d97706', desc:'A wooden desk with a lamp and tea.' },
@@ -94,7 +100,8 @@ const STORE_LAYER_KEY = {
     eyes: 'glasses',
     cheeks: 'cheeks',
     neck: 'neck',
-    body: 'outfit'
+    body: 'outfit',
+    car: 'car'
 };
 
 function storeLayerKey(layer) {
@@ -165,6 +172,7 @@ function storeExtendDG() {
     add(DG.CHEEKS, ['cheeks']);
     add(DG.OUTFITS, ['body', 'neck']);
     add(DG.NECKS, ['neck']);
+    add(DG.KARTS, ['car']);
 }
 
 window.addEventListener('load', storeExtendDG);
@@ -391,6 +399,7 @@ function storeMyLook() {
         cheeks: equippedName('cheeks') || p.cheeks || 'None',
         outfit: equippedName('body') || p.outfit || 'None',
         neck: equippedName('neck') || p.neck || 'None',
+        car: equippedName('car') || ((typeof DG !== 'undefined' && DG.readSettings) ? (DG.readSettings().car || 'Stock') : 'Stock'),
         props: (STORE_EQUIPPED.prop || []).map(id => STORE_BY_ID[id] && STORE_BY_ID[id].name).filter(Boolean)
     };
 }
@@ -420,6 +429,7 @@ async function storeUseMyLook() {
         s.cheeks = look.cheeks;
         s.outfit = look.outfit;
         s.neck = look.neck;
+        s.car = look.car || 'Stock';
         DG.saveSettings();
         if (typeof DG.showCatStep === 'function' && DG.menuStep === 'cat' && document.getElementById('dg-cat-preview')) {
             DG.showCatStep();
@@ -796,8 +806,8 @@ function renderStore() {
             : '<p class="text-gray-400 text-center py-8">New items are loading…</p>';
         return;
     }
-    const groups = ['hat', 'face', 'outfit', 'prop', 'background'];
-    const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
+    const groups = ['hat', 'face', 'outfit', 'car', 'prop', 'background'];
+    const labels = { hat: 'Hats & Headwear', face: 'Face & Eyewear', outfit: 'Neck & Outfits', car: '🏎️ Drive & Go! Cars', prop: 'Props & Companions', background: 'Backgrounds & Effects' };
     const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];
     grid.innerHTML = shown.map(group => {
         const items = STORE_ITEMS.filter(it => storeLayerGroup(it) === group);
@@ -878,7 +888,7 @@ async function storeEquipItem(id) {
         }
         const profile = storeReadLocalProfileLook();
         const key = storeLayerKey(item.slot);
-        if (key !== 'prop' && key !== 'background') profile[key] = item.name;
+        if (key !== 'prop' && key !== 'background' && key !== 'car') profile[key] = item.name;
         STORE_PROFILE_LOOK = profile;
         storeSaveLocalProfileLook();
         storeApplyEquippedToDG();
@@ -934,6 +944,7 @@ function storeLookBits(look, prop, bg) {
     if (look && look.cheeks && look.cheeks !== 'None') bits.push('😊 ' + look.cheeks);
     if (look && look.outfit && look.outfit !== 'None') bits.push('👕 ' + look.outfit);
     if (look && look.neck && look.neck !== 'None') bits.push('🧣 ' + look.neck);
+    if (look && look.car && look.car !== 'Stock') bits.push('🏎️ ' + look.car);
     const props = Array.isArray(prop) ? prop : (prop ? [prop] : []);
     props.forEach(p => { if (p && p.name) bits.push('✨ ' + p.name); });
     if (bg) bits.push('🖼️ ' + bg.name);

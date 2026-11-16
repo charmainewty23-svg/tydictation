@@ -8,7 +8,7 @@
 -- ---------- catalog ----------
 create table if not exists public.store_items (
     id       text primary key,
-    slot     text not null check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit')),
+    slot     text not null check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background','hat','face','outfit')),
     name_en  text not null,
     name_zh  text,
     price    int not null default 0 check (price >= 0),
@@ -22,7 +22,7 @@ create table if not exists public.store_items (
 -- first so updating the catalog below cannot fail.
 alter table public.store_items drop constraint if exists store_items_slot_check;
 alter table public.store_items add constraint store_items_slot_check
-    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit'));
+    check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background','hat','face','outfit'));
 
 alter table public.store_items enable row level security;
 drop policy if exists "store items are public" on public.store_items;
@@ -71,6 +71,11 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('prop_tea_scone','prop','Tea & Scone','英式下午茶',500,'Epic','🫖',51),
     ('prop_corgi','prop','Mini Corgi','迷你哥基犬',510,'Legendary','🐕',52),
     ('prop_boombox','prop','Boombox','復古卡式錄音機',520,'Legendary','📻',53),
+    ('car_sunset','car','Sunset Racer','日落賽車',600,'Rare','🏎️',54),
+    ('car_ocean','car','Ocean Bolt','海洋閃電',650,'Rare','🏎️',55),
+    ('car_neon','car','Neon Drift','霓虹漂移',700,'Epic','🏎️',56),
+    ('car_jungle','car','Jungle Buggy','森林越野車',750,'Epic','🏎️',57),
+    ('car_gold','car','Golden GT','黃金跑車',900,'Legendary','🏎️',58),
     ('bg_desk','background','Cozy Desk','溫書書桌',120,'Rare','🛋️',35),
     ('bg_library','background','Oxford Library','牛津古書庫',200,'Epic','📚',36),
     ('bg_bigben','background','Big Ben Rain','倫敦雨夜',220,'Epic','🕰️',37),
@@ -355,7 +360,7 @@ grant select on public.store_purchases to authenticated;
 
 create table if not exists public.store_equipped (
     user_id    uuid not null references auth.users(id) on delete cascade,
-    slot       text not null check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit')),
+    slot       text not null check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background','hat','face','outfit')),
     item_id    text not null references public.store_items(id) on delete cascade,
     updated_at timestamptz not null default now(),
     primary key (user_id, slot, item_id)
@@ -368,7 +373,7 @@ create unique index if not exists store_equipped_single_layer
 
 alter table public.store_equipped drop constraint if exists store_equipped_slot_check;
 alter table public.store_equipped add constraint store_equipped_slot_check
-    check (slot in ('head','ears','eyes','cheeks','neck','body','prop','background','hat','face','outfit'));
+    check (slot in ('head','ears','eyes','cheeks','neck','body','car','prop','background','hat','face','outfit'));
 
 alter table public.store_equipped enable row level security;
 update public.store_equipped e
@@ -556,7 +561,7 @@ declare
     v_item public.store_items;
 begin
     if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
-    if p_slot not in ('head','ears','eyes','cheeks','neck','body','prop','background') then
+    if p_slot not in ('head','ears','eyes','cheeks','neck','body','car','prop','background','hat','face','outfit') then
         raise exception 'INVALID_SLOT';
     end if;
     if p_item is null or trim(p_item) = '' then

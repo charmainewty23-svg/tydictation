@@ -248,7 +248,8 @@
                         cat,
                         glasses: i % 3 === 0 ? 'Sunglasses' : (i % 3 === 1 ? 'Glasses' : 'None'),
                         hat: i === 1 ? 'Crown' : (i === 2 ? 'Party Hat' : 'None'),
-                        outfit: DG.OUTFITS[(i + 1) % DG.OUTFITS.length]
+                        outfit: DG.OUTFITS[(i + 1) % DG.OUTFITS.length],
+                        car: DG.KARTS[(i + 1) % DG.KARTS.length]
                     }),
                     dist: Math.max(0, 20 - i * 14 + Math.random() * 16),
                     speed: 60 + Math.random() * 25,
@@ -2577,9 +2578,14 @@
             sp.scale.set(size, size, 1);
             return sp;
         };
+        const car = DG.kartPalette(l.car);
         const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.body) });
         const shadeMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.shade) });
         const pointMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(pal.points) });
+        const kartMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(car.top) });
+        const kartShadeMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(car.bottom) });
+        const kartAccentMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(car.accent) });
+        const kartWingMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(car.wing) });
         const darkMat = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
 
         const shadow = new THREE.Mesh(
@@ -2590,12 +2596,15 @@
         shadow.position.y = 0.03;
         g.add(shadow);
 
-        const chassis = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.2, 7), bodyMat);
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.2, 7), kartMat);
         chassis.position.y = 0.95;
         g.add(chassis);
-        const nose = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.7, 2.4), shadeMat);
+        const nose = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.7, 2.4), kartShadeMat);
         nose.position.set(0, 1.55, -2.2);
         g.add(nose);
+        const accent = new THREE.Mesh(new THREE.BoxGeometry(5.45, 0.2, 7.05), kartAccentMat);
+        accent.position.set(0, 1.58, 0);
+        g.add(accent);
 
         const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 1.8, 6), pointMat);
         tail.position.set(0, 1.7, 2.7);
@@ -2704,7 +2713,7 @@
         }
 
         if (isPlayer) {
-            const spoiler = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.25, 0.5), darkMat);
+            const spoiler = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.25, 0.5), kartWingMat);
             spoiler.position.set(0, 2.35, 2.6);
             g.add(spoiler);
         }
@@ -4421,6 +4430,7 @@
         const o = opts || {};
         const l = DG.normalizeLook(look);
         const pal = DG.catPalette(l.cat);
+        const car = DG.kartPalette(l.car);
         const s = scale || 1;
         ctx.save();
         ctx.translate(x, y);
@@ -4474,8 +4484,8 @@
 
         // Kart body
         const body = ctx.createLinearGradient(0, -40 * s, 0, 16 * s);
-        body.addColorStop(0, l.outfit === 'Racing Jacket' ? '#ef4444' : '#f97316');
-        body.addColorStop(1, l.outfit === 'Racing Jacket' ? '#991b1b' : '#c2410c');
+        body.addColorStop(0, car.top);
+        body.addColorStop(1, car.bottom);
         ctx.fillStyle = body;
         ctx.beginPath();
         ctx.roundRect(-46 * s, -38 * s, 92 * s, 48 * s, 14 * s);
@@ -4485,9 +4495,11 @@
         ctx.stroke();
 
         // Racing jacket stripes / sports vest
-        if (l.outfit === 'Racing Jacket') {
-            ctx.fillStyle = '#fde047';
+        if (l.car !== 'Stock' || l.outfit === 'Racing Jacket') {
+            ctx.fillStyle = car.accent;
             ctx.fillRect(-46 * s, -18 * s, 92 * s, 5 * s);
+        }
+        if (l.outfit === 'Racing Jacket') {
             ctx.fillStyle = '#fff';
             ctx.fillRect(-6 * s, -38 * s, 12 * s, 48 * s);
         } else if (l.outfit === 'Sports Vest') {
@@ -4500,7 +4512,7 @@
         }
 
         // Rear wing
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = car.wing;
         ctx.beginPath();
         ctx.roundRect(-40 * s, -45 * s, 80 * s, 8 * s, 4 * s);
         ctx.fill();

@@ -68,6 +68,15 @@ const DG = {
     CHEEKS: ['None', 'Blush Stickers'],
     OUTFITS: ['None', 'Racing Jacket'],
     NECKS: ['None', 'Red Scarf', 'Tweed Bow Tie', 'Bread Collar', 'Shakespeare Ruff'],
+    KARTS: ['Stock', 'Sunset Racer', 'Ocean Bolt', 'Neon Drift', 'Jungle Buggy', 'Golden GT'],
+    KART_STYLES: {
+        Stock: { top: '#f97316', bottom: '#c2410c', accent: '#fde047', wing: '#0f172a' },
+        'Sunset Racer': { top: '#ef4444', bottom: '#7f1d1d', accent: '#fbbf24', wing: '#111827' },
+        'Ocean Bolt': { top: '#38bdf8', bottom: '#1d4ed8', accent: '#e0f2fe', wing: '#0f172a' },
+        'Neon Drift': { top: '#a855f7', bottom: '#4c1d95', accent: '#22d3ee', wing: '#111827' },
+        'Jungle Buggy': { top: '#22c55e', bottom: '#166534', accent: '#fde047', wing: '#1f2937' },
+        'Golden GT': { top: '#fbbf24', bottom: '#b45309', accent: '#111827', wing: '#111827' }
+    },
     ITEM_EMOJI: { banana: '🍌', star: '⭐', redshell: '🔴', lightning: '⚡', mushroom: '🍄' },
     ITEM_NAME: { banana: 'Banana', star: 'Star', redshell: 'Red shell', lightning: 'Lightning', mushroom: 'Mushroom' },
     ITEM_HELP: {
@@ -102,7 +111,7 @@ const DG = {
     /* ---------------- preferences ---------------- */
 
     defaultSettings() {
-        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', ears: 'None', cheeks: 'None', outfit: 'None', neck: 'None', controls: 'tilt', questionCount: 20, scene: 'desert' };
+        return { topic: 'tenses', bankMode: 'av', cat: 'Ginger', glasses: 'None', hat: 'None', ears: 'None', cheeks: 'None', outfit: 'None', neck: 'None', car: 'Stock', controls: 'tilt', questionCount: 20, scene: 'desert' };
     },
 
     normalizeTopic(value) {
@@ -253,7 +262,7 @@ const DG = {
 
     rememberLook(look) {
         const s = DG.readSettings();
-        s.cat = look.cat; s.glasses = look.glasses; s.hat = look.hat; s.ears = look.ears; s.cheeks = look.cheeks; s.outfit = look.outfit; s.neck = look.neck;
+        s.cat = look.cat; s.glasses = look.glasses; s.hat = look.hat; s.ears = look.ears; s.cheeks = look.cheeks; s.outfit = look.outfit; s.neck = look.neck; s.car = look.car;
         DG.saveSettings();
         return s;
     },
@@ -267,13 +276,14 @@ const DG = {
             ears: pick(raw && raw.ears, DG.EARS, 'None'),
             cheeks: pick(raw && raw.cheeks, DG.CHEEKS, 'None'),
             outfit: pick(raw && raw.outfit, DG.OUTFITS, 'None'),
-            neck: pick(raw && raw.neck, DG.NECKS, 'None')
+            neck: pick(raw && raw.neck, DG.NECKS, 'None'),
+            car: pick(raw && raw.car, DG.KARTS, 'Stock')
         };
     },
 
     currentLook() {
         const s = DG.readSettings();
-        return { cat: s.cat, glasses: s.glasses, hat: s.hat, ears: s.ears, cheeks: s.cheeks, outfit: s.outfit, neck: s.neck };
+        return { cat: s.cat, glasses: s.glasses, hat: s.hat, ears: s.ears, cheeks: s.cheeks, outfit: s.outfit, neck: s.neck, car: s.car };
     },
 
     /* Drive & Go customisation only offers cats and glasses, but an equipped
@@ -288,7 +298,8 @@ const DG = {
             ears: s.ears || 'None',
             cheeks: s.cheeks || 'None',
             outfit: s.outfit || 'None',
-            neck: s.neck || 'None'
+            neck: s.neck || 'None',
+            car: s.car || 'Stock'
         };
     },
 
@@ -2041,6 +2052,10 @@ const DG = {
         if (l.hat !== 'None') bits.push(l.hat);
         if (l.outfit !== 'None') bits.push(l.outfit);
         return bits.join(' · ');
+    },
+
+    kartPalette(name) {
+        return DG.KART_STYLES[name] || DG.KART_STYLES.Stock;
     },
 
     catPalette(cat) {

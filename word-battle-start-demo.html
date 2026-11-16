@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Word Battle class battle — Start bug demo</title>
+<style>
+    :root { color-scheme: light; }
+    html, body { margin: 0; padding: 0; background: #0f172a; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #e5e7eb; }
+    header {
+        padding: 18px 16px 10px;
+        text-align: center;
+    }
+    header h1 { margin: 0 0 6px; font-size: 20px; }
+    header p { margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5; }
+    .stage {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 390px));
+        gap: 16px;
+        justify-content: center;
+        padding: 10px 16px 26px;
+    }
+    .col { display: flex; flex-direction: column; gap: 8px; }
+    .col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .col-title { font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+    .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        background: rgba(148, 163, 184, .18);
+        color: #cbd5f5;
+        white-space: nowrap;
+    }
+    .badge.bad { background: #7f1d1d; color: #fecaca; }
+    .badge.good { background: #14532d; color: #bbf7d0; }
+    .phone {
+        background: #fff9f2;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+        border: 1px solid rgba(255,255,255,.12);
+    }
+    .phone iframe { display: block; width: 100%; height: 74vh; min-height: 540px; border: 0; background: #fff9f2; }
+    .note { font-size: 11px; color: #94a3b8; font-family: ui-monospace, Menlo, monospace; word-break: break-word; }
+    .note b { color: #e2e8f0; }
+    .foot {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 0 18px 40px;
+        font-size: 13px;
+        line-height: 1.65;
+        color: #cbd5f5;
+    }
+    .foot h2 { font-size: 14px; margin: 18px 0 6px; color: #e2e8f0; }
+    .foot ul { margin: 0; padding-left: 20px; }
+    .foot code { background: rgba(148,163,184,.16); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+    .bar {
+        display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+        padding: 6px 16px 14px;
+    }
+    .bar button {
+        min-height: 40px; border: 0; border-radius: 999px; padding: 0 16px;
+        background: #22c55e; color: #052e16; font: 800 13px system-ui, sans-serif; cursor: pointer;
+    }
+    .bar button.ghost { background: rgba(255,255,255,.12); color: #e5e7eb; }
+    @media (max-width: 820px) {
+        .stage { grid-template-columns: minmax(0, 420px); }
+        .phone iframe { height: 68vh; min-height: 480px; }
+    }
+</style>
+</head>
+<body>
+<header>
+    <h1>Word Battle · 班際 15 題</h1>
+    <p>同一份 app、同一行「舊資料」，左邊是舊邏輯（會即刻彈 0 分結果），右邊是修正後（由第 1 題開始）。</p>
+</header>
+
+<div class="bar">
+    <button type="button" id="replay">↺ Replay</button>
+</div>
+
+<div class="stage">
+    <div class="col">
+        <div class="col-head">
+            <span class="col-title">😿 Before（舊版）</span>
+            <span class="badge" id="badge-before">測試中…</span>
+        </div>
+        <div class="phone"><iframe id="frame-before" src="/index.html?wbstartdemo=before" title="Before fix"></iframe></div>
+        <div class="note" id="note-before"></div>
+    </div>
+    <div class="col">
+        <div class="col-head">
+            <span class="col-title">😺 After（v68）</span>
+            <span class="badge" id="badge-after">測試中…</span>
+        </div>
+        <div class="phone"><iframe id="frame-after" src="/index.html?wbstartdemo=after" title="After fix"></iframe></div>
+        <div class="note" id="note-after"></div>
+    </div>
+</div>
+
+<div class="foot">
+    <h2>這兩個畫面在示範什麼</h2>
+    <ul>
+        <li>房間：<code>class</code>、<b>15 題</b>、host 剛剛按 Start（<code>started_at</code> = 現在）。</li>
+        <li>學生的資料庫那一行仍然留著上一局的 <code>progress = 15</code>、<code>done = true</code>、<code>score = 0</code>。</li>
+        <li>舊版直接信這一行的 <code>progress/done</code> → 15 &gt;= 15 題 → 當成「已做完」→ 立即彈結果，<b>0 pts (0/15 correct)</b>。</li>
+        <li>v68 會用 <code>room.started_at</code> 對比 <code>battle_players.updated_at</code>：那一行只在開賽同一刻被寫過，沒有任何一題的進度 → 當成「今局未開始」→ 由 <b>Word 1 of 15</b> 開始。</li>
+        <li>真的中段重新整理／中途加入（row 在開賽 2 秒後才寫）仍然會接住原本進度，不會被 reset。</li>
+    </ul>
+    <h2>要跑的 SQL（可重跑，建議跑）</h2>
+    <p><code>https://tydictation.vercel.app/supabase/battle_round_reset.sql</code> — 重寫 <code>start_battle()</code> 與 <code>rematch_battle()</code>，把 <code>score / correct / total_ms / done</code>，以及（如果有）<code>progress / last_answer / last_correct</code> 清 0，並刪走該房舊的 <code>battle_answers</code>。</p>
+</div>
+
+<script>
+(function () {
+    var beforeFrame = document.getElementById('frame-before');
+    var afterFrame = document.getElementById('frame-after');
+
+    function setBadge(id, text, kind) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.innerText = text;
+        el.className = 'badge' + (kind ? ' ' + kind : '');
+    }
+
+    function evalIn(w, code) {
+        return w.eval(code);
+    }
+
+    function hideChrome(d) {
+        var login = d.getElementById('login-view');
+        if (login) login.style.display = 'none';
+        var app = d.getElementById('app');
+        if (app) app.classList.add('logged-in');
+        var header = d.querySelector('#app > header');
+        if (header) header.style.display = 'none';
+        d.querySelectorAll('.view').forEach(function (v) { v.classList.add('hidden'); });
+        var battle = d.getElementById('battle-view');
+        if (battle) battle.classList.remove('hidden');
+        ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+            var el = d.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        var backBtn = d.getElementById('battle-back-btn');
+        if (backBtn) backBtn.style.display = 'none';
+        // The Word Battle screen keeps its heading + Word Jump card above the
+        // panels, so hide those static blocks and show only the live panel.
+        var card = d.querySelector('#battle-view .cat-card');
+        if (card) {
+            Array.prototype.forEach.call(card.children, function (ch) {
+                if (ch.id === 'battle-play' || ch.id === 'battle-result' || ch.id === 'battle-class') return;
+                ch.style.display = 'none';
+            });
+        }
+        try { w.scrollTo(0, 0); } catch (e) {}
+    }
+
+    function ready(w) {
+        try {
+            if (!w || !w.document || !w.battleBeginRound || !w.battleRender) return false;
+            return !!evalIn(w, "(function(){ try { return Object.keys(categories||{}).some(function(k){ return (categories[k]||[]).some(function(x){ return !!x.en; }); }); } catch (e) { return false; } })()");
+        } catch (e) { return false; }
+    }
+
+    function stubNetwork(w) {
+        evalIn(w, "(function(){" +
+            "if (window.__wbDemoStub) return;" +
+            "window.__wbDemoStub = true;" +
+            "window.confirm = function(){ return true; };" +
+            "battleSaveResume = function(){};" +
+            "battleReadResume = function(){ return null; };" +
+            "battleSpeak = function(){};" +
+            "window.__wbRealRestore = battleRestoreProgress;" +
+            "var realFrom = sb.from.bind(sb);" +
+            "sb.from = function(table){" +
+            "  if (table === 'battle_players') {" +
+            "    return { update: function(){ return { eq: function(){ return { eq: function(){ return Promise.resolve({ error: null }); } }; } }; } };" +
+            "  }" +
+            "  return realFrom(table);" +
+            "};" +
+            "})()");
+    }
+
+    function useOldLogic(w) {
+        evalIn(w, "(function(){" +
+            "battleRestoreProgress = function(){" +
+            "  var me = (battlePlayers || []).filter(function(p){ return currentUser && p.user_id === currentUser.id; })[0];" +
+            "  var idx = 0, score = 0, correct = 0, totalMs = 0, done = false;" +
+            "  if (me) {" +
+            "    done = !!me.done;" +
+            "    idx = (typeof me.progress === 'number') ? me.progress : 0;" +
+            "    score = me.score || 0;" +
+            "    correct = me.correct || 0;" +
+            "    totalMs = me.total_ms || 0;" +
+            "  }" +
+            "  battleIdx = Math.max(0, Math.min(idx, battleWords.length));" +
+            "  battleScore = score; battleCorrect = correct; battleTotalMs = totalMs;" +
+            "  battleDoneLocal = done || battleIdx >= battleWords.length;" +
+            "};" +
+            "})()");
+    }
+
+    function useNewLogic(w) {
+        evalIn(w, "battleRestoreProgress = window.__wbRealRestore;");
+    }
+
+    function run(frame, mode, tries) {
+        tries = tries || 0;
+        var w = frame.contentWindow;
+        if (!ready(w)) {
+            if (tries > 120) {
+                setBadge(mode === 'before' ? 'badge-before' : 'badge-after', '載入失敗，請重新整理', 'bad');
+                return;
+            }
+            setTimeout(function () { run(frame, mode, tries + 1); }, 250);
+            return;
+        }
+
+        hideChrome(w.document);
+        stubNetwork(w);
+        if (mode === 'before') useOldLogic(w); else useNewLogic(w);
+
+        var started = new Date().toISOString();
+
+        evalIn(w, "(function(){" +
+            "currentUser = { id: 'demo-student-01', email: 's231001@lstyoungkhl.edu.hk' };" +
+            "var started = " + JSON.stringify(started) + ";" +
+            "battleRoom = { id: 'demo-room-start', code: 'K7QP', host_id: 'demo-teacher', mode: 'class', status: 'playing', seed: 424242, question_count: 15, topic: 'charity', started_at: started, max_players: 30 };" +
+            "battlePlayers = [{ room_id: 'demo-room-start', user_id: 'demo-student-01', nickname: '4C 01 Chan', score: 0, correct: 0, total_ms: 0, done: true, progress: 15, updated_at: started }];" +
+            "battleRoundSeed = null; battleRoundStartedAt = null; battleDoneLocal = false;" +
+            "battleWords = []; battleIdx = 0; battleScore = 0; battleCorrect = 0; battleTotalMs = 0;" +
+            "if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }" +
+            "battleBeginRound();" +
+            "if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }" +
+            "battleRender();" +
+            "if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }" +
+            "})()");
+
+        var state = JSON.parse(evalIn(w, "JSON.stringify({" +
+            "idx: battleIdx, done: !!battleDoneLocal, words: battleWords.length, score: battleScore," +
+            "resultVisible: !document.getElementById('battle-result').classList.contains('hidden')," +
+            "playVisible: !document.getElementById('battle-play').classList.contains('hidden')," +
+            "progress: document.getElementById('battle-progress').innerText," +
+            "head: document.getElementById('battle-result-headline').innerText," +
+            "body: document.getElementById('battle-result-body').innerText.replace(/\\s+/g, ' ').slice(0, 90)" +
+            "})"));
+
+        var isBad = state.done || state.resultVisible;
+        var badgeId = mode === 'before' ? 'badge-before' : 'badge-after';
+        var noteId = mode === 'before' ? 'note-before' : 'note-after';
+
+        setBadge(badgeId,
+            isBad ? '❌ 即刻彈結果 · 0/' + state.words
+                  : '✅ Word ' + (state.idx + 1) + ' of ' + state.words,
+            isBad ? 'bad' : 'good');
+
+        document.getElementById(noteId).innerHTML =
+            'battleIdx = <b>' + state.idx + '</b> · battleDoneLocal = <b>' + state.done + '</b>' +
+            ' · words = <b>' + state.words + '</b>' +
+            ' · result panel = <b>' + state.resultVisible + '</b>' +
+            (state.resultVisible
+                ? '<br>畫面：' + (state.head || '') + ' — ' + (state.body || '')
+                : '<br>畫面：' + (state.progress || '') + '（可以正常答題）');
+    }
+
+    function startAll() {
+        setBadge('badge-before', '測試中…', '');
+        setBadge('badge-after', '測試中…', '');
+        document.getElementById('note-before').innerText = '';
+        document.getElementById('note-after').innerText = '';
+        run(beforeFrame, 'before');
+        run(afterFrame, 'after');
+    }
+
+    beforeFrame.addEventListener('load', function () { run(beforeFrame, 'before'); });
+    afterFrame.addEventListener('load', function () { run(afterFrame, 'after'); });
+    document.getElementById('replay').addEventListener('click', function () {
+        beforeFrame.contentWindow.location.reload();
+        afterFrame.contentWindow.location.reload();
+    });
+
+    setTimeout(startAll, 600);
+})();
+</script>
+</body>
+</html>

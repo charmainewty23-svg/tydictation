@@ -335,6 +335,9 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   3. 老師 class board 嘅自動完場要開賽 **10 秒**之後才會觸發，避免一開始就 auto-end。
 - 未跑呢份 SQL 都唔會再「一撳 Start 就彈結果」（前端保險足夠），但跑咗最乾淨：
   舊 `progress` 會即刻清走，class board 嘅進度／idle 顯示亦由 Q1 開始。
+- 示範頁：`/word-battle-start-demo.html`（兩個 iframe 載入真 app，左邊用舊
+  `battleRestoreProgress` 重現「一撳 Start 就彈 0 分結果」，右邊用 v68 邏輯由
+  `Word 1 of 15` 開始；下面顯示 `battleIdx`／`battleDoneLocal`／words 實測值）。
 
 ### 9.6a 不小心彈出後重回 — `supabase/battle_rejoin.sql`（要喺 9.6 之後跑）
 - 以前「← Back to Hub」會即刻 `leave_battle`：未開始就退出／刪房，已開始嘅 1v1

@@ -1558,7 +1558,7 @@ const DG = {
         };
         content.innerHTML =
             DG.stepDots('cat') +
-            DG.stepHeading('cat', 'Customize your cat driver') +
+            DG.stepHeading('cat', 'Customize your cat & kart') +
             '<div class="dg-preview-wrap"><canvas id="dg-cat-preview" width="520" height="400" aria-label="Cat driver preview"></canvas></div>' +
             '<div class="text-center mb-4"><button type="button" class="dg-menu-button" onclick="storeUseMyLook()">✨ Use my look</button>' +
             '<p id="dg-look-note" class="hidden text-xs font-bold text-green-600 mt-2" role="status"></p></div>' +
@@ -1567,6 +1567,7 @@ const DG = {
                 ['None', 'Glasses'].indexOf(s.glasses) !== -1
                     ? s.glasses
                     : ((s.glasses && s.glasses !== 'None') ? 'Glasses' : 'None')) +
+            row('Car', 'car', DG.kartOptions(s.car), s.car) +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' +
             ((DG.sessionMode === 'multi' && DG.mpRole === 'join') ? 'DG.showMultiplayerEntryStep()' : 'DG.showChallengeStep()') +
@@ -1587,8 +1588,18 @@ const DG = {
         return fallback.slice();
     },
 
+    kartOptions(current) {
+        let opts = ['Stock'];
+        if (typeof storeLookOptions === 'function') {
+            opts = storeLookOptions('car', current).filter(n => n && n !== 'None');
+            if (opts.indexOf('Stock') === -1) opts.unshift('Stock');
+        }
+        if (current && opts.indexOf(current) === -1) opts.push(current);
+        return opts;
+    },
+
     setLook(key, value) {
-        if (['cat', 'glasses', 'hat', 'outfit'].indexOf(key) === -1) return;
+        if (['cat', 'glasses', 'hat', 'outfit', 'car'].indexOf(key) === -1) return;
         const s = DG.readSettings();
         s[key] = value;
         DG.saveSettings();
@@ -1621,11 +1632,8 @@ const DG = {
         ctx.beginPath();
         ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.28, cssH * 0.08, 0, 0, Math.PI * 2);
         ctx.fill();
-        if (typeof DG.drawCatAvatar === 'function') {
-            DG.drawCatAvatar(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 260, cssH / 220), DG.raceLook());
-        } else {
-            DG.drawKart(ctx, cssW / 2, cssH * 0.82, Math.min(cssW / 250, cssH / 190), DG.raceLook(), { preview: true });
-        }
+        // Show the actual kart so the Car row previews the chosen skin.
+        DG.drawKart(ctx, cssW / 2, cssH * 0.9, Math.min(cssW / 280, cssH / 220), DG.raceLook(), { preview: true });
         const propItems = (typeof storeEquippedItems === 'function') ? storeEquippedItems('prop') : [];
         if (propItems.length && typeof DG.drawCatProps === 'function') {
             DG.drawCatProps(ctx, propItems, cssW, cssH);

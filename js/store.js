@@ -87,7 +87,8 @@ window.storeItemByName = name => STORE_BY_NAME[name] || null;
 const STORE_FREE = {
     hat: ['None', 'Party Hat'],
     face: ['None', 'Glasses'],
-    outfit: ['None', 'Racing Jacket']
+    outfit: ['None', 'Racing Jacket'],
+    car: ['Stock']
 };
 
 /* Items now live on a layer (head, ears, eyes, cheeks, neck, body) while the

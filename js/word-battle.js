@@ -25,6 +25,7 @@
         let battleDeadline = 0;
         let battleRoundSeed = null;
         let battleDoneLocal = false;
+        let battleAutoEnding = false;
         let battleLastAnswer = '';
         let battleLastCorrect = null;
         let battleLiveColumns = true;   // false if battle_live.sql has not been run yet
@@ -1223,7 +1224,17 @@
             battlePoll();
         }
 
-        async function battleEndClass() {
+        async function battleEndClass(force) {
+            if (!battleRoom) return;
+            const total = battleRoom.question_count || 10;
+            const unfinished = battlePlayers.filter(p => !p.done).length;
+            if (!force && unfinished > 0) {
+                const ok = window.confirm(
+                    unfinished + ' student' + (unfinished === 1 ? ' has' : 's have') +
+                    ' not finished ' + total + ' questions yet. End the battle now?'
+                );
+                if (!ok) return;
+            }
             const { error } = await sb.rpc('end_class_battle', { p_room_id: battleRoom.id });
             if (error) return battleSetError(battleErrorMessage(error));
             battlePoll();
@@ -1288,7 +1299,18 @@
             document.getElementById('battle-class-status').innerText = statusText;
 
             document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && everyone.length > 0));
-            document.getElementById('battle-class-end').classList.toggle('hidden', battleRoom.status !== 'playing');
+            const endBtn = document.getElementById('battle-class-end');
+            endBtn.classList.toggle('hidden', battleRoom.status !== 'playing');
+            if (battleRoom.status === 'playing') {
+                const waiting = everyone.filter(p => !p.done).length;
+                endBtn.innerText = waiting ? 'End Battle (' + waiting + ' still playing)' : 'End Battle';
+                if (everyone.length && waiting === 0 && !battleAutoEnding) {
+                    battleAutoEnding = true;
+                    battleEndClass(true).finally(function () { battleAutoEnding = false; });
+                }
+            } else {
+                endBtn.innerText = 'End Battle';
+            }
             const classLeave = document.getElementById('battle-class-leave');
             if (classLeave) classLeave.classList.toggle('hidden', battleRoom.status !== 'waiting');
 

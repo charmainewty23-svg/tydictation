@@ -1402,6 +1402,112 @@
         DG.showSoloResults(result, { reached: reached, maxCombo: p.maxCombo });
     };
 
+    DG.kartTrophyKey = '';
+    DG.kartTrophyTimers = [];
+    DG.kartTrophyAudio = null;
+
+    DG.closeKartTrophy = function () {
+        (DG.kartTrophyTimers || []).forEach(id => clearTimeout(id));
+        DG.kartTrophyTimers = [];
+        if (DG.kartTrophyAudio) {
+            try { DG.kartTrophyAudio.pause(); DG.kartTrophyAudio.currentTime = 0; } catch (e) {}
+            DG.kartTrophyAudio = null;
+        }
+        const el = document.getElementById('dg-trophy-overlay');
+        if (el) el.remove();
+    };
+
+    DG.drawKartTrophyCats = function (overlay, top) {
+        if (!overlay || typeof DG.drawKart !== 'function') return;
+        const places = top || [];
+        overlay.querySelectorAll('canvas[data-dg-trophy]').forEach(canvas => {
+            const i = Number(canvas.getAttribute('data-dg-trophy'));
+            const row = places[i];
+            if (!row) return;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            const w = canvas.clientWidth || 160;
+            const h = canvas.clientHeight || 112;
+            canvas.width = Math.round(w * dpr);
+            canvas.height = Math.round(h * dpr);
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            const look = DG.normalizeLook({
+                cat: row.cat, glasses: row.glasses, hat: row.hat,
+                outfit: row.outfit, car: row.car || 'Stock'
+            });
+            DG.drawKart(ctx, w / 2, h * 0.96, Math.min(w / 240, h / 175), look, { preview: true });
+        });
+    };
+
+    DG.showKartTrophy = function (room, rows) {
+        if (!room || !rows || !rows.length) return;
+        const key = room.id + ':' + (room.finished_at || '');
+        if (DG.kartTrophyKey === key) return;
+        DG.kartTrophyKey = key;
+        DG.closeKartTrophy();
+
+        const third = rows[2] ? { row: rows[2], label: '2ND RUNNER UP', medal: '🥉', cls: 'third' } : null;
+        const second = rows[1] ? { row: rows[1], label: '1ST RUNNER UP', medal: '🥈', cls: 'second' } : null;
+        const champion = rows[0] ? { row: rows[0], label: 'CHAMPION', medal: '🥇', cls: 'champion' } : null;
+        const revealOrder = [third, second, champion].filter(Boolean);
+        revealOrder.forEach((x, i) => { x.reveal = i; });
+        const places = [champion, second, third].filter(Boolean);
+        if (!places.length) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'dg-trophy-overlay';
+        overlay.className = 'battle-trophy-overlay';
+        overlay.innerHTML = '<div class="battle-trophy-card" role="dialog" aria-modal="true" aria-labelledby="dg-trophy-title">' +
+            '<button type="button" class="battle-trophy-close" aria-label="Close" onclick="DG.closeKartTrophy()">✕</button>' +
+            '<h2 id="dg-trophy-title" class="battle-trophy-heading">🏆 Kart class battle</h2>' +
+            places.map((x, i) => {
+                const r = x.row;
+                const pts = Number(r.composite_score != null ? r.composite_score : r.score) || 0;
+                const n = DG.normalizeQuestionCount(room.question_count || (DG.raceState && DG.raceState.questionCount));
+                const correct = Number(r.correct) || 0;
+                return '<div class="battle-trophy-place ' + x.cls + '" data-dg-reveal="' + x.reveal + '">' +
+                    '<div class="battle-trophy-medal">' + x.medal + '</div>' +
+                    '<div class="battle-trophy-label">' + x.label + '</div>' +
+                    '<canvas class="battle-trophy-cat" data-dg-trophy="' + i + '" width="180" height="130" aria-label="' + DG.esc(DG.mpPlayerName(r)) + ' kart"></canvas>' +
+                    '<div class="battle-trophy-name">' + DG.esc(DG.mpPlayerName(r)) + '</div>' +
+                    '<div class="battle-trophy-score">' + pts + ' pts</div>' +
+                    '<div class="battle-trophy-paws">' + correct + '/' + n + ' correct</div>' +
+                    '</div>';
+            }).join('') +
+            '<button type="button" class="battle-trophy-continue hidden" onclick="DG.closeKartTrophy()">Continue</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+
+        DG.kartTrophyTimers = [];
+        overlay.querySelectorAll('.battle-trophy-place[data-dg-reveal]').forEach(node => {
+            const reveal = Number(node.getAttribute('data-dg-reveal'));
+            DG.kartTrophyTimers.push(setTimeout(function () {
+                node.classList.add('show');
+                if (reveal === revealOrder.length - 1) {
+                    const card = overlay.querySelector('.battle-trophy-card');
+                    if (card) card.scrollTop = 0;
+                    const btn = overlay.querySelector('.battle-trophy-continue');
+                    if (btn) btn.classList.remove('hidden');
+                } else {
+                    try { node.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+                }
+            }, 650 + reveal * 1600));
+        });
+
+        try {
+            DG.kartTrophyAudio = new Audio('/music/trophyMusic.mp3');
+            DG.kartTrophyAudio.volume = 0.45;
+            DG.kartTrophyAudio.play().catch(function () {});
+        } catch (e) { DG.kartTrophyAudio = null; }
+
+        requestAnimationFrame(function () {
+            // Pass rows in the same order as the DOM cards:
+            // champion, 1st runner-up, 2nd runner-up.
+            DG.drawKartTrophyCats(overlay, places.map(x => x.row));
+        });
+    };
+
     DG.showMultiplayerResults = function (room, players) {
         if (S.resultShown) return;
         S.resultShown = true;
@@ -1479,6 +1585,9 @@
             if (content) content.innerHTML = '<div class="dg-menu-panel">' + resultsHTML + '</div>';
         }
         DG.scheduleResultsBoard('multi', roomTopic, roomMode, n);
+        if ((Number(room && room.max_players) || 0) > 5 || DG.mpClassRoom) {
+            DG.showKartTrophy(room, rows);
+        }
     };
 
     /* ---------------- drawing ---------------- */

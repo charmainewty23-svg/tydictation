@@ -553,7 +553,8 @@
             }
             const champ = trophy.querySelector('.battle-trophy-place.champion') ||
                 trophy.querySelector('[data-trophy-place="0"]');
-            const shown = champ && champ.classList.contains('show');
+            const shown = (champ && champ.classList.contains('show')) ||
+                (!!document.getElementById('victory-podium') && Date.now() - startedAt > 5200);
             if ((shown && Date.now() - started > 900) || Date.now() - started > 9000) {
                 setTimeout(function () {
                     VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
@@ -698,7 +699,8 @@
             if (scrolled || !document.body.contains(wrap)) return;
             const champ = overlay.querySelector('.battle-trophy-place.champion') ||
                 overlay.querySelector('[data-trophy-place="0"]');
-            const shown = champ && champ.classList.contains('show');
+            const shown = (champ && champ.classList.contains('show')) ||
+                (!!document.getElementById('victory-podium') && Date.now() - started > 3200);
             const effectOpen = !!document.getElementById('victory-stage');
             if (shown && !effectOpen) {
                 scrolled = true;

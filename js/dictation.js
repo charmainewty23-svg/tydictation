@@ -74,22 +74,23 @@
         let quizRevealMode = false;     // 3rd wrong: the answer is shown and the
                                         // student must type it to move on.
 
-        // Listening voice: 'us' (default), 'uk' or 'hk'. Remembered per device.
-        // UK / US play the Cambridge Dictionary recording when the proxy can
-        // find it, then fall back to the device voice.
-        const QUIZ_ACCENTS = ['us', 'uk', 'hk'];
-        let quizAccent = 'us';
+        // Listening voice: British (default) or American. Both play the real
+        // Cambridge Dictionary recording for the word; the device voice is only
+        // a fallback for words Cambridge has no audio for.
+        const QUIZ_ACCENTS = ['uk', 'us'];
+        let quizAccent = 'uk';
         try {
-            const savedAccent = localStorage.getItem('learniTY_voice_accent');
-            if (QUIZ_ACCENTS.indexOf(savedAccent) !== -1) quizAccent = savedAccent;
+            // Anything saved before (including the old 'hk') now means UK.
+            if (localStorage.getItem('learniTY_voice_accent') === 'us') quizAccent = 'us';
         } catch (e) {}
 
-        const CAMBRIDGE_AUDIO = Object.create(null);   // normalised word -> {uk,us}
+        const CAMBRIDGE_AUDIO = Object.create(null);    // normalised word -> {uk,us}
+        const CAMBRIDGE_PENDING = Object.create(null);  // normalised word -> Promise
+        const CAMBRIDGE_WAIT_MS = 1500;                 // never block the speaker
+        let quizAudio = null;                           // currently playing recording
 
         function quizAccentLabel() {
-            if (quizAccent === 'uk') return '🇬🇧 UK voice';
-            if (quizAccent === 'hk') return '🇭🇰 HK voice';
-            return '🇺🇸 US voice';
+            return quizAccent === 'us' ? '🇺🇸 US voice' : '🇬🇧 UK voice';
         }
 
         function syncQuizAccentButton() {
@@ -97,10 +98,8 @@
             if (btn) btn.innerText = quizAccentLabel();
         }
 
-        // Pick the best installed voice for the chosen accent. Some phones only
-        // ship one English voice, so fall back to any English voice. "HK" uses
-        // an en-HK voice when the device has one, otherwise the Cantonese
-        // voice reading English (a local HK accent), then UK English.
+        // Device fallback voice: en-GB or en-US, then any English voice (some
+        // phones only ship one).
         function quizVoice() {
             if (typeof speechSynthesis === 'undefined' || !speechSynthesis.getVoices) return null;
             const voices = speechSynthesis.getVoices() || [];
@@ -108,10 +107,7 @@
             const lang = v => String(v.lang || '').toLowerCase().replace('_', '-');
             const find = prefix => voices.find(v => lang(v) === prefix) ||
                                    voices.find(v => lang(v).indexOf(prefix) === 0);
-            if (quizAccent === 'hk') {
-                return find('en-hk') || find('zh-hk') || find('zh') || find('en-gb') || find('en') || null;
-            }
-            const want = quizAccent === 'uk' ? 'en-gb' : 'en-us';
+            const want = quizAccent === 'us' ? 'en-us' : 'en-gb';
             return find(want) || find('en') || null;
         }
 
@@ -120,47 +116,79 @@
             quizAccent = QUIZ_ACCENTS[(i + 1) % QUIZ_ACCENTS.length];
             try { localStorage.setItem('learniTY_voice_accent', quizAccent); } catch (e) {}
             syncQuizAccentButton();
-            updateMascot(quizAccent === 'uk'
-                ? 'British pronunciation 🇬🇧 — listen again!'
-                : quizAccent === 'hk'
-                    ? 'Hong Kong pronunciation 🇭🇰 — listen again!'
-                    : 'American pronunciation 🇺🇸 — listen again!');
+            updateMascot(quizAccent === 'us'
+                ? 'American pronunciation 🇺🇸 — listen again!'
+                : 'British pronunciation 🇬🇧 — listen again!');
             if (quizMode === 'listening') setTimeout(speakCurrentWord, 120);
         }
 
         // Cambridge publishes one UK and one US mp3 per headword. Fetch both
-        // once per word while the student is still reading the prompt.
+        // once per word while the student is still reading the prompt, so the
+        // first tap on 🔊 is instant.
         function prefetchCambridgeAudio(word) {
             const key = quizNormalize(word);
-            if (!key || CAMBRIDGE_AUDIO[key] !== undefined) return;
-            CAMBRIDGE_AUDIO[key] = null;   // mark as loading / unavailable
+            if (!key || CAMBRIDGE_AUDIO[key] || CAMBRIDGE_PENDING[key]) return;
+            let timer = null;
+            const settle = () => {
+                clearTimeout(timer);
+                delete CAMBRIDGE_PENDING[key];
+            };
             try {
-                fetch('/api/cambridge?word=' + encodeURIComponent(word))
-                    .then(r => r.ok ? r.json() : null)
+                const request = fetch('/api/cambridge?word=' + encodeURIComponent(word))
+                    .then(r => (r.ok ? r.json() : null))
                     .then(data => {
                         const audio = (data && data.audio) || {};
                         CAMBRIDGE_AUDIO[key] = { uk: audio.uk || '', us: audio.us || '' };
                     })
-                    .catch(() => { CAMBRIDGE_AUDIO[key] = { uk: '', us: '' }; });
+                    .catch(() => { CAMBRIDGE_AUDIO[key] = { uk: '', us: '' }; })
+                    .then(settle, settle);
+                CAMBRIDGE_PENDING[key] = request;
             } catch (e) {
                 CAMBRIDGE_AUDIO[key] = { uk: '', us: '' };
+                return;
             }
+            timer = setTimeout(() => {
+                if (!CAMBRIDGE_AUDIO[key]) CAMBRIDGE_AUDIO[key] = { uk: '', us: '' };
+                delete CAMBRIDGE_PENDING[key];
+            }, CAMBRIDGE_WAIT_MS);
         }
 
-        function cambridgeAudioUrl(word) {
-            const entry = CAMBRIDGE_AUDIO[quizNormalize(word)];
-            if (!entry || quizAccent === 'hk') return '';
-            return entry[quizAccent] || '';
+        async function cambridgeAudioFor(word) {
+            const key = quizNormalize(word);
+            if (!key) return '';
+            if (!CAMBRIDGE_AUDIO[key]) {
+                prefetchCambridgeAudio(word);
+                if (CAMBRIDGE_PENDING[key]) {
+                    await Promise.race([
+                        CAMBRIDGE_PENDING[key],
+                        new Promise(resolve => setTimeout(resolve, CAMBRIDGE_WAIT_MS))
+                    ]);
+                }
+            }
+            const entry = CAMBRIDGE_AUDIO[key];
+            if (!entry) return '';
+            return (quizAccent === 'us' ? entry.us : entry.uk) || '';
         }
 
         function playAudioUrl(url) {
             return new Promise(resolve => {
+                if (quizAudio) { try { quizAudio.pause(); } catch (e) {} quizAudio = null; }
                 if (!url) { resolve(false); return; }
                 try {
                     const audio = new Audio(url);
+                    quizAudio = audio;
                     audio.preload = 'auto';
-                    audio.addEventListener('error', () => resolve(false), { once: true });
-                    audio.play().then(() => resolve(true), () => resolve(false));
+                    audio.addEventListener('error', () => {
+                        if (quizAudio === audio) quizAudio = null;
+                        resolve(false);
+                    }, { once: true });
+                    audio.addEventListener('ended', () => {
+                        if (quizAudio === audio) quizAudio = null;
+                    }, { once: true });
+                    audio.play().then(() => resolve(true), () => {
+                        if (quizAudio === audio) quizAudio = null;
+                        resolve(false);
+                    });
                 } catch (e) { resolve(false); }
             });
         }
@@ -169,9 +197,8 @@
             const utterance = new SpeechSynthesisUtterance(word);
             const voice = quizVoice();
             if (voice) utterance.voice = voice;
-            utterance.lang = (voice && voice.lang) || (quizAccent === 'uk' ? 'en-GB'
-                : quizAccent === 'hk' ? 'en-HK' : 'en-US');
-            utterance.rate = quizAccent === 'hk' ? 0.85 : 0.9;
+            utterance.lang = (voice && voice.lang) || (quizAccent === 'us' ? 'en-US' : 'en-GB');
+            utterance.rate = 0.9;
             try { speechSynthesis.cancel(); } catch (e) {}
             speechSynthesis.speak(utterance);
         }
@@ -621,10 +648,12 @@
 
         async function speakCurrentWord() {
             if (quizIdx >= quizWords.length) return;
-            const word = primaryAnswer(quizWords[quizIdx].en);
-            prefetchCambridgeAudio(word);
-            const url = cambridgeAudioUrl(word);
+            const startedAt = quizIdx;
+            const word = primaryAnswer(quizWords[startedAt].en);
+            const url = await cambridgeAudioFor(word);
+            if (startedAt !== quizIdx) return;   // question already moved on
             if (url && await playAudioUrl(url)) return;
+            if (startedAt !== quizIdx) return;
             speakWithDevice(word);
         }
 

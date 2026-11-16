@@ -154,13 +154,19 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   所以以前「撳三次 Check Next 就飛走」嘅漏洞已經封死（Listening 同
   Recitation 共用）。
 - **英／美發音（2026-11）**：Listening 個 🔊 下面有 `#quiz-accent-btn`
-  （`🇺🇸 US voice`／`🇬🇧 UK voice`）。`quizAccent` 存
-  `localStorage['learniTY_voice_accent']`（`uk`／`us`，預設 `us`）；
-  `toggleQuizAccent()` 會即刻重讀當前字。`quizVoice()` 揀
-  `en-GB`／`en-US` voice（例如 Daniel／Aaron），搵唔到就 fallback 任何
-  `en-*`，再冇就用 `utterance.lang`。`speakCurrentWord()` 只係讀
-  `quizVoice()`；`updateQuizUI()` 同 `voiceschanged` 會同步掣字。
-  Word Battle 仍然固定 en-US。
+  （`🇬🇧 UK voice` 預設／`🇺🇸 US voice`）。`quizAccent` 存
+  `localStorage['learniTY_voice_accent']`（只認 `us`，其他一律當 `uk`）。
+  兩邊都**先播 Cambridge Dictionary 真人錄音**：`/api/cambridge?word=` 會
+  parse 頁面入面 `uk_pron`／`us_pron` 嘅 mp3 網址（`audio:{uk,us}`），
+  `updateQuizUI()` 會 `prefetchCambridgeAudio()` 預先抓，`speakCurrentWord()`
+  用 `cambridgeAudioFor()`（最多等 1.5 秒）攞 URL 再 `playAudioUrl()`。
+  Cambridge 冇錄音或者載入失敗才 fallback 裝置語音：`quizVoice()` 揀
+  `en-GB`／`en-US`（例如 Daniel／Aaron），搵唔到就用任何 `en-*`，再冇就用
+  `utterance.lang`。`toggleQuizAccent()` 只喺 UK／US 之間切，切完即刻重讀。
+  **冇港式（HK）選項**（2026-11 移除：zh-HK 讀英文太怪）。
+  同一時間只會播一段（`playAudioUrl()` 會 pause 上一段），切題後遲到嘅
+  `await` 會見到 `quizIdx` 變咗而放棄，唔會讀錯字。
+  `updateQuizUI()` 同 `voiceschanged` 會同步掣字。Word Battle 仍然固定 en-US。
 
 ## 4. 資料流
 

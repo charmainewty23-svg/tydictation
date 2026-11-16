@@ -1909,6 +1909,16 @@
             .victory-photo { width: 58px; }
             .victory-cheer-btn { min-height: 38px; font-size: .7rem; }
         }
+        .vp-quick{position:fixed;inset:0;z-index:10095;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,15,30,.65)}
+        .vp-quick-card{background:#fff9f2;border-radius:22px;padding:18px 16px;max-width:360px;width:100%;max-height:calc(100dvh - 2rem);overflow:auto;position:relative;text-align:center}
+        .vp-quick-card h3{margin:0 0 4px;color:#7c2d12;font-size:1.05rem}
+        .vp-quick-card p{margin:0 0 10px;font-size:.78rem;color:#6b7280;font-weight:700}
+        .vp-quick-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+        .vp-quick-row{display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #ffedd5;border-radius:12px;padding:6px 8px}
+        .vp-quick-row b{flex:1 1 auto;text-align:left;font-size:.8rem;color:#374151}
+        .vp-quick-row button{min-height:36px;border:0;border-radius:999px;padding:0 10px;background:#ede9fe;color:#5b21b6;font:800 .72rem Fredoka,system-ui;cursor:pointer}
+        .vp-quick-row button[data-buy]{background:#f97316;color:#fff}
+        .vp-quick-notify{min-height:44px;width:100%;border:0;border-radius:999px;background:#7c3aed;color:#fff;font:800 .85rem Fredoka,system-ui;cursor:pointer}
         /* Prize stand ceremony */
         .victory-podium-overlay{position:fixed;inset:0;z-index:10080;display:flex;flex-direction:column;padding:10px 12px;color:#e2e8f0;background:radial-gradient(circle at 50% 0%,#16233a 0%,#04070f 70%)}
         .vp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -3714,6 +3724,7 @@
                             <p id="battle-class-status" class="text-gray-400"></p>
                             <div class="mt-6 flex justify-center gap-3 flex-wrap">
                                 <button id="battle-class-start" onclick="battleStartClass()" class="hidden px-8 py-3 bg-green-500 text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">Start Battle</button>
+                                <button id="battle-class-effects" onclick="battleAskEffects()" class="hidden px-6 py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-colors">📣 Ask class to buy effects</button>
                                 <button id="battle-class-end" onclick="battleEndClass()" class="hidden px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-colors">End Battle</button>
                                 <button id="battle-class-leave" type="button" onclick="battleLeaveRoom()" class="hidden px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors">Close room</button>
                             </div>

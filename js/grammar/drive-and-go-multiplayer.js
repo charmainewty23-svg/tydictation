@@ -793,6 +793,7 @@
                   (canStart ? 'Start race (' + players.length + ' players)' : 'Waiting for 1 more player…') + '</button></div>'
                 : '<p class="text-center font-bold text-orange-600 animate-pulse">Waiting for the host to start…</p>') +
             '<div class="flex gap-3 justify-center flex-wrap mt-5">' +
+            (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpAskEffects()">📣 Ask class to buy effects</button>' : '') +
             (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpOpenProjector()">📺 Projector board</button>' : '') +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Leave room</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpSetStatus(\'Room code: ' + DG.esc(room.code) + '\', false)">Refresh</button>' +
@@ -910,6 +911,18 @@
 
     DG.mpProjectorKey = function (e) {
         if (e.key === 'Escape' && MP.projector) DG.mpCloseProjector();
+    };
+
+    DG.mpAskEffects = function () {
+        if (!MP.room || !currentUser || MP.room.host_id !== currentUser.id) return;
+        const n = DG.normalizeQuestionCount(MP.room.question_count);
+        const msg = '🏆 Class race in ' + n + ' questions! Rent a Victory Animation for THIS race ' +
+            '(20% of the price) or buy it for good in Store → 🏆 Victory.';
+        if (typeof VICTORY !== 'undefined' && VICTORY.quickBuy) {
+            VICTORY.quickBuy({ title: 'Ask the class to buy a Victory effect', message: msg, roomKey: 'trial-nudge:' + MP.room.id });
+            return;
+        }
+        try { sb.rpc('announce_store_sale', { p_key: 'trial-nudge:' + MP.room.id, p_message: msg }); } catch (e) {}
     };
 
     DG.mpOpenProjector = function () {

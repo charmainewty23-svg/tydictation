@@ -1453,6 +1453,8 @@
             document.getElementById('battle-class-status').innerText = statusText;
 
             document.getElementById('battle-class-start').classList.toggle('hidden', !(battleRoom.status === 'waiting' && everyone.length > 0));
+            const fxBtn = document.getElementById('battle-class-effects');
+            if (fxBtn) fxBtn.classList.toggle('hidden', battleRoom.status !== 'waiting');
             const endBtn = document.getElementById('battle-class-end');
             endBtn.classList.toggle('hidden', battleRoom.status !== 'playing');
             if (battleRoom.status === 'playing') {

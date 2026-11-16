@@ -515,8 +515,14 @@
     VICTORY.claimForWin = async function (roomId, opts) {
         const key = String(roomId || 'once');
         if (claimed[key]) return '';
-        claimed[key] = true;
         let id = '';
+        // The equipped effect may not be in memory yet (the student may not
+        // have opened the Store this session), so pull the Store state first.
+        try {
+            if (typeof loadStoreState === 'function' && typeof storeAvailable === 'function' && storeAvailable()) {
+                await loadStoreState(true);
+            }
+        } catch (e) {}
         try {
             if (typeof STORE_EQUIPPED !== 'undefined' && STORE_EQUIPPED && STORE_EQUIPPED.victory) {
                 id = STORE_EQUIPPED.victory;
@@ -529,7 +535,10 @@
                 if (!res.error && res.data) { id = res.data; trial = true; }
             } catch (e) {}
         }
+        // No effect (and no trial pass): keep the 3-cat podium and allow a
+        // later retry once the Store state is known.
         if (!id || !EFFECTS[id]) return '';
+        claimed[key] = true;
         try { sb.rpc('log_victory_use', { p_item: id, p_room: key }); } catch (e) {}
         if (trial) { try { sb.rpc('consume_victory_rental'); } catch (e) {} }
         // Let the class trophy ceremony finish first: the victory effect is

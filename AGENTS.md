@@ -1456,7 +1456,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v76）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v77）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1546,8 +1546,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v76`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v77`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v77`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v78`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2188,7 +2188,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v76。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v77。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2385,7 +2385,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     2、3 名踩蕉飛走／噴鈔（貓頭鈔票）。`DURATION 6.4s`，右下 Continue 或 ✕ 關閉。
   - 觸發位：Word Battle class 結果（`battleRenderResult` rank 1）同
     Drive & Go! class 結果（`showMultiplayerResults` 你贏 + `max_players > 5`）。
-    純視覺，唔影響分數／Paws。
+    純視覺，唔影響分數／Paws。`claimForWin()` 會先 `loadStoreState(true)`
+    拉最新 equip（唔使開過 Store），搵唔到特效就唔會 mark 已用，之後可以再試。
   - **播映次序**：`claimForWin()` 會等頒獎禮 overlay（`#battle-trophy-overlay`／
     `#dg-trophy-overlay`）關閉後才播 Victory effect（最多等 20 秒），
     所以係「頒獎 → 關閉 → 特效」而唔會蓋住 trophy。

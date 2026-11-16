@@ -793,7 +793,7 @@
                   (canStart ? 'Start race (' + players.length + ' players)' : 'Waiting for 1 more player…') + '</button></div>'
                 : '<p class="text-center font-bold text-orange-600 animate-pulse">Waiting for the host to start…</p>') +
             '<div class="flex gap-3 justify-center flex-wrap mt-5">' +
-            (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpAskEffects()">📣 Ask class to buy effects</button>' : '') +
+            (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpAskEffects()">🏆 Victory effects</button>' : '') +
             (isHost && isClass ? '<button type="button" class="dg-menu-button" onclick="DG.mpOpenProjector()">📺 Projector board</button>' : '') +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Leave room</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpSetStatus(\'Room code: ' + DG.esc(room.code) + '\', false)">Refresh</button>' +
@@ -915,14 +915,12 @@
 
     DG.mpAskEffects = function () {
         if (!MP.room || !currentUser || MP.room.host_id !== currentUser.id) return;
-        const n = DG.normalizeQuestionCount(MP.room.question_count);
-        const msg = '🏆 Class race in ' + n + ' questions! Rent a Victory Animation for THIS race ' +
-            '(20% of the price) or buy it for good in Store → 🏆 Victory.';
         if (typeof VICTORY !== 'undefined' && VICTORY.quickBuy) {
-            VICTORY.quickBuy({ title: 'Ask the class to buy a Victory effect', message: msg, roomKey: 'trial-nudge:' + MP.room.id });
-            return;
+            VICTORY.quickBuy({
+                title: 'Victory effects — rent or buy',
+                message: 'Rent a Victory Animation for THIS class race (20% of the price) or buy it for good in Store → 🏆 Victory.'
+            });
         }
-        try { sb.rpc('announce_store_sale', { p_key: 'trial-nudge:' + MP.room.id, p_message: msg }); } catch (e) {}
     };
 
     DG.mpOpenProjector = function () {
@@ -1088,21 +1086,6 @@
         if (MP.players.length > maxPlayers) {
             DG.mpSetStatus('This room can have at most ' + maxPlayers + ' players.', true);
             return;
-        }
-        if (DG.mpClassRoom && typeof isAdmin === 'function' && isAdmin()) {
-            const ok = window.confirm(
-                'Remind the class about Victory trial passes?\n\n' +
-                'Students can rent an effect for THIS race for 20% of its price ' +
-                '(Store → 🏆 Victory → 🎟 1-battle trial).'
-            );
-            if (ok) {
-                try {
-                    sb.rpc('announce_store_sale', {
-                        p_key: 'trial-nudge:' + MP.room.id,
-                        p_message: '🏆 Class race starting! Rent a Victory Animation trial pass in Store → 🏆 Victory (20% of the price) and flex on the podium if you win.'
-                    }).catch(function () {});
-                } catch (e) {}
-            }
         }
         DG.mpSetStatus('Starting race…', false);
         const hostOnly = DG.mpClassRoom && !MP.players.some(p => p && p.user_id === (currentUser && currentUser.id));

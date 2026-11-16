@@ -937,7 +937,6 @@
                '<button type="button" data-buy="'+id+'">Buy</button></div>';
           }).join('')+'</div>'+
           '<p class="vp-quick-status" role="status" aria-live="polite"></p>'+
-          '<button type="button" class="vp-quick-notify">📣 Notify the class</button>'+
           '<div class="vp-quick-actions"><button type="button" class="vp-quick-back">← Back</button></div>'+
           '</div>';
         document.body.appendChild(box);
@@ -956,11 +955,9 @@
         function showError(err) {
             const msg = String((err && (err.message || err.details || err.error_description)) || err || '');
             if (/does not exist|schema cache|42883|PGRST202/i.test(msg)) {
-                setStatus('The teacher needs to run supabase/store_flash_sale.sql once.', true);
-            } else if (/check constraint|friend_notifications_kind/i.test(msg)) {
-                setStatus('Run supabase/friend_nudges.sql so the bell can take announcements.', true);
+                setStatus('The teacher needs to run supabase/store_victory.sql once.', true);
             } else if (/permission denied|NOT_AUTHENTICATED|JWT|not signed/i.test(msg)) {
-                setStatus('Sign in with a school account to notify the class.', true);
+                setStatus('Sign in with a school account to buy or rent effects.', true);
             } else {
                 setStatus(msg || 'That did not work — please try again.', true);
             }
@@ -1001,21 +998,6 @@
             };
         });
 
-        const notifyBtn = box.querySelector('.vp-quick-notify');
-        notifyBtn.onclick = function () {
-            if (notifyBtn.disabled) return;
-            notifyBtn.disabled = true;
-            setStatus('Sending the announcement…');
-            callRpc('announce_store_sale', { p_key: o.roomKey, p_message: o.message }, function (res) {
-                const n = Number(res && res.data) || 0;
-                if (n > 0) {
-                    setStatus('✅ Notified ' + n + ' classmate' + (n === 1 ? '' : 's') + ' — they will see it in the 🔔 bell.');
-                    notifyBtn.textContent = '📣 Notify again';
-                } else {
-                    setStatus('Already announced for this room — no duplicate was sent.');
-                }
-            }).then(function () { notifyBtn.disabled = false; });
-        };
     };
 
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };

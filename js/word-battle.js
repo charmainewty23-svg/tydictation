@@ -435,15 +435,20 @@
             battleCloseTrophy(true);
             if (typeof VICTORY !== 'undefined' && VICTORY.showPodium) {
                 const sorted = battlePlayers.slice().sort((a, b) => (b.score - a.score) || (a.total_ms - b.total_ms));
-                VICTORY.showPodium({
-                    title: '🏆 Class Battle',
-                    kicker: 'Word Battle · ' + ((battleRoom && battleRoom.question_count) || 10) + ' questions',
-                    roomId: battleRoom && battleRoom.id,
-                    top: sorted.slice(0, 3),
-                    rest: sorted.slice(3),
-                    nameOf: displayName,
-                    ptsOf: function (p) { return Number(p && p.score) || 0; },
-                    onClose: function () { battleCloseTrophy(true); }
+                const champ = sorted[0];
+                VICTORY.winnerEffect().then(function (effectId) {
+                    VICTORY.showPodium({
+                        title: '🏆 Class Battle',
+                        kicker: 'Word Battle · ' + ((battleRoom && battleRoom.question_count) || 10) + ' questions',
+                        roomId: battleRoom && battleRoom.id,
+                        top: sorted.slice(0, 3),
+                        rest: sorted.slice(3),
+                        nameOf: displayName,
+                        ptsOf: function (p) { return Number(p && p.score) || 0; },
+                        effectId: effectId,
+                        effectLook: battlePlayerLook(champ),
+                        onClose: function () { battleCloseTrophy(true); }
+                    });
                 });
                 return;
             }
@@ -1330,6 +1335,22 @@
             utterance.rate = 0.9;
             speechSynthesis.cancel();
             speechSynthesis.speak(utterance);
+        }
+
+        async function battleAskEffects() {
+            if (!battleRoom || !isAdmin()) return;
+            const mins = battleRoom.question_count || 10;
+            const msg = '🏆 Class battle in ' + mins + ' questions! Rent a Victory Animation for THIS battle ' +
+                '(20% of the price) or buy it for good in Store → 🏆 Victory.';
+            if (typeof VICTORY !== 'undefined' && VICTORY.quickBuy) {
+                VICTORY.quickBuy({
+                    title: 'Ask the class to buy a Victory effect',
+                    message: msg,
+                    roomKey: 'trial-nudge:' + battleRoom.id
+                });
+                return;
+            }
+            try { sb.rpc('announce_store_sale', { p_key: 'trial-nudge:' + battleRoom.id, p_message: msg }); } catch (e) {}
         }
 
         async function battleStartClass() {

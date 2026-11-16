@@ -512,6 +512,38 @@
 
     /* ---------- class-battle winner hook ---------- */
 
+    /* Resolve which effect (if any) the winner has: equipped, owned, or a
+       1-battle trial. Returns '' when there is none. */
+    VICTORY.winnerEffect = async function () {
+        let id = '';
+        try {
+            if (typeof STORE_EQUIPPED !== 'undefined' && STORE_EQUIPPED && STORE_EQUIPPED.victory) {
+                id = STORE_EQUIPPED.victory;
+            }
+        } catch (e) {}
+        try {
+            if (typeof loadStoreState === 'function' && typeof storeAvailable === 'function' && storeAvailable()) {
+                await loadStoreState(true);
+            }
+        } catch (e) {}
+        try {
+            if (typeof STORE_EQUIPPED !== 'undefined' && STORE_EQUIPPED && STORE_EQUIPPED.victory) {
+                id = STORE_EQUIPPED.victory;
+            }
+            if (!id && typeof STORE_OWNED !== 'undefined' && STORE_OWNED) {
+                const owned = Object.keys(STORE_OWNED).filter(function (k) { return /^victory_/.test(k) && STORE_OWNED[k]; });
+                if (owned.length === 1) id = owned[0];
+            }
+        } catch (e) {}
+        if (!id) {
+            try {
+                const res = await sb.rpc('my_victory_rental');
+                if (!res.error && res.data) id = String(res.data);
+            } catch (e) {}
+        }
+        return (id && EFFECTS[id]) ? id : '';
+    };
+
     VICTORY.claimForWin = async function (roomId, opts) {
         const key = String(roomId || 'once');
         if (claimed[key]) return '';
@@ -870,6 +902,12 @@
                 });
             }
 
+            if (!o._effectDone && o.effectId && t >= AT[0] + 0.45) {
+                o._effectDone = true;
+                try { sb.rpc('log_victory_use', { p_item: o.effectId, p_room: String(o.roomId || '') }); } catch (e) {}
+                if (o.trial) { try { sb.rpc('consume_victory_rental'); } catch (e) {} }
+                VICTORY.play(o.effectId, { look: o.effectLook, title: '🏆 Class champion', trial: o.trial });
+            }
             if (!extrasShown && t >= AT.rest + 0.6) {
                 extrasShown = true;
                 VICTORY.ceremonyExtras(box, {
@@ -883,6 +921,26 @@
         }
         raf = requestAnimationFrame(draw);
         return { close: close };
+    };
+
+    VICTORY.quickBuy = function (o) {
+        const old = document.getElementById('vp-quick'); if (old) old.remove();
+        const box = document.createElement('div'); box.id='vp-quick'; box.className='vp-quick';
+        box.innerHTML='<div class="vp-quick-card"><button type="button" class="vp-close" aria-label="Close">✕</button>'+
+          '<h3>'+escapeHtml(o.title||'Victory effects')+'</h3><p>'+escapeHtml(o.message||'')+'</p>'+
+          '<div class="vp-quick-list">'+Object.keys(EFFECTS).map(function(id){
+             return '<div class="vp-quick-row"><b>'+escapeHtml(EFFECTS[id].name)+'</b>'+
+               '<button data-rent="'+id+'">🎟 Rent 20%</button>'+
+               '<button data-buy="'+id+'">Buy</button></div>';
+          }).join('')+'</div>'+
+          '<button type="button" class="vp-quick-notify">📣 Notify the class</button></div>';
+        document.body.appendChild(box);
+        const done=()=>box.remove();
+        box.querySelector('.vp-close').onclick=done;
+        box.onclick=e=>{if(e.target===box)done();};
+        box.querySelectorAll('[data-rent]').forEach(b=>b.onclick=()=>{sb.rpc('rent_victory_effect',{p_item:b.getAttribute('data-rent')}).then(()=>updateMascot('Trial pass bought for the next class battle! 🎟'),()=>{});});
+        box.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{sb.rpc('buy_store_item',{p_item:b.getAttribute('data-buy')}).then(()=>updateMascot('Effect bought! Equip it in Store → 🏆 Victory.'),()=>{});});
+        box.querySelector('.vp-quick-notify').onclick=()=>{try{sb.rpc('announce_store_sale',{p_key:o.roomKey,p_message:o.message}).then(()=>updateMascot('Class notified 🔔'),()=>{});}catch(e){}};
     };
 
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };

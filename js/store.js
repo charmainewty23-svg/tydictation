@@ -35,6 +35,15 @@ const STORE_ITEMS = [
     { id:'outfit_ruff', slot:'neck', name:'Shakespeare Ruff', zh:'莎士比亞蕾絲領', price:200, rarity:'Epic', emoji:'🎭', color:'#f8fafc', desc:'A white ruffled Elizabethan collar.' },
     { id:'outfit_shark', slot:'body', name:'Shark Onesie', zh:'鯊魚連身衣', price:260, rarity:'Epic', emoji:'🦈', color:'#64748b', desc:'A grey shark onesie.' },
     { id:'outfit_dragon', slot:'body', name:'Dragon Suit', zh:'恐龍連身衣', price:300, rarity:'Epic', emoji:'🐉', color:'#16a34a', desc:'A green spiky dragon suit.' },
+    // School sets (2026-11): two looks for each side, all gender-neutral.
+    { id:'outfit_housetie', slot:'neck', name:'House Tie', zh:'學院風領呔', price:110, rarity:'Common', emoji:'🎗️', color:'#1d4ed8', desc:'A striped school house tie.' },
+    { id:'outfit_blazer', slot:'body', name:'School Blazer', zh:'校服西裝外套', price:240, rarity:'Rare', emoji:'🧥', color:'#1e3a8a', desc:'A navy blazer with gold buttons and a crest.' },
+    { id:'outfit_teamscarf', slot:'neck', name:'Team Scarf', zh:'球隊頸巾', price:130, rarity:'Rare', emoji:'🧣', color:'#dc2626', desc:'A red and white team scarf.' },
+    { id:'outfit_football', slot:'body', name:'Football Kit', zh:'足球球衣', price:270, rarity:'Epic', emoji:'⚽', color:'#22c55e', desc:'A green football jersey with a number 9.' },
+    { id:'outfit_sailorcollar', slot:'neck', name:'Sailor Collar', zh:'水手領', price:140, rarity:'Rare', emoji:'⚓', color:'#1d4ed8', desc:'A navy sailor collar with white stripes.' },
+    { id:'outfit_sailortop', slot:'body', name:'Sailor Top', zh:'水手上衣', price:250, rarity:'Rare', emoji:'👕', color:'#f8fafc', desc:'A white sailor top with a navy stripe.' },
+    { id:'outfit_ribbonchoker', slot:'neck', name:'Ribbon Choker', zh:'蝴蝶結頸帶', price:110, rarity:'Common', emoji:'🎀', color:'#db2777', desc:'A pink ribbon choker with a tiny bow.' },
+    { id:'outfit_tutu', slot:'body', name:'Ballet Tutu', zh:'芭蕾紗裙', price:290, rarity:'Epic', emoji:'🩰', color:'#fbcfe8', desc:'A layered pink tutu with sparkles.' },
 
     // Props & companions (Me / lobby only)
     { id:'prop_pencil', slot:'prop', name:'Pencil', zh:'巨大鉛筆', price:60, rarity:'Common', emoji:'✏️', color:'#facc15', desc:'A giant yellow HB pencil.' },

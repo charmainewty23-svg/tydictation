@@ -4645,8 +4645,8 @@
         ctx.save();
         ctx.lineJoin = 'round';
 
-        if (name === 'Red Scarf' || name === 'Pink Floral Scarf') {
-            const col = name === 'Red Scarf' ? '#ef4444' : '#f472b6';
+        if (name === 'Red Scarf' || name === 'Pink Floral Scarf' || name === 'Team Scarf') {
+            const col = name === 'Red Scarf' ? '#ef4444' : (name === 'Team Scarf' ? '#dc2626' : '#f472b6');
             ctx.fillStyle = col;
             rr(hx - NW, neckY - 5 * S, NW * 2, 10 * S, 5 * S); ctx.fill();
             rr(hx + NW * 0.28, neckY + 3 * S, 8 * S, 17 * S, 3 * S); ctx.fill();
@@ -4655,6 +4655,15 @@
                 [-2, 0, 2].forEach(i => {
                     ctx.beginPath(); ctx.arc(hx + i * 9 * S, neckY, 1.8 * S, 0, Math.PI * 2); ctx.fill();
                 });
+            }
+            if (name === 'Team Scarf') {
+                ctx.fillStyle = '#f8fafc';
+                [-1, 0, 1].forEach(i => {
+                    rr(hx + i * 9 * S - 2 * S, neckY - 5 * S, 4 * S, 10 * S, 2 * S);
+                    ctx.fill();
+                });
+                ctx.fillStyle = '#dc2626';
+                rr(hx + NW * 0.28, neckY + 10 * S, 8 * S, 6 * S, 2 * S); ctx.fill();
             }
         } else if (name === 'Tweed Bow Tie' || name === 'Gentleman Bowtie') {
             const col = name === 'Tweed Bow Tie' ? '#92400e' : '#111827';
@@ -4782,6 +4791,142 @@
                     ctx.closePath();
                     ctx.fill();
                 }
+            });
+        } else if (name === 'House Tie') {
+            ctx.fillStyle = '#1d4ed8';
+            ctx.beginPath();
+            ctx.moveTo(hx - 5 * S, neckY - 3 * S);
+            ctx.lineTo(hx + 5 * S, neckY - 3 * S);
+            ctx.lineTo(hx + 3 * S, neckY + 3 * S);
+            ctx.lineTo(hx - 3 * S, neckY + 3 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(hx - 4 * S, neckY + 3 * S);
+            ctx.lineTo(hx + 4 * S, neckY + 3 * S);
+            ctx.lineTo(hx + 2 * S, neckY + 22 * S);
+            ctx.lineTo(hx - 2 * S, neckY + 22 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.4 * S;
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(hx - 3.4 * S, neckY + 6 * S + i * 4 * S);
+                ctx.lineTo(hx + 3.4 * S, neckY + 8 * S + i * 4 * S);
+                ctx.stroke();
+            }
+        } else if (name === 'School Blazer') {
+            ctx.fillStyle = '#1e3a8a';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.fill();
+            // white shirt V
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.moveTo(hx - 7 * S, top);
+            ctx.lineTo(hx + 7 * S, top);
+            ctx.lineTo(hx, top + 13 * S);
+            ctx.closePath(); ctx.fill();
+            // lapels
+            ctx.fillStyle = '#172554';
+            ctx.beginPath();
+            ctx.moveTo(hx, top + 11 * S);
+            ctx.lineTo(hx - halfW * 0.75, top);
+            ctx.lineTo(hx - halfW * 0.16, top + 24 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(hx, top + 11 * S);
+            ctx.lineTo(hx + halfW * 0.75, top);
+            ctx.lineTo(hx + halfW * 0.16, top + 24 * S);
+            ctx.closePath(); ctx.fill();
+            // gold buttons + crest
+            ctx.fillStyle = '#fbbf24';
+            [0.46, 0.62, 0.78].forEach(t => {
+                ctx.beginPath();
+                ctx.arc(hx, top + (bodyBottom - top) * t, 2.2 * S, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            rr(hx - halfW * 0.62, top + (bodyBottom - top) * 0.30, 8 * S, 7 * S, 2 * S); ctx.fill();
+        } else if (name === 'Football Kit') {
+            ctx.fillStyle = '#22c55e';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.fill();
+            ctx.fillStyle = '#f8fafc';
+            [-1, 1].forEach(k => {
+                rr(hx + k * (halfW - 5 * S) - 4 * S, top + 4 * S, 8 * S, 12 * S, 3 * S); ctx.fill();
+            });
+            ctx.beginPath();
+            ctx.moveTo(hx - 8 * S, top);
+            ctx.lineTo(hx + 8 * S, top);
+            ctx.lineTo(hx, top + 10 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.font = '800 ' + Math.round(15 * S) + 'px Fredoka, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('9', hx, top + (bodyBottom - top) * 0.55);
+            ctx.textBaseline = 'alphabetic';
+        } else if (name === 'Sailor Collar') {
+            ctx.fillStyle = '#1d4ed8';
+            ctx.beginPath();
+            ctx.moveTo(hx - NW, neckY - 4 * S);
+            ctx.quadraticCurveTo(hx, neckY + 20 * S, hx + NW, neckY - 4 * S);
+            ctx.quadraticCurveTo(hx, neckY + 6 * S, hx - NW, neckY - 4 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.6 * S;
+            [-1, 1].forEach(k => {
+                ctx.beginPath();
+                ctx.moveTo(hx + k * NW * 0.82, neckY - 1 * S);
+                ctx.quadraticCurveTo(hx + k * NW * 0.45, neckY + 12 * S, hx + k * 2 * S, neckY + 17 * S);
+                ctx.stroke();
+            });
+        } else if (name === 'Sailor Top') {
+            ctx.fillStyle = '#f8fafc';
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.fill();
+            ctx.strokeStyle = 'rgba(30,58,138,.25)';
+            ctx.lineWidth = 1.6 * S;
+            rr(hx - halfW, top, halfW * 2, bodyBottom - top, 10 * S); ctx.stroke();
+            ctx.fillStyle = '#1d4ed8';
+            ctx.fillRect(hx - halfW, top + (bodyBottom - top) * 0.26, halfW * 2, 6 * S);
+            ctx.beginPath();
+            ctx.moveTo(hx - 7 * S, top);
+            ctx.lineTo(hx + 7 * S, top);
+            ctx.lineTo(hx, top + 12 * S);
+            ctx.closePath(); ctx.fill();
+        } else if (name === 'Ribbon Choker') {
+            ctx.strokeStyle = '#db2777';
+            ctx.lineWidth = 6 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - NW, neckY);
+            ctx.quadraticCurveTo(hx, neckY + 6 * S, hx + NW, neckY);
+            ctx.stroke();
+            ctx.fillStyle = '#db2777';
+            ctx.beginPath();
+            ctx.moveTo(hx, neckY + 2 * S);
+            ctx.lineTo(hx - 10 * S, neckY - 4 * S);
+            ctx.lineTo(hx - 10 * S, neckY + 8 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(hx, neckY + 2 * S);
+            ctx.lineTo(hx + 10 * S, neckY - 4 * S);
+            ctx.lineTo(hx + 10 * S, neckY + 8 * S);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#f9a8d4';
+            ctx.beginPath(); ctx.arc(hx, neckY + 2 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
+        } else if (name === 'Ballet Tutu') {
+            ctx.fillStyle = '#fbcfe8';
+            rr(hx - halfW * 0.7, top, halfW * 1.4, (bodyBottom - top) * 0.62, 8 * S); ctx.fill();
+            ctx.fillStyle = '#f9a8d4';
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.ellipse(hx, bodyBottom - 8 * S + i * 3 * S, halfW * (1.02 + i * 0.1), 7 * S, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#fbcfe8';
+            ctx.beginPath();
+            ctx.ellipse(hx, bodyBottom - 10 * S, halfW * 1.28, 5 * S, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            [[-0.6, -0.2], [0.5, -0.1], [0.1, 0.15]].forEach(([dx, dy]) => {
+                ctx.beginPath();
+                ctx.arc(hx + dx * halfW, bodyBottom - 8 * S + dy * 20 * S, 1.6 * S, 0, Math.PI * 2);
+                ctx.fill();
             });
         } else if (name === 'Racing Jacket') {
             ctx.fillStyle = '#ef4444';

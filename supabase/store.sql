@@ -88,7 +88,15 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('bg_floral','background','Floral','碎花',520,'Legendary','🌷',44),
     ('bg_yellow','background','Yellow','黃色',160,'Common','💛',45),
     ('bg_black','background','Black','黑色',220,'Rare','🖤',46),
-    ('bg_gray','background','Grey','灰色',220,'Rare','🩶',47)
+    ('bg_gray','background','Grey','灰色',220,'Rare','🩶',47),
+    ('outfit_housetie','neck','House Tie','學院風領呔',110,'Common','🎗️',59),
+    ('outfit_blazer','body','School Blazer','校服西裝外套',240,'Rare','🧥',60),
+    ('outfit_teamscarf','neck','Team Scarf','球隊頸巾',130,'Rare','🧣',61),
+    ('outfit_football','body','Football Kit','足球球衣',270,'Epic','⚽',62),
+    ('outfit_sailorcollar','neck','Sailor Collar','水手領',140,'Rare','⚓',63),
+    ('outfit_sailortop','body','Sailor Top','水手上衣',250,'Rare','👕',64),
+    ('outfit_ribbonchoker','neck','Ribbon Choker','蝴蝶結頸帶',110,'Common','🎀',65),
+    ('outfit_tutu','body','Ballet Tutu','芭蕾紗裙',290,'Epic','🩰',66)
 on conflict (id) do update set
     slot = excluded.slot,
     name_en = excluded.name_en,

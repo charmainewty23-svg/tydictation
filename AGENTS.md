@@ -61,7 +61,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | # | 檔案 | 內容 |
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
-| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（58 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
+| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（74 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
@@ -106,7 +106,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
-| `store-view` | 🛍️ Store：58 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
+| `store-view` | 🛍️ Store：74 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
 | `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均正確率、Word Jump 最佳、首次練習日期（見 §12.6） |
 
 ### Grammar Quest tenses
@@ -1546,7 +1546,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；校服／運動／水手／芭蕾 8 件 Neck & Outfit 就跑 `store_items_school_sets.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -2227,7 +2227,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   HTML button `data-nav-view="store-view"`。320px 時 6 格、label 9px
   （`@media (max-width:360px)`），實測 `overflowX = 0`。
 - **`js/store.js`**：喺 `js/shared.js` 之後、`js/dictation.js` 之前載入。
-  有 `STORE_ITEMS`（58 件，id／slot／name／zh／price／rarity／emoji／color）、
+  有 `STORE_ITEMS`（74 件，id／slot／name／zh／price／rarity／emoji／color）、
   `storeItemByName`、`STORE_OWNED`／`STORE_EQUIPPED`／`STORE_BALANCE`、
   `loadStoreState()`、`renderStore()`、`storeBuyItem()`／`storeEquipItem()`、
   `storeLookOptions()`、`storeRenderProfileLook()`。
@@ -2484,7 +2484,17 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     唔夠錢試金冠、試 Golden GT 跑車）。
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
   Equip hat／face／outfit 會更新 profile look 並寫入 `DG.readSettings()`。
-  **默認 look 係全 None**：未買 store item 嘅用戶只有光身貓；Store 冇免費
+- **👔 校服套裝（2026-11）**：Neck & Outfit 新增 8 件（`STORE_ITEMS` 現時 74 件）：
+  - Prefect：`House Tie`（neck，110，Common）＋`School Blazer`（body，240，Rare）
+  - Sports：`Team Scarf`（neck，130）＋`Football Kit`（body，270，Epic，背號 9）
+  - Sailor：`Sailor Collar`（neck，140）＋`Sailor Top`（body，250）
+  - Ballet：`Ribbon Choker`（neck，110，Common）＋`Ballet Tutu`（body，290，Epic）
+  `Team Scarf` 同 `Red Scarf` 共用同一 branch（加白色間條）；其餘各自
+  `DG.drawCatOutfit` branch。**每件新 item 一定要有 drawing branch**，否則
+  買到／equip 到但隻貓身上乜都冇（avatar 同 kart 都用同一個 function）。
+  SQL：`supabase/store_items_school_sets.sql`（可重跑）；新安裝用更新咗嘅
+  `store.sql` 已經有齊。
+- **默認 look 係全 None**：未買 store item 嘅用戶只有光身貓；Store 冇免費
   item。Drive & Go 嘅 Cat step 有 **4 個貓款**
   （`DG.CAT_OPTIONS`）：`Ginger`／`Ragdoll`／`British Shorthair`／`Garfield`，
   Glasses 只有 `None`／`Glasses`；**Hat 同 Outfit
@@ -2583,7 +2593,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   答案、你揀咗乜）；Solo／Multi 早完賽／Multi 最終結果都會用
   `DG.wrongQuestionsHTML()` 顯示「❌ Review these questions」，最多 12 題，
   可 scroll；start／restart 會清空。Landscape 有 compact CSS。
-- **測試**：53 cards、13 個 props（包括 White Flag／Rubber Duck／Red Pen／Tea & Scone／Mini Corgi／Boombox）、13 個 backgrounds（Pink／Blue／Floral 圖案＋Yellow／Black／Grey 淨色）、Paws 200→120（買 hat_sprout）、自動 equip、
+- **測試**：74 items、13 個 props（包括 White Flag／Rubber Duck／Red Pen／Tea & Scone／Mini Corgi／Boombox）、13 個 backgrounds（Pink／Blue／Floral 圖案＋Yellow／Black／Grey 淨色）、Paws 200→120（買 hat_sprout）、自動 equip、
   `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
   profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D
   store item 冇 throw。SQL 未喺本機實際執行（只做 code review）。

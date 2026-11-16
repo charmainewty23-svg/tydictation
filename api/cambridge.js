@@ -56,6 +56,46 @@ function parseHeadword(html) {
     return m ? m[1].trim() : '';
 }
 
+// Cambridge publishes one UK and one US recording per headword. The current
+// markup uses <source type="audio/mpeg" src="/media/…/uk_pron/….mp3">; older
+// pages used <span class="…pron-uk" data-src-mp3="…">. The player streams
+// Cambridge's own file — nothing is copied or re-hosted here.
+function absoluteCambridgeUrl(raw) {
+    const url = decodeEntities(String(raw || '').trim());
+    if (!url) return '';
+    if (url.indexOf('//') === 0) return 'https:' + url;
+    if (url.charAt(0) === '/') return 'https://dictionary.cambridge.org' + url;
+    return url;
+}
+
+function parseAudio(html) {
+    const audio = { uk: '', us: '' };
+    const take = raw => {
+        const url = absoluteCambridgeUrl(raw);
+        if (!/^https:\/\/dictionary\.cambridge\.org\/media\//i.test(url)) return;
+        if (/\/uk_pron\//i.test(url) && !audio.uk) audio.uk = url;
+        else if (/\/us_pron\//i.test(url) && !audio.us) audio.us = url;
+    };
+    let m;
+    // Current markup: <source type="audio/mpeg" src="...">
+    const sourceRe = /<source\b([^>]*)>/gi;
+    while ((m = sourceRe.exec(html || ''))) {
+        const attrs = m[1] || '';
+        if (!/type\s*=\s*"audio\/mpeg"/i.test(attrs)) continue;
+        const src = /src\s*=\s*"([^"]+)"/i.exec(attrs);
+        if (src) take(src[1]);
+    }
+    // Older markup: <span class="audio_play_button pron-uk" data-src-mp3="...">
+    const spanRe = /<span\b([^>]*data-src-mp3\s*=\s*"([^"]+)"[^>]*)>/gi;
+    while ((m = spanRe.exec(html || ''))) {
+        const attrs = m[1] || '';
+        const url = m[2] || '';
+        if (/\bpron-uk\b/i.test(attrs)) take(url);
+        else if (/\bpron-us\b/i.test(attrs)) take(url);
+    }
+    return audio;
+}
+
 function normalizeWord(raw) {
     return String(raw || '').trim().replace(/\s+/g, ' ');
 }
@@ -113,13 +153,15 @@ async function handler(req, res) {
         const result = await fetchEntry(word);
         const meanings = result.html ? parseMeanings(result.html) : [];
         const headword = result.html ? parseHeadword(result.html) : '';
-        const found = meanings.length > 0;
+        const audio = result.html ? parseAudio(result.html) : { uk: '', us: '' };
+        const found = meanings.length > 0 || !!(audio.uk || audio.us);
         res.statusCode = 200;
         res.end(JSON.stringify({
             word: word,
             found: found,
             headword: headword,
             meanings: meanings,
+            audio: audio,
             source: 'Cambridge Dictionary'
         }));
     } catch (err) {
@@ -137,3 +179,4 @@ async function handler(req, res) {
 module.exports = handler;
 module.exports.parseMeanings = parseMeanings;
 module.exports.parseHeadword = parseHeadword;
+module.exports.parseAudio = parseAudio;

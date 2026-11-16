@@ -767,6 +767,39 @@
 
             const k = Math.min(w / 720, h / 420);
             const baseY = h * 0.86;
+            // decorations: bunting + warm glow + sparkles
+            const colours = ['#f87171', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa'];
+            ctx.save();
+            ctx.strokeStyle = 'rgba(226,232,240,.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 26 * k);
+            ctx.quadraticCurveTo(w / 2, 54 * k, w, 26 * k);
+            ctx.stroke();
+            for (let i = 0; i < 14; i++) {
+                const bx = (w / 14) * i + w / 28;
+                const by = 26 * k + Math.sin((i / 13) * Math.PI) * 26 * k;
+                ctx.fillStyle = colours[i % colours.length];
+                ctx.beginPath();
+                ctx.moveTo(bx - 9 * k, by);
+                ctx.lineTo(bx + 9 * k, by);
+                ctx.lineTo(bx, by + 18 * k);
+                ctx.closePath();
+                ctx.fill();
+            }
+            const halo = ctx.createRadialGradient(cx, baseY - 90 * k, 10 * k, cx, baseY - 90 * k, 260 * k);
+            halo.addColorStop(0, 'rgba(251,191,36,.22)');
+            halo.addColorStop(1, 'rgba(251,191,36,0)');
+            ctx.fillStyle = halo;
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 22; i++) {
+                const sx = ((i * 97) % w), sy = ((i * 53) % (h * 0.7)) + 30;
+                ctx.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(t * 1.4 + i));
+                ctx.fillStyle = '#fde68a';
+                ctx.beginPath(); ctx.arc(sx, sy, 1.6 * k, 0, 6.28); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
             const cx = w / 2;
             const stepW = 150 * k, sideW = 120 * k;
             const heights = [64 * k, 46 * k, 34 * k];    // 1st, 2nd, 3rd
@@ -780,7 +813,15 @@
                 const x = xFor[idx];
                 const hh = heights[idx];
                 ctx.fillStyle = idx === 0 ? '#f59e0b' : '#334155';
-                ctx.fillRect(x - (idx === 0 ? stepW : sideW) / 2, baseY - hh, idx === 0 ? stepW : sideW, hh);
+                const bw = idx === 0 ? stepW : sideW;
+                ctx.fillRect(x - bw / 2, baseY - hh, bw, hh);
+                ctx.fillStyle = 'rgba(255,255,255,.16)';
+                ctx.fillRect(x - bw / 2, baseY - hh, bw, 5 * k);
+                // big placing number on the step
+                ctx.fillStyle = idx === 0 ? '#7c2d12' : '#cbd5f5';
+                ctx.font = '900 ' + Math.round((idx === 0 ? 32 : 24) * k) + 'px Fredoka, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(String(idx + 1), x, baseY - hh / 2 + 10 * k);
                 const p = top[idx];
                 if (!p) return;
                 const look = window.DG && window.DG.normalizeLook
@@ -800,19 +841,23 @@
             });
 
             // everyone else gathers around the stand
-            if (t >= AT.rest && rest.length) {
+            const restCap = rest.slice(0, 24);
+            if (t >= AT.rest && restCap.length) {
                 const done = Math.min(1, (t - AT.rest) / 1.2);
                 ctx.textAlign = 'center';
-                rest.forEach(function (p, i) {
-                    const n = rest.length;
-                    const span = Math.min(w * 0.92, 90 * k * n);
-                    const x = cx - span / 2 + (n === 1 ? span / 2 : (span * i) / (n - 1));
-                    const y = baseY - 6 * k - (i % 2) * 16 * k * done;
+                const perRow = Math.min(12, Math.ceil(restCap.length / 2));
+                restCap.forEach(function (p, i) {
+                    const row = Math.floor(i / perRow);
+                    const inRow = i % perRow;
+                    const rowCount = Math.min(perRow, restCap.length - row * perRow);
+                    const span = Math.min(w * 0.96, 54 * k * rowCount);
+                    const x = cx - span / 2 + (rowCount === 1 ? span / 2 : (span * inRow) / (rowCount - 1));
+                    const y = baseY + 4 * k - row * 34 * k - (inRow % 2) * 6 * k * done;
                     const look = window.DG && window.DG.normalizeLook
                         ? window.DG.normalizeLook({ cat: p.cat, glasses: p.glasses, hat: p.hat, outfit: p.outfit })
                         : { cat: 'Ginger' };
                     if (window.DG && window.DG.drawCatAvatar) {
-                        window.DG.drawCatAvatar(ctx, x, y, 0.42 * k * done, look);
+                        window.DG.drawCatAvatar(ctx, x, y, 0.3 * k * done, look);
                     }
                     ctx.fillStyle = 'rgba(226,232,240,.9)';
                     ctx.font = '700 ' + Math.round(10 * k) + 'px system-ui, sans-serif';

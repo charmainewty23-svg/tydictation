@@ -154,6 +154,12 @@ async function handler(req, res) {
         const meanings = result.html ? parseMeanings(result.html) : [];
         const headword = result.html ? parseHeadword(result.html) : '';
         const audio = result.html ? parseAudio(result.html) : { uk: '', us: '' };
+        // Cambridge's "did you mean…" search page also carries recordings of
+        // other words, so only trust the audio when we landed on a real entry.
+        if (!headword) {
+            audio.uk = '';
+            audio.us = '';
+        }
         const found = meanings.length > 0 || !!(audio.uk || audio.us);
         res.statusCode = 200;
         res.end(JSON.stringify({

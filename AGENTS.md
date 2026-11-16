@@ -576,6 +576,11 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   `DG.mpRejoinRoom()` 自動入返，唔會再跌落 Create／Join 或 Hub。房真的冇咗就喺
   原本畫面顯示 `DG.mpShowRoomClosed()`（race 中就用 overlay），唔會導航去首頁。
   返回 Drive & Go 時 `DG.mpResumeRoom()` 會接返住個 lobby。
+- **Host-only 老師結果（2026-11）**：老師揀「唔落場」時冇
+  `#drive-and-go-view`／`raceEls.overlay`，所以 `showMultiplayerResults()`
+  以前會靜靜咁咩都唔出。而家會 fallback 將最終排名寫入
+  `grammar-detail-content`（`dg-menu-panel`），有一粒「Back to class」；
+  學生照舊用 race overlay。
 - **完賽一定有結果畫面，唔會自動彈走（2026-11）**：solo／multi 都係一到 N 題正確
   （N = 自己揀或房主揀嘅 10／20／25／30／35／40／50，**唔可以**寫死 20）就即刻出結果，
   唔會 call `changeView`／`backToTenses`／`showSessionStep`／`showMultiplayerMenu`，
@@ -1367,7 +1372,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v62）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v63）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1457,8 +1462,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v62`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v63`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v63`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v64`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2099,7 +2104,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v62。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v63。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

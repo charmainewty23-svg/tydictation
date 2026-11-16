@@ -1456,7 +1456,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v71）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v72）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1546,8 +1546,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v71`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v72`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v72`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v73`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2188,7 +2188,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v71。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v72。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2371,9 +2371,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   1. 入門：Confetti Cannon 250／Spotlight 300／Emoji Rain 350
   2. 搞笑：Mic Drop 450／Deal With It 550／Banana Slip 600
   3. 頂級：Money Gun 900
-  - 每張卡有 **▶ 試播特效**（`victoryPreview(id)` → `js/victory.js`），用**學生自己隻貓**
+  - 每張卡有 **▶ Preview effect**（`victoryPreview(id)` → `js/victory.js`），用**學生自己隻貓**
     企喺第 1 名頒獎台播完整動畫＋trophy 音樂，所見即所得。
-  - **🎟 單場體驗券**（`storeRentVictory(id)` → RPC `rent_victory_effect`）＝
+  - **🎟 1-battle trial**（`storeRentVictory(id)` → RPC `rent_victory_effect`）＝
     原價 20%（最少 40 🐾），只限**下一場 Class Battle**；贏班際冠軍時
     `VICTORY.claimForWin(roomId)` 會先用 equip 咗嘅永久特效，冇就用租借券
     （用完 `consume_victory_rental()`），並 `log_victory_use()` 記一筆。
@@ -2390,9 +2390,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     加新特效＝`STORE_ITEMS` 加 `slot:'victory'` item ＋ `js/victory.js` 的
     `EFFECTS` 加名 ＋ `drawFrame` 加 branch ＋ SQL 加 `store_items` row。
 - **⚡ Flash Sale（2026-11）**：`supabase/store_flash_sale.sql` 定義
-  `store_sale_now()`：**每 7 日一次 9折（10% off，由 anchor `2026-11-02`
-  星期一開始）**，節日窗口（Christmas 12/24–12/26、New Year、Lunar New Year、
-  Easter、Halloween）**88折（12% off）**，節日優先。
+  `store_sale_now()`：**每 7 日一次 10% off（由 anchor `2026-11-15` 起計）**，節日窗口
+  （Christmas 12/24–12/26、New Year、Lunar New Year、Easter、Halloween）
+  **12% off**，節日優先。標籤一律**純英文**（例如 `⚡ Flash Sale · 10% off`），
+  唔會出「9折／88折」等中文字。
   - **價錢由 server 計**：`store_sale_price()`，`buy_store_item()` 用佢收錢，
     Store 卡顯示 `⚡ Sale: ~~原價~~ → 售價`，所以學生見到同實收一致。
     想改折扣／加節日：改 SQL 內 `store_sale_now()` 一張表就夠（前端唔使改）。

@@ -179,15 +179,15 @@ function storeSaleBannerHTML() {
     const ends = STORE_SALE.ends_at ? new Date(STORE_SALE.ends_at) : null;
     const when = ends ? ' · ends ' + ends.toLocaleString('en-HK', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
     return '<div class="store-sale-banner" role="status">' +
-        '<b>' + escapeHtml(STORE_SALE.label || 'Flash Sale') + '</b>' +
-        '<span>' + STORE_SALE.off_pct + '% off every item today' + when + '</span></div>';
+        '<b>' + escapeHtml(STORE_SALE.label || ('Flash Sale · ' + STORE_SALE.off_pct + '% off')) + '</b>' +
+        '<span>Every item is ' + STORE_SALE.off_pct + '% off today' + when + '</span></div>';
 }
 
 function storeAnnounceSale() {
     if (STORE_SALE_ANNOUNCED || !STORE_SALE.active || !STORE_SALE.sale_key || !storeAvailable()) return;
     STORE_SALE_ANNOUNCED = true;
-    const msg = '⚡ ' + (STORE_SALE.label || 'Flash Sale') + ': ' + STORE_SALE.off_pct +
-        '% off everything in the Store today. Spend your Paws before it ends!';
+    const msg = '⚡ ' + (STORE_SALE.label || ('Flash Sale · ' + STORE_SALE.off_pct + '% off')) +
+        ': every item in the Store is ' + STORE_SALE.off_pct + '% off today. Spend your Paws before it ends!';
     try {
         sb.rpc('announce_store_sale', { p_key: STORE_SALE.sale_key, p_message: msg }).catch(function () {});
     } catch (e) {}
@@ -923,9 +923,9 @@ function storeCardHTML(item) {
         action = '<button type="button" class="store-btn" onclick="storeBuyItem(\'' + item.id + '\')">Buy · ' + price + ' 🐾</button>';
     }
     const victoryBtns = item.slot === 'victory' ? (
-        '<button type="button" class="store-btn store-btn-preview" onclick="victoryPreview(\'' + item.id + '\')">▶ 試播特效</button>' +
+        '<button type="button" class="store-btn store-btn-preview" onclick="victoryPreview(\'' + item.id + '\')">▶ Preview effect</button>' +
         (!owned && storeAvailable()
-            ? '<button type="button" class="store-btn store-btn-rent" onclick="storeRentVictory(\'' + item.id + '\')">🎟 單場體驗 · ' + storeVictoryRent(item) + ' 🐾</button>'
+            ? '<button type="button" class="store-btn store-btn-rent" onclick="storeRentVictory(\'' + item.id + '\')">🎟 1-battle trial · ' + storeVictoryRent(item) + ' 🐾</button>'
             : '')
     ) : '';
     const topRank = item.slot === 'victory' ? storeVictoryTopRank(item.id) : -1;

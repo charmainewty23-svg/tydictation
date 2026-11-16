@@ -1,7 +1,7 @@
 -- LearniTY Store: weekly + festival flash sales.
 --
---  • Every 7 days (Monday, Hong Kong time)  → 10% off  (9折)
---  • Festival windows (Christmas etc.)       → 12% off  (88折)
+--  • Every 7 days (from 2026-11-15, Hong Kong time) → 10% off
+--  • Festival windows (Christmas etc.)              → 12% off
 --
 -- The discount is applied by the SERVER inside buy_store_item(), so the
 -- price the student sees is the price they pay. store_sale_now() is the one
@@ -26,38 +26,38 @@ set search_path = public
 as $sale$
 declare
     v_today  date := (now() at time zone 'Asia/Hong_Kong')::date;
-    v_anchor date := date '2026-11-02';   -- a Monday
+    v_anchor date := date '2026-11-15';   -- weekly sale day, then +7 days
     v_off    int  := 0;
     v_label  text := '';
     v_key    text := '';
     v_end    timestamptz := null;
 begin
-    -- Festival windows win over the weekly slot. 88折 = 12% off.
+    -- Festival windows win over the weekly slot.
     if v_today between date '2026-12-24' and date '2026-12-26' then
-        v_off := 12; v_label := '🎄 Christmas Sale · 88折';
+        v_off := 12; v_label := '🎄 Christmas Sale · 12% off';
         v_key := 'christmas-2026';
         v_end := (date '2026-12-27')::timestamp at time zone 'Asia/Hong_Kong';
     elsif v_today between date '2026-12-31' and date '2027-01-01' then
-        v_off := 12; v_label := '🎊 New Year Sale · 88折';
+        v_off := 12; v_label := '🎊 New Year Sale · 12% off';
         v_key := 'newyear-2027';
         v_end := (date '2027-01-02')::timestamp at time zone 'Asia/Hong_Kong';
     elsif v_today between date '2027-02-05' and date '2027-02-07' then
-        v_off := 12; v_label := '🧧 Lunar New Year Sale · 88折';
+        v_off := 12; v_label := '🧧 Lunar New Year Sale · 12% off';
         v_key := 'lny-2027';
         v_end := (date '2027-02-08')::timestamp at time zone 'Asia/Hong_Kong';
     elsif v_today between date '2027-04-02' and date '2027-04-04' then
-        v_off := 12; v_label := '🐣 Easter Sale · 88折';
+        v_off := 12; v_label := '🐣 Easter Sale · 12% off';
         v_key := 'easter-2027';
         v_end := (date '2027-04-05')::timestamp at time zone 'Asia/Hong_Kong';
     elsif v_today between date '2027-10-30' and date '2027-10-31' then
-        v_off := 12; v_label := '🎃 Halloween Sale · 88折';
+        v_off := 12; v_label := '🎃 Halloween Sale · 12% off';
         v_key := 'halloween-2027';
         v_end := (date '2027-11-01')::timestamp at time zone 'Asia/Hong_Kong';
     else
-        -- one sale day every 7 days, counted from the anchor Monday
+        -- one sale day every 7 days, counted from the anchor date
         if v_today >= v_anchor and ((v_today - v_anchor) % 7) = 0 then
             v_off := 10;
-            v_label := '⚡ Flash Sale · 9折 (every 7 days)';
+            v_label := '⚡ Flash Sale · 10% off';
             v_key := 'weekly-' || v_today::text;
             v_end := (v_today + 1)::timestamp at time zone 'Asia/Hong_Kong';
         end if;

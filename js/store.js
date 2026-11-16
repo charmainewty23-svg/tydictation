@@ -249,13 +249,26 @@ async function loadStoreState(force) {
             return;
         }
         try {
-            const [bal, purchasesResult, equipped, saleRes, topRes, rentalRes] = await Promise.all([
-                sb.rpc('my_paw_balance'),
+            // Read the wallet first and publish it immediately: one broken
+            // extra RPC (sale / victory tables) must never make the balance
+            // look like 0 Paws.
+            const bal = await sb.rpc('my_paw_balance');
+            if (bal.error) throw bal.error;
+            STORE_BALANCE = Math.max(0, Number(bal.data) || 0);
+            const safeRpc = function (name, args) {
+                try {
+                    const res = sb.rpc(name, args);
+                    return (res && typeof res.catch === 'function')
+                        ? res.catch(function () { return { data: null, error: true }; })
+                        : Promise.resolve({ data: null, error: true });
+                } catch (e) { return Promise.resolve({ data: null, error: true }); }
+            };
+            const [purchasesResult, equipped, saleRes, topRes, rentalRes] = await Promise.all([
                 sb.from('store_purchases').select('item_id,paid_price').eq('user_id', currentUser.id),
                 sb.from('store_equipped').select('slot,item_id').eq('user_id', currentUser.id),
-                sb.rpc('store_sale_now').catch(function () { return { data: null, error: true }; }),
-                sb.rpc('store_victory_top', { p_days: 7 }).catch(function () { return { data: null, error: true }; }),
-                sb.rpc('my_victory_rental').catch(function () { return { data: null, error: true }; })
+                safeRpc('store_sale_now'),
+                safeRpc('store_victory_top', { p_days: 7 }),
+                safeRpc('my_victory_rental')
             ]);
             const saleRow = Array.isArray(saleRes && saleRes.data) ? saleRes.data[0] : (saleRes && saleRes.data);
             STORE_SALE = (saleRow && saleRow.active)
@@ -291,7 +304,6 @@ async function loadStoreState(force) {
                 if (row.slot === 'prop') STORE_EQUIPPED.prop.push(row.item_id);
                 else STORE_EQUIPPED[row.slot] = row.item_id;
             });
-            STORE_BALANCE = Math.max(0, Number(bal.data) || 0);
             try {
                 const todayRes = await sb.rpc('my_paws_today');
                 STORE_PAWS_TODAY = (!todayRes.error) ? Math.max(0, Number(todayRes.data) || 0) : 0;

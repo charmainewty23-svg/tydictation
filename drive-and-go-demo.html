@@ -81,12 +81,13 @@
             });
         }
         var liveRows = players.map(function (p, i) {
-            var correct = Math.max(0, 20 - Math.floor(i * 0.55));
-            if (i < 4) correct = 20;
+            var correct = i === 0 ? 20 : (i === 1 ? 18 : (i === 2 ? 16 : Math.max(0, 15 - Math.floor(i * 0.45))));
             return Object.assign({}, p, {
                 correct: correct,
+                score: Math.max(100, 700 - i * 12),
+                composite_score: Math.max(100, 912 - i * 14),
                 distance: 600 + (30 - i) * 73 + (i % 5) * 11,
-                finished_at: i < 4 ? new Date().toISOString() : null
+                finished_at: i < 3 ? new Date().toISOString() : null
             });
         });
 

@@ -55,12 +55,13 @@
 ### 3.1 `js/` 檔案同載入次序（2026-11 拆分）
 
 原本全部邏輯喺 `index.html` 一個 ~8400 行 inline `<script>`。而家 `index.html` 只剩
-markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 14 個
+markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body>` 前）用 16 個
 **classic** `<script src>` **同步**載入，次序唔可以改：
 
 | # | 檔案 | 內容 |
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
+| 1a | `js/victory.js` | 班際冠軍 Victory effects（`VICTORY`）：清單／試播／租借／頒獎禮合照同互動；喺 `js/shared.js` 之後、`js/store.js` 之前 |
 | 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（74 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
@@ -73,6 +74,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 10 | `js/profile.js` | 「Me」個人頁（`#profile-view`）：`loadProfile`、`profileRenderStreak`／`profileRenderDict`／`profileRenderWj`；學校帳戶讀 `dictation_results`／`wj_leaderboard`，訪客同 preview 讀 session／local 記錄 |
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
+| 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -100,9 +102,9 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情同 Drive & Go! 開賽選單都用呢個） |
 | `fluency-view` | 🗣️ Fluency Master：Revision／Speak Flap 兩張卡（見下面） |
 | `fluency-revision-view` | Revision：Discussion Phrases／Hot Topics 兩張卡 |
-| `fluency-phrases-view` | Discussion Phrases 頁（內容待加：`#fluency-phrases-content`） |
-| `fluency-topics-view` | Hot Topics 頁（內容待加：`#fluency-topics-content`） |
-| `fluency-flap-view` | Speak Flap 頁（內容待加：`#fluency-flap-content`） |
+| `fluency-phrases-view` | Discussion Phrases：150 句庫入面第 1–50 句（見下面） |
+| `fluency-topics-view` | Hot Topics：第 51–150 句（見下面） |
+| `fluency-flap-view` | Speak Flap 頁（內容待加：`#fluency-flap-content`，`.fluency-empty`） |
 | `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、ACCEL、LEFT／CENTER／RIGHT） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
@@ -140,20 +142,50 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `DG.drawTrack` 畫 curved segments，`DG.ensureScenery`／`DG.drawScenery` 放 world-Z 路邊景物（大廈／樹／燈柱／路牌／車）。
   答案門 `GATE_GAP = 420`、`START_GATE_DIST = 320`，下一個門最少喺 player 前面 300 units；唔好加返 `p.dist + 70`／`+ 100` fallback。
 
-### Fluency Master（2026-11，UI 骨架）
+### Fluency Master（2026-11，150 句已入）
 - Hub 嘅 `#hub-fluency-entry`（🗣️、全闊一列）喺 Grammar／Dictation 兩張大卡下面、
   Word Jump 之上，撳入 `fluency-view`。
 - 結構：
   - `fluency-view`：`📚 Revision` → `fluency-revision-view`；`🃏 Speak Flap` → `fluency-flap-view`。
-  - `fluency-revision-view`：`💬 Discussion Phrases` → `fluency-phrases-view`；
-    `🔥 Hot Topics` → `fluency-topics-view`。
-  - 三個內容頁而家只有空盒（`.fluency-empty`「Content coming soon.」）。內容直接放入
-    `#fluency-phrases-content`／`#fluency-topics-content`／`#fluency-flap-content` 就出。
-- 顏色用 violet（`text-violet-600`／`border-violet-200`）。Back 掣：Revision 返 `fluency-view`，
-  三個內容頁返 `fluency-revision-view`（Speak Flap 返 `fluency-view`）。
+  - `fluency-revision-view`：`💬 Discussion Phrases`（50 句）→ `fluency-phrases-view`；
+    `🔥 Hot Topics`（100 句）→ `fluency-topics-view`。
+  - 兩個句庫頁由 `js/fluency.js` 的 `fluencyRender()` 填 `#fluency-phrases-content`／
+    `#fluency-topics-content`；頁面本身只有標題、`.fl-lead`、`.fl-search` 同空 host。
+  - **Speak Flap 仍然係 `.fluency-empty`「Content coming soon.」**：未有內容，
+    唔好自己發明。
+- 句庫資料：`FLUENCY_DATA.phrases.groups`（5 組 × 10 句，總 1–50）＋
+  `FLUENCY_DATA.topics.groups`（6 組，總 51–150）。每句 `{n, en, zh}`，
+  `n` 保留原檔 1–150 編號，**唔可以重新編號**。
+  - Phrases 組：🧊 Initiating 1–10、🤝 Agreeing & Elaborating 11–20、
+    ⚖️ Disagreeing Politely 21–30、🙋 Inviting & Clarifying 31–40、
+    🎯 Steering & Concluding 41–50。
+  - Topics 組：🤖 AI & Technology 51–65、🌱 Environment & Sustainability 66–80、
+    🧠 Youth Mental Health & Education 81–95、
+    🇭🇰 Hong Kong Society, Culture & Economy 96–110、
+    📱 Social Media, Consumerism & Lifestyle 111–125、
+    💎 Universal High-Scoring Sentences 126–150。
+- UI 行為：
+  - `.fl-chips` 橫向滾動組別膠囊：`All`（展開全部）＋每個組（只開該組）。
+    預設每個句庫開第一組。膠囊 ≥44px、`overflow-x:auto`、**唔好加負 margin**
+    （以前 `margin: 0 -2px` 造成 2px 內部橫向溢出）。
+  - `.fl-sect` 可摺疊（`.fl-sect.open` 才顯示 `.fl-sect-body`）；組標題有
+    英文名＋中文副題＋句數。
+  - `.fl-search` 即時搜英文＋中文（`fluencySearch`），有結果時自動展開所有
+    命中組並顯示 `N of M sentences match`；冇結果出 `.fl-empty`。
+  - 每句有 `.fl-speak` 🔊（44px），用 `fluencySpeak()` UK 聲音（Daniel／Kate／
+    Serena／`en-GB`）讀英文，`fluencyStopSpeech()` 會 cancel；
+    `changeView()` 轉頁時自動停。
+  - 闊螢幕（`@media (min-width: 760px)`）`.fl-text` 變兩欄，中文擺右邊並有
+    2px 分隔線；窄螢幕中文疊在英文下面。
+- 顏色用 violet（`text-violet-600`／`border-violet-200`／`#7c3aed`）。Back 掣：
+  Revision 返 `fluency-view`，兩個句庫頁返 `fluency-revision-view`
+  （Speak Flap 返 `fluency-view`）。
 - `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
-  `changeView()` 已加 5 句 mascot 文案。
-- 實測 320／390／768：`overflowX = 0`、`nav-back` 44px、hub 卡全闊（320 時 272px、高 144px）。
+  `changeView()` 已加 5 句 mascot 文案，並在 phrases／topics 頁 call `fluencyRender()`。
+- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v89）。
+- 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
+  🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
+  768／1024 中文並排、膠囊同 🔊 均 44px。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

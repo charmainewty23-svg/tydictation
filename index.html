@@ -3179,8 +3179,7 @@
         }
 
         /* ---- Fluency Master ---- */
-        /* Empty shell shown until the Discussion Phrases / Hot Topics / Speak
-           Flap content is filled in. */
+        /* Empty shell still used by the Speak Flap page. */
         .fluency-empty {
             background: #ffffff;
             border: 3px dashed #ddd6fe;
@@ -3190,6 +3189,228 @@
             color: #6b7280;
             font-weight: 700;
             font-size: 1.05rem;
+        }
+
+        /* Sentence library (Discussion Phrases / Hot Topics). */
+        .fl-lead {
+            color: #6b7280;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.6;
+            margin: 0 0 14px;
+            padding: 0 2px;
+            max-width: 46rem;
+        }
+        .fl-search-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #ffffff;
+            border: 3px solid #ede9fe;
+            border-radius: 999px;
+            padding: 0 18px;
+            margin-bottom: 14px;
+        }
+        .fl-search-wrap:focus-within { border-color: #a78bfa; }
+        .fl-search-icon { font-size: 16px; line-height: 1; }
+        .fl-search {
+            flex: 1;
+            min-width: 0;
+            border: 0;
+            outline: none;
+            background: transparent;
+            padding: 12px 0;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .fl-search::placeholder { color: #9ca3af; font-weight: 500; }
+
+        .fl-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 2px 0 12px;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .fl-chips::-webkit-scrollbar { display: none; }
+        .fl-chip {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 8px 15px;
+            border: 3px solid #ede9fe;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #6d28d9;
+            font-family: Fredoka, system-ui, sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1.15;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            white-space: nowrap;
+        }
+        .fl-chip:hover { border-color: #c4b5fd; }
+        .fl-chip.is-on {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: #ffffff;
+        }
+        .fl-chip-n { opacity: 0.7; font-size: 12px; font-weight: 800; }
+
+        .fl-note {
+            margin: 0 0 10px 4px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #8b5cf6;
+        }
+
+        .fl-sect {
+            background: #ffffff;
+            border: 3px solid #ede9fe;
+            border-radius: 1.4rem;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .fl-sect-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            min-height: 60px;
+            padding: 12px 16px;
+            background: #faf7ff;
+            border: 0;
+            text-align: left;
+            cursor: pointer;
+            font-family: Fredoka, system-ui, sans-serif;
+        }
+        .fl-sect-head.is-static { cursor: default; }
+        .fl-emoji { flex: 0 0 auto; font-size: 24px; line-height: 1; }
+        .fl-sect-text {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .fl-sect-name { font-size: 17px; font-weight: 800; color: #5b21b6; line-height: 1.2; }
+        .fl-sect-alt { font-size: 13px; font-weight: 600; color: #8b5cf6; line-height: 1.2; }
+        .fl-sect-count {
+            flex: 0 0 auto;
+            background: #ede9fe;
+            color: #6d28d9;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .fl-caret {
+            flex: 0 0 auto;
+            color: #a78bfa;
+            font-size: 13px;
+            line-height: 1;
+            transition: transform 0.18s;
+        }
+        .fl-sect.open .fl-caret { transform: rotate(180deg); }
+        .fl-sect-body { display: none; padding: 2px 14px 8px; }
+        .fl-sect.open .fl-sect-body { display: block; }
+
+        .fl-line {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr) 44px;
+            gap: 10px;
+            padding: 14px 0;
+            border-top: 1px dashed #ede9fe;
+        }
+        .fl-sect-body .fl-line:first-child { border-top: 0; }
+        .fl-num {
+            width: 30px;
+            height: 30px;
+            margin-top: 2px;
+            border-radius: 999px;
+            background: #f3e8ff;
+            color: #7c3aed;
+            font-size: 13px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fl-text { min-width: 0; }
+        .fl-en {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+            line-height: 1.45;
+            color: #1f2937;
+            overflow-wrap: anywhere;
+        }
+        .fl-zh {
+            margin: 6px 0 0;
+            font-size: 14px;
+            line-height: 1.55;
+            color: #6b7280;
+            overflow-wrap: anywhere;
+        }
+        .fl-speak {
+            width: 44px;
+            height: 44px;
+            align-self: start;
+            border: 3px solid #ede9fe;
+            border-radius: 999px;
+            background: #ffffff;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .fl-speak:hover { border-color: #c4b5fd; }
+        .fl-speak.on {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+        }
+        .fl-empty {
+            background: #ffffff;
+            border: 3px dashed #ddd6fe;
+            border-radius: 1.4rem;
+            padding: 2.5rem 1.25rem;
+            text-align: center;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        /* Wide screens: Chinese sits beside the English sentence. */
+        @media (min-width: 760px) {
+            .fl-text {
+                display: grid;
+                grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+                gap: 18px;
+                align-items: start;
+            }
+            .fl-zh {
+                margin: 1px 0 0;
+                padding-left: 16px;
+                border-left: 2px solid #ede9fe;
+            }
+        }
+        @media (max-width: 480px) {
+            .fl-line {
+                grid-template-columns: 24px minmax(0, 1fr) 44px;
+                gap: 8px;
+            }
+            .fl-num { width: 24px; height: 24px; font-size: 11.5px; margin-top: 3px; }
+            .fl-en { font-size: 16px; }
+            .fl-zh { font-size: 13.5px; }
+            .fl-sect-head { gap: 9px; padding: 11px 12px; }
+            .fl-emoji { font-size: 21px; }
+            .fl-sect-name { font-size: 15.5px; }
+            .fl-sect-alt { font-size: 12px; }
         }
     </style>
 </head>
@@ -3409,30 +3630,42 @@
                     <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-phrases-view')">
                         <div class="text-5xl mb-4">💬</div>
                         <div class="font-bold text-center leading-tight">Discussion Phrases</div>
+                        <div class="text-xs text-gray-400 mt-1 font-bold">50 phrases</div>
                     </div>
                     <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-topics-view')">
                         <div class="text-5xl mb-4">🔥</div>
                         <div class="font-bold text-center leading-tight">Hot Topics</div>
+                        <div class="text-xs text-gray-400 mt-1 font-bold">100 sentences</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Fluency ─ Discussion Phrases (content to be added) -->
+            <!-- Fluency ─ Discussion Phrases (sentences 1-50) -->
             <div id="fluency-phrases-view" class="view hidden w-full">
                 <button onclick="changeView('fluency-revision-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Revision
                 </button>
-                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">💬 Discussion Phrases</h2>
-                <div id="fluency-phrases-content" class="fluency-empty">Content coming soon.</div>
+                <h2 class="text-3xl font-bold text-violet-600 mb-2 px-2">💬 Discussion Phrases</h2>
+                <p class="fl-lead">50 group-discussion survival phrases (1–50). Tap a group to open it — every sentence comes with its Chinese meaning.</p>
+                <label class="fl-search-wrap">
+                    <span class="fl-search-icon" aria-hidden="true">🔍</span>
+                    <input id="fl-search-phrases" class="fl-search" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search English or Chinese" oninput="fluencySearch('phrases', this.value)">
+                </label>
+                <div id="fluency-phrases-content"></div>
             </div>
 
-            <!-- Fluency ─ Hot Topics (content to be added) -->
+            <!-- Fluency ─ Hot Topics (sentences 51-150) -->
             <div id="fluency-topics-view" class="view hidden w-full">
                 <button onclick="changeView('fluency-revision-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Revision
                 </button>
-                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">🔥 Hot Topics</h2>
-                <div id="fluency-topics-content" class="fluency-empty">Content coming soon.</div>
+                <h2 class="text-3xl font-bold text-violet-600 mb-2 px-2">🔥 Hot Topics</h2>
+                <p class="fl-lead">100 high-scoring sentences on current issues (51–150). Tap a group to open it — every sentence comes with its Chinese meaning.</p>
+                <label class="fl-search-wrap">
+                    <span class="fl-search-icon" aria-hidden="true">🔍</span>
+                    <input id="fl-search-topics" class="fl-search" type="search" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Search English or Chinese" oninput="fluencySearch('topics', this.value)">
+                </label>
+                <div id="fluency-topics-content"></div>
             </div>
 
             <!-- Fluency ─ Speak Flap (content to be added) -->
@@ -4413,6 +4646,7 @@
     <script src="js/profile.js"></script>
     <script src="js/word-battle.js"></script>
     <script src="js/word-jump.js"></script>
+    <script src="js/fluency.js"></script>
     <script src="js/pwa.js"></script>
 </body>
 </html>

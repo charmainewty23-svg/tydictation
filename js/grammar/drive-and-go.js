@@ -60,8 +60,11 @@ const DG = {
     TILT_LERP: 18,
     // Time bonus factor used by DG.timeBonus / DG.scoreRun (see those helpers).
     TIME_BONUS_FACTOR: 4000,
-    CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese'],
-    CAT_OPTIONS: ['Ginger', 'Ragdoll'],
+    CATS: ['Ginger', 'Ragdoll', 'Black', 'Siamese', 'British Shorthair', 'Garfield'],
+    // The four cats a player can actually pick in the customiser / Me page.
+    CAT_OPTIONS: ['Ginger', 'Ragdoll', 'British Shorthair', 'Garfield'],
+    CAT_POINTS: ['Ragdoll', 'Siamese'],
+    CAT_STRIPES: ['Ginger', 'Garfield'],
     GLASSES: ['None', 'Glasses'],
     HATS: ['None', 'Party Hat'],
     EARS: ['None', 'Lo-Fi Headphones'],
@@ -299,7 +302,7 @@ const DG = {
     raceLook() {
         const s = DG.readSettings();
         return {
-            cat: s.cat === 'Ragdoll' ? 'Ragdoll' : 'Ginger',
+            cat: DG.CATS.indexOf(s.cat) !== -1 ? s.cat : 'Ginger',
             glasses: s.glasses || 'None',
             hat: s.hat || 'None',
             ears: s.ears || 'None',
@@ -2090,6 +2093,11 @@ const DG = {
         return DG.KART_STYLES[name] || DG.KART_STYLES.Stock;
     },
 
+    // Colour-point cats (Ragdoll / Siamese) get a dark mask + dark paws;
+    // tabby cats (Ginger / Garfield) get forehead stripes.
+    catHasPoints(cat) { return DG.CAT_POINTS.indexOf(cat) !== -1; },
+    catHasStripes(cat) { return DG.CAT_STRIPES.indexOf(cat) !== -1; },
+
     catPalette(cat) {
         if (cat === 'Ragdoll') return {
             body: '#f7f0e6', shade: '#e6d8c8', light: '#fffaf2', stripe: null,
@@ -2102,6 +2110,16 @@ const DG = {
         if (cat === 'Siamese') return {
             body: '#f1e3cb', shade: '#ddc9a8', light: '#fdf6e8', stripe: null,
             points: '#4b392e', eye: '#63b3ed', nose: '#d99aaa', innerEar: '#c99aa6'
+        };
+        // Round blue-grey plush coat with copper eyes.
+        if (cat === 'British Shorthair') return {
+            body: '#9aa8b5', shade: '#7a8794', light: '#c6d0d9', stripe: null,
+            points: '#68747f', eye: '#d98b3a', nose: '#c88b96', innerEar: '#bda8b2'
+        };
+        // Bright orange tabby with heavy stripes and a sleepy look.
+        if (cat === 'Garfield') return {
+            body: '#f0a13c', shade: '#d47c1d', light: '#ffd08a', stripe: '#b3600f',
+            points: '#9c5510', eye: '#e9c24a', nose: '#d98b98', innerEar: '#efa9b3'
         };
         return {
             body: '#d98645', shade: '#b96a2e', light: '#f3c18d', stripe: '#a95823',
@@ -2146,7 +2164,7 @@ const DG = {
             '<path d="M20 18 L16 3 L31 12 Z" fill="' + p.points + '"/><path d="M60 18 L64 3 L49 12 Z" fill="' + p.points + '"/>' +
             '<path d="M22 18 L20 10 L28 15 Z" fill="#f9a8b8"/><path d="M58 18 L60 10 L52 15 Z" fill="#f9a8b8"/>' +
             '<ellipse cx="40" cy="38" rx="26" ry="27" fill="' + p.body + '"/>' +
-            '<ellipse cx="40" cy="50" rx="15" ry="13" fill="' + p.points + '" opacity="' + (l.cat === 'Ragdoll' || l.cat === 'Siamese' ? '.85' : '.25') + '"/>' +
+            '<ellipse cx="40" cy="50" rx="15" ry="13" fill="' + p.points + '" opacity="' + (DG.catHasPoints(l.cat) ? '.85' : '.25') + '"/>' +
             '<circle cx="29" cy="34" r="6" fill="' + p.eye + '"/><circle cx="51" cy="34" r="6" fill="' + p.eye + '"/>' +
             '<circle cx="29" cy="34" r="3" fill="#111827"/><circle cx="51" cy="34" r="3" fill="#111827"/>' +
             '<circle cx="27.5" cy="32" r="1.2" fill="#fff"/><circle cx="49.5" cy="32" r="1.2" fill="#fff"/>' +

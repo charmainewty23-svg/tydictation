@@ -1350,7 +1350,9 @@ function storeRenderProfileLook() {
 }
 
 function storeSetProfileCat(cat) {
-    if (['Ginger', 'Ragdoll'].indexOf(cat) === -1 || typeof DG === 'undefined') return;
+    if (typeof DG === 'undefined') return;
+    const pickable = DG.CAT_OPTIONS || DG.CATS || ['Ginger', 'Ragdoll'];
+    if (pickable.indexOf(cat) === -1) return;
     const profile = storeReadLocalProfileLook();
     profile.cat = cat;
     STORE_PROFILE_LOOK = profile;

@@ -63,7 +63,7 @@ declare
     v_cat text := coalesce(nullif(trim(p_cat), ''), 'Ginger');
 begin
     if v_me is null then raise exception 'NOT_AUTHENTICATED'; end if;
-    if v_cat not in ('Ginger', 'Ragdoll', 'Black', 'Siamese') then v_cat := 'Ginger'; end if;
+    if v_cat not in ('Ginger', 'Ragdoll', 'Black', 'Siamese', 'British Shorthair', 'Garfield') then v_cat := 'Ginger'; end if;
     insert into public.profile_looks (user_id, cat, hat, face, outfit, ears, cheeks, neck)
     values (
         v_me,

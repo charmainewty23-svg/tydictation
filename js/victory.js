@@ -300,29 +300,41 @@
     }
 
     function effectEmojiRain(ctx, w, h, k, t, st) {
-        if (st.emojis.length < 60) {
-            for (let i = 0; i < 2; i++) {
-                st.emojis.push({
-                    x: Math.random() * w,
-                    y: -30 * k,
-                    vy: (90 + Math.random() * 150) * k,
-                    size: (20 + Math.random() * 22) * k,
-                    rot: Math.random() * 6.28,
-                    vr: (Math.random() - 0.5) * 3,
-                    e: EMOJIS[(Math.random() * EMOJIS.length) | 0]
-                });
-            }
+        // Scale against the short side so the drops stay big on a portrait
+        // phone (k alone gets tiny when the canvas is narrow). The drops also
+        // spawn across the whole stage and recycle, so a tall screen is not
+        // empty for the first few seconds.
+        const unit = Math.max(k, Math.min(w, h) / 460);
+        const target = 46;
+        while (st.emojis.length < target) {
+            st.emojis.push({
+                x: Math.random() * w,
+                y: Math.random() * h * 0.9 - 24 * unit,
+                vy: (130 + Math.random() * 170) * unit,
+                size: (26 + Math.random() * 20) * unit,
+                rot: Math.random() * 6.28,
+                vr: (Math.random() - 0.5) * 2.4,
+                e: EMOJIS[(Math.random() * EMOJIS.length) | 0]
+            });
         }
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        // Colour emoji ignore fillStyle in most browsers; this keeps any
+        // monochrome fallback visible instead of dark-on-dark.
+        ctx.fillStyle = '#ffffff';
         st.emojis.forEach(p => {
             p.y += p.vy * 0.016;
             p.rot += p.vr * 0.016;
+            if (p.y - p.size > h) {
+                p.y = -p.size - Math.random() * h * 0.2;
+                p.x = Math.random() * w;
+                p.e = EMOJIS[(Math.random() * EMOJIS.length) | 0];
+            }
             ctx.save();
             ctx.translate(p.x, p.y);
             ctx.rotate(p.rot);
-            ctx.font = Math.round(p.size) + 'px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+            ctx.font = Math.round(p.size) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
             ctx.fillText(p.e, 0, 0);
             ctx.restore();
         });

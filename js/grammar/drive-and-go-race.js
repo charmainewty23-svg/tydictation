@@ -4819,7 +4819,7 @@
 
         // tail (behind the body)
         ctx.lineCap = 'round';
-        ctx.strokeStyle = (l.cat === 'Ragdoll' || l.cat === 'Siamese') ? point : shade;
+        ctx.strokeStyle = DG.catHasPoints(l.cat) ? point : shade;
         ctx.lineWidth = 13 * S;
         ctx.beginPath();
         ctx.moveTo(24 * S, -22 * S);
@@ -4857,7 +4857,7 @@
         ctx.fill();
 
         // front paws
-        ctx.fillStyle = (l.cat === 'Ragdoll' || l.cat === 'Siamese') ? point : cream;
+        ctx.fillStyle = DG.catHasPoints(l.cat) ? point : cream;
         [-12, 12].forEach(dx => {
             ctx.beginPath();
             ctx.ellipse(dx * S, -4 * S, 9 * S, 5 * S, 0, 0, Math.PI * 2);
@@ -4867,14 +4867,17 @@
             ctx.stroke();
         });
 
-        // head
+        // head (British Shorthairs get a rounder, chubbier skull)
         const hx = 0, hy = -91 * S;
+        const roundHead = l.cat === 'British Shorthair';
+        const headRX = roundHead ? 35 : 33;
+        const headRY = roundHead ? 32.5 : 31;
         const headGrad = ctx.createRadialGradient(-10 * S, hy - 12 * S, 6 * S, 0, hy, 42 * S);
         headGrad.addColorStop(0, fur);
         headGrad.addColorStop(1, shade);
         ctx.fillStyle = headGrad;
         ctx.beginPath();
-        ctx.ellipse(hx, hy, 33 * S, 31 * S, 0, 0, Math.PI * 2);
+        ctx.ellipse(hx, hy, headRX * S, headRY * S, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // ears
@@ -4898,7 +4901,7 @@
         ear(-1); ear(1);
 
         // Ragdoll / Siamese colour-point mask
-        if (l.cat === 'Ragdoll' || l.cat === 'Siamese') {
+        if (DG.catHasPoints(l.cat)) {
             ctx.fillStyle = point;
             ctx.globalAlpha = 0.92;
             ctx.beginPath();
@@ -4918,10 +4921,23 @@
             ctx.fill();
         }
 
-        // tabby stripes (Ginger)
-        if (l.cat === 'Ginger') {
-            ctx.strokeStyle = 'rgba(150,80,30,.35)';
-            ctx.lineWidth = 3 * S;
+        // plush cheek tufts for the British Shorthair
+        if (roundHead) {
+            ctx.fillStyle = pal.light;
+            ctx.globalAlpha = 0.55;
+            [-22, 22].forEach(dx => {
+                ctx.beginPath();
+                ctx.ellipse(hx + dx * S, hy + 7 * S, 9 * S, 7 * S, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // tabby stripes (Ginger, Garfield)
+        if (DG.catHasStripes(l.cat)) {
+            const garfield = l.cat === 'Garfield';
+            ctx.strokeStyle = garfield ? 'rgba(140,70,10,.55)' : 'rgba(150,80,30,.35)';
+            ctx.lineWidth = (garfield ? 4 : 3) * S;
             ctx.lineCap = 'round';
             [-18, 0, 18].forEach((dx, i) => {
                 ctx.beginPath();
@@ -4935,6 +4951,15 @@
             ctx.moveTo(27 * S, -52 * S);
             ctx.quadraticCurveTo(20 * S, -44 * S, 25 * S, -36 * S);
             ctx.stroke();
+            if (garfield) {
+                // Body stripes so Garfield reads differently from Ginger.
+                [-16, 0, 16].forEach(dx => {
+                    ctx.beginPath();
+                    ctx.moveTo(dx * S - 5 * S, -62 * S);
+                    ctx.quadraticCurveTo(dx * S, -56 * S, dx * S + 1 * S, -49 * S);
+                    ctx.stroke();
+                });
+            }
         }
 
         // eyes
@@ -4964,6 +4989,22 @@
             ctx.arc(hx + dx * S - 2 * S, eyeY - 3 * S, 1.6 * S, 0, Math.PI * 2);
             ctx.fill();
         });
+
+        // Garfield's signature half-lidded eyes
+        if (l.cat === 'Garfield') {
+            ctx.fillStyle = fur;
+            [-13, 13].forEach(dx => {
+                ctx.beginPath();
+                ctx.ellipse(hx + dx * S, eyeY - 6 * S, 8.6 * S, 4.8 * S, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.strokeStyle = 'rgba(120,60,10,.5)';
+            ctx.lineWidth = 1.6 * S;
+            ctx.beginPath();
+            ctx.moveTo(hx - 21 * S, eyeY - 1.5 * S); ctx.lineTo(hx - 5 * S, eyeY - 1.5 * S);
+            ctx.moveTo(hx + 5 * S, eyeY - 1.5 * S); ctx.lineTo(hx + 21 * S, eyeY - 1.5 * S);
+            ctx.stroke();
+        }
 
         // nose + mouth
         ctx.fillStyle = '#e58fa2';
@@ -4998,7 +5039,7 @@
         ctx.strokeStyle = 'rgba(70,50,40,.22)';
         ctx.lineWidth = 1.4 * S;
         ctx.beginPath();
-        ctx.ellipse(hx, hy, 33 * S, 31 * S, 0, 0, Math.PI * 2);
+        ctx.ellipse(hx, hy, headRX * S, headRY * S, 0, 0, Math.PI * 2);
         ctx.stroke();
 
         // ----- accessories -----
@@ -5183,22 +5224,29 @@
         ctx.fill();
         ctx.strokeStyle = 'rgba(0,0,0,.16)';
         ctx.stroke();
-        if (l.cat === 'Ragdoll' || l.cat === 'Siamese') {
+        if (DG.catHasPoints(l.cat)) {
             ctx.fillStyle = pal.points;
             ctx.beginPath();
             ctx.ellipse(0, hy + 8 * s, 15 * s, 13 * s, 0, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        // Ginger stripes
-        if (l.cat === 'Ginger') {
-            ctx.strokeStyle = 'rgba(150,70,20,.45)';
-            ctx.lineWidth = 2.5 * s;
+        // Tabby stripes (Ginger / Garfield)
+        if (DG.catHasStripes(l.cat)) {
+            const garfield = l.cat === 'Garfield';
+            ctx.strokeStyle = garfield ? 'rgba(130,60,10,.6)' : 'rgba(150,70,20,.45)';
+            ctx.lineWidth = (garfield ? 3 : 2.5) * s;
             ctx.beginPath();
             ctx.moveTo(-7 * s, hy - 24 * s);
             ctx.lineTo(-3 * s, hy - 16 * s);
             ctx.moveTo(7 * s, hy - 24 * s);
             ctx.lineTo(3 * s, hy - 16 * s);
+            if (garfield) {
+                ctx.moveTo(-16 * s, hy - 20 * s);
+                ctx.lineTo(-12 * s, hy - 15 * s);
+                ctx.moveTo(16 * s, hy - 20 * s);
+                ctx.lineTo(12 * s, hy - 15 * s);
+            }
             ctx.stroke();
         }
 

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Ceremony on iPhone / iPad</title>
+<style>
+    html, body { margin: 0; height: 100%; background: #0b1220; }
+    body { color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; }
+    #bar {
+        flex: 0 0 auto; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+        padding: 10px; background: #1f2937;
+    }
+    #bar button {
+        min-height: 40px; border: 0; border-radius: 999px; padding: 0 16px;
+        background: #22c55e; color: #052e16; font: 800 13px system-ui, sans-serif; cursor: pointer;
+    }
+    #bar button.ghost { background: rgba(255,255,255,.14); color: #e5e7eb; }
+    #stage {
+        flex: 1 1 auto; min-height: 0; display: flex; gap: 22px;
+        align-items: flex-start; justify-content: center; padding: 14px; overflow: auto;
+    }
+    .device { flex: 0 0 auto; }
+    .device h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; text-align: center; }
+    .frame { position: relative; transform-origin: top center; }
+    .iphone { width: 390px; height: 844px; border-radius: 52px; padding: 12px; background: #111827; box-shadow: 0 0 0 2px #374151, 0 18px 40px rgba(0,0,0,.55); }
+    .ipad { width: 768px; height: 1024px; border-radius: 34px; padding: 16px; background: #111827; box-shadow: 0 0 0 2px #374151, 0 18px 40px rgba(0,0,0,.55); }
+    .frame iframe { width: 100%; height: 100%; border: 0; border-radius: 40px; background: #fff9f2; display: block; }
+    .ipad iframe { border-radius: 22px; }
+    @media (max-width: 1250px) { #stage { justify-content: flex-start; } }
+</style>
+</head>
+<body>
+<div id="bar">
+    <button type="button" id="play">▶ Play the ceremony on both</button>
+    <button type="button" class="ghost" id="reset">↺ Reset</button>
+</div>
+<div id="stage">
+    <div class="device">
+        <h2>iPhone · 390 × 844</h2>
+        <div class="frame iphone" data-w="390" data-h="844"><iframe src="/word-battle-end-demo.html" title="iPhone ceremony"></iframe></div>
+    </div>
+    <div class="device">
+        <h2>iPad · 768 × 1024</h2>
+        <div class="frame ipad" data-w="768" data-h="1024"><iframe src="/word-battle-end-demo.html" title="iPad ceremony"></iframe></div>
+    </div>
+</div>
+<script>
+(function () {
+    function fit() {
+        var availH = window.innerHeight - document.getElementById('bar').offsetHeight - 70;
+        var availW = (window.innerWidth - 70) / 2;
+        document.querySelectorAll('.frame').forEach(function (el) {
+            var w = Number(el.getAttribute('data-w'));
+            var h = Number(el.getAttribute('data-h'));
+            var k = Math.min(1, availH / h);
+            if (w > availW) k = Math.min(k, availW / w);
+            el.style.transform = 'scale(' + k.toFixed(3) + ')';
+            el.style.height = (h * k) + 'px';
+            el.style.marginBottom = (h * (k - 1)) + 'px';
+        });
+    }
+    function inner(id) {
+        var out = [];
+        document.querySelectorAll('.frame iframe').forEach(function (f) {
+            try {
+                var btn = f.contentWindow.document.getElementById(id);
+                if (btn) { btn.click(); out.push(1); }
+            } catch (e) {}
+        });
+        return out.length;
+    }
+    document.getElementById('play').addEventListener('click', function () {
+        inner('demo-finish');
+    });
+    document.getElementById('reset').addEventListener('click', function () {
+        document.querySelectorAll('.frame iframe').forEach(function (f) {
+            try { f.contentWindow.location.reload(); } catch (e) {}
+        });
+    });
+    window.addEventListener('resize', fit);
+    window.addEventListener('load', fit);
+    setTimeout(fit, 400);
+})();
+</script>
+</body>
+</html>

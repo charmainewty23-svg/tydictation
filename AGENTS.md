@@ -2397,6 +2397,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `supabase/class_battle_cheers.sql`（可重跑；未跑只會本地加數）。
     冠軍有 Victory effect 就喺冠軍卡彈出後 ~1.2 秒直接播，冇就保留三隻貓 podium。
     老師帳戶 preview 會用**老師自己隻貓**做示範。
+  - 手機／平板示範：`/ceremony-devices-demo.html`（iPhone 390×844 ＋
+    iPad 768×1024 兩個真 device frame，載入 `/word-battle-end-demo.html`，
+    撳 **▶ Play the ceremony on both** 兩邊一齊播）。
   - 示範：`/word-battle-end-demo.html`（假學生 `4C 07 Chan`；老師撳
     **Finish now** → 冠軍結果 → 頒獎禮 → 關閉後播 Victory effect）。
   - SQL：`supabase/store_victory.sql`（可重跑；未跑會提示）。**改動提示**：

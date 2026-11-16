@@ -2344,6 +2344,11 @@
                 else nvHide();
             }
             if (viewId === 'word-list-view') updateMascot("Here are the words for your revision.");
+            if (viewId === 'fluency-view') updateMascot("Fluency Master — let's get talking!");
+            if (viewId === 'fluency-revision-view') updateMascot("Revise the phrases, then pick a hot topic.");
+            if (viewId === 'fluency-phrases-view') updateMascot("Learn the phrases you can drop into any discussion.");
+            if (viewId === 'fluency-topics-view') updateMascot("Pick a hot topic and share your view.");
+            if (viewId === 'fluency-flap-view') updateMascot("Flip a card and speak for 30 seconds!");
             if (viewId === 'grammar-tense-list-view') { updateMascot("Pick a tense to revise!"); renderTenseGrid(); }
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
             if (viewId === 'profile-view') {

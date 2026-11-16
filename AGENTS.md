@@ -92,12 +92,17 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 ### Views（`changeView(viewId)` 切換，全部 `.view` 預設 hidden）
 | view id | 內容 |
 |---|---|
-| `hub-view` | Grammar／Dictation 兩張入口卡 |
+| `hub-view` | Grammar／Dictation 兩張入口卡＋Fluency Master／Word Jump／Word Battle 入口 |
 | `grammar-view` | Sentence Structures／Tenses 入口 |
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
 | `grammar-revision-view` | Tenses 2 卡：let's revise!／Drive & Go! |
 | `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
 | `grammar-detail-view` | 文法詳情（`#grammar-detail-content` 動態填；時態詳情同 Drive & Go! 開賽選單都用呢個） |
+| `fluency-view` | 🗣️ Fluency Master：Revision／Speak Flap 兩張卡（見下面） |
+| `fluency-revision-view` | Revision：Discussion Phrases／Hot Topics 兩張卡 |
+| `fluency-phrases-view` | Discussion Phrases 頁（內容待加：`#fluency-phrases-content`） |
+| `fluency-topics-view` | Hot Topics 頁（內容待加：`#fluency-topics-content`） |
+| `fluency-flap-view` | Speak Flap 頁（內容待加：`#fluency-flap-content`） |
 | `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、ACCEL、LEFT／CENTER／RIGHT） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
@@ -134,6 +139,21 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   計 `DG.trackCurve`／`DG.trackLateral`（左右彎）同 `DG.trackHill`（上落斜）；多人用 room seed，單人每次開局 random seed。
   `DG.drawTrack` 畫 curved segments，`DG.ensureScenery`／`DG.drawScenery` 放 world-Z 路邊景物（大廈／樹／燈柱／路牌／車）。
   答案門 `GATE_GAP = 420`、`START_GATE_DIST = 320`，下一個門最少喺 player 前面 300 units；唔好加返 `p.dist + 70`／`+ 100` fallback。
+
+### Fluency Master（2026-11，UI 骨架）
+- Hub 嘅 `#hub-fluency-entry`（🗣️、全闊一列）喺 Grammar／Dictation 兩張大卡下面、
+  Word Jump 之上，撳入 `fluency-view`。
+- 結構：
+  - `fluency-view`：`📚 Revision` → `fluency-revision-view`；`🃏 Speak Flap` → `fluency-flap-view`。
+  - `fluency-revision-view`：`💬 Discussion Phrases` → `fluency-phrases-view`；
+    `🔥 Hot Topics` → `fluency-topics-view`。
+  - 三個內容頁而家只有空盒（`.fluency-empty`「Content coming soon.」）。內容直接放入
+    `#fluency-phrases-content`／`#fluency-topics-content`／`#fluency-flap-content` 就出。
+- 顏色用 violet（`text-violet-600`／`border-violet-200`）。Back 掣：Revision 返 `fluency-view`，
+  三個內容頁返 `fluency-revision-view`（Speak Flap 返 `fluency-view`）。
+- `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
+  `changeView()` 已加 5 句 mascot 文案。
+- 實測 320／390／768：`overflowX = 0`、`nav-back` 44px、hub 卡全闊（320 時 272px、高 144px）。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，

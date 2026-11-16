@@ -3177,6 +3177,20 @@
             touch-action: none;
             overscroll-behavior: none;
         }
+
+        /* ---- Fluency Master ---- */
+        /* Empty shell shown until the Discussion Phrases / Hot Topics / Speak
+           Flap content is filled in. */
+        .fluency-empty {
+            background: #ffffff;
+            border: 3px dashed #ddd6fe;
+            border-radius: 1.5rem;
+            padding: 3rem 1.5rem;
+            text-align: center;
+            color: #6b7280;
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
     </style>
 </head>
 <body class="h-full">
@@ -3313,6 +3327,14 @@
                     <button class="btn-paw w-full mt-4">Open Dictation</button>
                 </div>
 
+                <div id="hub-fluency-entry" class="hub-card md:col-span-2" onclick="changeView('fluency-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#c4b5fd;">
+                    <div class="text-4xl">🗣️</div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-bold text-violet-600">Fluency Master</h2>
+                        <p class="text-gray-400 text-sm">Revision and Speak Flap — build phrases you can actually use.</p>
+                    </div>
+                </div>
+
                 <div id="hub-wordjump-entry" class="hub-card md:col-span-2" onclick="openWordJump('hub-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#6ee7b7;">
                     <div class="text-4xl">🦘</div>
                     <div class="flex-1">
@@ -3360,6 +3382,66 @@
                     <div class="text-4xl">📊</div>
                     <h2 class="text-xl font-bold text-orange-600">Admin Dashboard</h2>
                 </div>
+            </div>
+
+            <!-- Fluency Master -->
+            <div id="fluency-view" class="view hidden w-full">
+                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">🗣️ Fluency Master</h2>
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-revision-view')">
+                        <div class="text-5xl mb-4">📚</div>
+                        <div class="font-bold text-center leading-tight">Revision</div>
+                    </div>
+                    <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-flap-view')">
+                        <div class="text-5xl mb-4">🃏</div>
+                        <div class="font-bold text-center leading-tight">Speak Flap</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fluency ─ Revision -->
+            <div id="fluency-revision-view" class="view hidden w-full">
+                <button onclick="changeView('fluency-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Fluency Master
+                </button>
+                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">📚 Revision</h2>
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-phrases-view')">
+                        <div class="text-5xl mb-4">💬</div>
+                        <div class="font-bold text-center leading-tight">Discussion Phrases</div>
+                    </div>
+                    <div class="category-box shadow-sm border-violet-200" onclick="changeView('fluency-topics-view')">
+                        <div class="text-5xl mb-4">🔥</div>
+                        <div class="font-bold text-center leading-tight">Hot Topics</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fluency ─ Discussion Phrases (content to be added) -->
+            <div id="fluency-phrases-view" class="view hidden w-full">
+                <button onclick="changeView('fluency-revision-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Revision
+                </button>
+                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">💬 Discussion Phrases</h2>
+                <div id="fluency-phrases-content" class="fluency-empty">Content coming soon.</div>
+            </div>
+
+            <!-- Fluency ─ Hot Topics (content to be added) -->
+            <div id="fluency-topics-view" class="view hidden w-full">
+                <button onclick="changeView('fluency-revision-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Revision
+                </button>
+                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">🔥 Hot Topics</h2>
+                <div id="fluency-topics-content" class="fluency-empty">Content coming soon.</div>
+            </div>
+
+            <!-- Fluency ─ Speak Flap (content to be added) -->
+            <div id="fluency-flap-view" class="view hidden w-full">
+                <button onclick="changeView('fluency-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-violet-500 transition-colors text-xl font-bold">
+                    <span>←</span> Back to Fluency Master
+                </button>
+                <h2 class="text-3xl font-bold text-violet-600 mb-8 px-2">🃏 Speak Flap</h2>
+                <div id="fluency-flap-content" class="fluency-empty">Content coming soon.</div>
             </div>
 
             <!-- Grammar Views -->

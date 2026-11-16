@@ -680,6 +680,26 @@
         }, 1500);
 
         paint();
+
+        // Auto-scroll to the photo + cheers once the champion has been
+        // revealed and the victory effect (if any) is closed.
+        let scrolled = false;
+        const startedAt = Date.now();
+        const autoScroll = function () {
+            if (scrolled || !document.body.contains(wrap)) return;
+            const champ = overlay.querySelector('.battle-trophy-place.champion') ||
+                overlay.querySelector('[data-trophy-place="0"]');
+            const shown = champ && champ.classList.contains('show');
+            const effectOpen = !!document.getElementById('victory-stage');
+            if (shown && !effectOpen) {
+                scrolled = true;
+                try { wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+                return;
+            }
+            if (Date.now() - startedAt > 25000) return;
+            setTimeout(autoScroll, 500);
+        };
+        setTimeout(autoScroll, 900);
     };
 
     window.victoryPreview = function (id) { VICTORY.play(id, { preview: true, title: '✨ Preview' }); };

@@ -1456,7 +1456,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v75）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v76）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1546,8 +1546,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v75`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v76`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v76`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v77`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 20 個：`index.html`、manifest、4 個圖示、
   14 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2188,7 +2188,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v75。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v76。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2396,7 +2396,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     累加，`class_battle_cheers()` 每 1.5 秒 poll 總數。SQL：
     `supabase/class_battle_cheers.sql`（可重跑；未跑只會本地加數）。
     冠軍有 Victory effect 就喺冠軍卡彈出後 ~1.2 秒直接播，冇就保留三隻貓 podium。
-    老師帳戶 preview 會用**老師自己隻貓**做示範。
+    老師帳戶 preview 會用**老師自己隻貓**做示範。冠軍卡彈出、特效關閉後會
+    **自動 smooth scroll** 到合照／互動區（`ceremonyExtras` 內 `autoScroll`，最多等 25 秒）。
   - 手機／平板示範：`/ceremony-devices-demo.html`（iPhone 390×844 ＋
     iPad 768×1024 兩個真 device frame，載入 `/word-battle-end-demo.html`，
     撳 **▶ Play the ceremony on both** 兩邊一齊播）。

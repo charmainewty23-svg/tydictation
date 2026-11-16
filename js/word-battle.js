@@ -462,6 +462,7 @@
                 '<button type="button" class="battle-trophy-continue hidden" onclick="battleCloseTrophy()">Continue</button>' +
                 '</div>';
             document.body.appendChild(overlay);
+            document.body.classList.add('ceremony-on');
             if (typeof VICTORY !== 'undefined' && VICTORY.ceremonyExtras) {
                 VICTORY.ceremonyExtras(overlay, {
                     roomId: battleRoom && battleRoom.id,
@@ -529,6 +530,7 @@
             }
             const overlay = document.getElementById('battle-trophy-overlay');
             if (overlay) overlay.remove();
+            document.body.classList.remove('ceremony-on');
             if (!keepKey) {
                 // Closing the ceremony keeps the room key so a poll does not
                 // reopen it; a rematch has a new finished_at anyway.

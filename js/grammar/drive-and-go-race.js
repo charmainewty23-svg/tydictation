@@ -1412,6 +1412,7 @@
     DG.kartTrophyAudio = null;
 
     DG.closeKartTrophy = function () {
+        document.body.classList.remove('ceremony-on');
         (DG.kartTrophyTimers || []).forEach(id => clearTimeout(id));
         DG.kartTrophyTimers = [];
         if (DG.kartTrophyAudio) {
@@ -1483,6 +1484,7 @@
             '<button type="button" class="battle-trophy-continue hidden" onclick="DG.closeKartTrophy()">Continue</button>' +
             '</div>';
         document.body.appendChild(overlay);
+        document.body.classList.add('ceremony-on');
         if (typeof VICTORY !== 'undefined' && VICTORY.ceremonyExtras) {
             VICTORY.ceremonyExtras(overlay, {
                 roomId: room && room.id,

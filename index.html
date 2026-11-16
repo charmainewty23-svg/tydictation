@@ -1823,6 +1823,9 @@
             font-weight: 700;
             color: #6b7280;
         }
+        /* One podium at a time: the result panel behind the ceremony is
+           hidden while the trophy overlay is up. */
+        body.ceremony-on #battle-result-body { visibility: hidden; }
         /* Ceremony extras: class photo + cheers (inside the trophy card) */
         .victory-extras {
             margin-top: 14px;

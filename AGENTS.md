@@ -75,6 +75,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
+| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：45 秒／3 命、ASR 逐字 lift、75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -104,7 +105,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `fluency-revision-view` | Revision：Discussion Phrases／Hot Topics 兩張卡 |
 | `fluency-phrases-view` | Discussion Phrases：150 句庫入面第 1–50 句（見下面） |
 | `fluency-topics-view` | Hot Topics：第 51–150 句（見下面） |
-| `fluency-flap-view` | Speak Flap 頁（內容待加：`#fluency-flap-content`，`.fluency-empty`） |
+| `fluency-flap-view` | 🃏 Speak Flap 語音朗讀遊戲（`#fluency-flap-content`，見下面「Speak Flap」） |
 | `drive-and-go-view` | Drive & Go! 全螢幕賽道（`#dg-canvas`、HUD、道具槽、ACCEL、LEFT／CENTER／RIGHT） |
 | `home-view` | topic 格（Sheet 載入後填）＋ New Vocab ＋ Error Book |
 | `sub-category-view` | Listening／Recitation／Revision；New Vocab 時加字庫管理同「今日／全部」 |
@@ -151,8 +152,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
     `🔥 Hot Topics`（100 句）→ `fluency-topics-view`。
   - 兩個句庫頁由 `js/fluency.js` 的 `fluencyRender()` 填 `#fluency-phrases-content`／
     `#fluency-topics-content`；頁面本身只有標題、`.fl-lead`、`.fl-search` 同空 host。
-  - **Speak Flap 仍然係 `.fluency-empty`「Content coming soon.」**：未有內容，
-    唔好自己發明。
+  - Speak Flap 係完整語音遊戲（見下面「Speak Flap」），唔再係 placeholder。
 - 句庫資料：`FLUENCY_DATA.phrases.groups`（5 組 × 10 句，總 1–50）＋
   `FLUENCY_DATA.topics.groups`（6 組，總 51–150）。每句 `{n, en, zh}`，
   `n` 保留原檔 1–150 編號，**唔可以重新編號**。
@@ -186,6 +186,48 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
   🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
   768／1024 中文並排、膠囊同 🔊 均 44px。
+
+### Speak Flap（2026-11，語音朗讀遊戲已上線）
+
+- 入口：`fluency-view` 嘅 `🃏 Speak Flap` 卡 → `fluency-flap-view`。邏輯全部喺
+  `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
+  HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
+- 玩法：45 秒、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
+  每讀中一個字 `LIFT_PER_WORD 0.45`，停口 `LIFT_DECAY 0.55/s` 下沉。
+  閘門要求 75%（`READ_MIN_RATIO`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
+  頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 45 秒完局。
+- 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
+  全句 100% ＝ ×2。四級句庫係 150 句 Fluency 句按字數 quartile 分成 38／38／38／36。
+- Ghost Cat：本機最佳分數畫成天際線，跨過會出煙花。
+- 每週榜：星期一 00:00 HKT reset，每人每週只計**個人最佳**一行，Top 7。
+  Paws：每讀完一句 +3；首次入 Top 7 +8（已在榜內再加分不會重複，
+  要跌出再入才再計）；Most improved（今日平均 vs 過去 7 日）+40。
+- Practice（tap）模式**唔入榜、冇 Paws**，只係無咪時的練習 fallback；
+  畫面上會寫「Practice run · not ranked」。
+- 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
+  會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
+- 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／
+  result／duel 會顯示。`changeView` 會 call `FLAP.stop()` / `FLAP.mount()`。
+- 雲端 SQL（老師自己喺 Supabase SQL editor 跑，**唔好**用 plugin／agent 跑）：
+  1. `supabase/flap_runs.sql`：`flap_runs` 表、`flap_weekly_board`／
+     `flap_improved_today` view、`submit_flap_run(...)`、`settle_flap_week()`。
+  2. `supabase/flap_challenges.sql`：**喺 `flap_runs.sql` 之後**跑；1v1 非同步挑戰。
+  未跑 `flap_runs.sql` 時，本機 Ghost Cat 同練習照用，榜顯示
+  「Saved on this device only…」；未跑 `flap_challenges.sql` 時挑戰頁會提示。
+- 1v1 挑戰（`#flap-s-duel`）：由當前最佳／最近一場建立 6 位代碼，同學輸入代碼加入，
+  之後自己玩一場**語音 ranked** 跑；高分贏，同分比 phrases，再相同就係和局。挑戰沒有額外
+  Paws（只照常賺句子 Paws）。代碼 14 日有效、每人最多 3 個未完成挑戰。
+  Tap／practice 唔可以用嚟交挑戰；`startRun(true)` 會被擋並用 mascot 提示。
+  相關 RPC：`create_flap_challenge(p_score,p_phrases)`、
+  `accept_flap_challenge(p_code)`、`finish_flap_challenge(p_id,p_score,p_phrases)`、
+  `flap_challenges_list()`、`cancel_flap_challenge(p_id)`。列表只回傳自己參與的
+  挑戰，冇 email；`flap_challenges` 表冇 client RLS policy，全部經 RPC。
+- 測試幫手：`window.FLAP` 有 `mount`／`stop`／`show`／`renderResult`／`state`／
+  `duelState()`／`loadChallenges()`。測試用 `FLAP.state.ready = 0; FLAP.state.elapsed = 44.99;`
+  強制完局。Canvas 截圖在本機 browser 會空白（正常），用 `toDataURL()` 檢查。
+- 實測：320／375／390／480／768／844 `overflowX = 0`，所有 duel／result 掣 ≥44px；
+  挑戰 create→accept→play→finish、guest 隱藏、tap 拒絕、result challenge 卡
+  全部用 stub RPC 驗過。
 
 ### Mascot
 - `#mascot-text`（speech bubble）＋ SVG 貓；`updateMascot(text)` 改字，
@@ -1614,7 +1656,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；校服／運動／水手／芭蕾 8 件 Neck & Outfit 就跑 `store_items_school_sets.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；校服／運動／水手／芭蕾 8 件 Neck & Outfit 就跑 `store_items_school_sets.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。Speak Flap 每週榜／Paws 就跑 `flap_runs.sql`，再跑 `flap_challenges.sql`（1v1 挑戰，喺 `flap_runs.sql` 之後，可重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）

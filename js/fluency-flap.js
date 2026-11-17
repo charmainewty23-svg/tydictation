@@ -13,7 +13,7 @@
     'use strict';
 
     const el = (id) => document.getElementById('flap-' + id);
-    const SCREENS = ['lobby', 'rules', 'mic', 'play', 'result', 'board'];
+    const SCREENS = ['lobby', 'rules', 'mic', 'play', 'result', 'board', 'duel'];
 
     const W = 400, H = 600, GROUND = 64, BIRD_X = 96, BIRD_R = 13;
     const RUN_SECONDS = 45;
@@ -263,6 +263,18 @@
         best: 0,
         bestStreakEver: 0,
         cloud: { status: 'unknown', rows: [], week: '', improved: [], error: '', submitted: false, rank: 0 },
+        duel: {
+            status: 'unknown',
+            loading: false,
+            list: [],
+            created: null,
+            active: null,
+            playing: false,
+            settling: false,
+            result: null,
+            error: ''
+        },
+        lastPhrases: 0,
         resultCatRaf: 0,
         resultCatT: 0,
         toastTimer: 0,
@@ -275,9 +287,9 @@
 
     function show(name) {
         if (SCREENS.indexOf(name) === -1) name = 'lobby';
-        if (name === 'board' && isGuestMode()) {
+        if ((name === 'board' || name === 'duel') && isGuestMode()) {
             name = 'lobby';
-            if (typeof updateMascot === 'function') updateMascot('Leaderboards are hidden in guest mode.');
+            if (typeof updateMascot === 'function') updateMascot('Leaderboards and challenges are hidden in guest mode.');
         }
         current = name;
         SCREENS.forEach((n) => {
@@ -294,8 +306,13 @@
             renderBoard();
             refreshCloud();
         }
+        if (name === 'duel') {
+            renderDuel();
+            loadChallenges();
+        }
         if (name === 'result') startResultCat(); else stopResultCat();
         if (name === 'lobby') renderLobby();
+        if (name === 'mic') renderMicDuel();
         const view = document.getElementById('fluency-flap-view');
         if (view) view.classList.toggle('flap-playing', name === 'play');
         window.navFlapPlaying = name === 'play';
@@ -526,9 +543,16 @@
 
     /* ---------------- run ---------------- */
     function startRun(tapMode) {
+        if (FLAP.duel.playing && FLAP.duel.active && (tapMode === true || !FLAP.stream)) {
+            if (typeof updateMascot === 'function') {
+                updateMascot('A challenge run must be your voice — allow the mic and read out loud.');
+            }
+            return;
+        }
         const useTap = tapMode === true || !FLAP.stream;
         show('play');
         closeMic();
+        FLAP.duel.result = null;
         FLAP.tap = useTap;
         FLAP.ranked = !useTap;
         FLAP.started = true;
@@ -654,6 +678,7 @@
     }
 
     function quitRun() {
+        FLAP.duel.playing = false;
         stopRun();
         show('lobby');
     }
@@ -1008,12 +1033,14 @@
             FLAP.paws = FLAP.gatesPassed * PAWS_PER_PHRASE;
         }
         FLAP.lastScore = FLAP.score;
+        FLAP.lastPhrases = FLAP.gatesPassed;
         if (FLAP.ranked) {
             const isBest = writeBest(FLAP.score);
             FLAP.best = Math.max(readBest(), FLAP.score);
             if (isBest) FLAP.newBest = true;
             pushRun(FLAP.score);
             submitRun();
+            if (FLAP.duel.playing) settleChallenge();
         }
         renderResult();
         show('result');
@@ -1661,6 +1688,7 @@
         const guest = isGuestMode();
         if (el('r-board-card')) el('r-board-card').style.display = guest ? 'none' : '';
         if (el('r-board')) el('r-board').style.display = guest ? 'none' : '';
+        if (el('r-duel')) el('r-duel').style.display = guest ? 'none' : '';
         if (el('r-coach')) el('r-coach').style.display = ranked ? '' : 'none';
 
         if (!ranked) {
@@ -1738,6 +1766,7 @@
             }
             renderBoard();
         }
+        renderResultDuel();
         startResultCat();
     }
 
@@ -1800,6 +1829,398 @@
                 el('b-improve-me').textContent = 'One personal best per student each week · resets Monday 00:00 HKT.';
             }
         }
+    }
+
+    /* ---------------- 1v1 challenge ---------------- */
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    function duelError(err) {
+        const m = (err && err.message) ? err.message : String(err);
+        if (/TOO_MANY_CHALLENGES/.test(m)) return 'You already have 3 open challenges. Finish or cancel one first.';
+        if (/CHALLENGE_NOT_FOUND/.test(m)) return 'No challenge with that code. Check the letters and try again.';
+        if (/OWN_CHALLENGE/.test(m)) return 'That is your own code — send it to a classmate instead.';
+        if (/CHALLENGE_TAKEN/.test(m)) return 'Someone already joined that challenge.';
+        if (/CHALLENGE_EXPIRED/.test(m)) return 'That challenge has expired.';
+        if (/CHALLENGE_CANCELLED/.test(m)) return 'That challenge was cancelled.';
+        if (/NOT_AUTHENTICATED/.test(m)) return 'Sign in with a school account to use challenges.';
+        return 'Challenge error: ' + m;
+    }
+
+    function challengeScore() {
+        const best = Math.max(0, Number(readBest()) || 0);
+        const last = Math.max(0, Number(FLAP.lastScore) || 0);
+        if (last > 0 && last >= best) {
+            return { score: last, phrases: Math.max(0, Number(FLAP.lastPhrases) || 0) };
+        }
+        return { score: best, phrases: 0 };
+    }
+
+    function duelRow(id) {
+        return (FLAP.duel.list || []).find((r) => String(r.id) === String(id)) || null;
+    }
+
+    async function loadChallenges() {
+        if (!canUseCloudBoard()) {
+            FLAP.duel.status = 'signed-out';
+            if (current === 'duel') renderDuel(); else renderLobby();
+            return;
+        }
+        if (FLAP.duel.loading) return;
+        FLAP.duel.loading = true;
+        try {
+            const res = await sb.rpc('flap_challenges_list');
+            if (res.error) throw res.error;
+            FLAP.duel.status = 'ready';
+            FLAP.duel.list = res.data || [];
+            FLAP.duel.error = '';
+        } catch (err) {
+            FLAP.duel.status = 'missing';
+            FLAP.duel.list = [];
+            FLAP.duel.error = (err && err.message) ? err.message : String(err);
+        }
+        FLAP.duel.loading = false;
+        if (current === 'duel') renderDuel(); else renderLobby();
+    }
+
+    function renderDuel() {
+        if (!el('d-list')) return;
+        const guest = isGuestMode();
+        const ready = canUseCloudBoard();
+        const usable = ready && !guest && FLAP.duel.status === 'ready';
+
+        const note = el('d-note');
+        if (note) {
+            let html = '';
+            if (guest) {
+                html = '🔒 Leaderboards and 1v1 challenges are hidden in guest mode. Sign in with a school account to play.';
+            } else if (!ready) {
+                html = '⚔️ Challenges need a school account. Teacher preview and guest mode cannot send or join one.';
+            } else if (FLAP.duel.status === 'missing') {
+                html = '⚔️ The challenge table is not set up yet — ask your teacher to run supabase/flap_challenges.sql.';
+            } else if (FLAP.duel.status === 'unknown') {
+                html = '⚔️ Loading your challenges…';
+            }
+            note.style.display = html ? '' : 'none';
+            note.innerHTML = html;
+        }
+
+        if (el('d-create-card')) el('d-create-card').style.display = usable ? '' : 'none';
+        if (el('d-accept-card')) el('d-accept-card').style.display = usable ? '' : 'none';
+
+        const score = challengeScore();
+        if (el('d-send-score')) {
+            el('d-send-score').textContent = score.score > 0
+                ? fmt(score.score) + ' pts'
+                : 'No ranked score yet — play a voice run first';
+        }
+        if (el('d-create')) {
+            const off = score.score <= 0;
+            el('d-create').disabled = off;
+            el('d-create').style.opacity = off ? '0.55' : '';
+        }
+
+        if (el('d-created')) {
+            if (FLAP.duel.created) {
+                el('d-created').style.display = '';
+                if (el('d-created-code')) el('d-created-code').textContent = FLAP.duel.created.code;
+            } else {
+                el('d-created').style.display = 'none';
+            }
+        }
+
+        const ch = FLAP.duel.active;
+        if (el('d-active-card')) el('d-active-card').style.display = (usable && ch) ? '' : 'none';
+        if (ch && el('d-active-body')) {
+            el('d-active-body').innerHTML = '<div class="flap-drow">'
+                + '<div class="ico">⚔️</div>'
+                + '<div class="body"><div class="name">' + esc(ch.rival || 'Classmate') + '</div>'
+                + '<div class="meta">Beat ' + fmt(ch.target_score) + ' pts · code ' + esc(ch.code) + '</div></div>'
+                + '<span class="tag open">Your turn</span></div>';
+        }
+
+        if (el('d-accept-note')) {
+            el('d-accept-note').textContent = FLAP.duel.error || '';
+            el('d-accept-note').style.color = FLAP.duel.error ? '#b91c1c' : '';
+        }
+
+        renderDuelList(usable);
+    }
+
+    function renderDuelList(usable) {
+        const host = el('d-list');
+        if (!host) return;
+        const rows = FLAP.duel.list || [];
+        if (!usable) {
+            host.innerHTML = '<div class="flap-empty-row">'
+                + (isGuestMode() ? 'Challenges are hidden in guest mode.'
+                    : FLAP.duel.status === 'missing' ? 'Setup needed before challenges can appear.'
+                        : 'Loading your challenges…') + '</div>';
+            return;
+        }
+        if (!rows.length) {
+            host.innerHTML = '<div class="flap-empty-row">No challenges yet — create one and share the code.</div>';
+            return;
+        }
+        const meId = (typeof currentUser !== 'undefined' && currentUser && currentUser.id) ? currentUser.id : '';
+        host.innerHTML = rows.map((r) => {
+            const mine = r.role === 'sent';
+            const name = r.rival_name || (mine ? 'Waiting for a classmate' : 'A classmate');
+            const tag = String(r.status || '');
+            let icon = mine ? '📤' : '📥';
+            let meta = '';
+            let tagHtml = '';
+            let action = '';
+
+            if (tag === 'finished') {
+                const win = r.winner && meId && r.winner === meId;
+                const tie = !r.winner;
+                icon = win ? '🏆' : tie ? '🤝' : '😼';
+                meta = fmt(r.my_score) + ' – ' + fmt(r.their_score) + ' pts';
+                tagHtml = '<span class="tag ' + (win ? 'win' : tie ? '' : 'lose') + '">'
+                    + (win ? 'Won' : tie ? 'Tie' : 'Lost') + '</span>';
+            } else if (tag === 'open') {
+                meta = mine
+                    ? 'Waiting · target ' + fmt(r.my_score) + ' pts · code ' + esc(r.code)
+                    : 'Code ' + esc(r.code);
+                tagHtml = '<span class="tag open">Open</span>';
+                if (mine) {
+                    action = '<button type="button" class="go ghost" data-duel-cancel="' + esc(r.id) + '">Cancel</button>';
+                }
+            } else if (tag === 'accepted') {
+                if (!mine) {
+                    meta = 'Beat ' + fmt(r.their_score) + ' pts';
+                    tagHtml = '<span class="tag open">Your turn</span>';
+                    action = '<button type="button" class="go" data-duel-play="' + esc(r.id) + '">Play</button>';
+                } else {
+                    meta = 'They joined — waiting for their run';
+                    tagHtml = '<span class="tag open">Waiting</span>';
+                }
+            } else if (tag === 'expired') {
+                icon = '💤';
+                meta = 'Expired after 14 days';
+                tagHtml = '<span class="tag">Expired</span>';
+            } else {
+                icon = '🚫';
+                meta = 'Cancelled';
+                tagHtml = '<span class="tag">Cancelled</span>';
+            }
+
+            return '<div class="flap-drow">'
+                + '<div class="ico">' + icon + '</div>'
+                + '<div class="body"><div class="name">' + esc(name) + '</div>'
+                + '<div class="meta">' + meta + '</div></div>'
+                + tagHtml + action + '</div>';
+        }).join('');
+    }
+
+    function renderMicDuel() {
+        const card = el('mic-duel');
+        if (!card) return;
+        const ch = FLAP.duel.active;
+        if (FLAP.duel.playing && ch) {
+            card.style.display = '';
+            if (el('mic-duel-title')) {
+                el('mic-duel-title').textContent = '⚔️ Challenge vs ' + (ch.rival || 'a classmate');
+            }
+            if (el('mic-duel-body')) {
+                el('mic-duel-body').textContent = 'Beat ' + fmt(ch.target_score)
+                    + ' pts. This ranked run also counts on the weekly board. Tap mode is disabled for challenges.';
+            }
+        } else {
+            card.style.display = 'none';
+        }
+    }
+
+    function renderResultDuel() {
+        const card = el('r-duel-card');
+        if (!card) return;
+        const d = FLAP.duel.result;
+        if (!d) {
+            card.style.display = 'none';
+            if (el('r-duel')) el('r-duel').style.display = isGuestMode() ? 'none' : '';
+            return;
+        }
+        const win = d.result === 'win';
+        const tie = d.result === 'tie';
+        const head = win ? '🏆 You won the challenge!' : tie ? '🤝 Dead heat — a tie!' : '😼 You lost this one';
+        card.style.display = '';
+        if (el('r-duel')) el('r-duel').style.display = isGuestMode() ? 'none' : '';
+        if (el('r-duel-body')) {
+            el('r-duel-body').innerHTML = '<div style="font-weight:800;font-size:15px;margin-bottom:6px">' + head + '</div>'
+                + '<div class="flap-statrow"><span class="k">You</span><span class="v">' + fmt(d.my_score) + ' pts</span></div>'
+                + '<div class="flap-statrow"><span class="k">' + esc(d.their_name || 'Classmate') + '</span>'
+                + '<span class="v">' + fmt(d.their_score) + ' pts</span></div>'
+                + '<div class="flap-tiny" style="margin-top:6px">Code ' + esc(d.code || '') + ' · challenge runs pay only the normal phrase Paws.</div>';
+        }
+    }
+
+    async function createChallenge() {
+        if (!canUseCloudBoard()) return;
+        const score = challengeScore();
+        if (score.score <= 0) {
+            FLAP.duel.error = 'Play a ranked voice run first so you have a score to challenge with.';
+            renderDuel();
+            return;
+        }
+        if (el('d-create')) el('d-create').disabled = true;
+        try {
+            const res = await sb.rpc('create_flap_challenge', {
+                p_score: score.score,
+                p_phrases: score.phrases
+            });
+            if (res.error) throw res.error;
+            const out = res.data || {};
+            FLAP.duel.created = {
+                id: out.id,
+                code: out.code,
+                score: Number(out.score) || score.score
+            };
+            FLAP.duel.error = '';
+            if (typeof updateMascot === 'function') {
+                updateMascot('Challenge ready — share code ' + out.code + '.');
+            }
+            renderDuel();
+            loadChallenges();
+        } catch (err) {
+            FLAP.duel.error = duelError(err);
+            renderDuel();
+        }
+        if (el('d-create')) el('d-create').disabled = false;
+    }
+
+    async function copyCreatedCode() {
+        const c = FLAP.duel.created;
+        if (!c) return;
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(c.code);
+            ok = true;
+        } catch (e) { ok = false; }
+        if (ok) {
+            FLAP.duel.error = '';
+            if (typeof updateMascot === 'function') updateMascot('Code ' + c.code + ' copied.');
+        } else {
+            FLAP.duel.error = 'Copy failed — read the code out: ' + c.code;
+        }
+        renderDuel();
+    }
+
+    async function acceptChallenge() {
+        if (!canUseCloudBoard()) return;
+        const input = el('d-code-input');
+        const code = String((input && input.value) || '').trim().toUpperCase();
+        if (code.length !== 6) {
+            FLAP.duel.error = 'Enter the 6-character code.';
+            renderDuel();
+            return;
+        }
+        if (el('d-accept')) el('d-accept').disabled = true;
+        try {
+            const res = await sb.rpc('accept_flap_challenge', { p_code: code });
+            if (res.error) throw res.error;
+            const out = res.data || {};
+            if (out.status === 'finished') {
+                FLAP.duel.error = 'That challenge is already finished — check My challenges for the result.';
+                renderDuel();
+                if (el('d-accept')) el('d-accept').disabled = false;
+                return;
+            }
+            FLAP.duel.active = {
+                id: out.id,
+                code: out.code || code,
+                rival: out.rival || 'Classmate',
+                target_score: Number(out.target_score) || 0
+            };
+            FLAP.duel.playing = false;
+            FLAP.duel.result = null;
+            FLAP.duel.error = '';
+            if (input) input.value = '';
+            if (typeof updateMascot === 'function') {
+                updateMascot('Challenge joined — beat ' + fmt(out.target_score) + ' pts.');
+            }
+            renderDuel();
+            loadChallenges();
+        } catch (err) {
+            FLAP.duel.error = duelError(err);
+            renderDuel();
+        }
+        if (el('d-accept')) el('d-accept').disabled = false;
+    }
+
+    function beginChallenge(row) {
+        if (!row) return;
+        FLAP.duel.active = {
+            id: row.id,
+            code: row.code,
+            rival: row.rival_name || 'Classmate',
+            target_score: Number(row.their_score) || 0
+        };
+        FLAP.duel.result = null;
+        FLAP.duel.error = '';
+        FLAP.duel.playing = true;
+        renderDuel();
+        show('mic');
+    }
+
+    function playActiveChallenge() {
+        if (!FLAP.duel.active) return;
+        FLAP.duel.playing = true;
+        show('mic');
+    }
+
+    async function cancelChallenge(id) {
+        if (!canUseCloudBoard() || !id) return;
+        try {
+            const res = await sb.rpc('cancel_flap_challenge', { p_id: Number(id) });
+            if (res.error) throw res.error;
+            if (FLAP.duel.active && String(FLAP.duel.active.id) === String(id)) FLAP.duel.active = null;
+            if (FLAP.duel.created && String(FLAP.duel.created.id) === String(id)) FLAP.duel.created = null;
+            FLAP.duel.error = '';
+        } catch (err) {
+            FLAP.duel.error = duelError(err);
+        }
+        renderDuel();
+        loadChallenges();
+    }
+
+    async function settleChallenge() {
+        const ch = FLAP.duel.active;
+        if (!ch || !FLAP.duel.playing || FLAP.duel.settling) return;
+        FLAP.duel.settling = true;
+        try {
+            const res = await sb.rpc('finish_flap_challenge', {
+                p_id: Number(ch.id),
+                p_score: Math.max(0, Math.round(FLAP.score)),
+                p_phrases: Math.max(0, FLAP.gatesPassed)
+            });
+            if (res.error) throw res.error;
+            const out = res.data || {};
+            FLAP.duel.result = {
+                result: out.result || 'tie',
+                my_score: Number(out.my_score) || 0,
+                their_score: Number(out.their_score) || 0,
+                their_name: out.their_name || ch.rival || 'Classmate',
+                code: ch.code
+            };
+            FLAP.duel.active = null;
+            FLAP.duel.error = '';
+            if (typeof updateMascot === 'function') {
+                const r = FLAP.duel.result.result;
+                updateMascot(r === 'win' ? 'You won the challenge! ⚔️'
+                    : r === 'tie' ? 'Dead heat — it is a tie!'
+                        : 'So close — challenge them again!');
+            }
+        } catch (err) {
+            FLAP.duel.error = duelError(err);
+        }
+        FLAP.duel.settling = false;
+        FLAP.duel.playing = false;
+        if (current === 'result') renderResult();
+        loadChallenges();
     }
 
     /* ---------------- result cat ---------------- */
@@ -2019,6 +2440,13 @@
                 : '👻 No Ghost Cat yet — your first run sets the line.';
         }
         if (el('to-board')) el('to-board').style.display = guest ? 'none' : '';
+        if (el('lobby-duel')) {
+            el('lobby-duel').style.display = guest ? 'none' : '';
+            const pending = (FLAP.duel.list || []).filter((r) => r.role === 'received' && r.status === 'accepted').length;
+            el('lobby-duel').textContent = pending
+                ? '⚔️ Challenge · ' + pending + ' to play'
+                : '⚔️ Challenge a friend';
+        }
         if (el('l-status')) {
             const st = FLAP.cloud.status;
             if (guest) {
@@ -2084,6 +2512,7 @@
         renderLobby();
         show('lobby');
         refreshCloud();
+        loadChallenges();
         /* Lazy weekly settlement: safe to call every time, idempotent in SQL. */
         if (canUseCloudBoard()) {
             try { sb.rpc('settle_flap_week'); } catch (e) { /* ignore */ }
@@ -2095,6 +2524,7 @@
         stopResultCat();
         closeMic();
         FLAP.paused = false;
+        FLAP.duel.playing = false;
         window.navFlapPlaying = false;
         const view = document.getElementById('fluency-flap-view');
         if (view) view.classList.remove('flap-playing');
@@ -2130,7 +2560,40 @@
         on('resume', resumeRun);
         on('r-again', () => startRun(FLAP.tap));
         on('r-board', () => show('board'));
+        on('r-duel', () => show('duel'));
         on('r-lobby', () => show('lobby'));
+        on('lobby-duel', () => show('duel'));
+        on('d-back', () => show('lobby'));
+        on('d-create', createChallenge);
+        on('d-accept', acceptChallenge);
+        on('d-play', playActiveChallenge);
+        on('d-drop', () => cancelChallenge(FLAP.duel.active && FLAP.duel.active.id));
+        on('d-copy', copyCreatedCode);
+        on('d-refresh', loadChallenges);
+
+        const codeInput = el('d-code-input');
+        if (codeInput) {
+            codeInput.addEventListener('input', () => {
+                codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+            });
+            codeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    acceptChallenge();
+                }
+            });
+        }
+
+        const dlist = el('d-list');
+        if (dlist) {
+            dlist.addEventListener('click', (e) => {
+                const t = e.target;
+                const play = t.closest ? t.closest('[data-duel-play]') : null;
+                if (play) { beginChallenge(duelRow(play.getAttribute('data-duel-play'))); return; }
+                const cancel = t.closest ? t.closest('[data-duel-cancel]') : null;
+                if (cancel) { cancelChallenge(cancel.getAttribute('data-duel-cancel')); return; }
+            });
+        }
     }
 
     /* The view markup exists before this script runs, so wiring can happen
@@ -2150,6 +2613,8 @@
         buildPools,
         pools: () => (POOLS || buildPools()).map((p) => p.length),
         weekStartKey,
-        canUseCloudBoard
+        canUseCloudBoard,
+        duelState: () => FLAP.duel,
+        loadChallenges
     };
 })();

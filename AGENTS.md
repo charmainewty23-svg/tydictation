@@ -196,7 +196,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   （Speak Flap 返 `fluency-view`）。
 - `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
   `changeView()` 已加 5 句 mascot 文案，並在 phrases／topics 頁 call `fluencyRender()`。
-- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v94）。
+- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v95）。
 - 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
   🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
   768／1024 中文並排、膠囊同 🔊 均 44px。
@@ -661,6 +661,21 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
 訪客可以睇同用 **Dictation Master 入面全部內容**：Google Sheet 各個 topic、New Vocab（當 Unassigned，可睇全部年級新增生字）、Listening／Recitation／Revision，同埋呢次 session 嘅 Error Book。亦可以玩 Word Jump 練習（Hub 有獨立入口，Word Battle 頁頂部都有）。Grammar Quest 照用。Word Battle 房間（開房／加入）要學校 Google 帳戶；訪客喺 Word Battle 頁只可以撳入 Word Jump。
 
 訪客**唔可以**睇任何排行榜／其他人成績：Hub 嘅 Leaderboard、My Records、老師 dashboard 入口會隱藏，`changeView` 亦會擋住 `leaderboard-view`、`admin-view`、`my-records-view`。Word Jump game-over 唔顯示 Top 7，亦唔畫同學高度線、唔上傳分數。呢個密碼寫喺前端靜態檔，睇到網頁原始碼就睇到；只係課堂用嘅簡易閘，唔係真正帳號系統。
+
+#### Allowlisted test accounts（2026-11 加）
+
+- `js/shared.js` 有 `ALLOWED_EXTRA_EMAILS`，而家係
+  `lokmingyuen@gmail.com`、`t44@wbss.edu.hk`。`isAllowedLoginEmail(email)`
+  會接受 `@lstyoungkhl.edu.hk` **或**呢個清單入面嘅 email（大小楷唔計）。
+- Google OAuth **唔再送 `hd`**（`queryParams` 只有 `prompt: 'select_account'`），
+  所以呢兩個 domain 嘅 Google 帳戶都揀得到；真正嘅閘係
+  `isAllowedLoginEmail()`，其他 email 一樣會被 signOut。
+- 呢兩個帳戶要**自己用 Google 登入一次**，Supabase 才會建立 auth user，
+  `record_login()` 亦會寫 `student_logins`。因為 Google 顯示名開頭冇班別代號
+  （例如 `4C`），所以會歸入 **Unassigned**。如果佢哋嘅 Google 名有班別代號，
+  就會自動歸去該級；要強制 Unassigned 就改 Google 顯示名或老師下拉設「—」。
+- 加／減 test account 只改 `ALLOWED_EXTRA_EMAILS`；**唔好**把 `gmail.com`
+  整個 domain 加入 allowlist。
 
 #### 訪客追蹤（`supabase/guest_tracking.sql`，2026-11 加）
 
@@ -1815,7 +1830,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v94）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v95）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1905,8 +1920,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v94`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v95`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v95`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v96`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 25 個：`index.html`、manifest、4 個圖示、
   18 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2547,7 +2562,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v94。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v95。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

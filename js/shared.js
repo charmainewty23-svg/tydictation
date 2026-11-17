@@ -14,6 +14,21 @@
         const ERROR_BOOK = 'Error Book';
         const SCHOOL_DOMAIN = "@lstyoungkhl.edu.hk";
         const ADMIN_EMAIL = "tywong@lstyoungkhl.edu.hk";
+        // Extra approved Google accounts for testing. Keep this list short;
+        // everyone else must use the school domain. These accounts still
+        // appear as Unassigned unless their Google display name starts with
+        // a class code such as 4C.
+        const ALLOWED_EXTRA_EMAILS = [
+            "lokmingyuen@gmail.com",
+            "t44@wbss.edu.hk"
+        ];
+
+        function isAllowedLoginEmail(email) {
+            const value = String(email || "").trim().toLowerCase();
+            if (!value) return false;
+            if (value.endsWith(SCHOOL_DOMAIN)) return true;
+            return ALLOWED_EXTRA_EMAILS.indexOf(value) !== -1;
+        }
 
         // Supabase init
         const sb = window.supabase.createClient(
@@ -1397,7 +1412,9 @@
                 provider: "google",
                 options: {
                     redirectTo: window.location.origin,
-                    queryParams: { hd: "lstyoungkhl.edu.hk" }
+                    // No hd hint: the allowlisted test accounts are outside
+                    // the school domain. isAllowedLoginEmail() is the real gate.
+                    queryParams: { prompt: "select_account" }
                 }
             });
         }
@@ -1972,7 +1989,7 @@
         function registerAuthListener() {
             sb.auth.onAuthStateChange(async (_event, session) => {
                 const email = session?.user?.email ?? "";
-                if (session && !email.endsWith(SCHOOL_DOMAIN)) {
+                if (session && !isAllowedLoginEmail(email)) {
                     await sb.auth.signOut();
                     document.getElementById('login-mascot-text').innerText = "Please use your school account to login (" + SCHOOL_DOMAIN + ")";
                     currentUser = null;

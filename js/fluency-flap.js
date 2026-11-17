@@ -18,7 +18,7 @@
     const W = 400;
     let H = 600;
     const GROUND = 64, BIRD_X = 96, BIRD_R = 13;
-    const RUN_SECONDS = 90;
+    const RUN_SECONDS = 120;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
     const LIFT_PER_WORD = 0.75;
@@ -39,9 +39,9 @@
        strong reader reaches the long opinion sentences faster. */
     const LEVELS = [
         { gates: 0, name: 'Level 1 · Warm-up', gap: 250, pts: 20, color: 0 },
-        { gates: 3, name: 'Level 2 · Discussion', gap: 230, pts: 40, color: 1 },
-        { gates: 6, name: 'Level 3 · Hot Topics', gap: 210, pts: 70, color: 2 },
-        { gates: 9, name: 'Level 4 · Deep talk', gap: 190, pts: 100, color: 3 }
+        { gates: 3, name: 'Level 2 · Discussion', gap: 250, pts: 40, color: 1 },
+        { gates: 6, name: 'Level 3 · Hot Topics', gap: 250, pts: 70, color: 2 },
+        { gates: 9, name: 'Level 4 · Deep talk', gap: 250, pts: 100, color: 3 }
     ];
 
     /* 398px is how far a gate travels while it is the phrase being read.
@@ -724,6 +724,7 @@
             if (at >= 0) {
                 g.tokens[g.readIdx].read = true;
                 g.tokens[g.readIdx].wrong = false;
+                g.tokens[g.readIdx].near = false;
                 g.readIdx += 1;
                 g.readCount += 1;
                 FLAP.heard.splice(0, at + 1);
@@ -752,6 +753,10 @@
                 g.readIdx += 3;
                 continue;
             }
+            /* Something was heard but it did not match this word: mark it
+               orange (read but not accurate). Red is reserved for a wrong
+               read after the gate fails. */
+            if (FLAP.heard.length && g.tokens[g.readIdx]) g.tokens[g.readIdx].near = true;
             break;
         }
     }
@@ -760,13 +765,14 @@
         const g = activeReadGate();
         const host = el('wchips');
         if (!g || !host) return;
-        const sig = g.tokens.map((t) => (t.read ? '1' : t.skipped ? 'x' : '0')).join('') + g.readIdx;
+        const sig = g.tokens.map((t) => (t.read ? '1' : t.wrong ? 'w' : (t.near || t.skipped) ? 'n' : '0')).join('') + g.readIdx;
         if (sig === FLAP.chipSig) return;
         FLAP.chipSig = sig;
         host.innerHTML = g.tokens.map((t, i) => {
             const cls = t.read ? 'flap-wchip done'
-                : (t.wrong || t.skipped) ? 'flap-wchip miss'
-                    : (i === g.readIdx ? 'flap-wchip now' : 'flap-wchip');
+                : t.wrong ? 'flap-wchip miss'
+                    : (t.near || t.skipped) ? 'flap-wchip near'
+                        : (i === g.readIdx ? 'flap-wchip now' : 'flap-wchip');
             return '<span class="' + cls + '">' + t.raw.replace(/[<>&]/g, '') + '</span>';
         }).join('');
     }
@@ -1051,13 +1057,22 @@
 
         FLAP.gates.forEach((g) => {
             if (g.failFlash > 0) g.failFlash = Math.max(0, g.failFlash - dt);
+            /* Finish the whole phrase before the gate arrives: rush it in so the
+               next sentence appears immediately (the game is about reading many). */
+            if (!g.passed && !g.rushing && g.tokens.length && g.readCount >= g.tokens.length) {
+                g.rushing = true;
+                g.speed = Math.max(g.speed, 620);
+            }
             if (g.frozen > 0) { g.frozen -= dt; return; }
             g.x -= g.speed * dt;
             g.wobble += dt;
         });
 
         const last = FLAP.gates[FLAP.gates.length - 1];
-        if ((!last || last.x < 20) && !FLAP.gates.some((g) => g.retrying)) spawnGate();
+        const canSpawn = !last
+            || (last.passed && last.x < BIRD_X + 40)
+            || last.x < -80;
+        if (canSpawn && !FLAP.gates.some((g) => g.retrying)) spawnGate();
 
         for (let i = FLAP.gates.length - 1; i >= 0; i -= 1) {
             const g = FLAP.gates[i];
@@ -1139,6 +1154,7 @@
             hit: false,
             gold: false,
             retrying: false,
+            rushing: false,
             retries: 0,
             failFlash: 0,
             frozen: 0,
@@ -1200,7 +1216,7 @@
         const firstMiss = g.tokens.findIndex((t) => !t.read);
         g.readIdx = firstMiss < 0 ? g.tokens.length : firstMiss;
         g.tokens.forEach((t) => {
-            if (!t.read) { t.wrong = true; t.skipped = false; }
+            if (!t.read) { t.wrong = true; t.skipped = false; t.near = false; }
         });
         FLAP.chipSig = '';
 

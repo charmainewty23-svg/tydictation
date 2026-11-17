@@ -253,6 +253,11 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   令 2:3 canvas 真的填滿高度，唔會再喺底部留空位；橫向／桌面維持 `H = 600`，
   按高度計寬度。闊螢幕（≥700px）會同時放大 HUD 字。閘門速度亦有 level factor
   `0.72／0.82／0.92／1`，L1 明顯較慢。離開 view（`FLAP.stop()`）會自動 exit。
+- **HUD 分數**：`#flap-score` 橙色 badge 喺 level badge 下面，`updateHud()` 每幀
+  寫 `FLAP.score + ' pts'`，所以遊戲進行中一定見到分數。
+- **Result restart**：result hero 有 `#flap-r-restart`「🔄 Restart」。Practice
+  立即 `startRun(true)`；Ranked 會 `openMic()` 後直接 `startRun(false)`，一 tap
+  重開咪再玩；開咪失敗才返 mic check。底部 `#flap-r-again` 共用同一個 handler。
 - 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
   會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
 - 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／

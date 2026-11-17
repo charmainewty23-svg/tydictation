@@ -868,6 +868,7 @@
         if (saytext) saytext.textContent = 'Get ready…';
         if (el('wchips')) el('wchips').innerHTML = '';
         if (el('lvbadge')) el('lvbadge').textContent = LEVELS[0].name;
+        if (el('score')) el('score').textContent = '0 pts';
         if (el('hearts')) el('hearts').textContent = '❤️❤️❤️❤️❤️';
         if (el('phr')) el('phr').textContent = '0 ✅';
         if (el('timer')) el('timer').textContent = clock(RUN_SECONDS);
@@ -932,6 +933,19 @@
         FLAP.duel.playing = false;
         stopRun();
         show('lobby');
+    }
+
+    /* Result-screen restart. Practice starts immediately; a ranked run reopens
+       the microphone (the stream was released at the finish) and starts again
+       in one tap. */
+    async function restartRun() {
+        if (FLAP.tap) {
+            startRun(true);
+            return;
+        }
+        await openMic();
+        if (FLAP.stream) startRun(false);
+        else show('mic');
     }
 
     function loop(ts) {
@@ -1362,6 +1376,7 @@
         if (el('timer')) el('timer').textContent = clock(left);
         if (el('phr')) el('phr').textContent = FLAP.ranked ? (FLAP.gatesPassed + ' ✅') : (FLAP.gatesFlown + ' 🚪');
         if (el('lvbadge')) el('lvbadge').textContent = LEVELS[FLAP.levelIndex].name;
+        if (el('score')) el('score').textContent = fmt(FLAP.score) + ' pts';
         updateGhostChip();
 
         const next = activeReadGate();
@@ -2927,10 +2942,8 @@
         on('pause-btn', pauseRun);
         on('pause-quit', quitRun);
         on('resume', resumeRun);
-        on('r-again', () => {
-            if (FLAP.tap) startRun(true);
-            else show('mic');
-        });
+        on('r-again', restartRun);
+        on('r-restart', restartRun);
         on('r-board', () => show('board'));
         on('r-duel', () => show('duel'));
         on('r-lobby', () => show('lobby'));

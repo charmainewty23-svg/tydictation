@@ -18,7 +18,7 @@
     const W = 400;
     let H = 600;
     const GROUND = 64, BIRD_X = 96, BIRD_R = 13;
-    const RUN_SECONDS = 150;
+    const RUN_SECONDS = 180;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
     const LIFT_PER_WORD = 0.75;
@@ -39,9 +39,9 @@
        strong reader reaches the long opinion sentences faster. */
     const LEVELS = [
         { gates: 0, name: 'Level 1 · Warm-up', gap: 250, pts: 20, color: 0 },
-        { gates: 3, name: 'Level 2 · Discussion', gap: 250, pts: 40, color: 1 },
-        { gates: 6, name: 'Level 3 · Hot Topics', gap: 250, pts: 70, color: 2 },
-        { gates: 9, name: 'Level 4 · Deep talk', gap: 250, pts: 100, color: 3 }
+        { gates: 5, name: 'Level 2 · Discussion', gap: 250, pts: 40, color: 1 },
+        { gates: 10, name: 'Level 3 · Hot Topics', gap: 250, pts: 70, color: 2 },
+        { gates: 15, name: 'Level 4 · Deep talk', gap: 250, pts: 100, color: 3 }
     ];
 
     /* 398px is how far a gate travels while it is the phrase being read.
@@ -3051,6 +3051,7 @@
         duelState: () => FLAP.duel,
         loadChallenges,
         wordMatches,
-        recoverSkipped
+        recoverSkipped,
+        levelFor
     };
 })();

@@ -75,7 +75,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
-| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：2 分 30 秒／5 命、ASR 逐字 pull-to-gate、50–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
+| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：3 分鐘／5 命、ASR 逐字 pull-to-gate、50–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -192,7 +192,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - 入口：`fluency-view` 嘅 `🃏 Speak Flap` 卡 → `fluency-flap-view`。邏輯全部喺
   `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
   HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
-- 玩法：**2 分 30 秒（150 秒）**、**5 條命**、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
+- 玩法：**3 分鐘（180 秒）**、**5 條命**、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
   每讀中一個字 `LIFT_PER_WORD 0.75`（meter 用），停口 `LIFT_DECAY 0.3/s`。
   **Ranked 時貓唔會再「一路飛上頂」**：`readCount / passRatio(g.level)` 計 `pull`，
   讀得越多、`pull` 越大，貓會被拉向**該閘門開口中心 `g.gapY`**；`pull > 0.05`
@@ -210,8 +210,8 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `read`（reading）、`walk`（walked）等缺尾音嘅寫法（橙色 near miss），
   但保留 UK/US spelling variants。
   Practice（tap）仍然用舊的 lift 上升，因為唔計分。
-  頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 150 秒完局。
-- 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
+  頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 180 秒完局。
+- 關卡按「已讀句數」升級（0／5／10／15）：L1 20、L2 40、L3 70、L4 100 分；
   全句 100% ＝ ×2。句庫：**L1 = 短 warm-up（`FLUENCY_DATA.warmup`，4–8 字），
   L2 = Discussion Phrases（短半），L3 = Hot Topics（短半），L4 = 兩邊較長句混合**，
   所以一開始係 `I see your point!` 呢類短句，之後才愈來愈長。
@@ -281,7 +281,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `flap_challenges_list()`、`cancel_flap_challenge(p_id)`。列表只回傳自己參與的
   挑戰，冇 email；`flap_challenges` 表冇 client RLS policy，全部經 RPC。
 - 測試幫手：`window.FLAP` 有 `mount`／`stop`／`show`／`renderResult`／`state`／
-  `duelState()`／`loadChallenges()`。測試用 `FLAP.state.ready = 0; FLAP.state.elapsed = 149.99;`
+  `duelState()`／`loadChallenges()`。測試用 `FLAP.state.ready = 0; FLAP.state.elapsed = 179.99;`
   強制完局。Canvas 截圖在本機 browser 會空白（正常），用 `toDataURL()` 檢查。
 - 實測：320／375／390／480／768／844 `overflowX = 0`，所有 duel／result 掣 ≥44px；
   挑戰 create→accept→play→finish、guest 隱藏、tap 拒絕、result challenge 卡

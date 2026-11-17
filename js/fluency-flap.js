@@ -3,7 +3,7 @@
    45-second voice game. The student reads a phrase out loud; every word the
    browser's speech-to-text recognises lifts the winged cat. Gates need 75% of
    the phrase, a miss only stuns the cat (never instant game over), and the
-   weekly board keeps one personal best per student.
+   all-time board keeps one personal best per student (like Word Jump).
 
    Everything lives inside this IIFE so it cannot clash with the other feature
    files, which share one global scope (classic scripts, no modules).
@@ -194,7 +194,8 @@
         return (typeof hkDayKey === 'function') ? hkDayKey(new Date().toISOString()) : new Date().toISOString().slice(0, 10);
     }
 
-    /* Monday 00:00 HKT is the weekly reset. */
+    /* Kept for older tests. The board is now all-time, so this is no longer
+       used as a reset key. */
     function weekStartKey() {
         const parts = hkToday().split('-').map(Number);
         const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
@@ -305,7 +306,7 @@
         lastScore: 0,
         best: 0,
         bestStreakEver: 0,
-        cloud: { status: 'unknown', rows: [], week: '', improved: [], error: '', submitted: false, rank: 0 },
+        cloud: { status: 'unknown', rows: [], week: 'all', improved: [], error: '', submitted: false, rank: 0 },
         duel: {
             status: 'unknown',
             loading: false,
@@ -1856,15 +1857,14 @@
     }
 
     function boardState() {
-        const week = weekStartKey();
         const cloud = FLAP.cloud;
         const meId = (typeof currentUser !== 'undefined' && currentUser && currentUser.id) ? currentUser.id : '';
-        if (cloud.status === 'ready' && cloud.week === week) {
-            return { source: 'cloud', rows: cloud.rows.slice(), week, meId };
+        if (cloud.status === 'ready') {
+            return { source: 'cloud', rows: cloud.rows.slice(), week: 'all', meId };
         }
         return {
             source: 'local',
-            week,
+            week: 'all',
             meId,
             rows: [{
                 user_id: meId,
@@ -1921,22 +1921,22 @@
         /* The local fallback only ever contains one row, so ranking text such
            as "You are #1" would be misleading. Say plainly that this is an
            on-device score instead. */
-        const ready = FLAP.cloud.status === 'ready' && FLAP.cloud.week === weekStartKey();
+        const ready = FLAP.cloud.status === 'ready';
         if (!ready) {
             if (FLAP.cloud.status === 'missing') {
-                return 'Saved on this device only — the class board needs supabase/flap_runs.sql.';
+                return 'Saved on this device only — the class board needs supabase/flap_runs.sql + flap_all_time_board.sql.';
             }
             return 'Saved on this device only — sign in to join the class board.';
         }
         if (!rows.length || !rank) return '';
-        if (rank === 1) return 'You are #1 this week — 🥇';
+        if (rank === 1) return 'You are #1 overall — 🥇';
         if (rank <= 7) {
             const gap = rows[rank - 2].score - rows[rank - 1].score;
-            return '#' + rank + ' this week · ' + fmt(gap) + ' pts behind #' + (rank - 1) + '.';
+            return '#' + rank + ' overall · ' + fmt(gap) + ' pts behind #' + (rank - 1) + '.';
         }
         const seventh = rows[6] ? rows[6].score : rows[rows.length - 1].score;
         return 'Your best ' + fmt(rows[rank - 1].score) + ' pts — '
-            + fmt(Math.max(0, seventh - rows[rank - 1].score)) + ' pts behind #7 this week.';
+            + fmt(Math.max(0, seventh - rows[rank - 1].score)) + ' pts behind #7 overall.';
     }
 
     /* ---------------- cloud ---------------- */
@@ -1948,16 +1948,14 @@
         }
         if (FLAP.cloud.loading) return;
         FLAP.cloud.loading = true;
-        const week = weekStartKey();
         try {
-            const res = await sb.from('flap_weekly_board')
-                .select('user_id,nickname,score,phrases,best_streak,created_at,week_start')
-                .eq('week_start', week)
+            const res = await sb.from('flap_leaderboard')
+                .select('user_id,nickname,score,phrases,best_streak,created_at')
                 .order('score', { ascending: false })
                 .limit(200);
             if (res.error) throw res.error;
             FLAP.cloud.status = 'ready';
-            FLAP.cloud.week = week;
+            FLAP.cloud.week = 'all';
             FLAP.cloud.rows = (res.data || []).map((r) => ({
                 user_id: r.user_id,
                 nickname: r.nickname,
@@ -2020,14 +2018,13 @@
                 FLAP.best = Math.max(FLAP.best, Number(out.best) || 0);
             }
             if (current === 'result') renderResult();
-            const board = await sb.from('flap_weekly_board')
-                .select('user_id,nickname,score,phrases,created_at,week_start')
-                .eq('week_start', weekStartKey())
+            const board = await sb.from('flap_leaderboard')
+                .select('user_id,nickname,score,phrases,created_at')
                 .order('score', { ascending: false })
                 .limit(200);
             if (!board.error) {
                 FLAP.cloud.status = 'ready';
-                FLAP.cloud.week = weekStartKey();
+                FLAP.cloud.week = 'all';
                 FLAP.cloud.rows = board.data || [];
                 if (current === 'result') refreshResultBoard();
             }
@@ -2173,7 +2170,7 @@
                         + (notes.length ? ' (' + notes.join(' · ') + ')' : '');
                 } else if (!canUseCloudBoard()) {
                     el('r-gain').textContent = '+' + local + ' 🐾 this run';
-                    el('r-gain').title = 'Paws need the cloud board (supabase/flap_runs.sql).';
+                    el('r-gain').title = 'Paws need the cloud board (supabase/flap_runs.sql + flap_all_time_board.sql).';
                 } else {
                     el('r-gain').textContent = '+' + local + ' 🐾 this run';
                 }
@@ -2211,12 +2208,12 @@
         if (el('r-top7-note')) {
             el('r-top7-note').textContent = FLAP.ranked
                 ? boardNote(rows, rank)
-                : 'Practice runs do not change this week’s board.';
+                : 'Practice runs do not change the all-time board.';
         }
         if (el('r-rank')) {
             el('r-rank').textContent = FLAP.ranked
                 ? (rows.length > 1 || FLAP.cloud.status === 'ready'
-                    ? '#' + (rank || 1) + ' this week'
+                    ? '#' + (rank || 1) + ' overall'
                     : 'Personal best saved on this device')
                 : 'Practice run · not ranked';
         }
@@ -2252,9 +2249,9 @@
             if (FLAP.cloud.status === 'signed-out') {
                 el('b-improve-me').textContent = 'Sign in with a school account to join the class board.';
             } else if (FLAP.cloud.status === 'missing') {
-                el('b-improve-me').textContent = 'Class board not set up yet — a teacher needs to run supabase/flap_runs.sql. Your personal best stays on this device.';
+                el('b-improve-me').textContent = 'Class board not set up yet — a teacher needs to run supabase/flap_runs.sql and then flap_all_time_board.sql. Your personal best stays on this device.';
             } else {
-                el('b-improve-me').textContent = 'One personal best per student each week · resets Monday 00:00 HKT.';
+                el('b-improve-me').textContent = 'One all-time personal best per student · never resets.';
             }
         }
     }
@@ -2456,7 +2453,7 @@
             }
             if (el('mic-duel-body')) {
                 el('mic-duel-body').textContent = 'Beat ' + fmt(ch.target_score)
-                    + ' pts. This ranked run also counts on the weekly board. Tap mode is disabled for challenges.';
+                    + ' pts. This ranked run also counts on the all-time board. Tap mode is disabled for challenges.';
             }
         } else {
             card.style.display = 'none';
@@ -2882,14 +2879,14 @@
             } else if (st === 'ready') {
                 const rank = myRank(null);
                 el('l-status').textContent = rank > 0
-                    ? '🏆 You are #' + rank + ' this week · resets Monday 00:00 HKT'
-                    : '🏆 Weekly board · one personal best per student';
+                    ? '🏆 You are #' + rank + ' overall · all-time personal best'
+                    : '🏆 All-time board · one personal best per student';
             } else if (st === 'missing') {
-                el('l-status').textContent = '💾 Personal best saved on this device · class board needs supabase/flap_runs.sql';
+                el('l-status').textContent = '💾 Personal best saved on this device · class board needs supabase/flap_runs.sql + flap_all_time_board.sql';
             } else if (st === 'signed-out') {
                 el('l-status').textContent = '💾 Personal best saved on this device · sign in to join the class board';
             } else {
-                el('l-status').textContent = '🏆 Loading this week’s board…';
+                el('l-status').textContent = '🏆 Loading the all-time board…';
             }
         }
         renderBoard();

@@ -5,15 +5,6 @@
         let lbRows = null;
         let lbRowsError = null;
 
-        function flapLbWeekStartKey() {
-            const day = (typeof hkDayKey === 'function')
-                ? hkDayKey(new Date().toISOString())
-                : new Date().toISOString().slice(0, 10);
-            const parts = day.split('-').map(Number);
-            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-            return d.toISOString().slice(0, 10);
-        }
         let lbDgClassOnly = (() => {
             try { return localStorage.getItem('learniTY_dg_class_only') === '1'; } catch (e) { return false; }
         })();
@@ -32,7 +23,7 @@
                 : lbModeFilter === 'wordjump'
                     ? 'Personal bests — top 10 by best score and words collected.'
                     : lbModeFilter === 'flap'
-                        ? 'Speak Flap — this week’s personal best. Resets Monday 00:00 HKT.'
+                        ? 'Speak Flap — all-time personal bests. Top 10 by best score and phrases.'
                         : lbModeFilter === 'wjchallenge'
                         ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
                         : (lbModeFilter === 'dgmulti' && lbDgClassOnly)
@@ -92,10 +83,8 @@
                 return;
             }
             if (lbModeFilter === 'flap') {
-                const week = flapLbWeekStartKey();
-                const { data, error } = await sb.from('flap_weekly_board')
-                    .select('user_id,nickname,score,phrases,best_streak,created_at,week_start')
-                    .eq('week_start', week)
+                const { data, error } = await sb.from('flap_leaderboard')
+                    .select('user_id,nickname,score,phrases,best_streak,created_at')
                     .order('score', { ascending: false })
                     .order('phrases', { ascending: false })
                     .order('created_at', { ascending: true })
@@ -166,7 +155,7 @@
 
         function renderFlapLeaderboard(container) {
             if (lbRowsError) {
-                container.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap leaderboard not available. Run <code class="text-orange-600">supabase/flap_runs.sql</code> in the SQL editor.</p>';
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap leaderboard not available. Run <code class="text-orange-600">supabase/flap_runs.sql</code>, then <code class="text-orange-600">supabase/flap_all_time_board.sql</code>, in the SQL editor.</p>';
                 return;
             }
             const sorted = (lbRows || []).slice().sort((a, b) =>
@@ -174,7 +163,7 @@
                 || (Number(b.phrases) || 0) - (Number(a.phrases) || 0)
                 || String(a.created_at || '').localeCompare(String(b.created_at || '')));
             if (!sorted.length) {
-                container.innerHTML = '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs this week yet.</p>';
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs yet.</p>';
                 return;
             }
             const me = currentUser ? currentUser.id : '';
@@ -203,7 +192,7 @@
             }
             container.innerHTML = renderFormSections(groupRowsByForm(top), (rows) =>
                 `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
-            , { emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs this week yet.</p>' });
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs yet.</p>' });
         }
 
         function renderDriveAndGoLeaderboard(container) {

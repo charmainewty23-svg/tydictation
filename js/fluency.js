@@ -308,9 +308,8 @@ function fluencyVoice() {
     })[0] || null;
 }
 
-function fluencySpeak(btn, n, kind) {
-    const line = fluencyFindLine(kind, n);
-    if (!line) return;
+function fluencySpeakText(btn, text, rate) {
+    if (!text) return;
     if (!('speechSynthesis' in window)) {
         updateMascot('This browser cannot read sentences aloud.');
         return;
@@ -321,14 +320,14 @@ function fluencySpeak(btn, n, kind) {
     FL.speakBtn = btn;
     if (btn) btn.classList.add('on');
 
-    const utterance = new SpeechSynthesisUtterance(line.en);
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-GB';
     const voice = fluencyVoice();
     if (voice) {
         utterance.voice = voice;
         if (voice.lang) utterance.lang = voice.lang;
     }
-    utterance.rate = 0.92;
+    utterance.rate = rate || 0.92;
     utterance.pitch = 1;
 
     const clear = function () {
@@ -338,6 +337,42 @@ function fluencySpeak(btn, n, kind) {
     utterance.onend = clear;
     utterance.onerror = clear;
     synth.speak(utterance);
+}
+
+function fluencySpeak(btn, n, kind) {
+    const line = fluencyFindLine(kind, n);
+    if (line) fluencySpeakText(btn, line.en, 0.92);
+}
+
+/* A no-data read-along on the Revision page. No score, no storage — just a
+   useful sentence to listen to and repeat. */
+const FLUENCY_READ_ALONG = [
+    'I see your point, but I think we should consider another option.',
+    'That is an interesting idea, and I would like to add one more reason.',
+    'Could you explain what you mean by that?',
+    'On the whole, I agree, although there is one small problem.',
+    'To sum up, we need a solution that works for everyone.'
+];
+let fluencyReadAlongIndex = 0;
+
+function fluencyReadAlongLine() {
+    return FLUENCY_READ_ALONG[fluencyReadAlongIndex % FLUENCY_READ_ALONG.length];
+}
+
+function fluencyReadAlongPaint() {
+    const el = document.getElementById('fluency-readalong-text');
+    if (el) el.textContent = fluencyReadAlongLine();
+}
+
+function fluencyReadAlongSpeak(btn) {
+    fluencySpeakText(btn, fluencyReadAlongLine(), 0.85);
+}
+
+function fluencyReadAlongNext() {
+    fluencyStopSpeech();
+    fluencyReadAlongIndex = (fluencyReadAlongIndex + 1) % FLUENCY_READ_ALONG.length;
+    fluencyReadAlongPaint();
+    updateMascot('Listen once, then read it aloud — match the rhythm!');
 }
 
 function fluencyStopSpeech() {

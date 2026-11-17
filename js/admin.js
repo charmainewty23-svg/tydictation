@@ -162,16 +162,6 @@
         }
 
         /* ---------------- Admin: Speak Flap ---------------- */
-        function flapWeekStartKey() {
-            const day = (typeof hkDayKey === 'function')
-                ? hkDayKey(new Date().toISOString())
-                : new Date().toISOString().slice(0, 10);
-            const parts = day.split('-').map(Number);
-            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-            return d.toISOString().slice(0, 10);
-        }
-
         async function loadFlapAdmin(force) {
             const statsEl = document.getElementById('flap-admin-stats');
             const listEl = document.getElementById('flap-admin-container');
@@ -222,7 +212,7 @@
                 statsEl.innerHTML = '';
                 if (boardEl) boardEl.innerHTML = '';
                 if (improvedEl) improvedEl.innerHTML = '';
-                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap data is not available. Run <code class="text-violet-600">supabase/flap_runs.sql</code> in the SQL editor.</p>';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap data is not available. Run <code class="text-violet-600">supabase/flap_runs.sql</code>, then <code class="text-violet-600">supabase/flap_all_time_board.sql</code>, in the SQL editor.</p>';
                 return;
             }
             const pack = adminCache.flap;
@@ -231,9 +221,8 @@
             const today = (typeof hkDayKey === 'function')
                 ? hkDayKey(new Date().toISOString())
                 : new Date().toISOString().slice(0, 10);
-            const week = flapWeekStartKey();
             const students = new Map();
-            const weekBest = new Map();
+            const bestRuns = new Map();
 
             runs.forEach((r) => {
                 const key = String(r.user_id || r.nickname || 'unknown');
@@ -259,13 +248,11 @@
                     s.last = r.created_at;
                     s.nickname = r.nickname || s.nickname;
                 }
-                if (r.week_start === week) {
-                    const cur = weekBest.get(key);
-                    if (!cur
-                        || Number(r.score) > Number(cur.score)
-                        || (Number(r.score) === Number(cur.score) && Number(r.phrases) > Number(cur.phrases))) {
-                        weekBest.set(key, r);
-                    }
+                const cur = bestRuns.get(key);
+                if (!cur
+                    || Number(r.score) > Number(cur.score)
+                    || (Number(r.score) === Number(cur.score) && Number(r.phrases) > Number(cur.phrases))) {
+                    bestRuns.set(key, r);
                 }
             });
 
@@ -300,7 +287,7 @@
             }
 
             if (boardEl) {
-                const top = Array.from(weekBest.values())
+                const top = Array.from(bestRuns.values())
                     .sort((a, b) => Number(b.score) - Number(a.score)
                         || Number(b.phrases) - Number(a.phrases)
                         || String(a.created_at).localeCompare(String(b.created_at)))
@@ -317,7 +304,7 @@
                             <p class="text-sm font-bold text-violet-600">${Number(r.score) || 0} pts</p>
                         </div>`;
                     }).join('') + '</div>'
-                    : '<p class="text-gray-400 text-center py-4">No Speak Flap runs this week yet.</p>';
+                    : '<p class="text-gray-400 text-center py-4">No Speak Flap runs yet.</p>';
             }
 
             studentRows.sort((a, b) => b.best - a.best || String(a.nickname).localeCompare(String(b.nickname)));

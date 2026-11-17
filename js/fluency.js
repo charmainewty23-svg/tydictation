@@ -354,18 +354,160 @@ const FLUENCY_READ_ALONG = [
     'To sum up, we need a solution that works for everyone.'
 ];
 let fluencyReadAlongIndex = 0;
+const FLUENCY_KARAOKE = { btn: null, timer: 0, spans: [], running: false, boundarySeen: false, token: 0 };
 
 function fluencyReadAlongLine() {
     return FLUENCY_READ_ALONG[fluencyReadAlongIndex % FLUENCY_READ_ALONG.length];
 }
 
+function fluencyReadAlongWords() {
+    return fluencyReadAlongLine().split(/\s+/).filter(Boolean);
+}
+
 function fluencyReadAlongPaint() {
     const el = document.getElementById('fluency-readalong-text');
-    if (el) el.textContent = fluencyReadAlongLine();
+    if (!el) return;
+    const words = fluencyReadAlongWords();
+    el.textContent = '';
+    el.classList.add('fluency-karaoke-line');
+    FLUENCY_KARAOKE.spans = words.map(function (word, i) {
+        const span = document.createElement('span');
+        span.className = 'fl-ka-word';
+        span.textContent = word;
+        el.appendChild(span);
+        if (i < words.length - 1) el.appendChild(document.createTextNode(' '));
+        return span;
+    });
+}
+
+function fluencyReadAlongHighlight(index, finished) {
+    const last = FLUENCY_KARAOKE.spans.length - 1;
+    FLUENCY_KARAOKE.spans.forEach(function (span, i) {
+        span.classList.toggle('on', i === index && !finished);
+        span.classList.toggle('done', finished ? true : i < index);
+    });
+    if (finished && last >= 0) {
+        FLUENCY_KARAOKE.spans[last].classList.add('done');
+    }
+}
+
+function fluencyReadAlongStop() {
+    FLUENCY_KARAOKE.token += 1;
+    if (FLUENCY_KARAOKE.timer) {
+        clearInterval(FLUENCY_KARAOKE.timer);
+        FLUENCY_KARAOKE.timer = 0;
+    }
+    FLUENCY_KARAOKE.running = false;
+    FLUENCY_KARAOKE.boundarySeen = false;
+    if (FLUENCY_KARAOKE.btn) {
+        FLUENCY_KARAOKE.btn.classList.remove('on');
+        FLUENCY_KARAOKE.btn.textContent = '🎤 Karaoke';
+        FLUENCY_KARAOKE.btn = null;
+    }
+    FLUENCY_KARAOKE.spans.forEach(function (span) {
+        span.classList.remove('on', 'done');
+    });
+    if (FL.speakBtn && FL.speakBtn.dataset && FL.speakBtn.dataset.karaoke) {
+        FL.speakBtn.classList.remove('on');
+        FL.speakBtn = null;
+    }
+}
+
+function fluencyReadAlongKaraoke(btn) {
+    if (!('speechSynthesis' in window)) {
+        updateMascot('This browser cannot read sentences aloud.');
+        return;
+    }
+    if (FLUENCY_KARAOKE.running) {
+        fluencyStopSpeech();
+        return;
+    }
+    fluencyStopSpeech();
+    fluencyReadAlongPaint();
+    const words = fluencyReadAlongWords();
+    if (!words.length) return;
+    const text = words.join(' ');
+    const starts = [];
+    let cursor = 0;
+    words.forEach(function (word) {
+        starts.push(cursor);
+        cursor += word.length + 1;
+    });
+
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-GB';
+    const voice = fluencyVoice();
+    if (voice) {
+        utterance.voice = voice;
+        if (voice.lang) utterance.lang = voice.lang;
+    }
+    utterance.rate = 0.82;
+    utterance.pitch = 1;
+
+    const token = FLUENCY_KARAOKE.token + 1;
+    FLUENCY_KARAOKE.token = token;
+    FLUENCY_KARAOKE.running = true;
+    FLUENCY_KARAOKE.boundarySeen = false;
+    FLUENCY_KARAOKE.btn = btn;
+    if (btn) {
+        btn.dataset.karaoke = '1';
+        btn.classList.add('on');
+        btn.textContent = '⏹ Stop';
+        FL.speakBtn = btn;
+    }
+    fluencyReadAlongHighlight(0, false);
+
+    function startFallback() {
+        if (FLUENCY_KARAOKE.timer) clearInterval(FLUENCY_KARAOKE.timer);
+        let i = 0;
+        FLUENCY_KARAOKE.timer = setInterval(function () {
+            if (!FLUENCY_KARAOKE.running || FLUENCY_KARAOKE.boundarySeen) return;
+            i += 1;
+            if (i < words.length) fluencyReadAlongHighlight(i, false);
+        }, 520);
+    }
+
+    utterance.onstart = function () {
+        if (FLUENCY_KARAOKE.token !== token || !FLUENCY_KARAOKE.running) return;
+        fluencyReadAlongHighlight(0, false);
+        startFallback();
+    };
+    utterance.onboundary = function (event) {
+        if (FLUENCY_KARAOKE.token !== token || !FLUENCY_KARAOKE.running) return;
+        if (!event || typeof event.charIndex !== 'number') return;
+        FLUENCY_KARAOKE.boundarySeen = true;
+        if (FLUENCY_KARAOKE.timer) {
+            clearInterval(FLUENCY_KARAOKE.timer);
+            FLUENCY_KARAOKE.timer = 0;
+        }
+        let index = 0;
+        for (let i = 0; i < starts.length; i += 1) {
+            if (starts[i] <= event.charIndex) index = i;
+            else break;
+        }
+        fluencyReadAlongHighlight(index, false);
+    };
+    utterance.onend = function () {
+        if (FLUENCY_KARAOKE.token !== token) return;
+        if (FLUENCY_KARAOKE.timer) {
+            clearInterval(FLUENCY_KARAOKE.timer);
+            FLUENCY_KARAOKE.timer = 0;
+        }
+        fluencyReadAlongHighlight(words.length, true);
+        setTimeout(function () {
+            if (FLUENCY_KARAOKE.token === token) fluencyReadAlongStop();
+        }, 220);
+    };
+    utterance.onerror = function () {
+        if (FLUENCY_KARAOKE.token !== token) return;
+        fluencyReadAlongStop();
+    };
+    synth.speak(utterance);
 }
 
 function fluencyReadAlongSpeak(btn) {
-    fluencySpeakText(btn, fluencyReadAlongLine(), 0.85);
+    fluencyReadAlongKaraoke(btn);
 }
 
 function fluencyReadAlongNext() {
@@ -376,6 +518,7 @@ function fluencyReadAlongNext() {
 }
 
 function fluencyStopSpeech() {
+    if (typeof fluencyReadAlongStop === 'function') fluencyReadAlongStop();
     if (FL.speakBtn) {
         FL.speakBtn.classList.remove('on');
         FL.speakBtn = null;

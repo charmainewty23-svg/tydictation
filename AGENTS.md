@@ -165,9 +165,12 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   - `fluency-revision-view`：`💬 Discussion Phrases`（50 句）→ `fluency-phrases-view`；
     `🔥 Hot Topics`（100 句）→ `fluency-topics-view`；下面仲有一行
     **🗣️ Read-along practice**（`#fluency-readalong-text`），係 static 5 句
-    （`FLUENCY_READ_ALONG`），有 🔊 Listen（`fluencyReadAlongSpeak()`）同
-    Next line（`fluencyReadAlongNext()`）。**唔使 data、唔計分、唔儲存**，
-    純粹用 UK 聲讀一次俾學生跟住讀；`fluencySpeakText()` 係共用嘅讀句 helper。
+    （`FLUENCY_READ_ALONG`），有 **🎤 Karaoke**（`fluencyReadAlongKaraoke()`）
+    同 Next line（`fluencyReadAlongNext()`）。Karaoke 會用 UK 聲讀，並把而家
+    讀到嘅字加 `.fl-ka-word.on`（讀完 `.done`）逐字高亮；優先用
+    `utterance.onboundary`，冇 boundary 就用 520ms timer fallback。
+    **唔使 data、唔計分、唔儲存**；`fluencySpeakText()` 係共用嘅讀句 helper。
+    成個 karaoke 由 `FLUENCY_KARAOKE` token 管，cancel 舊 utterance 唔會誤 reset 新一句。
   - 兩個句庫頁由 `js/fluency.js` 的 `fluencyRender()` 填 `#fluency-phrases-content`／
     `#fluency-topics-content`；頁面本身只有標題、`.fl-lead`、`.fl-search` 同空 host。
   - Speak Flap 係完整語音遊戲（見下面「Speak Flap」），唔再係 placeholder。
@@ -200,7 +203,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   （Speak Flap 返 `fluency-view`）。
 - `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
   `changeView()` 已加 5 句 mascot 文案，並在 phrases／topics 頁 call `fluencyRender()`。
-- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v97）。
+- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v98）。
 - 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
   🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
   768／1024 中文並排、膠囊同 🔊 均 44px。
@@ -1843,7 +1846,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v97）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v98）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1933,8 +1936,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v97`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v98`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v98`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v99`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 25 個：`index.html`、manifest、4 個圖示、
   18 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2575,7 +2578,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v97。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v98。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 

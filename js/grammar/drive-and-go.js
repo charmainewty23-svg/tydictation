@@ -14,16 +14,23 @@ const DG = {
     BEST_SCORE_KEY: 'learniTY_dg_best_score',
     BEST_DISTANCE_KEY: 'learniTY_dg_best_distance',
     BEST_RUNS_KEY: 'learniTY_dg_best_runs',
-    // Three topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the
+    // Four topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the
     // Tenses map so existing tests and cached links keep working; the
-    // Agreement tab is case-sensitive and lives on its own, and Articles is
-    // a local 200-question bank (no Google Sheet tab).
-    TOPICS: ['tenses', 'agreement', 'articles'],
-    TOPIC_LABEL: { tenses: 'Tenses', agreement: 'Agreement', articles: 'Articles' },
+    // Agreement tab is case-sensitive and lives on its own. Articles and
+    // Indefinite Pronouns are local banks (no Google Sheet tab) with four
+    // answer gates each.
+    TOPICS: ['tenses', 'agreement', 'articles', 'indefinite_pronouns'],
+    TOPIC_LABEL: {
+        tenses: 'Tenses',
+        agreement: 'Agreement',
+        articles: 'Articles',
+        indefinite_pronouns: 'Indefinite Pronouns'
+    },
     MODES_FOR_TOPIC: {
         tenses: ['av', 'pv', 'mixed'],
         agreement: ['gapfill', 'choose', 'mixed'],
-        articles: ['mixed']
+        articles: ['mixed'],
+        indefinite_pronouns: ['mixed']
     },
     AGREEMENT_TAB: 'Agreement',
     TAB_FOR_MODE: { av: ['tenses'], pv: ['Passives'], mixed: ['tenses', 'Passives'] },
@@ -33,6 +40,8 @@ const DG = {
     AGREEMENT_MODE_SHORT: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
     ARTICLE_MODE_LABEL: { mixed: 'Articles (a / an / the / X)' },
     ARTICLE_MODE_SHORT: { mixed: 'a/an/the/X' },
+    INDEFINITE_MODE_LABEL: { mixed: 'Indefinite Pronouns (4 options)' },
+    INDEFINITE_MODE_SHORT: { mixed: '4 options' },
     QUESTION_COUNTS: [10, 20, 25, 30, 35, 40, 50],
     // Three playable courses. The exact ids / names are stored in Supabase
     // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
@@ -136,7 +145,7 @@ const DG = {
         const list = DG.MODES_FOR_TOPIC[t] || DG.MODES_FOR_TOPIC.tenses;
         if (list.indexOf(id) !== -1) return id;
         if (t === 'agreement') return 'gapfill';
-        if (t === 'articles') return 'mixed';
+        if (t === 'articles' || t === 'indefinite_pronouns') return 'mixed';
         return 'av';
     },
 
@@ -149,6 +158,7 @@ const DG = {
         const id = DG.normalizeBankMode(t, mode);
         if (t === 'agreement') return DG.AGREEMENT_MODE_LABEL[id];
         if (t === 'articles') return DG.ARTICLE_MODE_LABEL[id] || 'Articles';
+        if (t === 'indefinite_pronouns') return DG.INDEFINITE_MODE_LABEL[id] || 'Indefinite Pronouns';
         return DG.MODE_LABEL[id];
     },
 
@@ -157,6 +167,7 @@ const DG = {
         const id = DG.normalizeBankMode(t, mode);
         if (t === 'agreement') return DG.AGREEMENT_MODE_SHORT[id];
         if (t === 'articles') return DG.ARTICLE_MODE_SHORT[id] || 'a/an/the/X';
+        if (t === 'indefinite_pronouns') return DG.INDEFINITE_MODE_SHORT[id] || '4 options';
         return DG.MODE_SHORT[id];
     },
 
@@ -175,11 +186,13 @@ const DG = {
     tabsFor(topic, mode) {
         if (DG.normalizeTopic(topic) === 'agreement') return [DG.AGREEMENT_TAB];
         if (DG.normalizeTopic(topic) === 'articles') return ['Articles'];
+        if (DG.normalizeTopic(topic) === 'indefinite_pronouns') return ['Indefinite Pronouns'];
         return DG.TAB_FOR_MODE[DG.normalizeBankMode(topic, mode)] || [];
     },
 
     laneCountFor(topic) {
-        return DG.normalizeTopic(topic) === 'articles' ? 4 : 3;
+        const t = DG.normalizeTopic(topic);
+        return (t === 'articles' || t === 'indefinite_pronouns') ? 4 : 3;
     },
 
     // Cache key: mixed must never overwrite the other topic's mixed bank.
@@ -455,31 +468,47 @@ const DG = {
         return list.filter(q => q && (q.qType === 'gapfill' || q.qType === 'choose'));
     },
 
+    /* Local banks live in their own generated data files, so they never need
+       a Google Sheet tab. Both use the same {id, q, a} rows and four gates. */
+    localBankSpec(topic) {
+        const t = DG.normalizeTopic(topic);
+        if (t === 'articles') {
+            return { globalName: 'DG_ARTICLES', label: 'Articles' };
+        }
+        if (t === 'indefinite_pronouns') {
+            return { globalName: 'DG_INDEFINITE_PRONOUNS', label: 'Indefinite Pronouns' };
+        }
+        return null;
+    },
+
     loadBank(topic, mode, force) {
         const t = DG.normalizeTopic(topic);
         const m = DG.normalizeBankMode(t, mode);
-        if (t === 'articles') {
+        const local = DG.localBankSpec(t);
+        if (local) {
             const key = DG.bankKey(t, m);
             if (!force && DG.bankCache[key] && DG.bankCache[key].length) {
                 return Promise.resolve(DG.bankCache[key]);
             }
-            const raw = (typeof DG_ARTICLES !== 'undefined' && Array.isArray(DG_ARTICLES)) ? DG_ARTICLES : [];
+            const raw = (typeof window !== 'undefined' && Array.isArray(window[local.globalName]))
+                ? window[local.globalName]
+                : [];
             if (!raw.length) {
-                return Promise.reject(new Error('The Articles question bank is missing. Reload the page and try again.'));
+                return Promise.reject(new Error('The ' + local.label + ' question bank is missing. Reload the page and try again.'));
             }
             const questions = raw.map((row) => ({
-                id: 'articles-' + row.id,
+                id: t + '-' + row.id,
                 prompt: row.q,
                 primary: row.a,
                 variants: [],
-                section: 'Articles',
-                sheet: 'Articles',
-                sectionKey: 'articles',
+                section: local.label,
+                sheet: local.label,
+                sectionKey: t,
                 qType: ''
             }));
             DG.bankCache[key] = questions;
             DG.bankPoolCache[key] = {
-                bySection: { articles: questions.map((q) => ({ primary: q.primary, variants: [], item: q })) },
+                bySection: { [t]: questions.map((q) => ({ primary: q.primary, variants: [], item: q })) },
                 bySheet: []
             };
             return Promise.resolve(questions);
@@ -1215,6 +1244,30 @@ const DG = {
         return gates.map((g, lane) => ({ label: g.label, lane, correct: g.correct }));
     },
 
+    /* Indefinite Pronouns: four gates again, but the four options are a
+       related contrast set instead of four random words:
+         people  — everyone / anyone / no one / someone
+         things  — everything / anything / nothing / something
+         negatives — none / none of / no one / nothing
+       This makes the choice test the meaning of the pronoun, not just luck. */
+    indefiniteGates(question, rng) {
+        const rnd = rng || Math.random;
+        const q = question || {};
+        const correctKey = DG.normAnswer(q.primary);
+        const people = ['everyone', 'anyone', 'no one', 'someone'];
+        const things = ['everything', 'anything', 'nothing', 'something'];
+        const negatives = ['none', 'none of', 'no one', 'nothing'];
+        let options = negatives;
+        if (people.indexOf(correctKey) !== -1) options = people;
+        else if (things.indexOf(correctKey) !== -1) options = things;
+        const gates = options.map((opt) => ({
+            label: opt,
+            correct: opt === correctKey
+        }));
+        DG.shuffleInPlace(gates, rnd);
+        return gates.map((g, lane) => ({ label: g.label, lane, correct: g.correct }));
+    },
+
     // The HUD sentence. Tenses is untouched; Agreement strips the bank label
     // ("1. Gap-fill:") and, for Choose, the options that are already on the
     // gates so the sentence does not repeat them.
@@ -1266,6 +1319,7 @@ const DG = {
     gatesFor(question, topic, mode, rng) {
         const t = DG.normalizeTopic(topic);
         if (t === 'articles') return DG.articleGates(question, rng);
+        if (t === 'indefinite_pronouns') return DG.indefiniteGates(question, rng);
         const key = DG.bankKey(t, mode);
         const pools = DG.bankPoolCache[key] || { bySection: {}, bySheet: {} };
         if (t === 'agreement' || (question && question.qType)) {
@@ -1391,7 +1445,7 @@ const DG = {
             '<h2 class="text-3xl font-bold text-orange-600">Question bank not loaded</h2></div>' +
             '<div class="dg-menu-panel text-center">' +
             '<p class="font-bold text-gray-700 mb-2">Could not load the ' + DG.esc(label) + ' questions ' +
-            (t === 'articles' ? 'from the built-in Articles bank.' : 'from Google Sheets.') + '</p>' +
+            (DG.localBankSpec(t) ? 'from the built-in ' + DG.localBankSpec(t).label + ' bank.' : 'from Google Sheets.') + '</p>' +
             '<p class="text-sm text-gray-500 mb-6">' + DG.esc(err && err.message ? err.message : 'Please check your connection and try again.') + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.retryBank()">Retry</button>' +
@@ -1551,6 +1605,7 @@ const DG = {
             card('tenses', '⏳', 'Tenses', 'Active voice, passive voice or both') +
             card('agreement', '🤝', 'Agreement', 'Gap-fill, Choose, or both from the Agreement bank') +
             card('articles', '📘', 'Articles', 'a / an / the / X — four answer gates') +
+            card('indefinite_pronouns', '🙋', 'Indefinite Pronouns', 'everyone / anyone / no one / none of …') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' + back + '">← Back</button>' +
@@ -1589,9 +1644,11 @@ const DG = {
                card('mixed', '🌈', 'Mixed', 'Gap-fill and Choose shuffled together'))
             : topic === 'articles'
                 ? card('mixed', '📘', 'Articles', 'a / an / the / X — four gates, one correct article')
-                : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
-                   card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
-                   card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
+                : topic === 'indefinite_pronouns'
+                    ? card('mixed', '🙋', 'Indefinite Pronouns', 'everyone / anyone / no one / none of — four related options')
+                    : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+                       card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
+                       card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
         content.innerHTML =
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
@@ -1725,7 +1782,7 @@ const DG = {
                 '<span class="dg-choice-title">' + title + '</span>' +
                 '<span class="dg-choice-sub">' + sub + '</span></button>';
         };
-        const fourLanes = DG.normalizeTopic(s.topic) === 'articles';
+        const fourLanes = DG.laneCountFor(s.topic) === 4;
         const note = DG.tiltPermission === 'denied'
             ? '<div class="dg-note warn">Tilt permission was denied or no motion sensor was found. The lane buttons will be used instead.</div>'
             : (DG.tiltPermission === 'granted'
@@ -1740,7 +1797,11 @@ const DG = {
             card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +
             card('swipe', '👆', 'Swipe', 'Swipe left or right on the track') +
             card('buttons', '🔘', fourLanes ? '4 lane buttons' : 'LEFT / CENTER / RIGHT',
-                fourLanes ? 'Tap any of the four lanes for a / an / the / X' : 'Tap the on-screen buttons') +
+                fourLanes
+                    ? (DG.normalizeTopic(s.topic) === 'articles'
+                        ? 'Tap any of the four lanes for a / an / the / X'
+                        : 'Tap any of the four lanes for everyone / anyone / no one / none of')
+                    : 'Tap the on-screen buttons') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCatStep()">← Cat</button>' +
@@ -2084,8 +2145,8 @@ const DG = {
             elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
         };
         // Tenses must still insert into the current schema (no topic column
-        // yet). Agreement and Articles runs send the new column.
-        if (topic === 'agreement' || topic === 'articles') row.topic = topic;
+        // yet). Agreement, Articles and Indefinite Pronouns runs send it.
+        if (topic === 'agreement' || topic === 'articles' || topic === 'indefinite_pronouns') row.topic = topic;
         if (extra && extra.room_id) {
             row.room_id = extra.room_id;
             row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
@@ -2122,7 +2183,9 @@ const DG = {
             DG.toastSafe(topicIssue
                 ? (DG.normalizeTopic(topic) === 'articles'
                     ? 'Leaderboard not saved — run supabase/drive_and_go_articles_topic.sql.'
-                    : 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.')
+                    : (DG.normalizeTopic(topic) === 'indefinite_pronouns'
+                        ? 'Leaderboard not saved — run supabase/drive_and_go_indefinite_pronouns_topic.sql.'
+                        : 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.'))
                 : 'Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
         }
     },

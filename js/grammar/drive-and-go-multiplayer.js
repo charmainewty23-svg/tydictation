@@ -88,6 +88,13 @@
                 'Do not re-run the older Drive &amp; Go! files for this. ' +
                 'Articles Single Player and Tenses / Agreement multiplayer keep working without it.</div>';
         }
+        if (kind === 'indefinite_pronouns') {
+            return '<div class="dg-note warn text-left"><b>Indefinite Pronouns multiplayer needs one SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_indefinite_pronouns_topic.sql</code> in the Supabase SQL editor. ' +
+                'It adds the <code>indefinite_pronouns</code> topic (and keeps <code>articles</code>). ' +
+                'Do not re-run the older Drive &amp; Go! files for this. ' +
+                'Indefinite Pronouns Single Player and Tenses / Agreement / Articles multiplayer keep working without it.</div>';
+        }
         if (kind === 'scene') {
             return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the Supabase SQL editor ' +
@@ -360,7 +367,8 @@
     DG.mpShowSqlHint = function (error) {
         const topic = DG.normalizeTopic(DG.readSettings().topic);
         const kind = (DG.mpClassRoom && DG.mpIsClassRoomSqlMissing(error)) ? 'class'
-            : (DG.mpIsAgreementSqlMissing(error) ? (topic === 'articles' ? 'articles' : 'agreement')
+            : (DG.mpIsAgreementSqlMissing(error)
+                ? (topic === 'articles' ? 'articles' : (topic === 'indefinite_pronouns' ? 'indefinite_pronouns' : 'agreement'))
                 : (DG.mpIsSceneSqlMissing(error) ? 'scene'
                     : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '')));
         const content = DG.menuContent();
@@ -373,11 +381,13 @@
                     ? 'Run supabase/drive_and_go_agreement_topic.sql in the Supabase SQL editor.'
                     : (kind === 'articles'
                         ? 'Run supabase/drive_and_go_articles_topic.sql in the Supabase SQL editor.'
-                        : (kind === 'scene'
-                            ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
-                            : (kind === 'question_count'
-                                ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                                : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.')))));
+                        : (kind === 'indefinite_pronouns'
+                            ? 'Run supabase/drive_and_go_indefinite_pronouns_topic.sql in the Supabase SQL editor.'
+                            : (kind === 'scene'
+                                ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                                : (kind === 'question_count'
+                                    ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                                    : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'))))));
         }
     };
 
@@ -466,9 +476,12 @@
             p_scene: DG.normalizeScene(settings.scene)
         }, DG.mpLookArgs());
         // Tenses rooms deliberately omit p_topic so the existing 7-argument
-        // function keeps working before the new SQL is pasted. Agreement and
-        // Articles rooms send it so the room stores the right bank.
-        if (topic === 'agreement' || topic === 'articles') args.p_topic = topic;
+        // function keeps working before the new SQL is pasted. Agreement,
+        // Articles and Indefinite Pronouns rooms send it so the room stores
+        // the right bank.
+        if (topic === 'agreement' || topic === 'articles' || topic === 'indefinite_pronouns') {
+            args.p_topic = topic;
+        }
         if (DG.mpClassRoom) {
             const cb = document.getElementById('dg-teacher-plays');
             DG.mpTeacherPlays = !cb || cb.checked;
@@ -490,9 +503,9 @@
                 DG.mpSetStatus('Could not create the room. Please try again.', true);
                 return;
             }
-            // Before drive_and_go_articles_topic.sql is pasted the server
-            // silently coerces an unknown topic to 'tenses'. Stop here so an
-            // Articles host never starts a Tenses room without noticing.
+            // Before the topic SQL is pasted the server silently coerces an
+            // unknown topic to 'tenses'. Stop here so an Articles /
+            // Indefinite Pronouns host never starts a Tenses room unnoticed.
             if (topic !== 'tenses' && DG.normalizeTopic(room.topic) !== topic) {
                 DG.mpSetStatus('', false);
                 DG.mpShowSqlHint({ message: 'p_topic', details: 'room topic ' + room.topic });

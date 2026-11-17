@@ -184,10 +184,8 @@
             statsEl.innerHTML = '';
             listEl.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-violet-400 font-bold">Loading Speak Flap...</p></div>';
             const boardEl = document.getElementById('flap-admin-board');
-            const recentEl = document.getElementById('flap-admin-recent');
             const improvedEl = document.getElementById('flap-admin-improved');
             if (boardEl) boardEl.innerHTML = '';
-            if (recentEl) recentEl.innerHTML = '';
             if (improvedEl) improvedEl.innerHTML = '';
             try {
                 const [runsRes, improvedRes] = await Promise.all([
@@ -219,12 +217,10 @@
             const listEl = document.getElementById('flap-admin-container');
             if (!statsEl || !listEl) return;
             const boardEl = document.getElementById('flap-admin-board');
-            const recentEl = document.getElementById('flap-admin-recent');
             const improvedEl = document.getElementById('flap-admin-improved');
             if (adminCache.flapError) {
                 statsEl.innerHTML = '';
                 if (boardEl) boardEl.innerHTML = '';
-                if (recentEl) recentEl.innerHTML = '';
                 if (improvedEl) improvedEl.innerHTML = '';
                 listEl.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap data is not available. Run <code class="text-violet-600">supabase/flap_runs.sql</code> in the SQL editor.</p>';
                 return;
@@ -340,24 +336,6 @@
                     </div>`;
                 }).join('') + '</div>',
                 { collapsible: true, scope: 'flap-admin', emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap runs yet.</p>' });
-
-            if (recentEl) {
-                const recent = runs.slice(0, 12);
-                recentEl.innerHTML = recent.length
-                    ? '<div class="space-y-2">' + recent.map((r) => {
-                        const acc = Number(r.acc_words)
-                            ? Math.round(((Number(r.acc_hits) || 0) / Number(r.acc_words)) * 100)
-                            : null;
-                        return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, '')}</p>${classBadge(undefined, r.nickname)}</div>
-                                <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">${timeAgo(r.created_at)} · ${Number(r.phrases) || 0} phrases · ${acc === null ? '—' : acc + '%'} · ${Number(r.wpm) || 0} wpm</p>
-                            </div>
-                            <p class="text-sm font-bold text-violet-600">${Number(r.score) || 0} pts</p>
-                        </div>`;
-                    }).join('') + '</div>'
-                    : '<p class="text-gray-400 text-center py-4">No Speak Flap runs yet.</p>';
-            }
         }
 
         async function loadAdminDashboard() {

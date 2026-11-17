@@ -221,7 +221,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - **Admin dashboard**：`loadFlapAdmin()`／`renderFlapAdmin()` 喺 `js/admin.js`，
   讀 `flap_runs` ＋ `flap_improved_today`。Admin 卡「🃏 Speak Flap」有
   Students／Runs／Today／Top score、Most improved、本週 Top 7、按年級分組嘅
-  學生最佳／runs／phrases／accuracy／last played，同最近 12 場。未跑
+  學生最佳／runs／phrases／accuracy／last played。未跑
   `supabase/flap_runs.sql` 會顯示提示；Refresh call `loadFlapAdmin(true)`，
   `changeView('admin-view')` 會自動 call。
 - Ghost Cat：本機最佳分數畫成天際線，跨過會出煙花。

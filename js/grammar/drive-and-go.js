@@ -1550,7 +1550,7 @@ const DG = {
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">' +
             card('tenses', '⏳', 'Tenses', 'Active voice, passive voice or both') +
             card('agreement', '🤝', 'Agreement', 'Gap-fill, Choose, or both from the Agreement bank') +
-            card('articles', '📘', 'Articles', 'a / an / the / X — 200 questions, four answer gates') +
+            card('articles', '📘', 'Articles', 'a / an / the / X — four answer gates') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' + back + '">← Back</button>' +

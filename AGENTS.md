@@ -1067,7 +1067,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   大細楷（句首會係 `The`／`A`／`An`）。呢個檔係 generated file，唔好手改題目次序。
 - **Topic／Challenge**：`DG.TOPICS` 加 `articles`，`TOPIC_LABEL.articles = 'Articles'`，
   `MODES_FOR_TOPIC.articles = ['mixed']`。Topic step 有三張卡，Articles 卡寫
-  「a / an / the / X — 200 questions, four answer gates」；Challenge step 只有一張
+  「a / an / the / X — four answer gates」；Challenge step 只有一張
   `Articles` 卡。`normalizeBankMode('articles', anything)` 一律回 `mixed`；
   `bankKey` 係 `articles:mixed`。
 - **四閘**：`DG.articleGates(question, rng)` 出四塊閘，`['a','an','the','X']` 洗牌後

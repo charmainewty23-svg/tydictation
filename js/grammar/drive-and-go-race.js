@@ -21,6 +21,7 @@
         mode: 'single',
         topic: 'tenses',
         bankMode: 'av',
+        laneCount: 3,
         scene: 'desert',
         opts: null,
         room: null,
@@ -143,7 +144,33 @@
         DG.bindRaceInput();
         DG.syncRaceFsUi();
         DG.syncMusicUi();
+        DG.syncLaneControls();
         return true;
+    };
+
+    DG.laneLabels = function () {
+        return (S.laneCount || 3) >= 4
+            ? ['LEFT', 'MID-L', 'MID-R', 'RIGHT']
+            : ['LEFT', 'CENTER', 'RIGHT'];
+    };
+
+    /* The four Articles gates need four steering buttons; Tenses / Agreement
+       keep the classic LEFT / CENTER / RIGHT. */
+    DG.syncLaneControls = function () {
+        const wrap = document.getElementById('dg-controls');
+        if (!wrap) return;
+        const count = (S.laneCount || 3) >= 4 ? 4 : 3;
+        const btns = wrap.querySelectorAll('button');
+        if (btns[3]) btns[3].style.display = count >= 4 ? '' : 'none';
+        wrap.style.gridTemplateColumns = 'repeat(' + count + ', 1fr)';
+        const labels = DG.laneLabels();
+        const aria = count >= 4
+            ? ['Steer left', 'Steer mid-left', 'Steer mid-right', 'Steer right']
+            : ['Steer left', 'Steer to the centre lane', 'Steer right'];
+        for (let i = 0; i < count && i < btns.length; i += 1) {
+            btns[i].textContent = labels[i];
+            btns[i].setAttribute('aria-label', aria[i]);
+        }
     };
 
     DG.resizeCanvas = function () {
@@ -186,6 +213,9 @@
         S.mode = mode;
         S.topic = topic;
         S.bankMode = bankMode;
+        S.laneCount = DG.laneCountFor(topic);
+        const laneCenter = (S.laneCount - 1) / 2;
+        if (typeof DG.syncLaneControls === 'function') DG.syncLaneControls();
         S.room = opts.room || null;
         S.scene = DG.normalizeScene(opts.scene || (opts.room && opts.room.scene) || (settings && settings.scene));
         S.questions = DG.raceQuestionQueue(topic, bankMode, opts.seed);
@@ -224,12 +254,12 @@
             opts.questionCount || (opts.room && opts.room.question_count) || (settings && settings.questionCount)
         );
         DG.releaseAccel();
-        S.tilt.target = 1;
+        S.tilt.target = laneCenter;
         S.tilt.delta = 0;
         S.tilt.active = false;
         S.tilt.manualUntil = 0;
         S.player = {
-            lane: 1, laneX: 1, dist: 0, speed: 0, score: 0, combo: 0, maxCombo: 0,
+            lane: Math.floor(laneCenter), laneX: laneCenter, dist: 0, speed: 0, score: 0, combo: 0, maxCombo: 0,
             correct: 0, wrong: 0, item: null, spinUntil: 0, slowUntil: 0,
             nitroUntil: 0, boostUntil: 0, starUntil: 0, shrinkUntil: 0,
             finished: false, finishAt: 0, look: DG.raceLook(), name: currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'You'
@@ -253,8 +283,8 @@
                     }),
                     dist: Math.max(0, 20 - i * 14 + Math.random() * 16),
                     speed: 60 + Math.random() * 25,
-                    lane: i % 3,
-                    laneX: i % 3,
+                    lane: i % S.laneCount,
+                    laneX: i % S.laneCount,
                     skill: 96 + Math.random() * 22,
                     spinUntil: 0,
                     slowUntil: 0,
@@ -312,7 +342,7 @@
     DG.exitRace = function () {
         DG.exitRaceFullscreen();
         DG.stopRace();
-        changeView('grammar-revision-view');
+        changeView('grammar-view');
     };
 
     /* Stop the animation loop but keep the race view + overlay on screen. Used
@@ -411,9 +441,9 @@
         // laneX, or the kart snaps back to the centre before it can move.
         const tiltFresh = S.tilt.active && (Date.now() - (S.tilt.lastAt || 0) < 2000);
         const tiltLive = S.tilt.enabled && tiltFresh && now >= (S.tilt.manualUntil || 0);
-        const laneTarget = tiltLive ? DG.tiltLaneTarget(S.tilt.delta) : null;
+        const laneTarget = tiltLive ? DG.tiltLaneTarget(S.tilt.delta, S.laneCount - 1) : null;
         if (tiltLive) S.tilt.target = laneTarget;
-        const laneState = DG.laneStep(p, dt, laneTarget);
+        const laneState = DG.laneStep(p, dt, laneTarget, S.laneCount - 1);
         p.laneX = laneState.laneX;
         p.lane = laneState.lane;
 
@@ -657,7 +687,8 @@
 
     DG.setLane = function (lane) {
         if (!S.active || S.phase !== 'racing' || S.paused) return;
-        const n = Math.max(0, Math.min(2, Number(lane)));
+        const max = Math.max(0, (S.laneCount || 3) - 1);
+        const n = Math.max(0, Math.min(max, Number(lane)));
         S.player.lane = n;
         // An explicit button / key / swipe press wins over analog tilt for a
         // moment, so the on-screen buttons still work as a backup.
@@ -731,7 +762,7 @@
         }
         if (key === 'ArrowLeft' || key === 'a' || key === 'A') { DG.steer(-1); e.preventDefault(); }
         else if (key === 'ArrowRight' || key === 'd' || key === 'D') { DG.steer(1); e.preventDefault(); }
-        else if (key === 'ArrowDown' || key === 's' || key === 'S') { DG.setLane(1); e.preventDefault(); }
+        else if (key === 'ArrowDown' || key === 's' || key === 'S') { DG.setLane(Math.floor(((S.laneCount || 3) - 1) / 2)); e.preventDefault(); }
         else if (key === 'Enter') { DG.useItem(); e.preventDefault(); }
         else if (key === 'f' || key === 'F') { DG.toggleRaceFullscreen(); e.preventDefault(); }
         else if (key === 'p' || key === 'P' || key === 'Escape') { DG.togglePause(); e.preventDefault(); }
@@ -763,7 +794,7 @@
         while (delta > 180) delta -= 360;
         while (delta < -180) delta += 360;
         S.tilt.delta = delta;
-        S.tilt.target = DG.tiltLaneTarget(delta);
+        S.tilt.target = DG.tiltLaneTarget(delta, S.laneCount - 1);
         // Analog: no one-shot steer and no need to return to centre first.
         // updateRace() lerps laneX toward this target every frame.
         S.tilt.active = true;
@@ -839,7 +870,7 @@
             S.tilt.enabled = true;
             S.tilt.zero = null;
             S.tilt.active = false;
-            S.tilt.target = 1;
+            S.tilt.target = ((S.laneCount || 3) - 1) / 2;
             S.tilt.delta = 0;
             S.tilt.manualUntil = 0;
             S.tilt.lastAt = Date.now();
@@ -848,7 +879,7 @@
                 if (!S.active) return;
                 if (Date.now() - S.tilt.lastAt > 1400) {
                     S.tilt.warned = true;
-                    DG.toast('Tilt sensor not available — use LEFT / CENTER / RIGHT.', 3200);
+                    DG.toast('Tilt sensor not available — use the lane buttons.', 3200);
                 }
             }, 1800);
         } else {
@@ -865,7 +896,7 @@
         S.tilt.enabled = false;
         S.tilt.zero = null;
         S.tilt.active = false;
-        S.tilt.target = 1;
+        S.tilt.target = ((S.laneCount || 3) - 1) / 2;
         S.tilt.delta = 0;
         S.swipe.down = false;
         DG.releaseAccel();
@@ -1063,7 +1094,8 @@
                     if (g.correct) cls += ' dg-good';
                     else if (S.lastResult && g.lane === S.lastResult.lane && !S.lastResult.correct) cls += ' dg-bad';
                 }
-                return '<div class="' + cls + '"><b>' + ['LEFT', 'CENTER', 'RIGHT'][g.lane] + '</b>' + DG.esc(g.label) + '</div>';
+                const laneNames = DG.laneLabels();
+                return '<div class="' + cls + '"><b>' + (laneNames[g.lane] || 'LANE ' + (g.lane + 1)) + '</b>' + DG.esc(g.label) + '</div>';
             }).join('');
             S.hudDirty = false;
         }
@@ -1312,7 +1344,7 @@
             DG.resultsBoardHTML('single', S.topic, S.bankMode, n) +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.restartRace()">Race again</button>' +
-            '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Tenses</button>' +
+            '<button type="button" class="dg-menu-button" onclick="DG.exitRace()">Back to Grammar</button>' +
             '</div></div>';
     };
 
@@ -1612,7 +1644,7 @@
                 '</div>').join('') + '</div>' +
             DG.resultsBoardHTML('multi', roomTopic, roomMode, n) +
             (((DG.raceEls && DG.raceEls.overlay))
-                ? '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div>'
+                ? '<button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Grammar</button></div>'
                 : '<button type="button" class="btn-paw" onclick="DG.backToTenses()">Back to class</button></div>');
 
         // The host-only teacher never entered #drive-and-go-view, so there is
@@ -1774,12 +1806,15 @@
         // Slide the whole 2D world so the player's lane stays at the bottom
         // centre. Steering then moves the road, not the kart.
         const nearHalf = w * 0.51;
-        const camShift = S.player ? (S.player.laneX - 1) * nearHalf * 0.64 : 0;
+        const laneCount = S.laneCount || 3;
+        const laneCenter = (laneCount - 1) / 2;
+        const laneUnit = 0.64 * 2 / (laneCount - 1);
+        const camShift = S.player ? (S.player.laneX - laneCenter) * nearHalf * laneUnit : 0;
         const centerX = w / 2 + lat * (w / 180) * persp - camShift;
         const roadHalf = w * (0.02 + 0.49 * persp);
-        const laneN = lane == null ? 1 : lane;
+        const laneN = lane == null ? laneCenter : lane;
         return {
-            x: centerX + (laneN - 1) * roadHalf * 0.64,
+            x: centerX + (laneN - laneCenter) * roadHalf * laneUnit,
             y: y,
             scale: persp,
             roadHalf: roadHalf,
@@ -2644,7 +2679,10 @@
     };
 
     DG.threeLaneX = function (rel, laneX) {
-        return DG.threeRoadX(rel) + ((laneX == null ? 1 : laneX) - 1) * THREE_LANE;
+        const laneCount = S.laneCount || 3;
+        const laneCenter = (laneCount - 1) / 2;
+        const unit = THREE_LANE * 2 / (laneCount - 1);
+        return DG.threeRoadX(rel) + ((laneX == null ? laneCenter : laneX) - laneCenter) * unit;
     };
 
     DG.threeSkyTexture = function (style) {
@@ -2884,13 +2922,16 @@
         const g = new THREE.Group();
         const postMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
         const postGeo = new THREE.BoxGeometry(0.6, 4.2, 0.6);
-        [-3.2, 3.2].forEach(x => {
+        const laneCount = S.laneCount || 3;
+        const gateWidth = laneCount >= 4 ? 4.2 : 7.0;
+        const postX = gateWidth * 0.46;
+        [-postX, postX].forEach(x => {
             const post = new THREE.Mesh(postGeo, postMat);
             post.position.set(x, 2.1, 0);
             g.add(post);
         });
         const bannerMat = new THREE.MeshBasicMaterial({ map: DG.threeTextTexture(gate.label, '#f59e0b'), transparent: true });
-        const banner = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 1.75), bannerMat);
+        const banner = new THREE.Mesh(new THREE.PlaneGeometry(gateWidth, 1.75), bannerMat);
         banner.position.set(0, 4.7, 0);
         g.add(banner);
         g.userData = { postMat, banner, bannerMat, label: gate.label, color: '#f59e0b' };
@@ -3398,7 +3439,7 @@
         entry.group.position.set(DG.threeLaneX(0, p.laneX), DG.threeRoadY(0), 0);
         entry.group.scale.setScalar(0.62);
         entry.group.rotation.z = S.clock < p.spinUntil ? (S.clock * 3) % (Math.PI * 2) : 0;
-        entry.group.rotation.y = (p.laneX - 1) * 0.06;
+        entry.group.rotation.y = (p.laneX - ((S.laneCount || 3) - 1) / 2) * 0.06;
 
         // A class room can hold 30 racers. Draw only the nearest 6 in 3D so
         // the extra kart meshes cannot drag the frame rate down.
@@ -3677,7 +3718,8 @@
         const w = DG.view.w, h = DG.view.h;
         const pr = DG.project(rel, gate.lane);
         if (pr.scale <= 0.02 || pr.y > h + 120) return;
-        const gateW = Math.max(32, pr.roadHalf * 0.58);
+        const laneFactor = (S.laneCount || 3) >= 4 ? 0.4 : 0.58;
+        const gateW = Math.max(32, pr.roadHalf * laneFactor);
         const gateH = Math.max(24, h * 0.085 * pr.scale + 16);
         const x = pr.x - gateW / 2;
         const y = pr.y - gateH;

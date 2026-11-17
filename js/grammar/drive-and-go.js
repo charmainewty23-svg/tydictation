@@ -1,11 +1,12 @@
 /* LearniTY Dictation — Drive & Go! Mario Kart-style grammar racing game.
    This file owns the pre-race flow (topic → challenge → cat → controls →
-   question count → course), the Google-Sheets question bank for both topics
-   (Tenses: tenses / Passives; Agreement: Agreement), same-verb tense
-   distractors, Agreement Gap-fill / Choose gates, local preferences and
-   shared helpers. The canvas race engine lives in drive-and-go-race.js and
-   the realtime 2–5 player lobby/race sync lives in
-   drive-and-go-multiplayer.js.
+   question count → course), the question banks for all three topics
+   (Tenses: tenses / Passives; Agreement: Agreement; Articles: local
+   200-question bank in articles-data.js), same-verb tense distractors,
+   Agreement Gap-fill / Choose gates, Articles a / an / the / X four-gate
+   race, local preferences and shared helpers. The canvas race engine lives
+   in drive-and-go-race.js and the realtime 2–5 player lobby/race sync lives
+   in drive-and-go-multiplayer.js.
    All three files are classic scripts: no modules, no defer/async. */
 
 const DG = {
@@ -13,14 +14,16 @@ const DG = {
     BEST_SCORE_KEY: 'learniTY_dg_best_score',
     BEST_DISTANCE_KEY: 'learniTY_dg_best_distance',
     BEST_RUNS_KEY: 'learniTY_dg_best_runs',
-    // Two topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the Tenses
-    // map so existing tests and cached links keep working; the Agreement tab
-    // is case-sensitive and lives on its own.
-    TOPICS: ['tenses', 'agreement'],
-    TOPIC_LABEL: { tenses: 'Tenses', agreement: 'Agreement' },
+    // Three topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the
+    // Tenses map so existing tests and cached links keep working; the
+    // Agreement tab is case-sensitive and lives on its own, and Articles is
+    // a local 200-question bank (no Google Sheet tab).
+    TOPICS: ['tenses', 'agreement', 'articles'],
+    TOPIC_LABEL: { tenses: 'Tenses', agreement: 'Agreement', articles: 'Articles' },
     MODES_FOR_TOPIC: {
         tenses: ['av', 'pv', 'mixed'],
-        agreement: ['gapfill', 'choose', 'mixed']
+        agreement: ['gapfill', 'choose', 'mixed'],
+        articles: ['mixed']
     },
     AGREEMENT_TAB: 'Agreement',
     TAB_FOR_MODE: { av: ['tenses'], pv: ['Passives'], mixed: ['tenses', 'Passives'] },
@@ -28,6 +31,8 @@ const DG = {
     MODE_SHORT: { av: 'AV', pv: 'PV', mixed: 'Mixed' },
     AGREEMENT_MODE_LABEL: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
     AGREEMENT_MODE_SHORT: { gapfill: 'Gap-fill', choose: 'Choose', mixed: 'Mixed' },
+    ARTICLE_MODE_LABEL: { mixed: 'Articles (a / an / the / X)' },
+    ARTICLE_MODE_SHORT: { mixed: 'a/an/the/X' },
     QUESTION_COUNTS: [10, 20, 25, 30, 35, 40, 50],
     // Three playable courses. The exact ids / names are stored in Supabase
     // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
@@ -130,7 +135,9 @@ const DG = {
         const id = String(mode == null ? '' : mode).trim().toLowerCase();
         const list = DG.MODES_FOR_TOPIC[t] || DG.MODES_FOR_TOPIC.tenses;
         if (list.indexOf(id) !== -1) return id;
-        return t === 'agreement' ? 'gapfill' : 'av';
+        if (t === 'agreement') return 'gapfill';
+        if (t === 'articles') return 'mixed';
+        return 'av';
     },
 
     topicLabel(value) {
@@ -141,6 +148,7 @@ const DG = {
         const t = DG.normalizeTopic(topic);
         const id = DG.normalizeBankMode(t, mode);
         if (t === 'agreement') return DG.AGREEMENT_MODE_LABEL[id];
+        if (t === 'articles') return DG.ARTICLE_MODE_LABEL[id] || 'Articles';
         return DG.MODE_LABEL[id];
     },
 
@@ -148,6 +156,7 @@ const DG = {
         const t = DG.normalizeTopic(topic);
         const id = DG.normalizeBankMode(t, mode);
         if (t === 'agreement') return DG.AGREEMENT_MODE_SHORT[id];
+        if (t === 'articles') return DG.ARTICLE_MODE_SHORT[id] || 'a/an/the/X';
         return DG.MODE_SHORT[id];
     },
 
@@ -165,7 +174,12 @@ const DG = {
     // existing map; Agreement always uses the single case-sensitive tab.
     tabsFor(topic, mode) {
         if (DG.normalizeTopic(topic) === 'agreement') return [DG.AGREEMENT_TAB];
+        if (DG.normalizeTopic(topic) === 'articles') return ['Articles'];
         return DG.TAB_FOR_MODE[DG.normalizeBankMode(topic, mode)] || [];
+    },
+
+    laneCountFor(topic) {
+        return DG.normalizeTopic(topic) === 'articles' ? 4 : 3;
     },
 
     // Cache key: mixed must never overwrite the other topic's mixed bank.
@@ -201,42 +215,39 @@ const DG = {
        full lock arrives at ±TILT_FULL (12°). The smoothstep curve makes small
        leans gentle, while a normal ~7° wrist lean already crosses into the
        next lane. Holding a lean keeps the kart in that lane. */
-    tiltLaneTarget(delta) {
+    tiltLaneTarget(delta, maxLane) {
         const d = Number(delta);
-        if (!isFinite(d)) return 1;
+        const max = (maxLane == null) ? 2 : Math.max(1, Number(maxLane));
+        const center = max / 2;
+        if (!isFinite(d)) return center;
         const mag = Math.abs(d);
-        if (mag <= DG.TILT_DEAD) return 1;
+        if (mag <= DG.TILT_DEAD) return center;
         const t = Math.max(0, Math.min(1, (mag - DG.TILT_DEAD) / (DG.TILT_FULL - DG.TILT_DEAD)));
         const eased = t * t * (3 - 2 * t);
-        return d < 0 ? 1 - eased : 1 + eased;
+        return d < 0 ? center - eased * center : center + eased * center;
     },
 
-    /* Clamp + round a fractional lane position to 0, 1 or 2. */
-    nearestLane(laneX) {
+    /* Clamp + round a fractional lane position to 0..maxLane (2 for three
+       lanes, 3 for the four-lane Articles race). */
+    nearestLane(laneX, maxLane) {
+        const max = (maxLane == null) ? 2 : Math.max(1, Number(maxLane));
         const v = Number(laneX);
-        if (!isFinite(v)) return 1;
-        return Math.round(Math.max(0, Math.min(2, v)));
+        if (!isFinite(v)) return Math.floor(max / 2);
+        return Math.round(Math.max(0, Math.min(max, v)));
     },
 
     /* Advance the kart's lane one frame. This is the single authoritative
        steering step, shared by updateRace() and the unit tests.
 
        state = { lane, laneX } where lane is the discrete target (button /
-       key / swipe) and laneX is the on-screen position.
-
-       tiltTarget == null  → discrete mode: laneX chases `lane`, and `lane`
-                             is NEVER overwritten from laneX. Overwriting it
-                             every frame was the PR #26 bug that snapped the
-                             kart straight back to the centre before it could
-                             reach the next lane, so buttons / keys / swipes
-                             appeared dead.
-       tiltTarget = 0..2   → analog tilt: laneX chases the lean, and `lane`
-                             follows the actual position so gates are judged
-                             where the kart really is. */
-    laneStep(state, dt, tiltTarget) {
+       key / swipe) and laneX is the on-screen position. maxLane is 2 for the
+       three-lane Tenses / Agreement races and 3 for the four-gate Articles
+       race. */
+    laneStep(state, dt, tiltTarget, maxLane) {
+        const max = (maxLane == null) ? 2 : Math.max(1, Number(maxLane));
         const st = state || {};
         const secs = Math.max(0, Number(dt) || 0);
-        const lane = DG.nearestLane(st.lane);
+        const lane = DG.nearestLane(st.lane, max);
         let laneX = Number(st.laneX);
         if (!isFinite(laneX)) laneX = lane;
         const tilt = (tiltTarget == null) ? null : Number(tiltTarget);
@@ -245,10 +256,10 @@ const DG = {
             if (Math.abs(lane - laneX) < 0.002) laneX = lane;
             return { lane, laneX };
         }
-        const target = Math.max(0, Math.min(2, tilt));
+        const target = Math.max(0, Math.min(max, tilt));
         laneX += (target - laneX) * Math.min(1, secs * (DG.TILT_LERP || 18));
         if (Math.abs(target - laneX) < 0.002) laneX = target;
-        return { lane: DG.nearestLane(laneX), laneX };
+        return { lane: DG.nearestLane(laneX, max), laneX };
     },
 
     readSettings() {
@@ -447,6 +458,32 @@ const DG = {
     loadBank(topic, mode, force) {
         const t = DG.normalizeTopic(topic);
         const m = DG.normalizeBankMode(t, mode);
+        if (t === 'articles') {
+            const key = DG.bankKey(t, m);
+            if (!force && DG.bankCache[key] && DG.bankCache[key].length) {
+                return Promise.resolve(DG.bankCache[key]);
+            }
+            const raw = (typeof DG_ARTICLES !== 'undefined' && Array.isArray(DG_ARTICLES)) ? DG_ARTICLES : [];
+            if (!raw.length) {
+                return Promise.reject(new Error('The Articles question bank is missing. Reload the page and try again.'));
+            }
+            const questions = raw.map((row) => ({
+                id: 'articles-' + row.id,
+                prompt: row.q,
+                primary: row.a,
+                variants: [],
+                section: 'Articles',
+                sheet: 'Articles',
+                sectionKey: 'articles',
+                qType: ''
+            }));
+            DG.bankCache[key] = questions;
+            DG.bankPoolCache[key] = {
+                bySection: { articles: questions.map((q) => ({ primary: q.primary, variants: [], item: q })) },
+                bySheet: []
+            };
+            return Promise.resolve(questions);
+        }
         const tabs = DG.tabsFor(t, m);
         if (!tabs || !tabs.length) return Promise.reject(new Error('Unknown challenge mode: ' + mode));
         const key = DG.bankKey(t, m);
@@ -1159,6 +1196,25 @@ const DG = {
         }));
     },
 
+    /* Articles: exactly four gates — a / an / the / X (no article). The correct
+       label keeps the bank's capitalisation (e.g. The at the start of a
+       sentence); the others use the canonical lower-case labels. */
+    articleGates(question, rng) {
+        const rnd = rng || Math.random;
+        const q = question || {};
+        const correctKey = DG.normAnswer(q.primary);
+        const options = ['a', 'an', 'the', 'X'];
+        const gates = options.map((opt) => {
+            const key = opt.toLowerCase();
+            return {
+                label: key === correctKey ? String(q.primary || opt) : opt,
+                correct: key === correctKey
+            };
+        });
+        DG.shuffleInPlace(gates, rnd);
+        return gates.map((g, lane) => ({ label: g.label, lane, correct: g.correct }));
+    },
+
     // The HUD sentence. Tenses is untouched; Agreement strips the bank label
     // ("1. Gap-fill:") and, for Choose, the options that are already on the
     // gates so the sentence does not repeat them.
@@ -1209,6 +1265,7 @@ const DG = {
 
     gatesFor(question, topic, mode, rng) {
         const t = DG.normalizeTopic(topic);
+        if (t === 'articles') return DG.articleGates(question, rng);
         const key = DG.bankKey(t, mode);
         const pools = DG.bankPoolCache[key] || { bySection: {}, bySheet: {} };
         if (t === 'agreement' || (question && question.qType)) {
@@ -1291,7 +1348,7 @@ const DG = {
         DG.stopRace();
         if (typeof DG.exitRaceFullscreen === 'function') DG.exitRaceFullscreen();
         if (typeof DG.mpStopPoll === 'function') DG.mpAbandon();
-        changeView('grammar-revision-view');
+        changeView('grammar-view');
     },
 
     // changeView() calls this for every view change. Keep the race alive only
@@ -1333,7 +1390,8 @@ const DG = {
             '<div class="text-center mb-6"><div class="text-7xl mb-3">📡</div>' +
             '<h2 class="text-3xl font-bold text-orange-600">Question bank not loaded</h2></div>' +
             '<div class="dg-menu-panel text-center">' +
-            '<p class="font-bold text-gray-700 mb-2">Could not load the ' + DG.esc(label) + ' questions from Google Sheets.</p>' +
+            '<p class="font-bold text-gray-700 mb-2">Could not load the ' + DG.esc(label) + ' questions ' +
+            (t === 'articles' ? 'from the built-in Articles bank.' : 'from Google Sheets.') + '</p>' +
             '<p class="text-sm text-gray-500 mb-6">' + DG.esc(err && err.message ? err.message : 'Please check your connection and try again.') + '</p>' +
             '<div class="flex gap-3 justify-center flex-wrap">' +
             '<button type="button" class="btn-paw" onclick="DG.retryBank()">Retry</button>' +
@@ -1492,6 +1550,7 @@ const DG = {
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">' +
             card('tenses', '⏳', 'Tenses', 'Active voice, passive voice or both') +
             card('agreement', '🤝', 'Agreement', 'Gap-fill, Choose, or both from the Agreement bank') +
+            card('articles', '📘', 'Articles', 'a / an / the / X — 200 questions, four answer gates') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' + back + '">← Back</button>' +
@@ -1528,9 +1587,11 @@ const DG = {
             ? (card('gapfill', '✏️', 'Gap-fill', 'Complete the sentence with the right form') +
                card('choose', '✅', 'Choose', 'Pick the correct option from the sentence') +
                card('mixed', '🌈', 'Mixed', 'Gap-fill and Choose shuffled together'))
-            : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
-               card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
-               card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
+            : topic === 'articles'
+                ? card('mixed', '📘', 'Articles', 'a / an / the / X — four gates, one correct article')
+                : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+                   card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
+                   card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
         content.innerHTML =
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
@@ -1664,8 +1725,9 @@ const DG = {
                 '<span class="dg-choice-title">' + title + '</span>' +
                 '<span class="dg-choice-sub">' + sub + '</span></button>';
         };
+        const fourLanes = DG.normalizeTopic(s.topic) === 'articles';
         const note = DG.tiltPermission === 'denied'
-            ? '<div class="dg-note warn">Tilt permission was denied or no motion sensor was found. The LEFT / CENTER / RIGHT buttons will be used instead.</div>'
+            ? '<div class="dg-note warn">Tilt permission was denied or no motion sensor was found. The lane buttons will be used instead.</div>'
             : (DG.tiltPermission === 'granted'
                 ? '<div class="dg-note ok">Tilt is ready. Hold your phone level when the race starts.</div>' : '');
         content.innerHTML =
@@ -1677,7 +1739,8 @@ const DG = {
             '<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">' +
             card('tilt', '📱', 'Tilt (recommended)', 'Lean left / right to steer — lean further for the next lane') +
             card('swipe', '👆', 'Swipe', 'Swipe left or right on the track') +
-            card('buttons', '🔘', 'LEFT / CENTER / RIGHT', 'Tap the on-screen buttons') +
+            card('buttons', '🔘', fourLanes ? '4 lane buttons' : 'LEFT / CENTER / RIGHT',
+                fourLanes ? 'Tap any of the four lanes for a / an / the / X' : 'Tap the on-screen buttons') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="DG.showCatStep()">← Cat</button>' +
@@ -2021,8 +2084,8 @@ const DG = {
             elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
         };
         // Tenses must still insert into the current schema (no topic column
-        // yet). Only an Agreement run sends the new column.
-        if (topic === 'agreement') row.topic = 'agreement';
+        // yet). Agreement and Articles runs send the new column.
+        if (topic === 'agreement' || topic === 'articles') row.topic = topic;
         if (extra && extra.room_id) {
             row.room_id = extra.room_id;
             row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
@@ -2040,12 +2103,12 @@ const DG = {
             sb.from(DG.cloudBoardTable(kind)).insert(row).then(({ error }) => {
                 if (!error) return;
                 console.warn('Drive & Go! ' + kind + ' score not saved:', error.message);
-                DG.cloudBoardSqlHint(error);
+                DG.cloudBoardSqlHint(error, row.topic || DG.normalizeTopic(DG.readSettings().topic));
             }, () => {});
         } catch (e) {}
     },
 
-    cloudBoardSqlHint(error) {
+    cloudBoardSqlHint(error, topic) {
         const now = Date.now();
         if (DG._cloudBoardHintAt && now - DG._cloudBoardHintAt < 60000) return;
         DG._cloudBoardHintAt = now;
@@ -2053,11 +2116,13 @@ const DG = {
             .filter(Boolean).join(' ');
         // A topic / gapfill / choose failure is the new incremental, not the
         // older scene / board files the teacher already ran.
-        const agreement = /topic|gapfill|choose/i.test(text)
+        const topicIssue = /topic|gapfill|choose/i.test(text)
             || (/23514/i.test(text) && /question_mode|bank_mode/i.test(text));
         if (typeof DG.toastSafe === 'function') {
-            DG.toastSafe(agreement
-                ? 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.'
+            DG.toastSafe(topicIssue
+                ? (DG.normalizeTopic(topic) === 'articles'
+                    ? 'Leaderboard not saved — run supabase/drive_and_go_articles_topic.sql.'
+                    : 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.')
                 : 'Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
         }
     },

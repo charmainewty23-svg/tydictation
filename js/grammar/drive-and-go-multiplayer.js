@@ -81,6 +81,13 @@
                 'Do not re-run the older Drive &amp; Go! files for this. ' +
                 'Single Player and Tenses multiplayer keep working without it.</div>';
         }
+        if (kind === 'articles') {
+            return '<div class="dg-note warn text-left"><b>Articles multiplayer needs one SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_articles_topic.sql</code> in the Supabase SQL editor. ' +
+                'It adds the <code>articles</code> topic and widens the score tables. ' +
+                'Do not re-run the older Drive &amp; Go! files for this. ' +
+                'Articles Single Player and Tenses / Agreement multiplayer keep working without it.</div>';
+        }
         if (kind === 'scene') {
             return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the Supabase SQL editor ' +
@@ -351,8 +358,9 @@
     };
 
     DG.mpShowSqlHint = function (error) {
+        const topic = DG.normalizeTopic(DG.readSettings().topic);
         const kind = (DG.mpClassRoom && DG.mpIsClassRoomSqlMissing(error)) ? 'class'
-            : (DG.mpIsAgreementSqlMissing(error) ? 'agreement'
+            : (DG.mpIsAgreementSqlMissing(error) ? (topic === 'articles' ? 'articles' : 'agreement')
                 : (DG.mpIsSceneSqlMissing(error) ? 'scene'
                     : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '')));
         const content = DG.menuContent();
@@ -363,11 +371,13 @@
                 ? 'Run supabase/drive_and_go_class_room.sql in the Supabase SQL editor.'
                 : (kind === 'agreement'
                     ? 'Run supabase/drive_and_go_agreement_topic.sql in the Supabase SQL editor.'
-                    : (kind === 'scene'
-                        ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
-                        : (kind === 'question_count'
-                            ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                            : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'))));
+                    : (kind === 'articles'
+                        ? 'Run supabase/drive_and_go_articles_topic.sql in the Supabase SQL editor.'
+                        : (kind === 'scene'
+                            ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                            : (kind === 'question_count'
+                                ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                                : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.')))));
         }
     };
 
@@ -456,8 +466,9 @@
             p_scene: DG.normalizeScene(settings.scene)
         }, DG.mpLookArgs());
         // Tenses rooms deliberately omit p_topic so the existing 7-argument
-        // function keeps working before the new SQL is pasted.
-        if (topic === 'agreement') args.p_topic = 'agreement';
+        // function keeps working before the new SQL is pasted. Agreement and
+        // Articles rooms send it so the room stores the right bank.
+        if (topic === 'agreement' || topic === 'articles') args.p_topic = topic;
         if (DG.mpClassRoom) {
             const cb = document.getElementById('dg-teacher-plays');
             DG.mpTeacherPlays = !cb || cb.checked;
@@ -477,6 +488,14 @@
             const room = Array.isArray(data) ? data[0] : data;
             if (!room || !room.id) {
                 DG.mpSetStatus('Could not create the room. Please try again.', true);
+                return;
+            }
+            // Before drive_and_go_articles_topic.sql is pasted the server
+            // silently coerces an unknown topic to 'tenses'. Stop here so an
+            // Articles host never starts a Tenses room without noticing.
+            if (topic !== 'tenses' && DG.normalizeTopic(room.topic) !== topic) {
+                DG.mpSetStatus('', false);
+                DG.mpShowSqlHint({ message: 'p_topic', details: 'room topic ' + room.topic });
                 return;
             }
             MP.room = room;
@@ -1172,7 +1191,7 @@
                 '<span class="dg-who">' + DG.esc(DG.mpPlayerName(r)) + '</span>' +
                 '<span class="dg-points">' + points(r) + ' pts</span>' +
                 '<span class="dg-dist">' + acc(r) + '</span></div>').join('') + '</div>' +
-            '<div class="text-center mt-5"><button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Tenses</button></div></div>';
+            '<div class="text-center mt-5"><button type="button" class="btn-paw" onclick="DG.exitRace()">Back to Grammar</button></div></div>';
     };
 
     /* ---------------- leaving ---------------- */
@@ -1230,7 +1249,7 @@
             MP.missingMePolls = 0;
             MP.closed = false;
             DG.stopRace();
-            changeView('grammar-revision-view');
+            changeView('grammar-view');
         }, () => {
             MP.leaving = false;
             MP.room = null;
@@ -1240,7 +1259,7 @@
             MP.missingMePolls = 0;
             MP.closed = false;
             DG.stopRace();
-            changeView('grammar-revision-view');
+            changeView('grammar-view');
         });
     };
 
@@ -1262,7 +1281,7 @@
         MP.closed = false;
         MP.raceMissingPolls = 0;
         DG.stopRace();
-        changeView('grammar-revision-view');
+        changeView('grammar-view');
     };
 
     /* Called by changeView when the player leaves the lobby/race view.

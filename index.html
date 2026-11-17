@@ -4381,11 +4381,16 @@
             <!-- Grammar Views -->
             <div id="grammar-view" class="view hidden w-full">
                 <div class="grid grid-cols-2 gap-6">
+                    <div class="category-box shadow-sm" style="border-color:#8b5cf6;background:linear-gradient(135deg,#f5f3ff,#ede9fe);box-shadow:0 0 0 4px rgba(139,92,246,.15)" onclick="showDriveAndGo()">
+                        <div class="text-5xl mb-4">🏎️</div>
+                        <div class="font-bold text-center leading-tight">Drive &amp; Go!</div>
+                        <div class="text-xs font-bold text-violet-600 text-center mt-1">RACE · 3 topics</div>
+                    </div>
                     <div class="category-box shadow-sm border-green-200" onclick="changeView('sentence-structures-view')">
                         <div class="text-5xl mb-4">📖</div>
                         <div class="font-bold text-center leading-tight">Sentence Structures</div>
                     </div>
-                    <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-revision-view')">
+                    <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-tense-list-view')">
                         <div class="text-5xl mb-4">🔄</div>
                         <div class="font-bold text-center leading-tight">Tenses</div>
                     </div>
@@ -4440,28 +4445,11 @@
                 <div id="grammar-detail-content" class="cat-card p-8 md:p-12"></div>
             </div>
 
-            <div id="grammar-revision-view" class="view hidden w-full">
+            <div id="grammar-tense-list-view" class="view hidden w-full">
                 <button onclick="changeView('grammar-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Grammar
                 </button>
                 <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Tenses</h2>
-                <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    <div class="category-box shadow-sm border-green-200" onclick="changeView('grammar-tense-list-view')">
-                        <div class="text-5xl mb-4">📖</div>
-                        <div class="font-bold text-center leading-tight">let's revise!</div>
-                    </div>
-                    <div class="category-box shadow-sm border-green-200" onclick="showDriveAndGo()">
-                        <div class="text-5xl mb-4">🏎️</div>
-                        <div class="font-bold text-center leading-tight">Drive & Go!</div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="grammar-tense-list-view" class="view hidden w-full">
-                <button onclick="changeView('grammar-revision-view')" class="nav-back mb-8 text-gray-500 flex items-center gap-2 hover:text-green-500 transition-colors text-xl font-bold">
-                    <span>←</span> Back to Tenses
-                </button>
-                <h2 class="text-3xl font-bold text-green-600 mb-8 px-2">Let's revise!</h2>
                 <div id="tense-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6"></div>
             </div>
 
@@ -4501,6 +4489,7 @@
                         <button type="button" onclick="DG.setLane(0)" aria-label="Steer left">LEFT</button>
                         <button type="button" onclick="DG.setLane(1)" aria-label="Steer to the centre lane">CENTER</button>
                         <button type="button" onclick="DG.setLane(2)" aria-label="Steer right">RIGHT</button>
+                        <button type="button" onclick="DG.setLane(3)" aria-label="Steer right" id="dg-lane-3" style="display:none">RIGHT</button>
                     </div>
                     <div id="dg-overlay" class="dg-overlay hidden"></div>
                 </div>
@@ -5367,6 +5356,7 @@
     <script src="js/dictation.js"></script>
     <script src="js/new-vocab.js"></script>
     <script src="js/grammar-quest.js"></script>
+    <script src="js/grammar/articles-data.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>

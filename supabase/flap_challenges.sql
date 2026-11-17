@@ -380,7 +380,7 @@ begin
     update public.flap_challenges
        set status = 'cancelled'
      where id = p_id
-       and challenger = auth.uid()
+       and (challenger = auth.uid() or rival = auth.uid())
        and status in ('open', 'accepted');
 end;
 $fn$;

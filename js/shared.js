@@ -47,6 +47,11 @@
 
         function navShouldShow(viewId) {
             if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
+            if (viewId === 'fluency-flap-view') {
+                // Lobby / mic / board / result keep the bar; an active run hides
+                // it so the HUD is not covered.
+                return !window.navFlapPlaying;
+            }
             if (viewId === 'wordjump-view') {
                 // Show the bar on the intro / pause / game-over screens and
                 // during windowed play. Only full screen hides it, because the
@@ -2308,6 +2313,7 @@
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             if (viewId !== 'wordjump-view' && typeof WJC !== 'undefined') WJC.onLeaveView();
+            if (viewId !== 'fluency-flap-view' && typeof FLAP !== 'undefined') FLAP.stop();
             if (typeof fluencyStopSpeech === 'function') fluencyStopSpeech();
             if (typeof DG !== 'undefined' && typeof DG.onLeaveView === 'function') DG.onLeaveView(viewId);
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;
@@ -2355,7 +2361,10 @@
                 updateMascot("Pick a hot topic and share your view.");
                 if (typeof fluencyRender === 'function') fluencyRender('topics');
             }
-            if (viewId === 'fluency-flap-view') updateMascot("Flip a card and speak for 30 seconds!");
+            if (viewId === 'fluency-flap-view') {
+                updateMascot("Read the phrase out loud — your voice lifts the cat!");
+                requestAnimationFrame(() => { if (typeof FLAP !== 'undefined') FLAP.mount(); });
+            }
             if (viewId === 'grammar-tense-list-view') { updateMascot("Pick a tense to revise!"); renderTenseGrid(); }
             if (viewId === 'error-book-view') { updateMascot("These are the words to try again."); renderErrorBook(); }
             if (viewId === 'profile-view') {

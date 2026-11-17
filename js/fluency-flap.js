@@ -275,6 +275,8 @@
             error: ''
         },
         lastPhrases: 0,
+        lastRankedScore: 0,
+        lastRankedPhrases: 0,
         resultCatRaf: 0,
         resultCatT: 0,
         toastTimer: 0,
@@ -1035,6 +1037,8 @@
         FLAP.lastScore = FLAP.score;
         FLAP.lastPhrases = FLAP.gatesPassed;
         if (FLAP.ranked) {
+            FLAP.lastRankedScore = FLAP.score;
+            FLAP.lastRankedPhrases = FLAP.gatesPassed;
             const isBest = writeBest(FLAP.score);
             FLAP.best = Math.max(readBest(), FLAP.score);
             if (isBest) FLAP.newBest = true;
@@ -1442,7 +1446,7 @@
                 user_id: meId,
                 nickname: (typeof displayName === 'function' && typeof currentUser !== 'undefined' && currentUser)
                     ? displayName() : 'You',
-                score: Math.max(readBest(), FLAP.lastScore || 0)
+                score: Math.max(readBest(), FLAP.lastRankedScore || 0)
             }]
         };
     }
@@ -1852,9 +1856,9 @@
 
     function challengeScore() {
         const best = Math.max(0, Number(readBest()) || 0);
-        const last = Math.max(0, Number(FLAP.lastScore) || 0);
+        const last = Math.max(0, Number(FLAP.lastRankedScore) || 0);
         if (last > 0 && last >= best) {
-            return { score: last, phrases: Math.max(0, Number(FLAP.lastPhrases) || 0) };
+            return { score: last, phrases: Math.max(0, Number(FLAP.lastRankedPhrases) || 0) };
         }
         return { score: best, phrases: 0 };
     }

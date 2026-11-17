@@ -166,14 +166,35 @@ function storeAvailable() {
     return canUseCloud() && !isGuestUser() && !previewStudentForm();
 }
 
+/* One-time 10% catalog price rise, effective 20 Nov 2026 in Hong Kong.
+   This mirrors public.store_base_price() so the Store display and the
+   server charge always agree. */
+const STORE_PRICE_RISE_DATE = '2026-11-20';
+
+function storeHkDateKey() {
+    try {
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong' }).format(new Date());
+    } catch (e) {
+        return new Date().toISOString().slice(0, 10);
+    }
+}
+
+function storeBasePrice(item) {
+    if (!item) return 0;
+    const base = Number(item.price) || 0;
+    if (base <= 0) return base;
+    return storeHkDateKey() >= STORE_PRICE_RISE_DATE ? Math.floor(base * 1.1) : base;
+}
+
 function storePrice(item) {
     if (!item) return 0;
-    if (!STORE_SALE.active || !item.price) return item.price;
-    return Math.max(0, Math.floor(item.price * (100 - STORE_SALE.off_pct) / 100));
+    const base = storeBasePrice(item);
+    if (!STORE_SALE.active || !base) return base;
+    return Math.max(0, Math.floor(base * (100 - STORE_SALE.off_pct) / 100));
 }
 
 function storeVictoryRent(item) {
-    return item ? Math.max(40, Math.floor(Number(item.price || 0) * 0.2)) : 0;
+    return item ? Math.max(40, Math.floor(storeBasePrice(item) * 0.2)) : 0;
 }
 
 function storeVictoryTopRank(itemId) {
@@ -765,10 +786,11 @@ function storeRenderSellList(rows) {
         return;
     }
     sellEl.innerHTML = mine.map(it => {
-        const suggested = Math.max(10, Math.round((Number(it.price) || 100) / 2));
+        const basePrice = storeBasePrice(it);
+        const suggested = Math.max(10, Math.round((Number(basePrice) || 100) / 2));
         return '<div class="store-market-row">' +
             '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(it.emoji || '🎁') + '</div>' +
-            '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(it.price) + ' 🐾</small></div>' +
+            '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(basePrice) + ' 🐾</small></div>' +
             '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
             '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
             '<button type="button" class="store-market-btn buyback" onclick="storeBuybackItem(\'' + it.id + '\')" title="Official buyback: 35% of what you paid (65% off)">↩ +' + storeBuybackPrice(it) + ' 🐾</button>' +
@@ -933,8 +955,9 @@ function storeCardHTML(item) {
     const equipped = item.slot === 'prop'
         ? (STORE_EQUIPPED.prop || []).indexOf(item.id) !== -1
         : STORE_EQUIPPED[item.slot] === item.id;
+    const basePrice = storeBasePrice(item);
     const price = storePrice(item);
-    const onSale = STORE_SALE.active && item.price > 0;
+    const onSale = STORE_SALE.active && basePrice > 0;
     let action;
     if (!storeAvailable()) {
         action = '<span class="store-card-note">Sign in to buy</span>';
@@ -968,7 +991,7 @@ function storeCardHTML(item) {
         topBadge +
         '<p class="store-card-rarity store-rarity-' + item.rarity.toLowerCase() + '">' + escapeHtml(item.rarity) + '</p>' +
         (item.slot === 'car' ? '<p class="store-card-stat">🏁 Top speed +' + Number(item.speed || 0) + '%</p>' : '') +
-        (onSale ? '<p class="store-card-stat">⚡ Sale: <s>' + item.price + '</s> → ' + price + ' 🐾</p>' : '') +
+        (onSale ? '<p class="store-card-stat">⚡ Sale: <s>' + basePrice + '</s> → ' + price + ' 🐾</p>' : '') +
         (owned && item.price > 0 ? '<p class="store-card-owned">Owned</p>' : '') +
         action + tryBtn + victoryBtns +
         '</div>';
@@ -1039,7 +1062,8 @@ function storeTryOnItem(id) {
         storeEquipItem(id);
         return;
     }
-    if (STORE_BALANCE < item.price) {
+    const basePrice = storeBasePrice(item);
+    if (STORE_BALANCE < basePrice) {
         storeTryOnDenied(item);
         return;
     }
@@ -1048,13 +1072,13 @@ function storeTryOnItem(id) {
     const view = storeTryOnLook(item);
     storeFittingShell(
         '<h3 id="store-fitting-title" class="text-lg font-bold text-orange-700 mb-1">Fitting room</h3>' +
-        '<p class="text-sm text-gray-500 font-bold mb-2">Trying on ' + escapeHtml(item.name) + ' · ' + item.price + ' 🐾</p>' +
+        '<p class="text-sm text-gray-500 font-bold mb-2">Trying on ' + escapeHtml(item.name) + ' · ' + basePrice + ' 🐾</p>' +
         (item.slot === 'car' ? '<p class="text-xs font-bold text-emerald-600 mb-1">🏁 Top speed +' + Number(item.speed || 0) + '% in Drive &amp; Go</p>' : '') +
         '<canvas id="store-fitting-canvas" aria-label="Item preview"></canvas>' +
         '<p id="store-fitting-items" class="text-xs text-gray-500"></p>' +
         '<p class="text-xs text-gray-400 mt-2">Free to try — buy it to keep it on your cat.</p>' +
         '<div class="store-fitting-actions">' +
-        '<button type="button" class="store-btn" onclick="storeBuyFromFitting()">Buy · ' + item.price + ' 🐾</button>' +
+        '<button type="button" class="store-btn" onclick="storeBuyFromFitting()">Buy · ' + basePrice + ' 🐾</button>' +
         '<button type="button" class="dg-menu-button" onclick="storeCloseFitting()">Keep looking</button>' +
         '</div>'
     );
@@ -1065,11 +1089,12 @@ function storeTryOnItem(id) {
 
 function storeTryOnDenied(item) {
     STORE_TRY_ON = null;
-    const need = Math.max(0, item.price - STORE_BALANCE);
+    const basePrice = storeBasePrice(item);
+    const need = Math.max(0, basePrice - STORE_BALANCE);
     storeFittingShell(
         '<div class="text-4xl mb-1" aria-hidden="true">💪</div>' +
         '<h3 id="store-fitting-title" class="text-lg font-bold text-orange-700 mb-1">Keep earning!</h3>' +
-        '<p class="text-sm text-gray-600 font-bold">' + escapeHtml(item.name) + ' costs ' + item.price + ' 🐾.<br>' +
+        '<p class="text-sm text-gray-600 font-bold">' + escapeHtml(item.name) + ' costs ' + basePrice + ' 🐾.<br>' +
         'You have ' + STORE_BALANCE + ' 🐾, so you need ' + need + ' more.</p>' +
         '<p class="text-xs text-gray-500 mt-2">Try-on opens once you can afford the item. Every correct answer in Dictation, Drive &amp; Go or Word Battle earns a Paw — keep going! 🐾</p>' +
         '<div class="store-fitting-actions">' +

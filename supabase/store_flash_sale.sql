@@ -1,6 +1,6 @@
 -- LearniTY Store: weekly + festival flash sales.
 --
---  • Every 7 days (from 2026-11-15, Hong Kong time) → 10% off
+--  • Every 14 days (from 2026-11-15, Hong Kong time) → 10% off
 --  • Festival windows (Christmas etc.)              → 12% off
 --
 -- The discount is applied by the SERVER inside buy_store_item(), so the
@@ -26,7 +26,7 @@ set search_path = public
 as $sale$
 declare
     v_today  date := (now() at time zone 'Asia/Hong_Kong')::date;
-    v_anchor date := date '2026-11-15';   -- weekly sale day, then +7 days
+    v_anchor date := date '2026-11-15';   -- sale day, then +14 days
     v_off    int  := 0;
     v_label  text := '';
     v_key    text := '';
@@ -54,8 +54,8 @@ begin
         v_key := 'halloween-2027';
         v_end := (date '2027-11-01')::timestamp at time zone 'Asia/Hong_Kong';
     else
-        -- one sale day every 7 days, counted from the anchor date
-        if v_today >= v_anchor and ((v_today - v_anchor) % 7) = 0 then
+        -- one sale day every 14 days, counted from the anchor date
+        if v_today >= v_anchor and ((v_today - v_anchor) % 14) = 0 then
             v_off := 10;
             v_label := '⚡ Flash Sale · 10% off';
             v_key := 'weekly-' || v_today::text;
@@ -70,6 +70,25 @@ $sale$;
 revoke all on function public.store_sale_now() from public, anon;
 grant execute on function public.store_sale_now() to authenticated;
 
+-- Base catalog price. A one-time 10% rise starts on 20 Nov 2026 (HKT);
+-- keeping it here means the Store UI and buy_store_item() agree.
+create or replace function public.store_base_price(p_price int)
+returns int
+language sql
+stable
+security definer
+set search_path = public
+as $price$
+    select case
+        when (now() at time zone 'Asia/Hong_Kong')::date >= date '2026-11-20'
+            then floor(coalesce(p_price, 0) * 1.10)::int
+        else coalesce(p_price, 0)
+    end;
+$price$;
+
+revoke all on function public.store_base_price(int) from public, anon;
+grant execute on function public.store_base_price(int) to authenticated;
+
 -- Discounted price for a catalog price (whole Paws, rounded down).
 create or replace function public.store_sale_price(p_price int)
 returns int
@@ -81,7 +100,7 @@ as $price$
     select greatest(
         0,
         floor(
-            coalesce(p_price, 0) *
+            public.store_base_price(p_price) *
             (100 - coalesce((select s.off_pct from public.store_sale_now() s where s.active), 0)) / 100.0
         )::int
     );

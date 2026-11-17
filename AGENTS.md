@@ -196,7 +196,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   （Speak Flap 返 `fluency-view`）。
 - `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
   `changeView()` 已加 5 句 mascot 文案，並在 phrases／topics 頁 call `fluencyRender()`。
-- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v93）。
+- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v94）。
 - 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
   🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
   768／1024 中文並排、膠囊同 🔊 均 44px。
@@ -1815,7 +1815,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   齊）、（2）`WJ.drawThemeBackdrop()` 加 branch 同畫法、（3）想有怪物／
   玩家飾物就喺 `WJ.drawMonster()`／`WJ.drawPlayerLook()` 加 branch。
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
-  改 `CACHE_NAME` 時記得一齊 bump（現時 v93）。
+  改 `CACHE_NAME` 時記得一齊 bump（現時 v94）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
@@ -1875,7 +1875,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `set_battle_vocab` 把**有英文**嘅字抄入 `battle_rooms.vocab_words`。
   全房用同一個 snapshot＋原本 seed shuffle。字數少過題數就 cap，唔會用其他 topic 補。
   中文提示有就顯示，冇就當 English-only。
-- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；校服／運動／水手／芭蕾 8 件 Neck & Outfit 就跑 `store_items_school_sets.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；Drive & Go! Articles 第三個 topic／四閘房／Articles 雲端榜就跑 `drive_and_go_articles_topic.sql`（喺 drive_and_go.sql、agreement_topic、class_room 之後，可重跑）；Drive & Go! Indefinite Pronouns 第四個 topic／四閘房／雲端榜就跑 `drive_and_go_indefinite_pronouns_topic.sql`（喺 articles_topic 之後，可重跑；亦會保留 Articles）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。Speak Flap 每週榜／Paws 就跑 `flap_runs.sql`，再跑 `flap_challenges.sql`（1v1 挑戰，喺 `flap_runs.sql` 之後，可重跑）；想出「Speak Flap」bell 公告就跑 `flap_announcement.sql`（喺 `friends.sql`／`friend_announcement.sql` 之後，可重跑）。
+- SQL 順序：`login_tracking.sql` → `student_forms.sql` → battle 系列（最後加 `battle_rejoin.sql`，再跑 `battle_cat.sql` 同 `battle_round_reset.sql`）→ `new_vocab.sql` → `new_vocab_unassigned_read.sql` → `student_forms_source.sql` → `guest_tracking.sql`（獨立，任何時候跑都得；已跑過嘅舊安裝再加 `guest_tracking_prune.sql` 就有 24 小時 prune）。Drive & Go! 要老師 30 人房就跑 `drive_and_go_class_room.sql`（喺 `drive_and_go.sql` 之後，可重跑）。朋友／followers／友情 streak 就跑 `friends.sql`（喺 `user_streaks.sql`、`wj_scores.sql`、`dictation_accuracy.sql` 之後，可重跑）；已跑過舊版就補 `friends_social.sql`。建議朋友就跑 `friends_suggestions.sql`（喺 `friends.sql` 之後，可重跑，冇新 table）；連勝 nudge 就跑 `friend_nudges.sql`（喺 `friends.sql`、`user_streaks.sql` 之後，可重跑）；Store／Paws 就跑 `store.sql`（喺 `user_streaks.sql`、`friends.sql`、`wj_scores.sql`、`dictation_accuracy.sql`、`drive_and_go*.sql`、`battle*.sql` 之後，可重跑）；已裝過舊版就補 `store_layers.sql`（可重跑）先可以一齊 wear 分層 items，再跑 `store_gacha.sql`（可重跑）加六件 props 同 Mystery Gacha；想多件 props 同時 equip 同新價就跑 `store_multi_props.sql`（可重跑），老師 10,000 Paws 就跑 `store_teacher_10000.sql`（可重跑），二手市場就跑 `store_market.sql`（可重跑），再跑 `store_market_announcement.sql`（可重跑）出全體 bell 公告；官方 35% 回收（65% off）就跑 `store_buyback.sql`（喺 store.sql／gacha／market 之後，可重跑）；5 款 Drive & Go! 車就跑 `store_cars.sql`（喺 store.sql 之後，可重跑）；校服／運動／水手／芭蕾 8 件 Neck & Outfit 就跑 `store_items_school_sets.sql`（喺 store.sql 之後，可重跑）；Drive & Go! 加 10 題選擇就跑 `drive_and_go_ten_questions.sql`（喺 drive_and_go.sql／class_room 之後，可重跑）；Drive & Go! Articles 第三個 topic／四閘房／Articles 雲端榜就跑 `drive_and_go_articles_topic.sql`（喺 drive_and_go.sql、agreement_topic、class_room 之後，可重跑）；Drive & Go! Indefinite Pronouns 第四個 topic／四閘房／雲端榜就跑 `drive_and_go_indefinite_pronouns_topic.sql`（喺 articles_topic 之後，可重跑；亦會保留 Articles）；host 提早 End battle 就跑 `drive_and_go_end_battle.sql`（可重跑）；class 時限（Word Battle＋Drive & Go!）就跑 `class_time_limit.sql`（可重跑）；Cozy Desk prop 就跑 `store_cozy_desk.sql`（喺 store.sql 之後，可重跑）；Victory Animations 就跑 `store_victory.sql`（喺 store.sql／cars 之後，可重跑）；Flash Sale 就跑 `store_flash_sale.sql`（喺 store.sql 之後，可重跑）；14 日 Flash Sale＋2026-11-20 全店加價 10%＋bell 公告就跑 `store_price_rise_2026_11_20.sql`（喺 store_flash_sale.sql、store_victory.sql、store_market.sql 之後，可重跑）；British Shorthair／Garfield 貓款跨裝置同步就跑 `store_cats.sql`（喺 store.sql／store_layers.sql 之後，可重跑）。每日連勝／個人頁再加 `user_streaks.sql`（獨立；建議喺 `wj_scores.sql` 之後跑，等 first practice 可以補最早 Word Jump 日期）同 `dictation_accuracy.sql`（加 `dictation_results.correct`，可獨立重跑）。Speak Flap 每週榜／Paws 就跑 `flap_runs.sql`，再跑 `flap_challenges.sql`（1v1 挑戰，喺 `flap_runs.sql` 之後，可重跑）；想出「Speak Flap」bell 公告就跑 `flap_announcement.sql`（喺 `friends.sql`／`friend_announcement.sql` 之後，可重跑）。
   未跑之前，登入同其他 topic 照用；New Vocab 同 Error Book 雲端表都未建立，畫面會清楚叫老師跑 SQL（同一份 `new_vocab.sql` 亦會建立錯題簿表）。Word Battle 若已經用得，而 `new_vocab.sql` 都跑過，就再跑 `new_vocab_unassigned_read.sql`，等 Unassigned／訪客讀到全部年級字庫。`student_forms.sql` 如果係舊版（未有 `form_source`），再跑 `student_forms_source.sql`（或重跑更新咗嘅 `student_forms.sql`），先會喺資料庫清走好似 `Liu Chun Ming` 呢啲冇班別代號但被自動寫成 F6 嘅舊分類，並保護老師下拉。呢兩份後補 SQL 都可以重複跑；未跑亦唔會整壞網站：老師畫面已經會把冇班別代號嘅名稱顯示為 Unassigned，但 `my_form()`／New Vocab RLS 可能仍用舊自動分類，直到後補 SQL 跑完。
 
 ## 12. PWA（可安裝 App）＋手機／平板體驗（2026-11 加）
@@ -1905,8 +1905,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **Network-first**：online 一定先拿新 deploy，成功就更新 cache；斷網或 fetch 失敗才用 cache。
   非 OK response（例如死 server／captive portal 回 5xx）都會 fallback 去 cached `/index.html`，
   確保 app shell 仍然開得返。唔好改成 cache-first，否則老師 push 完會見到舊版。
-- `CACHE_NAME` 而家係 `learnity-pwa-v93`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
-  （例如 `v94`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
+- `CACHE_NAME` 而家係 `learnity-pwa-v94`。改 `CORE_ASSETS` 清單或者 offline 行為時**一定**要 bump
+  （例如 `v95`），`activate` 會刪走其他 `learnity-` 開頭的舊 cache。
 - `CORE_ASSETS` 有 25 個：`index.html`、manifest、4 個圖示、
   18 個功能 JS＋`js/pwa.js`。加新 `js/xxx.js` 時要同時加落 `sw.js`，
   否則第一次 offline 開會少一個檔案。
@@ -2547,7 +2547,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   再試，成功與否都會移除 listener。訪客／學校帳戶登入後喺 Hub 繼續播。
 - 同 Drive & Go／Word Jump 音樂分開：入遊戲時 home music pause，遊戲自己
   播；返 Hub／`home-view` 先續播，唔會兩首一齊響。
-- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v93。
+- 未加入 PWA CORE_ASSETS；`CACHE_NAME` v94。
 
 ### 12.9 Store、Paws 同 purchased skins（2026-11 加）
 
@@ -2799,10 +2799,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     加新特效＝`STORE_ITEMS` 加 `slot:'victory'` item ＋ `js/victory.js` 的
     `EFFECTS` 加名 ＋ `drawFrame` 加 branch ＋ SQL 加 `store_items` row。
 - **⚡ Flash Sale（2026-11）**：`supabase/store_flash_sale.sql` 定義
-  `store_sale_now()`：**每 7 日一次 10% off（由 anchor `2026-11-15` 起計）**，節日窗口
+  `store_sale_now()`：**每 14 日一次 10% off（由 anchor `2026-11-15` 起計）**，節日窗口
   （Christmas 12/24–12/26、New Year、Lunar New Year、Easter、Halloween）
   **12% off**，節日優先。標籤一律**純英文**（例如 `⚡ Flash Sale · 10% off`），
-  唔會出「9折／88折」等中文字。
+  唔會出「9折／88折」等中文字。下一個 sale day 係 **2026-11-29**（跟住 12/13、12/27…）。
   - **價錢由 server 計**：`store_sale_price()`，`buy_store_item()` 用佢收錢，
     Store 卡顯示 `⚡ Sale: ~~原價~~ → 售價`，所以學生見到同實收一致。
     想改折扣／加節日：改 SQL 內 `store_sale_now()` 一張表就夠（前端唔使改）。
@@ -2810,6 +2810,24 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     寫入所有用戶 `friend_notifications`（announcement），前端 `loadStoreState()`
     見到 sale 就 fire-and-forget call 一次（`storeAnnounceSale()`）。
   - 分頁頂 `#store-sale` 有 banner（label、off%、完結時間）。
+- **💸 2026-11-20 全店加價 10%（2026-11 加）**：`supabase/store_price_rise_2026_11_20.sql`
+  一次過處理 14 日 Flash Sale、加價同 bell 公告；可重跑。
+  - **價錢唔改 `store_items.price`**。Server 用 `public.store_base_price(price)`：
+    HK 日期 `>= 2026-11-20` 時 `floor(price * 1.10)`，之前原價。`store_sale_price()`
+    再喺呢個 base 上計 Flash Sale 折扣，所以 `buy_store_item()` 實收一定同顯示一致。
+  - Client `js/store.js` 的 `storeBasePrice(item)` 用同一個 HK 日期規則；
+    `storePrice()`、`storeVictoryRent()`、Store 卡、fitting room、Market 的
+    Original 價同 Try on 都用 base price。`STORE_ITEMS[].price` 仍然係**未加價前**
+    的 base，唔好直接改成加價後價錢。
+  - **Bell 公告（跑 SQL 即刻出）**：所有 `auth.users` 收到一條 announcement：
+    「🛍️ Store prices are rising on 20 Nov. Buy your favourites now — before the increase!」
+    **冇提百分比**；同一個 message 重跑唔會重複。
+  - **Gacha 200 🐾 不變**；Market 由學生自訂價，唔會自動加，但 Market 的
+    「Original」會顯示加價後 base。`sell_item_to_store()` 用實際 `paid_price`，
+    所以舊買入嘅回收價唔會因加價而變。
+  - Server 的 `rent_victory_effect()` 同 `store_market_listings()` 由
+    `store_price_rise_2026_11_20.sql` 重新定義，令 Victory 試用價同 Market
+    Original 價跟新 base。
 - **👀 Try on／fitting room（2026-11）**：未買嘅 item 卡片多一個
   **👀 Try on** 掣（`storeTryOnItem(id)`），會開 `#store-fitting` 試穿視窗：
   `storePaintLook()` 畫自己隻貓＋該 item（`head／ears／eyes／cheeks／neck／body`

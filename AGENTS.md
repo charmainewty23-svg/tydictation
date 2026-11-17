@@ -75,7 +75,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
-| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：45 秒／3 命、ASR 逐字 lift、75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
+| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：90 秒／3 命、ASR 逐字 lift、60–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -182,7 +182,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   （Speak Flap 返 `fluency-view`）。
 - `navTabForView()` 唔使改：所有 fluency view 落 default `hub-view`，所以底部 Home tab 會亮。
   `changeView()` 已加 5 句 mascot 文案，並在 phrases／topics 頁 call `fluencyRender()`。
-- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v89）。
+- `sw.js` 已加 `/js/fluency.js` 入 `CORE_ASSETS`（`CACHE_NAME` v91）。
 - 實測：`All` 50／100 句、6／7 個膠囊、搜「人工智能」→ `3 of 100`、
   🔊 真播 `Daniel` `en-GB`、320／360／390／480／700／768／1024 `overflowX = 0`、
   768／1024 中文並排、膠囊同 🔊 均 44px。
@@ -192,13 +192,16 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - 入口：`fluency-view` 嘅 `🃏 Speak Flap` 卡 → `fluency-flap-view`。邏輯全部喺
   `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
   HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
-- 玩法：45 秒、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
+- 玩法：**90 秒（1.5 分鐘）**、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
   每讀中一個字 `LIFT_PER_WORD 0.55`，停口 `LIFT_DECAY 0.4/s` 下沉。
   閘門要求 **L1 60%／L2 65%／L3 70%／L4 75%**（`PASS_RATIOS`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
-  頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 45 秒完局。
+  頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 90 秒完局。
 - 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
-  全句 100% ＝ ×2。句庫：**L1–L2 用 Discussion Phrases（短→長），L3–L4 用 Hot Topics（短→長）**，
-  所以一開始係最短嘅 Discussion Phrases，之後才轉 Hot Topics。
+  全句 100% ＝ ×2。句庫：**L1 = 短 warm-up（`FLUENCY_DATA.warmup`，4–8 字），
+  L2 = Discussion Phrases（短半），L3 = Hot Topics（短半），L4 = 兩邊較長句混合**，
+  所以一開始係 `I see your point!` 呢類短句，之後才愈來愈長。
+  `LEVELS.gap` 已加大（250／230／210／190），閘門上下柱距離更闊；
+  下一道閘要等上一道 `last.x < 20` 才生成，閘與閘之間更疏。
 - Ghost Cat：本機最佳分數畫成天際線，跨過會出煙花。
 - 每週榜：星期一 00:00 HKT reset，每人每週只計**個人最佳**一行，Top 7。
   Paws：每讀完一句 +3；首次入 Top 7 +8（已在榜內再加分不會重複，
@@ -212,8 +215,13 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   再留住 mic 造成 lag。`openMic()` 有 `micToken` 防止遲來的 `getUserMedia`
   在離開後重新開咪。
 - 語音辨識放寬：`maxAlternatives = 3`（final result 會餵埋其他候選字）、
-  `wordMatches` 對 8 字母以上容許 edit distance 2、可跳過最多 2 個字、
-  `heard` buffer 40 個字，減少「明明讀咗但 detect 唔到」。
+  `wordMatches` 對 8 字母以上容許 edit distance 2、可跳過最多 3 個字、
+  `heard` buffer 40 個字，減少「明明讀咗但 detect 唔到」。HUD 有
+  `Heard: ...` 顯示 browser 最新聽到嘅字。
+- 全螢幕：lobby 嘅 `#flap-fs-lobby` 同 play HUD 嘅 `#flap-fs-btn`（top 46 right 8）
+  會 `requestFullscreen` 落 `#fluency-flap-content`；iPhone Safari 冇 element
+  fullscreen 就 fallback `body.flap-fs`（fixed + z-index 9999）。離開 view
+  （`FLAP.stop()`）會自動 exit，所以唔會困住喺全螢幕。
 - 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
   會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
 - 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／
@@ -233,7 +241,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `flap_challenges_list()`、`cancel_flap_challenge(p_id)`。列表只回傳自己參與的
   挑戰，冇 email；`flap_challenges` 表冇 client RLS policy，全部經 RPC。
 - 測試幫手：`window.FLAP` 有 `mount`／`stop`／`show`／`renderResult`／`state`／
-  `duelState()`／`loadChallenges()`。測試用 `FLAP.state.ready = 0; FLAP.state.elapsed = 44.99;`
+  `duelState()`／`loadChallenges()`。測試用 `FLAP.state.ready = 0; FLAP.state.elapsed = 89.99;`
   強制完局。Canvas 截圖在本機 browser 會空白（正常），用 `toDataURL()` 檢查。
 - 實測：320／375／390／480／768／844 `overflowX = 0`，所有 duel／result 掣 ≥44px；
   挑戰 create→accept→play→finish、guest 隱藏、tap 拒絕、result challenge 卡

@@ -16,7 +16,7 @@
     const SCREENS = ['lobby', 'rules', 'mic', 'play', 'result', 'board', 'duel'];
 
     const W = 400, H = 600, GROUND = 64, BIRD_X = 96, BIRD_R = 13;
-    const RUN_SECONDS = 45;
+    const RUN_SECONDS = 90;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
     const LIFT_PER_WORD = 0.55;
@@ -36,10 +36,10 @@
        the 150 Fluency Master sentences split into word-count quartiles, so a
        strong reader reaches the long opinion sentences faster. */
     const LEVELS = [
-        { gates: 0, name: 'Level 1 · Short', gap: 216, pts: 20, color: 0 },
-        { gates: 3, name: 'Level 2 · Medium', gap: 200, pts: 40, color: 1 },
-        { gates: 6, name: 'Level 3 · Longer', gap: 186, pts: 70, color: 2 },
-        { gates: 9, name: 'Level 4 · Deep talk', gap: 170, pts: 100, color: 3 }
+        { gates: 0, name: 'Level 1 · Warm-up', gap: 250, pts: 20, color: 0 },
+        { gates: 3, name: 'Level 2 · Discussion', gap: 230, pts: 40, color: 1 },
+        { gates: 6, name: 'Level 3 · Hot Topics', gap: 210, pts: 70, color: 2 },
+        { gates: 9, name: 'Level 4 · Deep talk', gap: 190, pts: 100, color: 3 }
     ];
 
     /* 398px is how far a gate travels while it is the phrase being read. */
@@ -67,13 +67,14 @@
         return String(text || '').split(/\s+/).filter(Boolean).length;
     }
 
-    /* The first two pools come from Discussion Phrases (shortest first), then
-       the last two from Hot Topics. This keeps the early game on the phrases
-       students meet first, and rises from shorter to longer sentences. */
+    /* L1 is a short warm-up bank so the first phrases are only a few words.
+       L2 is Discussion Phrases (shortest half), L3 is Hot Topics (shortest
+       half), and L4 is the longer half of both banks. */
     function buildPools() {
         if (POOLS) return POOLS;
         const phrases = [];
         const topics = [];
+        const warm = [];
         const pull = (bank, target) => {
             try {
                 const data = (typeof FLUENCY_DATA !== 'undefined') ? FLUENCY_DATA : null;
@@ -89,6 +90,12 @@
         };
         pull('phrases', phrases);
         pull('topics', topics);
+        try {
+            const data = (typeof FLUENCY_DATA !== 'undefined') ? FLUENCY_DATA : null;
+            (data && data.warmup ? data.warmup : []).forEach((s) => {
+                if (s) warm.push(String(s).trim());
+            });
+        } catch (err) { /* ignore */ }
         if (!phrases.length && !topics.length) {
             phrases.push('I agree with this point of view.');
             phrases.push('We should weigh the pros and cons before deciding.');
@@ -99,13 +106,15 @@
         const byLength = (a, b) => countWords(a) - countWords(b) || a.localeCompare(b);
         const p = phrases.slice().sort(byLength);
         const t = topics.slice().sort(byLength);
+        if (warm.length < 4) warm.push(...p.slice(0, 8));
+        const w = warm.sort(byLength);
         const pHalf = Math.ceil(p.length / 2);
         const tHalf = Math.ceil(t.length / 2);
         POOLS = [
+            w,
             p.slice(0, pHalf),
-            p.slice(pHalf),
             t.slice(0, tHalf),
-            t.slice(tHalf)
+            p.slice(pHalf).concat(t.slice(tHalf)).sort(byLength)
         ];
         const all = phrases.concat(topics).sort(byLength);
         POOLS.forEach((pool, i) => { if (!pool.length) POOLS[i] = all.slice(); });
@@ -191,6 +200,11 @@
 
     function fmt(n) {
         return Number(n || 0).toLocaleString('en-US');
+    }
+
+    function clock(sec) {
+        const s = Math.max(0, Math.ceil(Number(sec) || 0));
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
     }
 
     function canUseCloudBoard() {
@@ -297,6 +311,8 @@
         lastPhrases: 0,
         lastRankedScore: 0,
         lastRankedPhrases: 0,
+        fsCss: false,
+        fsPending: 0,
         resultCatRaf: 0,
         resultCatT: 0,
         toastTimer: 0,
@@ -337,8 +353,7 @@
         if (name === 'mic') renderMicDuel();
         const view = document.getElementById('fluency-flap-view');
         if (view) view.classList.toggle('flap-playing', name === 'play');
-        window.navFlapPlaying = name === 'play';
-        updateNav();
+        syncFsUi();
         if (name !== 'play') {
             /* Keep the controls above the fold without yanking the page while
                the student is reading a phrase. */
@@ -348,6 +363,94 @@
 
     function updateNav() {
         if (typeof updateBottomNav === 'function') updateBottomNav();
+    }
+
+    /* ---------------- full screen ---------------- */
+    function fsTarget() {
+        return document.getElementById('fluency-flap-content');
+    }
+
+    function nativeFsOn() {
+        return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+
+    function fsOn() {
+        return nativeFsOn() || document.body.classList.contains('flap-fs');
+    }
+
+    function syncFsUi() {
+        const on = fsOn();
+        const play = el('fs-btn');
+        if (play) {
+            play.textContent = on ? '✕' : '⛶';
+            play.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+        }
+        const lobby = el('fs-lobby');
+        if (lobby) lobby.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
+        window.navFlapPlaying = (current === 'play' && !FLAP.paused) || on;
+        updateNav();
+    }
+
+    function enterCssFs() {
+        FLAP.fsPending = (FLAP.fsPending || 0) + 1;
+        document.body.classList.add('flap-fs');
+        FLAP.fsCss = true;
+        syncFsUi();
+    }
+
+    function exitFs() {
+        FLAP.fsPending = (FLAP.fsPending || 0) + 1;
+        FLAP.fsCss = false;
+        document.body.classList.remove('flap-fs');
+        try {
+            if (nativeFsOn()) {
+                if (typeof document.exitFullscreen === 'function') {
+                    const p = document.exitFullscreen();
+                    if (p && p.catch) p.catch(() => {});
+                } else if (typeof document.webkitExitFullscreen === 'function') {
+                    document.webkitExitFullscreen();
+                }
+            }
+        } catch (e) { /* ignore */ }
+        syncFsUi();
+    }
+
+    async function toggleFs() {
+        if (fsOn()) {
+            exitFs();
+            return;
+        }
+        const target = fsTarget();
+        if (!target) return;
+        FLAP.fsPending = (FLAP.fsPending || 0) + 1;
+        const token = FLAP.fsPending;
+        /* Some browsers (notably iPhone Safari) either reject, hang or
+           silently ignore requestFullscreen. Fall back to a CSS full screen
+           if native full screen has not appeared in 600ms. */
+        setTimeout(() => {
+            if (token === FLAP.fsPending && !fsOn()) enterCssFs();
+        }, 600);
+        try {
+            if (typeof target.requestFullscreen === 'function') {
+                const p = target.requestFullscreen({ navigationUI: 'hide' });
+                if (p && p.then) {
+                    p.then(() => {
+                        if (token === FLAP.fsPending && fsOn()) syncFsUi();
+                    }).catch(() => {});
+                }
+                return;
+            }
+            if (typeof target.webkitRequestFullscreen === 'function') {
+                target.webkitRequestFullscreen();
+                return;
+            }
+        } catch (e) { /* the timer will use the CSS fallback */ }
+    }
+
+    function onFsChange() {
+        if (nativeFsOn()) document.body.classList.remove('flap-fs');
+        syncFsUi();
+        if (current === 'play') draw();
     }
 
     /* ---------------- mic ---------------- */
@@ -714,7 +817,7 @@
         if (el('lvbadge')) el('lvbadge').textContent = LEVELS[0].name;
         if (el('hearts')) el('hearts').textContent = '❤️❤️❤️';
         if (el('phr')) el('phr').textContent = '0 ✅';
-        if (el('timer')) el('timer').textContent = '0:45';
+        if (el('timer')) el('timer').textContent = clock(RUN_SECONDS);
         if (el('meterfill')) el('meterfill').style.width = '0%';
         if (el('streakchip')) {
             el('streakchip').classList.remove('on');
@@ -750,8 +853,7 @@
         stopAsr();
         const node = el('pause');
         if (node) node.classList.add('on');
-        window.navFlapPlaying = false;
-        updateNav();
+        syncFsUi();
     }
 
     function resumeRun() {
@@ -761,8 +863,7 @@
         const node = el('pause');
         if (node) node.classList.remove('on');
         if (!FLAP.tap && !FLAP.asr) startAsr();
-        window.navFlapPlaying = true;
-        updateNav();
+        syncFsUi();
         FLAP.raf = requestAnimationFrame(loop);
     }
 
@@ -878,7 +979,7 @@
         });
 
         const last = FLAP.gates[FLAP.gates.length - 1];
-        if ((!last || last.x < 120) && !FLAP.gates.some((g) => g.retrying)) spawnGate();
+        if ((!last || last.x < 20) && !FLAP.gates.some((g) => g.retrying)) spawnGate();
 
         for (let i = FLAP.gates.length - 1; i >= 0; i -= 1) {
             const g = FLAP.gates[i];
@@ -1146,7 +1247,7 @@
     /* ---------------- hud / draw ---------------- */
     function updateHud() {
         const left = Math.max(0, RUN_SECONDS - FLAP.elapsed);
-        if (el('timer')) el('timer').textContent = '0:' + String(Math.ceil(left)).padStart(2, '0');
+        if (el('timer')) el('timer').textContent = clock(left);
         if (el('phr')) el('phr').textContent = FLAP.ranked ? (FLAP.gatesPassed + ' ✅') : (FLAP.gatesFlown + ' 🚪');
         if (el('lvbadge')) el('lvbadge').textContent = LEVELS[FLAP.levelIndex].name;
         updateGhostChip();
@@ -2606,6 +2707,8 @@
             stopAsr();
             closeMic();
         });
+        document.addEventListener('fullscreenchange', onFsChange);
+        document.addEventListener('webkitfullscreenchange', onFsChange);
         window.addEventListener('resize', () => {
             if (current === 'play') draw();
         });
@@ -2632,6 +2735,7 @@
         closeMic();
         FLAP.paused = false;
         FLAP.duel.playing = false;
+        exitFs();
         window.navFlapPlaying = false;
         const view = document.getElementById('fluency-flap-view');
         if (view) view.classList.remove('flap-playing');
@@ -2677,6 +2781,8 @@
         on('d-drop', () => cancelChallenge(FLAP.duel.active && FLAP.duel.active.id));
         on('d-copy', copyCreatedCode);
         on('d-refresh', loadChallenges);
+        on('fs-btn', toggleFs);
+        on('fs-lobby', toggleFs);
 
         const codeInput = el('d-code-input');
         if (codeInput) {

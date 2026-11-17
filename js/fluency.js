@@ -239,7 +239,32 @@ const FLUENCY_DATA = {
                 ]
             }
         ]
-    }
+    },
+    "warmup": [
+        "I see your point!",
+        "That's a brilliant idea.",
+        "I see eye to eye with you.",
+        "I totally agree with you.",
+        "That makes sense to me.",
+        "I'm not sure about that.",
+        "Let's agree to disagree.",
+        "Could you explain that again?",
+        "What do you mean by that?",
+        "That's a fair point.",
+        "I hadn't thought of that.",
+        "Let's weigh the pros and cons.",
+        "I beg to differ.",
+        "That's easier said than done.",
+        "Let's move on to the next point.",
+        "In my opinion, it depends.",
+        "That's exactly what I mean.",
+        "I couldn't agree more.",
+        "We should look at the bigger picture.",
+        "Let's hear both sides first.",
+        "That's a valid concern.",
+        "I'm with you on that.",
+        "Let's keep this simple."
+    ]
 };
 
 const FL = {

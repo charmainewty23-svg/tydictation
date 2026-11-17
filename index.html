@@ -3538,6 +3538,47 @@
         }
         .flap-quit { right: 8px; }
         .flap-pause-btn { right: 56px; }
+        .flap-fs-btn {
+            position: absolute; top: 46px; right: 8px;
+            width: 44px; height: 44px; border-radius: 999px;
+            border: 0; background: rgba(255,255,255,0.9);
+            font-size: 17px; font-weight: 800; color: #6b7280;
+            pointer-events: auto; cursor: pointer;
+        }
+
+        /* ---------- full screen ---------- */
+        #fluency-flap-content:fullscreen {
+            background: #fff9f2;
+            overflow: auto;
+            padding: 12px 12px 24px;
+        }
+        #fluency-flap-content:-webkit-full-screen {
+            background: #fff9f2;
+            overflow: auto;
+            padding: 12px 12px 24px;
+        }
+        body.flap-fs {
+            position: fixed; inset: 0; overflow: hidden;
+            overscroll-behavior: none;
+        }
+        body.flap-fs #fluency-flap-content {
+            position: fixed; inset: 0; z-index: 9999;
+            background: #fff9f2;
+            overflow: auto;
+            padding: 12px 12px 24px;
+            padding-top: calc(12px + env(safe-area-inset-top));
+            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+        }
+        body.flap-fs .flap-gamewrap,
+        #fluency-flap-content:fullscreen .flap-gamewrap {
+            width: min(100%, 400px);
+        }
+        @media (max-height: 760px) {
+            body.flap-fs .flap-gamewrap,
+            #fluency-flap-content:fullscreen .flap-gamewrap {
+                width: min(100%, calc((100dvh - 48px) * 2 / 3));
+            }
+        }
         .flap-tapnote {
             position: absolute; bottom: 14px; left: 0; right: 0;
             text-align: center; font-size: 10.5px; font-weight: 700; color: rgba(31,41,55,0.7);
@@ -3950,7 +3991,7 @@
                         <section id="flap-s-lobby" class="flap-screen on">
                             <div class="flap-hero">
                                 <h2 class="flap-h1">🃏 Speak Flap</h2>
-                                <p class="flap-sub" style="margin-bottom:0">45 seconds. Read the phrase out loud — your cat flies on every word. Climb past your Ghost Cat.</p>
+                                <p class="flap-sub" style="margin-bottom:0">90 seconds. Read the phrase out loud — your cat flies on every word. Climb past your Ghost Cat.</p>
                                 <div class="flap-rankbox">
                                     <div class="flap-rankrow me">
                                         <span class="n">👻</span><span>Your Ghost Cat</span>
@@ -3977,17 +4018,18 @@
                             <div class="flap-card" style="margin-top:12px">
                                 <div style="font-weight:800;margin-bottom:4px">How it works</div>
                                 <div class="flap-muted" style="font-size:13px">
-                                    ❤️❤️❤️ Three lives · 45 seconds<br>
+                                    ❤️❤️❤️ Three lives · 90 seconds<br>
                                     🗣️ <b>Read the phrase out loud</b> — every word heard lifts your winged cat<br>
                                     🐾 Reach <b>60–75% of the phrase</b> to break the cat-tree gate (the target rises with each level); miss the rest and you bounce back to retry<br>
                                     🔴 Misread words turn red — say them again and push through<br>
                                     👻 Your last best floats in the sky as a Ghost Cat line. Cross it for fireworks 🎆<br>
-                                    ⚙️ Levels rise every 3 phrases read (20 → 40 → 70 → 100 pts) · Discussion Phrases first, then Hot Topics · whole phrase = ×2
+                                    ⚙️ Levels rise every 3 phrases read (20 → 40 → 70 → 100 pts) · short warm-up → Discussion Phrases → Hot Topics · whole phrase = ×2
                                 </div>
                                 <div class="flap-row" style="gap:6px;margin-top:10px;flex-wrap:wrap">
                                     <button type="button" class="flap-btn ghost sm" id="flap-to-mic" style="width:auto;margin:0;padding:0 14px">🎤 Mic check</button>
                                     <button type="button" class="flap-btn ghost sm" id="flap-to-board" style="width:auto;margin:0;padding:0 14px">🏆 Top 7</button>
                                     <button type="button" class="flap-btn ghost sm" id="flap-to-rules" style="width:auto;margin:0;padding:0 14px">📖 Rules</button>
+                                    <button type="button" class="flap-btn ghost sm" id="flap-fs-lobby" style="width:auto;margin:0;padding:0 14px">⛶ Full screen</button>
                                 </div>
                             </div>
 
@@ -4032,12 +4074,12 @@
                                 <div class="flap-hud">
                                     <div class="flap-hud-top">
                                         <div class="flap-chip" id="flap-hearts">❤️❤️❤️</div>
-                                        <div class="flap-chip time" id="flap-timer">0:45</div>
+                                        <div class="flap-chip time" id="flap-timer">1:30</div>
                                         <div class="flap-chip streak" id="flap-streakchip">🔥 0</div>
                                         <div class="flap-chip" id="flap-phr">0 ✅</div>
                                         <div class="flap-chip ghost" id="flap-ghostchip">👻 —</div>
                                     </div>
-                                    <div class="flap-lvbadge" id="flap-lvbadge">Level 1 · Short</div>
+                                    <div class="flap-lvbadge" id="flap-lvbadge">Level 1 · Warm-up</div>
                                     <div class="flap-hud-say">
                                         <div class="lbl" id="flap-saylbl">READ THIS · YOUR VOICE LIFTS YOU</div>
                                         <div class="txt" id="flap-saytext">Get ready…</div>
@@ -4048,6 +4090,7 @@
                                     <div class="flap-toast" id="flap-toast"></div>
                                     <button type="button" class="flap-pause-btn" id="flap-pause-btn" aria-label="Pause">⏸</button>
                                     <button type="button" class="flap-quit" id="flap-quit" aria-label="Quit run">✕</button>
+                                    <button type="button" class="flap-fs-btn" id="flap-fs-btn" aria-label="Full screen">⛶</button>
                                     <div class="flap-tapnote" id="flap-tapnote">Practice mode · tap to fly · not ranked</div>
                                 </div>
                                 <div class="flap-pause" id="flap-pause">
@@ -4075,10 +4118,10 @@
 
                             <div class="flap-card">
                                 <div class="flap-sect-title" style="margin-top:0">FLUENCY</div>
-                                <div class="flap-statrow"><span class="k">Air time</span><span class="v" id="flap-r-air">0s / 45s</span></div>
+                                <div class="flap-statrow"><span class="k">Air time</span><span class="v" id="flap-r-air">0s / 90s</span></div>
                                 <div class="flap-statrow"><span class="k">Longest talk</span><span class="v" id="flap-r-long">0s</span></div>
                                 <div class="flap-statrow"><span class="k">Long pauses</span><span class="v" id="flap-r-pause">0</span></div>
-                                <div class="flap-statrow"><span class="k">Level reached</span><span class="v" id="flap-r-level">Level 1 · Short</span></div>
+                                <div class="flap-statrow"><span class="k">Level reached</span><span class="v" id="flap-r-level">Level 1 · Warm-up</span></div>
                             </div>
 
                             <div class="flap-card">
@@ -4203,12 +4246,12 @@
                         <!-- ── Rules ─────────────────────────────────────── -->
                         <section id="flap-s-rules" class="flap-screen">
                             <h2 class="flap-h1">📖 Game rules</h2>
-                            <p class="flap-sub">45 seconds · 3 lives · you climb by reading the phrase out loud</p>
+                            <p class="flap-sub">90 seconds · 3 lives · you climb by reading the phrase out loud</p>
 
                             <div class="flap-card">
                                 <div class="flap-sect-title" style="margin-top:0">1 · GOAL</div>
                                 <div class="flap-muted" style="font-size:13.5px">
-                                    Fly for 45 seconds. <b>Read the phrase out loud</b> — each word the app hears lifts the bird.<br>
+                                    Fly for 90 seconds (1.5 minutes). <b>Read the phrase out loud</b> — each word the app hears lifts the bird.<br>
                                     Stop reading and you sink. Your voice is the only way up.
                                 </div>
                             </div>
@@ -4238,10 +4281,10 @@
 
                             <div class="flap-card">
                                 <div class="flap-sect-title" style="margin-top:0">4 · LEVELS — SHORT → DEEP</div>
-                                <div class="flap-muted" style="font-size:13px;margin-bottom:8px">The level rises every 3 phrases you read. Deeper level = longer phrase, more points and a higher pass target. L1–L2 use <b>Discussion Phrases</b> (shortest first); L3–L4 move on to <b>Hot Topics</b> (shortest first).</div>
-                                <div class="flap-statrow"><span class="k">L1 · Short <span class="flap-tiny">(0 read)</span></span><span class="v">20 pts</span></div>
-                                <div class="flap-statrow"><span class="k">L2 · Medium <span class="flap-tiny">(3 read)</span></span><span class="v">40 pts</span></div>
-                                <div class="flap-statrow"><span class="k">L3 · Longer <span class="flap-tiny">(6 read)</span></span><span class="v">70 pts</span></div>
+                                <div class="flap-muted" style="font-size:13px;margin-bottom:8px">The level rises every 3 phrases you read. Deeper level = longer phrase, more points and a higher pass target. L1 is a <b>short warm-up</b>; L2 uses <b>Discussion Phrases</b>; L3 moves to <b>Hot Topics</b>; L4 mixes the longer sentences.</div>
+                                <div class="flap-statrow"><span class="k">L1 · Warm-up <span class="flap-tiny">(0 read)</span></span><span class="v">20 pts</span></div>
+                                <div class="flap-statrow"><span class="k">L2 · Discussion <span class="flap-tiny">(3 read)</span></span><span class="v">40 pts</span></div>
+                                <div class="flap-statrow"><span class="k">L3 · Hot Topics <span class="flap-tiny">(6 read)</span></span><span class="v">70 pts</span></div>
                                 <div class="flap-statrow"><span class="k">L4 · Deep talk <span class="flap-tiny">(9 read)</span></span><span class="v">100 pts</span></div>
                             </div>
 
@@ -4251,7 +4294,7 @@
                                 <div class="flap-statrow"><span class="k">Hit the gate frame</span><span class="v">−1 life · short shield</span></div>
                                 <div class="flap-statrow"><span class="k">Touch spikes / water</span><span class="v">−1 life · float back up</span></div>
                                 <div class="flap-statrow"><span class="k">First 6 seconds</span><span class="v ok">free splash · no life lost</span></div>
-                                <div class="flap-statrow"><span class="k">Run ends</span><span class="v">0 lives or 45 seconds</span></div>
+                                <div class="flap-statrow"><span class="k">Run ends</span><span class="v">0 lives or 90 seconds</span></div>
                                 <div class="flap-tiny" style="margin-top:8px">A missed gate never ends the run — the cat is only stunned. The words you missed stay red so you can read them again straight away. A splash floats the cat back up, so one bad moment cannot chain into three quick lives.</div>
                             </div>
 
@@ -4276,7 +4319,7 @@
                             <div class="flap-card violet">
                                 <div class="flap-sect-title" style="margin-top:0">8 · FAIR PLAY</div>
                                 <div class="flap-muted" style="font-size:13px">
-                                    Everyone gets the same 45 seconds, the same level ladder and the same phrases.<br>
+                                    Everyone gets the same 90 seconds, the same level ladder and the same phrases.<br>
                                     Points come from words the app hears you read — never from how loud the room is.<br>
                                     Practice (tap) runs are not ranked: no board entry, no Paws. Accuracy is coaching, not a punishment.
                                 </div>

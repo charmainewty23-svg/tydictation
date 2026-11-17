@@ -70,7 +70,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子／進度／用時、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、按住加速（ACCEL／↑／W／Space，`ACCEL_KMH 110`／`SPEED_CAP 340`，唔會用蘑菇）、analog tilt、單人到 N 題正確完結、五種道具使用、三個場嘅天空／背景／景物／路面 |
 | 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 同**場**適用全房（`p_scene`）；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間先貼 `supabase/drive_and_go_question_count.sql`，再貼 `supabase/drive_and_go_scenes_and_boards.sql`）；單人唔使 SQL；**唔好**用 plugin 跑 SQL |
 | 8 | `js/leaderboard.js` | `setLeaderboardBlurb`／`loadLeaderboard`／`renderLeaderboard`／`renderWordJumpLeaderboard`／`renderDriveAndGoLeaderboard`（Solo／Multi 兩塊榜） |
-| 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面） |
+| 9 | `js/admin.js` | 老師 dashboard：`loadAdminDashboard`／`renderAdminDashboard`、`loadLoginAdmin`／`renderLoginAdmin`、`loadGuestAdmin`／`renderGuestAdmin`、`loadDriveAndGoAdmin`／`renderDriveAndGoAdmin`（Drive & Go! Solo／Multi 榜放喺 Grammar Quest 卡入面）、`loadFlapAdmin`／`renderFlapAdmin`（Speak Flap 卡） |
 | 10 | `js/profile.js` | 「Me」個人頁（`#profile-view`）：`loadProfile`、`profileRenderStreak`／`profileRenderDict`／`profileRenderWj`；學校帳戶讀 `dictation_results`／`wj_leaderboard`，訪客同 preview 讀 session／local 記錄 |
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
@@ -214,6 +214,16 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `LEVELS.gap` 全部係 250，閘門上下柱距離更闊；
   下一道閘會喺上一道 pass 後即生成（或 `last.x < -80`），未 pass 的慢閘會多等；
   讀完整句會 `rushing` 加速，所以讀得快可以連環出句。
+- **過渡保護**：每次過閘（`scoreGate`）會設 `FLAP.hold = 1.1`、`FLAP.inv = 1.1`。
+  呢 1.1 秒貓會 hover（`vy` 拉向 0），唔會因為第二句未開始讀就跌死；一有新 pull
+  （讀到下一句）就會取消 hold 並 home。撞閘／`gateFail` 會 `FLAP.hold = 0`，
+  保持下跌懲罰，所以過渡保護唔會蓋過真係讀錯。
+- **Admin dashboard**：`loadFlapAdmin()`／`renderFlapAdmin()` 喺 `js/admin.js`，
+  讀 `flap_runs` ＋ `flap_improved_today`。Admin 卡「🃏 Speak Flap」有
+  Students／Runs／Today／Top score、Most improved、本週 Top 7、按年級分組嘅
+  學生最佳／runs／phrases／accuracy／last played，同最近 12 場。未跑
+  `supabase/flap_runs.sql` 會顯示提示；Refresh call `loadFlapAdmin(true)`，
+  `changeView('admin-view')` 會自動 call。
 - Ghost Cat：本機最佳分數畫成天際線，跨過會出煙花。
 - 每週榜：星期一 00:00 HKT reset，每人每週只計**個人最佳**一行，Top 7。
   Paws：每讀完一句 +3；首次入 Top 7 +8（已在榜內再加分不會重複，

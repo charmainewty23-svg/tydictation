@@ -5015,6 +5015,30 @@
                         </div>
                     </div>
                 </div>
+                <div class="cat-card p-8 mt-6">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-3xl font-bold text-violet-600 mb-2">🃏 Speak Flap</h2>
+                            <p class="text-gray-400 mb-6">Voice runs, weekly board and reading accuracy</p>
+                        </div>
+                        <button onclick="loadFlapAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-violet-500 text-white hover:bg-violet-600 transition-colors">↻ Refresh</button>
+                    </div>
+                    <div id="flap-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+                    <div id="flap-admin-improved" class="text-sm font-bold text-violet-700 mb-4"></div>
+                    <h3 class="text-xl font-bold text-gray-600 mb-3">🏆 This week's top 7</h3>
+                    <div id="flap-admin-board" class="mb-6"></div>
+                    <h3 class="text-xl font-bold text-gray-600 mb-3">Student activity</h3>
+                    <div id="flap-admin-container">
+                        <div class="flex flex-col items-center py-10">
+                            <div class="loader mb-4"></div>
+                            <p class="text-violet-400 font-bold">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="mt-8 pt-6 border-t-2 border-violet-100">
+                        <h3 class="text-xl font-bold text-gray-600 mb-3">🕘 Recent runs</h3>
+                        <div id="flap-admin-recent"></div>
+                    </div>
+                </div>
             </div>
             <div id="store-view" class="view hidden w-full">
                 <div class="cat-card p-6 md:p-8">

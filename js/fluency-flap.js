@@ -263,6 +263,7 @@
         inv: 0,
         lift: 0,
         stun: 0,
+        hold: 0,
         bounce: 0,
         pull: 0,
         silentWarned: false,
@@ -813,6 +814,7 @@
         FLAP.lift = 0;
         FLAP.pull = 0;
         FLAP.stun = 0;
+        FLAP.hold = 0;
         FLAP.bounce = 0;
         FLAP.heard = [];
         FLAP.readGate = null;
@@ -1033,10 +1035,16 @@
             const pull = g ? Math.min(1, ratio / Math.max(0.01, need)) : 0;
             FLAP.pull = pull;
             if (g && pull > 0.05 && FLAP.stun <= 0.15) {
+                FLAP.hold = 0;
                 const dy = g.gapY - FLAP.bird.y;
                 const desired = Math.max(-430, Math.min(430, dy * 8));
                 const strength = (0.35 + 0.65 * pull) * (g.rushing ? 1.6 : 1);
                 FLAP.bird.vy += (desired * strength - FLAP.bird.vy) * Math.min(1, dt * (g.rushing ? 18 : 12));
+            } else if (FLAP.hold > 0) {
+                /* Brief hover after a passed gate so the transition to the
+                   next phrase cannot cost a life before the student reads. */
+                FLAP.hold = Math.max(0, FLAP.hold - dt);
+                FLAP.bird.vy += (0 - FLAP.bird.vy) * Math.min(1, dt * 12);
             } else {
                 FLAP.bird.vy += 980 * dt * (voiced ? 0.6 : 1);
             }
@@ -1182,6 +1190,7 @@
         FLAP.mood = 'puffed';
         FLAP.bounce = 18;
         FLAP.stun = 0.7;
+        FLAP.hold = 0;
         updateStreakChip();
         toast(ground
             ? (grace ? '💦 Splash! Read the words to stay up.' : '💥 Water splash! −1 life')
@@ -1223,6 +1232,7 @@
         FLAP.hearts -= 1;
         FLAP.inv = Math.max(FLAP.inv, 1.0);
         FLAP.stun = 1.0;
+        FLAP.hold = 0;
         FLAP.bounce = 30;
         FLAP.lift = 0;
         FLAP.bird.vy = Math.max(FLAP.bird.vy, 90);
@@ -1314,6 +1324,10 @@
             x: BIRD_X + 30, y: g.gapY, txt: (full ? '⭐ +' : '+') + pts,
             life: 1.1, color: full ? '#b45309' : '#15803d'
         });
+        /* Hover through the changeover to the next phrase, and keep the cat
+           invincible for a moment so a transition fall cannot cost a life. */
+        FLAP.hold = Math.max(FLAP.hold, 1.1);
+        FLAP.inv = Math.max(FLAP.inv, 1.1);
         if (full) toast('⭐ Whole phrase! +' + pts + ' · streak ' + FLAP.streak);
     }
 

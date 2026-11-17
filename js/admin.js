@@ -13,7 +13,9 @@
             wj: null,
             dg: null,
             paws: null,
-            pawsError: null
+            pawsError: null,
+            flap: null,
+            flapError: null
         };
 
         // Teacher dashboard names open the student's profile (and Follow).
@@ -157,6 +159,205 @@
                     }).join('')}
                 </div>
             `, { collapsible: true, scope: 'admin-paws', emptyAll: '<p class="text-gray-400 text-center py-10">No Paws activity in the last 7 days.</p>' });
+        }
+
+        /* ---------------- Admin: Speak Flap ---------------- */
+        function flapWeekStartKey() {
+            const day = (typeof hkDayKey === 'function')
+                ? hkDayKey(new Date().toISOString())
+                : new Date().toISOString().slice(0, 10);
+            const parts = day.split('-').map(Number);
+            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+            return d.toISOString().slice(0, 10);
+        }
+
+        async function loadFlapAdmin(force) {
+            const statsEl = document.getElementById('flap-admin-stats');
+            const listEl = document.getElementById('flap-admin-container');
+            if (!statsEl || !listEl) return;
+            if (!isAdmin()) return;
+            if (!force && adminCache.flap) {
+                renderFlapAdmin();
+                return;
+            }
+            statsEl.innerHTML = '';
+            listEl.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-violet-400 font-bold">Loading Speak Flap...</p></div>';
+            const boardEl = document.getElementById('flap-admin-board');
+            const recentEl = document.getElementById('flap-admin-recent');
+            const improvedEl = document.getElementById('flap-admin-improved');
+            if (boardEl) boardEl.innerHTML = '';
+            if (recentEl) recentEl.innerHTML = '';
+            if (improvedEl) improvedEl.innerHTML = '';
+            try {
+                const [runsRes, improvedRes] = await Promise.all([
+                    sb.from('flap_runs')
+                        .select('user_id,nickname,score,phrases,gold,best_streak,acc_hits,acc_words,wpm,week_start,created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(3000),
+                    sb.from('flap_improved_today')
+                        .select('user_id,nickname,today_avg,past_avg,pct')
+                        .order('pct', { ascending: false })
+                        .limit(1)
+                ]);
+                if (runsRes.error) throw runsRes.error;
+                adminCache.flap = {
+                    runs: runsRes.data || [],
+                    improved: (improvedRes && !improvedRes.error && improvedRes.data && improvedRes.data[0])
+                        ? improvedRes.data[0] : null
+                };
+                adminCache.flapError = null;
+            } catch (e) {
+                adminCache.flap = null;
+                adminCache.flapError = e;
+            }
+            renderFlapAdmin();
+        }
+
+        function renderFlapAdmin() {
+            const statsEl = document.getElementById('flap-admin-stats');
+            const listEl = document.getElementById('flap-admin-container');
+            if (!statsEl || !listEl) return;
+            const boardEl = document.getElementById('flap-admin-board');
+            const recentEl = document.getElementById('flap-admin-recent');
+            const improvedEl = document.getElementById('flap-admin-improved');
+            if (adminCache.flapError) {
+                statsEl.innerHTML = '';
+                if (boardEl) boardEl.innerHTML = '';
+                if (recentEl) recentEl.innerHTML = '';
+                if (improvedEl) improvedEl.innerHTML = '';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap data is not available. Run <code class="text-violet-600">supabase/flap_runs.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            const pack = adminCache.flap;
+            if (!pack) return;
+            const runs = pack.runs || [];
+            const today = (typeof hkDayKey === 'function')
+                ? hkDayKey(new Date().toISOString())
+                : new Date().toISOString().slice(0, 10);
+            const week = flapWeekStartKey();
+            const students = new Map();
+            const weekBest = new Map();
+
+            runs.forEach((r) => {
+                const key = String(r.user_id || r.nickname || 'unknown');
+                let s = students.get(key);
+                if (!s) {
+                    s = {
+                        user_id: r.user_id || '',
+                        nickname: r.nickname || '',
+                        runs: 0, phrases: 0, best: 0, gold: 0, streak: 0,
+                        accHits: 0, accWords: 0, wpm: 0, last: ''
+                    };
+                    students.set(key, s);
+                }
+                s.runs += 1;
+                s.phrases += Number(r.phrases) || 0;
+                s.gold += Number(r.gold) || 0;
+                s.best = Math.max(s.best, Number(r.score) || 0);
+                s.streak = Math.max(s.streak, Number(r.best_streak) || 0);
+                s.accHits += Number(r.acc_hits) || 0;
+                s.accWords += Number(r.acc_words) || 0;
+                s.wpm = Math.max(s.wpm, Number(r.wpm) || 0);
+                if (!s.last || String(r.created_at) > String(s.last)) {
+                    s.last = r.created_at;
+                    s.nickname = r.nickname || s.nickname;
+                }
+                if (r.week_start === week) {
+                    const cur = weekBest.get(key);
+                    if (!cur
+                        || Number(r.score) > Number(cur.score)
+                        || (Number(r.score) === Number(cur.score) && Number(r.phrases) > Number(cur.phrases))) {
+                        weekBest.set(key, r);
+                    }
+                }
+            });
+
+            const studentRows = Array.from(students.values());
+            const todayRuns = runs.filter((r) => hkDayKey(r.created_at) === today).length;
+            const totalPhrases = studentRows.reduce((n, s) => n + s.phrases, 0);
+            const best = studentRows.reduce((n, s) => Math.max(n, s.best), 0);
+
+            statsEl.innerHTML = `
+                <div class="bg-violet-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-violet-600">${studentRows.length}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Students</p>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-blue-600">${runs.length}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Runs</p>
+                </div>
+                <div class="bg-amber-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-amber-600">${todayRuns}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Today</p>
+                </div>
+                <div class="bg-emerald-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-emerald-600">${best}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Top score</p>
+                </div>`;
+
+            if (improvedEl) {
+                const imp = pack.improved;
+                improvedEl.innerHTML = imp
+                    ? '📈 Most improved today: <b>' + escapeHtml(imp.nickname || 'A student') + '</b> +' + (Number(imp.pct) || 0) + '%'
+                    : '';
+            }
+
+            if (boardEl) {
+                const top = Array.from(weekBest.values())
+                    .sort((a, b) => Number(b.score) - Number(a.score)
+                        || Number(b.phrases) - Number(a.phrases)
+                        || String(a.created_at).localeCompare(String(b.created_at)))
+                    .slice(0, 7);
+                boardEl.innerHTML = top.length
+                    ? '<div class="space-y-2">' + top.map((r, i) => {
+                        const medal = ['🥇', '🥈', '🥉'][i] || `<span class="text-gray-400">${i + 1}.</span>`;
+                        return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
+                            <span class="w-7 text-center text-sm font-bold">${medal}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, '')}</p>${classBadge(r.email, r.nickname)}</div>
+                                <p class="text-[10px] text-gray-400">${Number(r.phrases) || 0} phrases · best streak ${Number(r.best_streak) || 0}</p>
+                            </div>
+                            <p class="text-sm font-bold text-violet-600">${Number(r.score) || 0} pts</p>
+                        </div>`;
+                    }).join('') + '</div>'
+                    : '<p class="text-gray-400 text-center py-4">No Speak Flap runs this week yet.</p>';
+            }
+
+            studentRows.sort((a, b) => b.best - a.best || String(a.nickname).localeCompare(String(b.nickname)));
+            listEl.innerHTML = renderFormSections(groupRowsByForm(studentRows), (list) =>
+                '<div class="space-y-2">' + list.map((s) => {
+                    const acc = s.accWords ? Math.round((s.accHits / s.accWords) * 100) : null;
+                    return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(s, '')}</p>${classBadge('', s.nickname)}</div>
+                            <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(s.last))}">last ${timeAgo(s.last)}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-bold text-violet-600">${s.best} pts</p>
+                            <p class="text-[10px] text-gray-400">${s.runs} runs · ${s.phrases} phrases · ${acc === null ? '—' : acc + '%'}</p>
+                        </div>
+                    </div>`;
+                }).join('') + '</div>',
+                { collapsible: true, scope: 'flap-admin', emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap runs yet.</p>' });
+
+            if (recentEl) {
+                const recent = runs.slice(0, 12);
+                recentEl.innerHTML = recent.length
+                    ? '<div class="space-y-2">' + recent.map((r) => {
+                        const acc = Number(r.acc_words)
+                            ? Math.round(((Number(r.acc_hits) || 0) / Number(r.acc_words)) * 100)
+                            : null;
+                        return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, '')}</p>${classBadge(undefined, r.nickname)}</div>
+                                <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">${timeAgo(r.created_at)} · ${Number(r.phrases) || 0} phrases · ${acc === null ? '—' : acc + '%'} · ${Number(r.wpm) || 0} wpm</p>
+                            </div>
+                            <p class="text-sm font-bold text-violet-600">${Number(r.score) || 0} pts</p>
+                        </div>`;
+                    }).join('') + '</div>'
+                    : '<p class="text-gray-400 text-center py-4">No Speak Flap runs yet.</p>';
+            }
         }
 
         async function loadAdminDashboard() {

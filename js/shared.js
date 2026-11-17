@@ -2401,6 +2401,7 @@
                     loadGuestAdmin();
                     loadBattleAdmin();
                     loadWordJumpAdmin();
+                    if (typeof loadFlapAdmin === 'function') loadFlapAdmin();
                     loadAdminPaws();
                 });
             }

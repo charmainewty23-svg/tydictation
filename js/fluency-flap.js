@@ -15,16 +15,18 @@
     const el = (id) => document.getElementById('flap-' + id);
     const SCREENS = ['lobby', 'rules', 'mic', 'play', 'result', 'board', 'duel'];
 
-    const W = 400, H = 600, GROUND = 64, BIRD_X = 96, BIRD_R = 13;
+    const W = 400;
+    let H = 600;
+    const GROUND = 64, BIRD_X = 96, BIRD_R = 13;
     const RUN_SECONDS = 90;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
-    const LIFT_PER_WORD = 0.55;
-    const LIFT_DECAY = 0.4;
+    const LIFT_PER_WORD = 0.75;
+    const LIFT_DECAY = 0.3;
     const READ_MIN_RATIO = 0.75;
     /* Early levels forgive more missed words: the ladder is shallow → deep.
-       L1 60%, L2 65%, L3 70%, L4 75%. */
-    const PASS_RATIOS = [0.6, 0.65, 0.7, READ_MIN_RATIO];
+       L1 50%, L2 60%, L3 70%, L4 75%. */
+    const PASS_RATIOS = [0.5, 0.6, 0.7, READ_MIN_RATIO];
     const PAWS_PER_PHRASE = 3;
     const PAWS_BOARD = 8;
     const PAWS_IMPROVED = 40;
@@ -42,10 +44,13 @@
         { gates: 9, name: 'Level 4 · Deep talk', gap: 190, pts: 100, color: 3 }
     ];
 
-    /* 398px is how far a gate travels while it is the phrase being read. */
-    function gateSpeed(wordCount) {
+    /* 398px is how far a gate travels while it is the phrase being read.
+       Early levels are deliberately slower so the student has time to read. */
+    function gateSpeed(wordCount, level) {
         const secs = 1.7 + 0.38 * Math.max(1, wordCount);
-        return Math.max(58, Math.min(190, 398 / secs));
+        const base = Math.max(58, Math.min(190, 398 / secs));
+        const factor = [0.72, 0.82, 0.92, 1][Math.max(0, Math.min(3, Number(level) || 0))];
+        return Math.max(40, base * factor);
     }
 
     const SKY = [
@@ -237,6 +242,7 @@
         buf: null,
         micRaf: 0,
         micToken: 0,
+        micMeterOn: false,
         asr: null,
         noiseFloor: -60,
         threshold: -45,
@@ -258,6 +264,7 @@
         lift: 0,
         stun: 0,
         bounce: 0,
+        silentWarned: false,
         heard: [],
         readGate: null,
         wordsRead: 0,
@@ -276,7 +283,7 @@
         autoRead: false,
         autoClock: 0,
         chipSig: '',
-        bird: { y: 300, vy: 0, rot: 0 },
+        bird: { y: H / 2, vy: 0, rot: 0 },
         gates: [],
         popups: [],
         lastGateX: W + 100,
@@ -400,6 +407,8 @@
         document.body.classList.add('flap-fs');
         FLAP.fsCss = true;
         syncFsUi();
+        fitWorld();
+        if (current === 'play') draw();
     }
 
     function exitFs() {
@@ -417,6 +426,8 @@
             }
         } catch (e) { /* ignore */ }
         syncFsUi();
+        fitWorld();
+        if (current === 'play') draw();
     }
 
     async function toggleFs() {
@@ -439,7 +450,11 @@
                 const p = target.requestFullscreen({ navigationUI: 'hide' });
                 if (p && p.then) {
                     p.then(() => {
-                        if (token === FLAP.fsPending && fsOn()) syncFsUi();
+                        if (token === FLAP.fsPending && fsOn()) {
+                            fitWorld();
+                            syncFsUi();
+                            if (current === 'play') draw();
+                        }
                     }).catch(() => {});
                 }
                 return;
@@ -453,6 +468,7 @@
 
     function onFsChange() {
         if (nativeFsOn()) document.body.classList.remove('flap-fs');
+        fitWorld();
         syncFsUi();
         if (current === 'play') draw();
     }
@@ -492,9 +508,12 @@
                 state.textContent = 'Listening — say “hello”.';
                 state.className = 'flap-mic-state';
             }
+            if (floor && !(window.SpeechRecognition || window.webkitSpeechRecognition)) {
+                floor.textContent = 'This browser has no speech-to-text — Practice mode still works.';
+            }
 
             const tick = () => {
-                if (token !== FLAP.micToken) return;
+                if (!FLAP.micMeterOn || token !== FLAP.micToken) return;
                 const db = readDb();
                 if (fill) fill.style.width = Math.max(0, Math.min(100, (db + 70) * 1.6)) + '%';
                 if (samples.length < 90) {
@@ -516,6 +535,7 @@
                 FLAP.micRaf = requestAnimationFrame(tick);
             };
             cancelAnimationFrame(FLAP.micRaf);
+            FLAP.micMeterOn = true;
             tick();
             return true;
         } catch (err) {
@@ -531,9 +551,16 @@
     /* Release the actual microphone, not just the level meter. Leaving the run
        or the view must stop the tracks, or the browser keeps the mic open and
        the rest of the app feels laggy. */
-    function closeMic() {
+    /* Stop only the level-meter loop: the microphone stream stays live during
+       a ranked run so the game can measure voice time (and slow the sink). */
+    function stopMicMeter() {
+        FLAP.micMeterOn = false;
         cancelAnimationFrame(FLAP.micRaf);
         FLAP.micRaf = 0;
+    }
+
+    function closeMic() {
+        stopMicMeter();
         FLAP.micToken = (FLAP.micToken || 0) + 1;
         FLAP.analyser = null;
         FLAP.buf = null;
@@ -595,7 +622,17 @@
                 FLAP.fillers = (FLAP.transcript.toLowerCase().match(/\b(um+|uh+|like|you know)\b/g) || []).length;
                 heardWords(s);
             };
-            asr.onerror = () => { FLAP.asrOk = false; };
+            asr.onerror = (e) => {
+                FLAP.asrOk = false;
+                const code = e && e.error;
+                if (code === 'not-allowed' || code === 'service-not-allowed') {
+                    FLAP.micOn = false;
+                    toast('🎤 Microphone blocked — allow it in the browser, or use Practice mode.');
+                } else if (code === 'network') {
+                    FLAP.micOn = false;
+                    toast('🎤 Speech-to-text is blocked/offline — use Practice mode.');
+                }
+            };
             asr.onend = () => {
                 if (FLAP.running && FLAP.micOn && FLAP.asr === asr) {
                     try { asr.start(); } catch (e) { /* ignore */ }
@@ -689,7 +726,7 @@
                 g.readIdx += 1;
                 g.readCount += 1;
                 FLAP.heard.splice(0, at + 1);
-                FLAP.lift = Math.min(1.6, FLAP.lift + LIFT_PER_WORD);
+                FLAP.lift = Math.min(1.8, FLAP.lift + LIFT_PER_WORD);
                 FLAP.wordsRead += 1;
                 continue;
             }
@@ -741,9 +778,10 @@
             }
             return;
         }
+        fitWorld();
         const useTap = tapMode === true || !FLAP.stream;
         show('play');
-        closeMic();
+        if (useTap) closeMic(); else stopMicMeter();
         FLAP.duel.result = null;
         FLAP.tap = useTap;
         FLAP.ranked = !useTap;
@@ -785,12 +823,13 @@
         FLAP.mood = 'happy';
         FLAP.autoClock = 0;
         FLAP.chipSig = '';
-        FLAP.bird = { y: 300, vy: 0, rot: 0 };
+        FLAP.bird = { y: H / 2, vy: 0, rot: 0 };
         FLAP.gates = [];
         FLAP.popups = [];
         FLAP.lastGateX = W + 80;
         FLAP.transcript = '';
         FLAP.heardSig = '';
+        FLAP.silentWarned = false;
         if (el('heard')) el('heard').textContent = 'Listening…';
         FLAP.words = 0;
         FLAP.fillers = 0;
@@ -855,6 +894,7 @@
         cancelAnimationFrame(FLAP.raf);
         FLAP.raf = 0;
         stopAsr();
+        closeMic();
         const node = el('pause');
         if (node) node.classList.add('on');
         syncFsUi();
@@ -866,7 +906,14 @@
         FLAP.last = 0;
         const node = el('pause');
         if (node) node.classList.remove('on');
-        if (!FLAP.tap && !FLAP.asr) startAsr();
+        if (!FLAP.tap) {
+            openMic().then(() => {
+                if (!FLAP.paused && FLAP.running) {
+                    stopMicMeter();
+                    if (!FLAP.asr) startAsr();
+                }
+            });
+        }
         syncFsUi();
         FLAP.raf = requestAnimationFrame(loop);
     }
@@ -907,7 +954,7 @@
 
         if (FLAP.ready > 0) {
             FLAP.ready -= dt;
-            FLAP.bird.y = 300;
+            FLAP.bird.y = H / 2;
             FLAP.bird.vy = 0;
             const label = FLAP.ready > 0.3 ? (Math.ceil(FLAP.ready - 0.3) + '… speak to fly') : 'Go!';
             if (label !== FLAP.readyLabel) {
@@ -918,6 +965,10 @@
         }
 
         FLAP.elapsed += dt;
+        if (FLAP.ranked && !FLAP.tap && !FLAP.silentWarned && FLAP.elapsed > 6 && !FLAP.words && !FLAP.transcript) {
+            FLAP.silentWarned = true;
+            toast('🎤 No words heard yet — speak closer, or use Practice mode.');
+        }
         const voiced = FLAP.micOn ? (readDb() > FLAP.threshold) : FLAP.tapHeld;
 
         if (voiced) {
@@ -953,7 +1004,7 @@
 
         if (FLAP.tap && FLAP.tapHeld) FLAP.lift = Math.min(1.2, FLAP.lift + dt * 3.2);
         pumpRead();
-        FLAP.lift = Math.max(0, FLAP.lift - LIFT_DECAY * dt);
+        FLAP.lift = Math.max(0, FLAP.lift - LIFT_DECAY * dt * (voiced ? 0.4 : 1));
 
         if (FLAP.lift > 0.04) {
             const target = -LIFT_SPEED * Math.min(1.3, FLAP.lift);
@@ -1042,14 +1093,18 @@
         const phrase = pickPhrase(FLAP.levelIndex);
         const minY = 140 + L.gap / 2;
         const maxY = H - GROUND - 110 - L.gap / 2;
-        let gapY = minY + Math.random() * (maxY - minY);
+        const mid = H / 2;
+        const half = Math.max(0, Math.min(90, (maxY - minY) / 2));
+        const lo = Math.max(minY, mid - half);
+        const hi = Math.min(maxY, mid + half);
+        let gapY = lo + Math.random() * Math.max(0, hi - lo);
         const prev = FLAP.gates[FLAP.gates.length - 1];
         if (prev) gapY = Math.max(prev.gapY - 120, Math.min(prev.gapY + 120, gapY));
         const tokens = tokensOf(phrase);
         FLAP.wordsShown += tokens.length;
         FLAP.gates.push({
             x: W + 60,
-            speed: gateSpeed(tokens.length),
+            speed: gateSpeed(tokens.length, FLAP.levelIndex),
             gapY,
             gapH: L.gap,
             phrase,
@@ -1273,6 +1328,48 @@
             }
         }
         if (el('meterfill')) el('meterfill').style.width = Math.round(Math.min(100, FLAP.lift * 70)) + '%';
+    }
+
+    /* The world is 400 units wide. In normal mode it is 400x600 (2:3).
+       In portrait full screen we extend H so the canvas fills the available
+       height without stretching the cat; on wide/short screens it stays 600
+       and is sized by height. */
+    function fitWorld() {
+        const cv = el('cv');
+        if (!cv) return;
+        const full = fsOn();
+        let next = 600;
+        if (full) {
+            const availW = Math.max(200, window.innerWidth - 24);
+            const availH = Math.max(300, window.innerHeight - 24);
+            if (availH / availW > 1.5) {
+                next = Math.max(600, Math.min(1100, Math.round(W * availH / availW)));
+            }
+        }
+        const old = H;
+        H = next;
+        if (old !== H && FLAP.running) {
+            const k = H / old;
+            FLAP.bird.y = Math.max(BIRD_R, Math.min(H - GROUND - BIRD_R, FLAP.bird.y * k));
+            FLAP.gates.forEach((g) => {
+                const lo = 140 + g.gapH / 2;
+                const hi = H - GROUND - 110 - g.gapH / 2;
+                g.gapY = Math.max(lo, Math.min(hi, g.gapY * k));
+            });
+        }
+        cv.dataset.w = String(W);
+        cv.dataset.h = String(H);
+        cv.style.aspectRatio = W + ' / ' + H;
+        const wrap = cv.parentElement;
+        if (wrap) {
+            if (full) {
+                wrap.style.width = (H > 600)
+                    ? '100%'
+                    : 'min(100%, calc((100dvh - 24px) * 2 / 3))';
+            } else {
+                wrap.style.width = '';
+            }
+        }
     }
 
     function canvasScale(canvas) {
@@ -2714,6 +2811,7 @@
         document.addEventListener('fullscreenchange', onFsChange);
         document.addEventListener('webkitfullscreenchange', onFsChange);
         window.addEventListener('resize', () => {
+            fitWorld();
             if (current === 'play') draw();
         });
     }
@@ -2722,6 +2820,7 @@
         buildPools();
         FLAP.mounted = true;
         bindInput();
+        fitWorld();
         FLAP.best = readBest();
         renderLobby();
         show('lobby');
@@ -2775,7 +2874,10 @@
         on('pause-btn', pauseRun);
         on('pause-quit', quitRun);
         on('resume', resumeRun);
-        on('r-again', () => startRun(FLAP.tap));
+        on('r-again', () => {
+            if (FLAP.tap) startRun(true);
+            else show('mic');
+        });
         on('r-board', () => show('board'));
         on('r-duel', () => show('duel'));
         on('r-lobby', () => show('lobby'));

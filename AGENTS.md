@@ -75,7 +75,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
-| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：90 秒／3 命、ASR 逐字 lift、60–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
+| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：90 秒／3 命、ASR 逐字 lift、50–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -193,8 +193,8 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
   HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
 - 玩法：**90 秒（1.5 分鐘）**、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
-  每讀中一個字 `LIFT_PER_WORD 0.55`，停口 `LIFT_DECAY 0.4/s` 下沉。
-  閘門要求 **L1 60%／L2 65%／L3 70%／L4 75%**（`PASS_RATIOS`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
+  每讀中一個字 `LIFT_PER_WORD 0.75`，停口 `LIFT_DECAY 0.3/s` 下沉。
+  閘門要求 **L1 50%／L2 60%／L3 70%／L4 75%**（`PASS_RATIOS`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
   頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 90 秒完局。
 - 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
   全句 100% ＝ ×2。句庫：**L1 = 短 warm-up（`FLUENCY_DATA.warmup`，4–8 字），
@@ -210,10 +210,15 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   畫面上會寫「Practice run · not ranked」。
 - **咪高峰一定要真正熄**：`closeMic()` 會 `stop()` 每條 MediaStream track、清空
   `FLAP.stream`、`analyser`、`buf`，並 `close()` AudioContext；`stopAsr()` 會
-  `abort()` SpeechRecognition。完局（`finishRun` → `stopRun`）、離開 view
-  （`FLAP.stop`）、暫停（`pauseRun`）、`pagehide` 都會 release，所以返 Hub 唔會
-  再留住 mic 造成 lag。`openMic()` 有 `micToken` 防止遲來的 `getUserMedia`
-  在離開後重新開咪。
+  `abort()` SpeechRecognition。完局（`finishRun` → `stopRun`）、暫停
+  （`pauseRun` 會 `closeMic`，`resumeRun` 重新 `openMic`）、離開 view
+  （`FLAP.stop`）、`pagehide` 都會 release，所以返 Hub 唔會再留住 mic 造成 lag。
+  **遊戲進行中**會用 `stopMicMeter()` 只停音量錶 loop、保留 stream 量度聲音；
+  `voiced` 時下沉速度 ×0.4（唔會 lift，所以音量本身仍然唔會令貓上升），
+  令 ASR 慢半拍時貓冇咁易跌。`openMic()` 有 `micToken` 防止遲來的
+  `getUserMedia` 在離開後重新開咪。
+- Result 嘅 `🔁 Again`：如果上一局係 ranked，會返 `mic` 重新開咪（唔會靜靜變
+  practice）；practice 局就繼續 practice。
 - 語音辨識放寬：`maxAlternatives = 3`（final result 會餵埋其他候選字）、
   `wordMatches` 對 8 字母以上容許 edit distance 2、可跳過最多 3 個字、
   `heard` buffer 40 個字，減少「明明讀咗但 detect 唔到」。HUD 有
@@ -221,9 +226,11 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - 全螢幕：lobby 嘅 `#flap-fs-lobby`、play HUD 嘅 `#flap-fs-btn`（top 46 right 8）
   同 result 嘅 `#flap-r-fs` 會 `requestFullscreen` 落 `#fluency-flap-content`；
   iPhone Safari 冇 element fullscreen 就 fallback `body.flap-fs`（fixed + z-index 9999）。
-  Play 時 content 會有 `.flap-live`，CSS 會解鎖 `.flap-wrap` 嘅 440px 限制，並用
-  `width: min(100%, calc((100dvh - 24px) * 2 / 3))` 放大 2:3 canvas；闊螢幕
-  （≥700px）會同時放大 HUD 字。離開 view（`FLAP.stop()`）會自動 exit。
+  Play 時 content 會有 `.flap-live`，CSS 會解鎖 `.flap-wrap` 嘅 440px 限制；`fitWorld()`
+  會喺手機直向 full screen 將世界高度 `H` 由 600 拉到約 900（上限 1100），
+  令 2:3 canvas 真的填滿高度，唔會再喺底部留空位；橫向／桌面維持 `H = 600`，
+  按高度計寬度。闊螢幕（≥700px）會同時放大 HUD 字。閘門速度亦有 level factor
+  `0.72／0.82／0.92／1`，L1 明顯較慢。離開 view（`FLAP.stop()`）會自動 exit。
 - 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
   會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
 - 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／

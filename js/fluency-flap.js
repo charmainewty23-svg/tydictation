@@ -248,7 +248,7 @@
         threshold: -45,
         levelIndex: 0,
         t: 0,
-        hearts: 3,
+        hearts: 5,
         score: 0,
         gatesFlown: 0,
         gatesPassed: 0,
@@ -264,6 +264,7 @@
         lift: 0,
         stun: 0,
         bounce: 0,
+        pull: 0,
         silentWarned: false,
         heard: [],
         readGate: null,
@@ -796,7 +797,7 @@
         FLAP.pauses = 0;
         FLAP.quietSec = 0;
         FLAP.pauseCounted = false;
-        FLAP.hearts = 3;
+        FLAP.hearts = 5;
         FLAP.score = 0;
         FLAP.gatesFlown = 0;
         FLAP.gatesPassed = 0;
@@ -804,6 +805,7 @@
         FLAP.inv = 0;
         FLAP.t = 0;
         FLAP.lift = 0;
+        FLAP.pull = 0;
         FLAP.stun = 0;
         FLAP.bounce = 0;
         FLAP.heard = [];
@@ -858,7 +860,7 @@
         if (saytext) saytext.textContent = 'Get ready…';
         if (el('wchips')) el('wchips').innerHTML = '';
         if (el('lvbadge')) el('lvbadge').textContent = LEVELS[0].name;
-        if (el('hearts')) el('hearts').textContent = '❤️❤️❤️';
+        if (el('hearts')) el('hearts').textContent = '❤️❤️❤️❤️❤️';
         if (el('phr')) el('phr').textContent = '0 ✅';
         if (el('timer')) el('timer').textContent = clock(RUN_SECONDS);
         if (el('meterfill')) el('meterfill').style.width = '0%';
@@ -1002,15 +1004,36 @@
             }
         }
 
-        if (FLAP.tap && FLAP.tapHeld) FLAP.lift = Math.min(1.2, FLAP.lift + dt * 3.2);
-        pumpRead();
-        FLAP.lift = Math.max(0, FLAP.lift - LIFT_DECAY * dt * (voiced ? 0.4 : 1));
-
-        if (FLAP.lift > 0.04) {
-            const target = -LIFT_SPEED * Math.min(1.3, FLAP.lift);
-            FLAP.bird.vy += (target - FLAP.bird.vy) * Math.min(1, dt * 9);
+        if (FLAP.tap) {
+            FLAP.pull = 0;
+            if (FLAP.tapHeld) FLAP.lift = Math.min(1.2, FLAP.lift + dt * 3.2);
+            FLAP.lift = Math.max(0, FLAP.lift - LIFT_DECAY * dt);
+            if (FLAP.lift > 0.04) {
+                const target = -LIFT_SPEED * Math.min(1.3, FLAP.lift);
+                FLAP.bird.vy += (target - FLAP.bird.vy) * Math.min(1, dt * 9);
+            } else {
+                FLAP.bird.vy += 1050 * dt;
+            }
         } else {
-            FLAP.bird.vy += 1050 * dt;
+            /* Ranked: reading locks the cat onto the gate opening. The more of
+               the phrase that is recognised, the stronger the pull; with
+               nothing read the cat sinks. This makes a correct read feel like
+               flying cleanly through the pillar instead of floating to the top. */
+            pumpRead();
+            FLAP.lift = Math.max(0, FLAP.lift - LIFT_DECAY * dt * (voiced ? 0.4 : 1));
+            const g = activeReadGate();
+            const ratio = g ? (g.readCount / Math.max(1, g.tokens.length)) : 0;
+            const need = g ? passRatio(g.level) : 0.5;
+            const pull = g ? Math.min(1, ratio / Math.max(0.01, need)) : 0;
+            FLAP.pull = pull;
+            if (g && pull > 0.05 && FLAP.stun <= 0.15) {
+                const dy = g.gapY - FLAP.bird.y;
+                const desired = Math.max(-430, Math.min(430, dy * 8));
+                const strength = 0.35 + 0.65 * pull;
+                FLAP.bird.vy += (desired * strength - FLAP.bird.vy) * Math.min(1, dt * 12);
+            } else {
+                FLAP.bird.vy += 980 * dt * (voiced ? 0.6 : 1);
+            }
         }
         FLAP.bird.vy = Math.max(-430, Math.min(560, FLAP.bird.vy));
         FLAP.bird.y += FLAP.bird.vy * dt;
@@ -1201,7 +1224,7 @@
         const node = el('hearts');
         if (!node) return;
         const n = Math.max(0, FLAP.hearts);
-        node.textContent = '❤️'.repeat(n) + '🖤'.repeat(3 - n);
+        node.textContent = '❤️'.repeat(n) + '🖤'.repeat(5 - n);
     }
 
     function updateStreakChip() {
@@ -1327,7 +1350,7 @@
                 el('heard').textContent = tail ? 'Heard: ' + tail : 'Listening…';
             }
         }
-        if (el('meterfill')) el('meterfill').style.width = Math.round(Math.min(100, FLAP.lift * 70)) + '%';
+        if (el('meterfill')) el('meterfill').style.width = Math.round(Math.min(100, FLAP.tap ? FLAP.lift * 70 : (FLAP.pull || 0) * 100)) + '%';
     }
 
     /* The world is 400 units wide. In normal mode it is 400x600 (2:3).

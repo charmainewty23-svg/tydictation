@@ -394,8 +394,9 @@
             if (spinning) target = 0;
         }
         // Holding ACCEL uses a snappy lerp so the bonus arrives almost at once;
-        // coasting (no ACCEL) keeps the gentler 2.3 lerp.
-        const accel = spinning || p.finished ? 7 : (S.accelHeld ? 8 : 2.3);
+        // coasting (no ACCEL) keeps the gentler 2.3 lerp. The 8.4 is 5% faster
+        // than the original 8, so the kart picks up speed a little quicker.
+        const accel = spinning || p.finished ? 7 : (S.accelHeld ? 8.4 : 2.3);
         p.speed += (target - p.speed) * Math.min(1, dt * accel);
         if (p.speed < 0) p.speed = 0;
         if (p.speed > cap) p.speed = cap;

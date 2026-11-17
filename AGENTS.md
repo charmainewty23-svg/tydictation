@@ -75,7 +75,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 11 | `js/word-battle.js` | Word Battle 1v1＋班際全部、`battleEnter`／polling、battle admin（`loadBattleAdmin`／`toggleBattleBreakdown`）、班際自訂貓＋Top 5 頒獎台、battle 輸入 listener |
 | 12 | `js/word-jump.js` | `openWordJump`、`const WJ`、`const WJC`（Challenge）、tilt／鍵盤／touch listener、Word Jump admin、`pagehide` 離開 challenge |
 | 12b | `js/fluency.js` | Fluency Master 句庫：`FLUENCY_DATA`（150 句）、`fluencyRender`／`fluencyToggle`／`fluencyExpand`／`fluencySearch`／`fluencySpeak`／`fluencyStopSpeech`／`fluencyVoice`／`fluencyFindLine`。必須喺 `js/word-jump.js` 之後、`js/pwa.js` 之前 |
-| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：90 秒／3 命、ASR 逐字 lift、50–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
+| 12c | `js/fluency-flap.js` | Speak Flap 語音遊戲（IIFE，只暴露 `window.FLAP`）：90 秒／5 命、ASR 逐字 pull-to-gate、50–75% 過閘、Ghost Cat、每週 Top 7＋Most improved、Paws、1v1 非同步挑戰、全螢幕。必須喺 `js/fluency.js` 之後、`js/pwa.js` 之前 |
 | 13 | `js/pwa.js` | 註冊 `/sw.js`（只喺 HTTPS／localhost）；失敗會靜靜咁 `console.warn`，唔影響網站。必須係最後一個 script |
 
 規則：
@@ -192,9 +192,14 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - 入口：`fluency-view` 嘅 `🃏 Speak Flap` 卡 → `fluency-flap-view`。邏輯全部喺
   `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
   HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
-- 玩法：**90 秒（1.5 分鐘）**、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
-  每讀中一個字 `LIFT_PER_WORD 0.75`，停口 `LIFT_DECAY 0.3/s` 下沉。
-  閘門要求 **L1 50%／L2 60%／L3 70%／L4 75%**（`PASS_RATIOS`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
+- 玩法：**90 秒（1.5 分鐘）**、**5 條命**、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
+  每讀中一個字 `LIFT_PER_WORD 0.75`（meter 用），停口 `LIFT_DECAY 0.3/s`。
+  **Ranked 時貓唔會再「一路飛上頂」**：`readCount / passRatio(g.level)` 計 `pull`，
+  讀得越多、`pull` 越大，貓會被拉向**該閘門開口中心 `g.gapY`**；`pull > 0.05`
+  才開始 home，否則用 980 重力向下沉。讀夠 `passRatio`（L1 50%／L2 60%／
+  L3 70%／L4 75%）就會對準開口穿過；讀錯、太慢或停口就下沉。
+  `FLAP.stun > 0.15`（撞閘／讀唔夠）期間唔 home，所以會見到貓跌落再 retry。
+  Practice（tap）仍然用舊的 lift 上升，因為唔計分。
   頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 90 秒完局。
 - 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
   全句 100% ＝ ×2。句庫：**L1 = 短 warm-up（`FLUENCY_DATA.warmup`，4–8 字），
@@ -696,7 +701,7 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   每幀 lerp `p.laneX`（`DG.TILT_LERP = 18`），唔再係「過 9° 先 steer 一次」。
   `DG.nearestLane(laneX)` 用嚟喺閘口／道具／多人同步對齊實際位置；按鈕／swipe／方向鍵
   仍然係 discrete，而且會短暫壓過 tilt（`S.tilt.manualUntil`）做後備。
-- **ACCEL**：`DG.ACCEL_KMH = 110`、`DG.SPEED_CAP = 340`；按住 ACCEL 時速度 lerp 用 8，
+- **ACCEL**：`DG.ACCEL_KMH = 110`、`DG.SPEED_CAP = 340`；按住 ACCEL 時速度 lerp 用 **8.4**（比原本 8 快 5%），
   唔按就用 2.3。唔會消耗／自動用蘑菇，Enter 仍然用道具。
 - **打橫玩（landscape，2026-11）**：`#drive-and-go-view.dg-live` 本身已經係 `position:fixed`
   ＋`100vw×100dvh`，所以橫向只需要純 CSS media query

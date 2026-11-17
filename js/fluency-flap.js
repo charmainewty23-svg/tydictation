@@ -18,7 +18,7 @@
     const W = 400;
     let H = 600;
     const GROUND = 64, BIRD_X = 96, BIRD_R = 13;
-    const RUN_SECONDS = 120;
+    const RUN_SECONDS = 150;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
     const LIFT_PER_WORD = 0.75;
@@ -698,15 +698,45 @@
     function wordMatches(want, said) {
         if (!want || !said) return false;
         if (want === said) return true;
-        if (want.length >= 3 && said.length >= 3 && editDistance(want, said) <= 1) return true;
-        if (want.length >= 8 && said.length >= 8 && editDistance(want, said) <= 2) return true;
-        if (want.length >= 6 && said.length >= 5
-            && (want.startsWith(said) || said.startsWith(want))) return true;
-        return false;
+        /* Keep UK/US spelling variants (centre/center) accepted. */
+        try {
+            if (typeof spellingAlternates === 'function') {
+                const alts = spellingAlternates(want) || [];
+                if (alts.indexOf(said) >= 0) return true;
+            }
+        } catch (e) { /* ignore */ }
+        /* Ending sounds matter. A missing ending is a near miss (orange), not a
+           correct word: parent(s), read(ing), walk(ed), play(s) etc. */
+        if (want.startsWith(said) || said.startsWith(want)) return false;
+        if (want.length === said.length && want.slice(0, -1) === said.slice(0, -1)) return false;
+        const d = editDistance(want, said);
+        if (want.length < 8) return d <= 1 && Math.abs(want.length - said.length) <= 1;
+        return d <= 2;
     }
 
     function activeReadGate() {
         return FLAP.gates.find((g) => !g.passed && g.x + 58 > BIRD_X - 40) || null;
+    }
+
+    /* Before the gate passes, a word that was skipped (orange) can be read
+       again. This is the "補讀" path: it counts as read and can complete the
+       phrase for the full-read rush. */
+    function recoverSkipped(g) {
+        if (!g || !FLAP.heard.length) return;
+        for (let i = 0; i < g.tokens.length; i += 1) {
+            const t = g.tokens[i];
+            if (t.read || !t.skipped) continue;
+            const at = FLAP.heard.findIndex((w) => wordMatches(t.key, w));
+            if (at < 0) continue;
+            t.read = true;
+            t.skipped = false;
+            t.near = false;
+            t.wrong = false;
+            g.readCount += 1;
+            FLAP.heard.splice(0, at + 1);
+            FLAP.lift = Math.min(1.8, FLAP.lift + LIFT_PER_WORD);
+            FLAP.wordsRead += 1;
+        }
     }
 
     function pumpRead() {
@@ -719,6 +749,7 @@
             FLAP.transcript = '';
             FLAP.heardSig = '';
         }
+        recoverSkipped(g);
         while (g.readIdx < g.tokens.length) {
             const want = g.tokens[g.readIdx].key;
             const at = FLAP.heard.findIndex((w) => wordMatches(want, w));
@@ -760,6 +791,18 @@
             if (FLAP.heard.length && g.tokens[g.readIdx]) g.tokens[g.readIdx].near = true;
             break;
         }
+    }
+
+    /* Clear the old phrase's chips as soon as a gate is passed, so the next
+       sentence cannot show the previous green/orange words. */
+    function clearWordChips() {
+        if (el('wchips')) el('wchips').innerHTML = '';
+        if (el('heard')) el('heard').textContent = 'Listening…';
+        FLAP.chipSig = '';
+        FLAP.readGate = null;
+        FLAP.heard = [];
+        FLAP.transcript = '';
+        FLAP.heardSig = '';
     }
 
     function renderChips() {
@@ -1079,9 +1122,10 @@
 
         FLAP.gates.forEach((g) => {
             if (g.failFlash > 0) g.failFlash = Math.max(0, g.failFlash - dt);
-            /* Finish the whole phrase before the gate arrives: rush it in so the
-               next sentence appears immediately (the game is about reading many). */
-            if (!g.passed && !g.rushing && g.tokens.length && g.readCount >= g.tokens.length) {
+            /* Read enough to pass before the gate arrives: rush it in so the
+               next sentence appears immediately. This works at every level,
+               including the long L2-L4 phrases. */
+            if (!g.passed && !g.rushing && g.tokens.length && gateAccuracy(g) >= passRatio(g.level)) {
                 g.rushing = true;
                 g.speed = Math.max(g.speed, 620);
             }
@@ -1102,6 +1146,7 @@
                 if (!FLAP.ranked) {
                     g.passed = true;
                     FLAP.gatesFlown += 1;
+                    clearWordChips();
                 } else if (gateAccuracy(g) >= passRatio(g.level)) {
                     g.passed = true;
                     g.retrying = false;
@@ -1304,6 +1349,7 @@
     }
 
     function scoreGate(g) {
+        clearWordChips();
         const L = LEVELS[g.level];
         const total = g.tokens.length || 1;
         const ratio = g.readCount / total;
@@ -3003,6 +3049,8 @@
         weekStartKey,
         canUseCloudBoard,
         duelState: () => FLAP.duel,
-        loadChallenges
+        loadChallenges,
+        wordMatches,
+        recoverSkipped
     };
 })();

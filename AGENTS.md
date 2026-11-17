@@ -2411,6 +2411,16 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   已裝 `store.sql` 只想補呢六件／改價就跑短檔
   `supabase/store_backgrounds_colors.sql`（可重跑，會 update 舊價）。Props／Backgrounds **只喺 Me profile
   同 Drive & Go／Word Battle 嘅貓 preview（lobby）** 出現，唔會放入 3D 賽道。
+- **立體背景（2026-11）**：`storePaintBackground()` 而家會為
+  `bg_library`（書架／拱窗／吊燈）、`bg_bigben`（大笨鐘／鐘面／雨／濕街）、
+  `bg_aplus`（3D A+／星星）、`bg_sakura`（樹枝／櫻花／落瓣）、
+  `bg_cyber`（霓虹透視格／地平線）、`bg_desk`（木桌／枱燈／書／杯／窗）、
+  `bg_galaxy`（行星環／星雲）畫真背景，唔再只係 gradient + emoji。
+  `storeFillBackgroundBase()` 為 Black／Grey／Yellow 用深／灰／黃底，唔會再
+  fade 去 cream；`storePaintLook()` 已移除右上角浮動 emoji。Store 卡嘅
+  background 用 `canvas[data-store-bg]` + `storePaintCardBackgrounds()` 顯示
+  同一幅 art；Me profile／朋友 profile／fitting／Drive & Go／Word Battle
+  preview 共用同一個 `storePaintBackground()`。
 - **Paws 計算**（`supabase/store.sql` 嘅 trigger，唔靠 client）：
   - +1 per correct answer（Dictation／Drive & Go／Word Battle，Battle 只計
     1v1、class room 唔計）；Word Jump +1 per word（每局 cap 40）。

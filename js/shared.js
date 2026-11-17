@@ -30,6 +30,10 @@
             return ALLOWED_EXTRA_EMAILS.indexOf(value) !== -1;
         }
 
+        function isForcedUnassignedEmail(email) {
+            return ALLOWED_EXTRA_EMAILS.indexOf(String(email || "").trim().toLowerCase()) !== -1;
+        }
+
         // Supabase init
         const sb = window.supabase.createClient(
             "https://mggnwzirjmibreimrwiq.supabase.co",
@@ -1117,6 +1121,9 @@
 
         function formOfEmail(email, nickname) {
             const key = String(email || '').toLowerCase();
+            // Other teachers on the test allowlist are normal Unassigned
+            // users, even if their Google display name contains a class code.
+            if (isForcedUnassignedEmail(key)) return '';
             if (formOverrides.has(key)) return formOverrides.get(key) || '';
             const parsed = parseDisplayNameFormClass(nicknameOfEmail(email, nickname)).form || '';
             const stored = formDirectory.byEmail.get(key) || '';
@@ -1399,6 +1406,11 @@
         // left alone. Skip the teacher account.
         async function claimSavedForm(user) {
             if (!user || !user.email || user.email === ADMIN_EMAIL) return;
+            if (isForcedUnassignedEmail(user.email)) {
+                const { error } = await sb.rpc('claim_own_form', { p_form: '' });
+                if (error) console.warn('Form clear failed:', error.message);
+                return;
+            }
             const nick = user.user_metadata?.full_name || user.user_metadata?.name || '';
             const fromName = parseDisplayNameFormClass(displayedLoginName(user.email, nick)).form || '';
             const { error } = await sb.rpc('claim_own_form', { p_form: fromName });

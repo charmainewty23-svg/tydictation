@@ -238,6 +238,7 @@
         fireworks: [],
         paws: 0,
         boardBonus: 0,
+        improvedBonus: 0,
         mood: 'happy',
         autoRead: false,
         autoClock: 0,
@@ -564,6 +565,7 @@
         FLAP.fireworks = [];
         FLAP.paws = 0;
         FLAP.boardBonus = 0;
+        FLAP.improvedBonus = 0;
         FLAP.mood = 'happy';
         FLAP.autoClock = 0;
         FLAP.chipSig = '';
@@ -1558,6 +1560,7 @@
             FLAP.cloud.rank = Number(out.rank) || 0;
             FLAP.paws = Number(out.paws) || 0;
             FLAP.boardBonus = Number(out.board_bonus) || 0;
+            FLAP.improvedBonus = Number(out.improved_bonus) || 0;
             if (out.best) {
                 FLAP.best = Math.max(FLAP.best, Number(out.best) || 0);
             }
@@ -1706,9 +1709,12 @@
             const local = FLAP.gatesPassed * PAWS_PER_PHRASE;
             if (el('r-gain')) {
                 if (FLAP.cloud.submitted) {
-                    const total = FLAP.paws + FLAP.boardBonus;
+                    const total = FLAP.paws + FLAP.boardBonus + FLAP.improvedBonus;
+                    const notes = [];
+                    if (FLAP.boardBonus) notes.push('+' + PAWS_BOARD + ' board');
+                    if (FLAP.improvedBonus) notes.push('+' + PAWS_IMPROVED + ' most improved');
                     el('r-gain').textContent = '+' + total + ' 🐾 earned'
-                        + (FLAP.boardBonus ? ' (incl. +' + PAWS_BOARD + ' board bonus)' : '');
+                        + (notes.length ? ' (' + notes.join(' · ') + ')' : '');
                 } else if (!canUseCloudBoard()) {
                     el('r-gain').textContent = '+' + local + ' 🐾 this run';
                     el('r-gain').title = 'Paws need the cloud board (supabase/flap_runs.sql).';

@@ -214,8 +214,8 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `LEVELS.gap` 全部係 250，閘門上下柱距離更闊；
   下一道閘會喺上一道 pass 後即生成（或 `last.x < -80`），未 pass 的慢閘會多等；
   讀完整句會 `rushing` 加速，所以讀得快可以連環出句。
-- **過渡保護**：每次過閘（`scoreGate`）會設 `FLAP.hold = 1.1`、`FLAP.inv = 1.1`。
-  呢 1.1 秒貓會 hover（`vy` 拉向 0），唔會因為第二句未開始讀就跌死；一有新 pull
+- **過渡保護**：每次過閘（`scoreGate`）會設 `FLAP.hold = 2.0`、`FLAP.inv = 2.0`。
+  呢 2 秒貓會 hover（`vy` 拉向 0），唔會因為第二句未開始讀就跌死；一有新 pull
   （讀到下一句）就會取消 hold 並 home。撞閘／`gateFail` 會 `FLAP.hold = 0`，
   保持下跌懲罰，所以過渡保護唔會蓋過真係讀錯。
 - **Admin dashboard**：`loadFlapAdmin()`／`renderFlapAdmin()` 喺 `js/admin.js`，

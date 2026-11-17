@@ -1326,8 +1326,8 @@
         });
         /* Hover through the changeover to the next phrase, and keep the cat
            invincible for a moment so a transition fall cannot cost a life. */
-        FLAP.hold = Math.max(FLAP.hold, 1.1);
-        FLAP.inv = Math.max(FLAP.inv, 1.1);
+        FLAP.hold = Math.max(FLAP.hold, 2.0);
+        FLAP.inv = Math.max(FLAP.inv, 2.0);
         if (full) toast('⭐ Whole phrase! +' + pts + ' · streak ' + FLAP.streak);
     }
 

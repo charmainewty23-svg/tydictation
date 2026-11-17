@@ -1224,7 +1224,7 @@
         const node = el('hearts');
         if (!node) return;
         const n = Math.max(0, FLAP.hearts);
-        node.textContent = '❤️'.repeat(n) + '🖤'.repeat(5 - n);
+        node.textContent = '❤️'.repeat(n) + '🖤'.repeat(Math.max(0, 5 - n));
     }
 
     function updateStreakChip() {

@@ -3573,11 +3573,30 @@
         #fluency-flap-content:fullscreen .flap-gamewrap {
             width: min(100%, 400px);
         }
-        @media (max-height: 760px) {
-            body.flap-fs .flap-gamewrap,
-            #fluency-flap-content:fullscreen .flap-gamewrap {
-                width: min(100%, calc((100dvh - 48px) * 2 / 3));
+        body.flap-fs #fluency-flap-content.flap-live .flap-wrap,
+        #fluency-flap-content:fullscreen.flap-live .flap-wrap {
+            max-width: 100%;
+        }
+        body.flap-fs #fluency-flap-content.flap-live .flap-gamewrap,
+        #fluency-flap-content:fullscreen.flap-live .flap-gamewrap {
+            width: min(100%, calc((100dvh - 24px) * 2 / 3));
+            max-width: 100%;
+        }
+        @media (min-width: 700px) {
+            body.flap-fs #fluency-flap-content.flap-live .flap-hud-top,
+            #fluency-flap-content:fullscreen.flap-live .flap-hud-top {
+                font-size: 18px; gap: 10px;
             }
+            body.flap-fs #fluency-flap-content.flap-live .flap-hud-say .txt,
+            #fluency-flap-content:fullscreen.flap-live .flap-hud-say .txt { font-size: 22px; }
+            body.flap-fs #fluency-flap-content.flap-live .flap-hud-say .lbl,
+            #fluency-flap-content:fullscreen.flap-live .flap-hud-say .lbl { font-size: 12px; }
+            body.flap-fs #fluency-flap-content.flap-live .flap-wchip,
+            #fluency-flap-content:fullscreen.flap-live .flap-wchip { font-size: 14px; }
+            body.flap-fs #fluency-flap-content.flap-live .flap-lvbadge,
+            #fluency-flap-content:fullscreen.flap-live .flap-lvbadge { font-size: 13px; }
+            body.flap-fs #fluency-flap-content.flap-live .flap-heard,
+            #fluency-flap-content:fullscreen.flap-live .flap-heard { font-size: 12.5px; }
         }
         .flap-tapnote {
             position: absolute; bottom: 14px; left: 0; right: 0;
@@ -4163,6 +4182,7 @@
                             <button type="button" class="flap-btn ghost" id="flap-r-duel">⚔️ Challenge a friend</button>
                             <button type="button" class="flap-btn ghost" id="flap-r-board">🏆 Weekly leaderboard</button>
                             <button type="button" class="flap-btn ghost" id="flap-r-lobby">← Back to Speak Flap</button>
+                            <button type="button" class="flap-btn ghost" id="flap-r-fs">⛶ Full screen</button>
                         </section>
 
                         <!-- ── Weekly board ──────────────────────────────── -->

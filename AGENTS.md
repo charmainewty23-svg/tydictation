@@ -218,10 +218,12 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `wordMatches` 對 8 字母以上容許 edit distance 2、可跳過最多 3 個字、
   `heard` buffer 40 個字，減少「明明讀咗但 detect 唔到」。HUD 有
   `Heard: ...` 顯示 browser 最新聽到嘅字。
-- 全螢幕：lobby 嘅 `#flap-fs-lobby` 同 play HUD 嘅 `#flap-fs-btn`（top 46 right 8）
-  會 `requestFullscreen` 落 `#fluency-flap-content`；iPhone Safari 冇 element
-  fullscreen 就 fallback `body.flap-fs`（fixed + z-index 9999）。離開 view
-  （`FLAP.stop()`）會自動 exit，所以唔會困住喺全螢幕。
+- 全螢幕：lobby 嘅 `#flap-fs-lobby`、play HUD 嘅 `#flap-fs-btn`（top 46 right 8）
+  同 result 嘅 `#flap-r-fs` 會 `requestFullscreen` 落 `#fluency-flap-content`；
+  iPhone Safari 冇 element fullscreen 就 fallback `body.flap-fs`（fixed + z-index 9999）。
+  Play 時 content 會有 `.flap-live`，CSS 會解鎖 `.flap-wrap` 嘅 440px 限制，並用
+  `width: min(100%, calc((100dvh - 24px) * 2 / 3))` 放大 2:3 canvas；闊螢幕
+  （≥700px）會同時放大 HUD 字。離開 view（`FLAP.stop()`）會自動 exit。
 - 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
   會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
 - 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／

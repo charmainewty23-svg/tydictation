@@ -334,6 +334,8 @@
             const node = el('s-' + n);
             if (node) node.classList.toggle('on', n === name);
         });
+        const content = document.getElementById('fluency-flap-content');
+        if (content) content.classList.toggle('flap-live', name === 'play');
         FLAP.paused = false;
         const pause = el('pause');
         if (pause) pause.classList.remove('on');
@@ -387,6 +389,8 @@
         }
         const lobby = el('fs-lobby');
         if (lobby) lobby.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
+        const result = el('r-fs');
+        if (result) result.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
         window.navFlapPlaying = (current === 'play' && !FLAP.paused) || on;
         updateNav();
     }
@@ -2737,6 +2741,8 @@
         FLAP.duel.playing = false;
         exitFs();
         window.navFlapPlaying = false;
+        const content = document.getElementById('fluency-flap-content');
+        if (content) content.classList.remove('flap-live');
         const view = document.getElementById('fluency-flap-view');
         if (view) view.classList.remove('flap-playing');
         updateNav();
@@ -2783,6 +2789,7 @@
         on('d-refresh', loadChallenges);
         on('fs-btn', toggleFs);
         on('fs-lobby', toggleFs);
+        on('r-fs', toggleFs);
 
         const codeInput = el('d-code-input');
         if (codeInput) {

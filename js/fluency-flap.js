@@ -1061,7 +1061,7 @@
 
         for (let i = FLAP.gates.length - 1; i >= 0; i -= 1) {
             const g = FLAP.gates[i];
-            if (!g.passed && !g.retrying && g.x + 34 < BIRD_X) {
+            if (!g.passed && g.x + 34 < BIRD_X) {
                 if (!FLAP.ranked) {
                     g.passed = true;
                     FLAP.gatesFlown += 1;
@@ -1070,7 +1070,7 @@
                     g.retrying = false;
                     FLAP.gatesFlown += 1;
                     scoreGate(g);
-                } else {
+                } else if (!g.retrying) {
                     gateFail(g);
                     if (!FLAP.running) return;
                 }

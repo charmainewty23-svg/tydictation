@@ -199,6 +199,8 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   才開始 home，否則用 980 重力向下沉。讀夠 `passRatio`（L1 50%／L2 60%／
   L3 70%／L4 75%）就會對準開口穿過；讀錯、太慢或停口就下沉。
   `FLAP.stun > 0.15`（撞閘／讀唔夠）期間唔 home，所以會見到貓跌落再 retry。
+  重試閘門（`g.retrying`）仍然可以喺 `g.x + 34 < BIRD_X` 時用
+  `gateAccuracy >= passRatio` 過關；再讀唔夠就只會飛走，唔會再扣第二次命。
   Practice（tap）仍然用舊的 lift 上升，因為唔計分。
   頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 90 秒完局。
 - 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；

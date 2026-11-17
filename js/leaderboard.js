@@ -4,6 +4,16 @@
         let lbModeFilter = 'all';
         let lbRows = null;
         let lbRowsError = null;
+
+        function flapLbWeekStartKey() {
+            const day = (typeof hkDayKey === 'function')
+                ? hkDayKey(new Date().toISOString())
+                : new Date().toISOString().slice(0, 10);
+            const parts = day.split('-').map(Number);
+            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+            return d.toISOString().slice(0, 10);
+        }
         let lbDgClassOnly = (() => {
             try { return localStorage.getItem('learniTY_dg_class_only') === '1'; } catch (e) { return false; }
         })();
@@ -21,7 +31,9 @@
                 ? 'Current daily streaks — top 10 by consecutive Hong Kong practice days.'
                 : lbModeFilter === 'wordjump'
                     ? 'Personal bests — top 10 by best score and words collected.'
-                    : lbModeFilter === 'wjchallenge'
+                    : lbModeFilter === 'flap'
+                        ? 'Speak Flap — this week’s personal best. Resets Monday 00:00 HKT.'
+                        : lbModeFilter === 'wjchallenge'
                         ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
                         : (lbModeFilter === 'dgmulti' && lbDgClassOnly)
                             ? 'Class room runs — personal bests from rooms with 10+ players.'
@@ -74,6 +86,20 @@
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
                     .limit(10);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
+            if (lbModeFilter === 'flap') {
+                const week = flapLbWeekStartKey();
+                const { data, error } = await sb.from('flap_weekly_board')
+                    .select('user_id,nickname,score,phrases,best_streak,created_at,week_start')
+                    .eq('week_start', week)
+                    .order('score', { ascending: false })
+                    .order('phrases', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(200);
                 lbRows = data || [];
                 lbRowsError = error || null;
                 renderLeaderboard();
@@ -136,6 +162,48 @@
             container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
                 `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
             , { emptyAll: '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>' });
+        }
+
+        function renderFlapLeaderboard(container) {
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">Speak Flap leaderboard not available. Run <code class="text-orange-600">supabase/flap_runs.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            const sorted = (lbRows || []).slice().sort((a, b) =>
+                (Number(b.score) || 0) - (Number(a.score) || 0)
+                || (Number(b.phrases) || 0) - (Number(a.phrases) || 0)
+                || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+            if (!sorted.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs this week yet.</p>';
+                return;
+            }
+            const me = currentUser ? currentUser.id : '';
+            const top = sorted.slice(0, 10);
+            const myIndex = me ? sorted.findIndex(r => r.user_id === me) : -1;
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''} ${r.user_id === me ? 'ring-2 ring-violet-300' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <div class="flex-1 ml-3 min-w-0">
+                                <p class="font-bold text-gray-700 truncate">${leaderboardNameHTML(r, (r.user_id === me ? ' <span class="text-xs text-violet-500">(you)</span>' : '') + (isAdmin() ? classBadge(r.email, r.nickname) : ''))}</p>
+                                <p class="text-xs text-gray-400 truncate">${Number(r.phrases) || 0} phrases · best streak ${Number(r.best_streak) || 0}</p>
+                            </div>
+                            <span class="font-bold text-violet-600 text-lg whitespace-nowrap">${Number(r.score) || 0} pts</span>
+                        </div>`;
+            if (!isAdmin()) {
+                let html = `<div class="space-y-3">${top.map(rowHtml).join('')}</div>`;
+                if (myIndex >= 10) {
+                    html += `<div class="mt-4 bg-violet-50 border-2 border-violet-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                        <span class="font-bold text-violet-700 text-sm">Your rank: #${myIndex + 1}</span>
+                        <span class="font-bold text-violet-600">${Number(sorted[myIndex].score) || 0} pts</span>
+                    </div>`;
+                }
+                container.innerHTML = html;
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(top), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap voice runs this week yet.</p>' });
         }
 
         function renderDriveAndGoLeaderboard(container) {
@@ -250,6 +318,10 @@
             }
             if (lbModeFilter === 'wordjump') {
                 renderWordJumpLeaderboard(container);
+                return;
+            }
+            if (lbModeFilter === 'flap') {
+                renderFlapLeaderboard(container);
                 return;
             }
             if (lbModeFilter === 'dgsolo' || lbModeFilter === 'dgmulti') {

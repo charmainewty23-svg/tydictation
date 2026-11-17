@@ -1122,10 +1122,10 @@
 
         FLAP.gates.forEach((g) => {
             if (g.failFlash > 0) g.failFlash = Math.max(0, g.failFlash - dt);
-            /* Read enough to pass before the gate arrives: rush it in so the
-               next sentence appears immediately. This works at every level,
-               including the long L2-L4 phrases. */
-            if (!g.passed && !g.rushing && g.tokens.length && gateAccuracy(g) >= passRatio(g.level)) {
+            /* Only a completed phrase earns the early fly-forward. Reading just
+               enough to pass leaves the gate at its normal speed; the student
+               can keep reading the rest, and finishing early rushes it in. */
+            if (!g.passed && !g.rushing && g.tokens.length && g.readCount >= g.tokens.length) {
                 g.rushing = true;
                 g.speed = Math.max(g.speed, 620);
             }

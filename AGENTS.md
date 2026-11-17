@@ -201,9 +201,10 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `FLAP.stun > 0.15`（撞閘／讀唔夠）期間唔 home，所以會見到貓跌落再 retry。
   重試閘門（`g.retrying`）仍然可以喺 `g.x + 34 < BIRD_X` 時用
   `gateAccuracy >= passRatio` 過關；再讀唔夠就只會飛走，唔會再扣第二次命。
-  **讀夠過閘比例**（`gateAccuracy(g) >= passRatio(g.level)`）就會將該閘
+  **提早讀完整句**（`readCount >= tokens.length`，而且閘未到）才會將該閘
   `rushing=true`、speed 提升到 620，盡快飛過貓；閘一 pass 就即刻 spawn 下一道
-  （唔再等 `last.x < 20`），所以 L1–L4 都可以連環出句。讀完整句仍然有 ×2。
+  （唔再等 `last.x < 20`）。只讀夠 pass ratio 唔會提前飛，會照正常速度等閘到，
+  所以「未讀完就向前飛」唔會再發生。讀完整句仍然有 ×2。
   字色：綠 = 讀中；**橙** = 有讀但唔準／被跳過（`near`／`skipped`，可以喺閘到之前
   補讀）；**紅** = gate fail 後嘅錯字（`wrong`）；藍 = 下一個要讀嘅字。
   **Accuracy 注重 ending sounds**：`wordMatches` 會拒絕 `parent`（parents）、

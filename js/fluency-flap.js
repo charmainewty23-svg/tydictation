@@ -1035,8 +1035,8 @@
             if (g && pull > 0.05 && FLAP.stun <= 0.15) {
                 const dy = g.gapY - FLAP.bird.y;
                 const desired = Math.max(-430, Math.min(430, dy * 8));
-                const strength = 0.35 + 0.65 * pull;
-                FLAP.bird.vy += (desired * strength - FLAP.bird.vy) * Math.min(1, dt * 12);
+                const strength = (0.35 + 0.65 * pull) * (g.rushing ? 1.6 : 1);
+                FLAP.bird.vy += (desired * strength - FLAP.bird.vy) * Math.min(1, dt * (g.rushing ? 18 : 12));
             } else {
                 FLAP.bird.vy += 980 * dt * (voiced ? 0.6 : 1);
             }

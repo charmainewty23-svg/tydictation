@@ -193,17 +193,27 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `js/fluency-flap.js`，包在 IIFE 內，只暴露 `window.FLAP`，所以唔會同其他檔撞名。
   HTML 每個 id 都以 `flap-` 開頭，CSS 全部 `.flap-*`。
 - 玩法：45 秒、3 條命、2.4 秒倒數。**只有朗讀會令貓上升**（音量本身唔會）；
-  每讀中一個字 `LIFT_PER_WORD 0.45`，停口 `LIFT_DECAY 0.55/s` 下沉。
-  閘門要求 75%（`READ_MIN_RATIO`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
+  每讀中一個字 `LIFT_PER_WORD 0.55`，停口 `LIFT_DECAY 0.4/s` 下沉。
+  閘門要求 **L1 60%／L2 65%／L3 70%／L4 75%**（`PASS_RATIOS`）；唔夠就 −1 命、彈返、紅字重讀，**唔會即刻完局**。
   頭 6 秒（`GRACE_SECONDS`）落水唔扣命。0 命或 45 秒完局。
 - 關卡按「已讀句數」升級（0／3／6／9）：L1 20、L2 40、L3 70、L4 100 分；
-  全句 100% ＝ ×2。四級句庫係 150 句 Fluency 句按字數 quartile 分成 38／38／38／36。
+  全句 100% ＝ ×2。句庫：**L1–L2 用 Discussion Phrases（短→長），L3–L4 用 Hot Topics（短→長）**，
+  所以一開始係最短嘅 Discussion Phrases，之後才轉 Hot Topics。
 - Ghost Cat：本機最佳分數畫成天際線，跨過會出煙花。
 - 每週榜：星期一 00:00 HKT reset，每人每週只計**個人最佳**一行，Top 7。
   Paws：每讀完一句 +3；首次入 Top 7 +8（已在榜內再加分不會重複，
   要跌出再入才再計）；Most improved（今日平均 vs 過去 7 日）+40。
 - Practice（tap）模式**唔入榜、冇 Paws**，只係無咪時的練習 fallback；
   畫面上會寫「Practice run · not ranked」。
+- **咪高峰一定要真正熄**：`closeMic()` 會 `stop()` 每條 MediaStream track、清空
+  `FLAP.stream`、`analyser`、`buf`，並 `close()` AudioContext；`stopAsr()` 會
+  `abort()` SpeechRecognition。完局（`finishRun` → `stopRun`）、離開 view
+  （`FLAP.stop`）、暫停（`pauseRun`）、`pagehide` 都會 release，所以返 Hub 唔會
+  再留住 mic 造成 lag。`openMic()` 有 `micToken` 防止遲來的 `getUserMedia`
+  在離開後重新開咪。
+- 語音辨識放寬：`maxAlternatives = 3`（final result 會餵埋其他候選字）、
+  `wordMatches` 對 8 字母以上容許 edit distance 2、可跳過最多 2 個字、
+  `heard` buffer 40 個字，減少「明明讀咗但 detect 唔到」。
 - 排行榜／挑戰喺 guest 同老師 preview 一律隱藏：`show('board')`／`show('duel')`
   會彈回 lobby 並用 mascot 說明；lobby 同 result 的入口掣亦會收埋。
 - 底部 tab：遊玩中（`window.navFlapPlaying`）會收埋；lobby／rules／mic／board／

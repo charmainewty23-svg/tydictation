@@ -3543,6 +3543,7 @@
             text-align: center; font-size: 10.5px; font-weight: 700; color: rgba(31,41,55,0.7);
         }
         .flap-wchips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 6px; }
+        .flap-heard { font-size: 10.5px; font-weight: 700; color: #6b7280; margin-top: 4px; min-height: 13px; }
         .flap-wchip {
             font-size: 11.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
             background: #f3f4f6; color: #6b7280; border: 1.5px solid #e5e7eb;
@@ -3978,10 +3979,10 @@
                                 <div class="flap-muted" style="font-size:13px">
                                     ❤️❤️❤️ Three lives · 45 seconds<br>
                                     🗣️ <b>Read the phrase out loud</b> — every word heard lifts your winged cat<br>
-                                    🐾 Reach <b>75% of the phrase</b> to break the cat-tree gate; miss the rest and you bounce back to retry<br>
+                                    🐾 Reach <b>60–75% of the phrase</b> to break the cat-tree gate (the target rises with each level); miss the rest and you bounce back to retry<br>
                                     🔴 Misread words turn red — say them again and push through<br>
                                     👻 Your last best floats in the sky as a Ghost Cat line. Cross it for fireworks 🎆<br>
-                                    ⚙️ Levels rise every 3 phrases read (20 → 40 → 70 → 100 pts) · whole phrase = ×2
+                                    ⚙️ Levels rise every 3 phrases read (20 → 40 → 70 → 100 pts) · Discussion Phrases first, then Hot Topics · whole phrase = ×2
                                 </div>
                                 <div class="flap-row" style="gap:6px;margin-top:10px;flex-wrap:wrap">
                                     <button type="button" class="flap-btn ghost sm" id="flap-to-mic" style="width:auto;margin:0;padding:0 14px">🎤 Mic check</button>
@@ -4041,6 +4042,7 @@
                                         <div class="lbl" id="flap-saylbl">READ THIS · YOUR VOICE LIFTS YOU</div>
                                         <div class="txt" id="flap-saytext">Get ready…</div>
                                         <div class="flap-wchips" id="flap-wchips"></div>
+                                        <div class="flap-heard" id="flap-heard">Listening…</div>
                                     </div>
                                     <div class="flap-hud-meter"><i id="flap-meterfill"></i></div>
                                     <div class="flap-toast" id="flap-toast"></div>
@@ -4228,15 +4230,15 @@
                                     <b>Volume alone does nothing</b> — background noise will not lift you.
                                 </div>
                                 <div class="flap-statrow"><span class="k">Each word heard</span><span class="v ok">+ lift</span></div>
-                                <div class="flap-statrow"><span class="k">Gate needs</span><span class="v ok">75% of the phrase</span></div>
-                                <div class="flap-statrow"><span class="k">Under 75%</span><span class="v warn">bounce back · try again</span></div>
+                                <div class="flap-statrow"><span class="k">Gate needs</span><span class="v ok">60% at L1 → 75% at L4</span></div>
+                                <div class="flap-statrow"><span class="k">Under the level target</span><span class="v warn">bounce back · try again</span></div>
                                 <div class="flap-statrow"><span class="k">Whole phrase read</span><span class="v ok">⭐ × 2 points + streak</span></div>
                                 <div class="flap-statrow"><span class="k">Most words read</span><span class="v ok">partial points</span></div>
                             </div>
 
                             <div class="flap-card">
                                 <div class="flap-sect-title" style="margin-top:0">4 · LEVELS — SHORT → DEEP</div>
-                                <div class="flap-muted" style="font-size:13px;margin-bottom:8px">The level rises every 3 phrases you read. Deeper level = longer phrase + more points. Every phrase comes from the 150 Fluency Master sentences.</div>
+                                <div class="flap-muted" style="font-size:13px;margin-bottom:8px">The level rises every 3 phrases you read. Deeper level = longer phrase, more points and a higher pass target. L1–L2 use <b>Discussion Phrases</b> (shortest first); L3–L4 move on to <b>Hot Topics</b> (shortest first).</div>
                                 <div class="flap-statrow"><span class="k">L1 · Short <span class="flap-tiny">(0 read)</span></span><span class="v">20 pts</span></div>
                                 <div class="flap-statrow"><span class="k">L2 · Medium <span class="flap-tiny">(3 read)</span></span><span class="v">40 pts</span></div>
                                 <div class="flap-statrow"><span class="k">L3 · Longer <span class="flap-tiny">(6 read)</span></span><span class="v">70 pts</span></div>

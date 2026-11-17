@@ -19,9 +19,12 @@
     const RUN_SECONDS = 45;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
-    const LIFT_PER_WORD = 0.45;
-    const LIFT_DECAY = 0.55;
+    const LIFT_PER_WORD = 0.55;
+    const LIFT_DECAY = 0.4;
     const READ_MIN_RATIO = 0.75;
+    /* Early levels forgive more missed words: the ladder is shallow → deep.
+       L1 60%, L2 65%, L3 70%, L4 75%. */
+    const PASS_RATIOS = [0.6, 0.65, 0.7, READ_MIN_RATIO];
     const PAWS_PER_PHRASE = 3;
     const PAWS_BOARD = 8;
     const PAWS_IMPROVED = 40;
@@ -64,33 +67,48 @@
         return String(text || '').split(/\s+/).filter(Boolean).length;
     }
 
-    /* All 150 lines from js/fluency.js, sorted by length, then split into four
-       equal pools. Nothing is hand-written here, so the game always matches
-       the Revision sentence bank. */
+    /* The first two pools come from Discussion Phrases (shortest first), then
+       the last two from Hot Topics. This keeps the early game on the phrases
+       students meet first, and rises from shorter to longer sentences. */
     function buildPools() {
         if (POOLS) return POOLS;
-        const lines = [];
-        try {
-            const data = (typeof FLUENCY_DATA !== 'undefined') ? FLUENCY_DATA : null;
-            ['phrases', 'topics'].forEach((bank) => {
+        const phrases = [];
+        const topics = [];
+        const pull = (bank, target) => {
+            try {
+                const data = (typeof FLUENCY_DATA !== 'undefined') ? FLUENCY_DATA : null;
                 const groups = (data && data[bank] && data[bank].groups) || [];
                 groups.forEach((group) => {
                     (group.lines || []).forEach((line) => {
-                        if (line && line.en) lines.push(String(line.en).trim());
+                        if (line && line.en) target.push(String(line.en).trim());
                     });
                 });
-            });
-        } catch (err) {
-            console.warn('Speak Flap: FLUENCY_DATA unavailable', err);
+            } catch (err) {
+                console.warn('Speak Flap: FLUENCY_DATA unavailable', err);
+            }
+        };
+        pull('phrases', phrases);
+        pull('topics', topics);
+        if (!phrases.length && !topics.length) {
+            phrases.push('I agree with this point of view.');
+            phrases.push('We should weigh the pros and cons before deciding.');
         }
-        if (!lines.length) {
-            lines.push('I agree with this point of view.');
-            lines.push('We should weigh the pros and cons before deciding.');
-        }
-        const sorted = lines.slice().sort((a, b) => countWords(a) - countWords(b) || a.localeCompare(b));
-        const size = Math.ceil(sorted.length / 4);
-        POOLS = [0, 1, 2, 3].map((i) => sorted.slice(i * size, (i + 1) * size).filter(Boolean));
-        POOLS.forEach((pool, i) => { if (!pool.length) POOLS[i] = sorted.slice(); });
+        if (!phrases.length) phrases.push(...topics);
+        if (!topics.length) topics.push(...phrases);
+
+        const byLength = (a, b) => countWords(a) - countWords(b) || a.localeCompare(b);
+        const p = phrases.slice().sort(byLength);
+        const t = topics.slice().sort(byLength);
+        const pHalf = Math.ceil(p.length / 2);
+        const tHalf = Math.ceil(t.length / 2);
+        POOLS = [
+            p.slice(0, pHalf),
+            p.slice(pHalf),
+            t.slice(0, tHalf),
+            t.slice(tHalf)
+        ];
+        const all = phrases.concat(topics).sort(byLength);
+        POOLS.forEach((pool, i) => { if (!pool.length) POOLS[i] = all.slice(); });
         return POOLS;
     }
 
@@ -204,6 +222,7 @@
         analyser: null,
         buf: null,
         micRaf: 0,
+        micToken: 0,
         asr: null,
         noiseFloor: -60,
         threshold: -45,
@@ -248,6 +267,7 @@
         popups: [],
         lastGateX: W + 100,
         transcript: '',
+        heardSig: '',
         asrOk: false,
         words: 0,
         fillers: 0,
@@ -336,17 +356,25 @@
         const state = el('micstate');
         const floor = el('micfloor');
         const samples = [];
+        const token = (FLAP.micToken = (FLAP.micToken || 0) + 1);
         try {
             if (!FLAP.stream) {
-                FLAP.stream = await navigator.mediaDevices.getUserMedia({
+                const stream = await navigator.mediaDevices.getUserMedia({
                     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
                 });
+                if (token !== FLAP.micToken) {
+                    try { stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* ignore */ }
+                    return false;
+                }
+                FLAP.stream = stream;
             }
             if (!FLAP.audioCtx) {
                 const AC = window.AudioContext || window.webkitAudioContext;
                 FLAP.audioCtx = new AC();
             }
+            if (token !== FLAP.micToken) return false;
             if (FLAP.audioCtx.state === 'suspended') await FLAP.audioCtx.resume();
+            if (token !== FLAP.micToken) return false;
             const src = FLAP.audioCtx.createMediaStreamSource(FLAP.stream);
             FLAP.analyser = FLAP.audioCtx.createAnalyser();
             FLAP.analyser.fftSize = 1024;
@@ -359,6 +387,7 @@
             }
 
             const tick = () => {
+                if (token !== FLAP.micToken) return;
                 const db = readDb();
                 if (fill) fill.style.width = Math.max(0, Math.min(100, (db + 70) * 1.6)) + '%';
                 if (samples.length < 90) {
@@ -383,18 +412,38 @@
             tick();
             return true;
         } catch (err) {
-            if (state) {
+            if (token === FLAP.micToken && state) {
                 state.textContent = '🎤 No microphone — practice mode still works.';
                 state.className = 'flap-mic-state bad';
             }
-            if (floor) floor.textContent = 'Permission denied or no device found.';
+            if (token === FLAP.micToken && floor) floor.textContent = 'Permission denied or no device found.';
             return false;
         }
     }
 
+    /* Release the actual microphone, not just the level meter. Leaving the run
+       or the view must stop the tracks, or the browser keeps the mic open and
+       the rest of the app feels laggy. */
     function closeMic() {
         cancelAnimationFrame(FLAP.micRaf);
         FLAP.micRaf = 0;
+        FLAP.micToken = (FLAP.micToken || 0) + 1;
+        FLAP.analyser = null;
+        FLAP.buf = null;
+        if (FLAP.stream) {
+            try { FLAP.stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* ignore */ }
+            FLAP.stream = null;
+        }
+        if (FLAP.audioCtx) {
+            const ctx = FLAP.audioCtx;
+            FLAP.audioCtx = null;
+            try {
+                if (ctx.state !== 'closed' && typeof ctx.close === 'function') {
+                    const p = ctx.close();
+                    if (p && p.catch) p.catch(() => {});
+                }
+            } catch (e) { /* ignore */ }
+        }
     }
 
     function readDb() {
@@ -418,12 +467,22 @@
             FLAP.asr = asr;
             asr.continuous = true;
             asr.interimResults = true;
+            try { asr.maxAlternatives = 3; } catch (e) { /* ignore */ }
             asr.lang = 'en-US';
             asr.onresult = (e) => {
                 let s = '';
                 for (let i = e.resultIndex; i < e.results.length; i += 1) {
-                    s += e.results[i][0].transcript + ' ';
-                    if (e.results[i].isFinal) FLAP.words += words(e.results[i][0].transcript).length;
+                    const result = e.results[i];
+                    const top = result[0] ? result[0].transcript : '';
+                    s += top + ' ';
+                    if (result.isFinal) {
+                        FLAP.words += words(top).length;
+                        /* Feed the other guesses too — Chrome often hears a
+                           near-miss that the phrase matcher can still accept. */
+                        for (let k = 1; k < result.length; k += 1) {
+                            if (result[k] && result[k].transcript) heardWords(result[k].transcript);
+                        }
+                    }
                 }
                 FLAP.transcript = (FLAP.transcript + ' ' + s).slice(-480);
                 FLAP.fillers = (FLAP.transcript.toLowerCase().match(/\b(um+|uh+|like|you know)\b/g) || []).length;
@@ -431,7 +490,7 @@
             };
             asr.onerror = () => { FLAP.asrOk = false; };
             asr.onend = () => {
-                if (FLAP.running && FLAP.micOn) {
+                if (FLAP.running && FLAP.micOn && FLAP.asr === asr) {
                     try { asr.start(); } catch (e) { /* ignore */ }
                 }
             };
@@ -446,7 +505,12 @@
         const asr = FLAP.asr;
         FLAP.asr = null;
         if (!asr) return;
-        try { asr.onend = null; asr.stop(); } catch (e) { /* ignore */ }
+        try {
+            asr.onend = null;
+            asr.onerror = null;
+            if (typeof asr.abort === 'function') asr.abort();
+            else asr.stop();
+        } catch (e) { /* ignore */ }
         FLAP.asrOk = false;
     }
 
@@ -482,13 +546,14 @@
         words(text).forEach((w) => {
             if (FLAP.heard[FLAP.heard.length - 1] !== w) FLAP.heard.push(w);
         });
-        if (FLAP.heard.length > 24) FLAP.heard = FLAP.heard.slice(-24);
+        if (FLAP.heard.length > 40) FLAP.heard = FLAP.heard.slice(-40);
     }
 
     function wordMatches(want, said) {
         if (!want || !said) return false;
         if (want === said) return true;
         if (want.length >= 3 && said.length >= 3 && editDistance(want, said) <= 1) return true;
+        if (want.length >= 8 && said.length >= 8 && editDistance(want, said) <= 2) return true;
         if (want.length >= 6 && said.length >= 5
             && (want.startsWith(said) || said.startsWith(want))) return true;
         return false;
@@ -504,6 +569,9 @@
         if (FLAP.readGate !== g) {
             FLAP.readGate = g;
             FLAP.chipSig = '';
+            FLAP.heard = [];
+            FLAP.transcript = '';
+            FLAP.heardSig = '';
         }
         while (g.readIdx < g.tokens.length) {
             const want = g.tokens[g.readIdx].key;
@@ -522,6 +590,21 @@
             if (nextTok && FLAP.heard.some((w) => wordMatches(nextTok.key, w))) {
                 g.tokens[g.readIdx].skipped = true;
                 g.readIdx += 1;
+                continue;
+            }
+            const afterNext = g.tokens[g.readIdx + 2];
+            if (afterNext && FLAP.heard.some((w) => wordMatches(afterNext.key, w))) {
+                g.tokens[g.readIdx].skipped = true;
+                g.tokens[g.readIdx + 1].skipped = true;
+                g.readIdx += 2;
+                continue;
+            }
+            const third = g.tokens[g.readIdx + 3];
+            if (third && FLAP.heard.some((w) => wordMatches(third.key, w))) {
+                g.tokens[g.readIdx].skipped = true;
+                g.tokens[g.readIdx + 1].skipped = true;
+                g.tokens[g.readIdx + 2].skipped = true;
+                g.readIdx += 3;
                 continue;
             }
             break;
@@ -600,6 +683,8 @@
         FLAP.popups = [];
         FLAP.lastGateX = W + 80;
         FLAP.transcript = '';
+        FLAP.heardSig = '';
+        if (el('heard')) el('heard').textContent = 'Listening…';
         FLAP.words = 0;
         FLAP.fillers = 0;
         FLAP.missed = [];
@@ -653,8 +738,8 @@
         FLAP.paused = false;
         cancelAnimationFrame(FLAP.raf);
         FLAP.raf = 0;
-        closeMic();
         stopAsr();
+        closeMic();
     }
 
     function pauseRun() {
@@ -662,6 +747,7 @@
         FLAP.paused = true;
         cancelAnimationFrame(FLAP.raf);
         FLAP.raf = 0;
+        stopAsr();
         const node = el('pause');
         if (node) node.classList.add('on');
         window.navFlapPlaying = false;
@@ -674,6 +760,7 @@
         FLAP.last = 0;
         const node = el('pause');
         if (node) node.classList.remove('on');
+        if (!FLAP.tap && !FLAP.asr) startAsr();
         window.navFlapPlaying = true;
         updateNav();
         FLAP.raf = requestAnimationFrame(loop);
@@ -799,7 +886,7 @@
                 if (!FLAP.ranked) {
                     g.passed = true;
                     FLAP.gatesFlown += 1;
-                } else if (gateAccuracy(g) >= READ_MIN_RATIO) {
+                } else if (gateAccuracy(g) >= passRatio(g.level)) {
                     g.passed = true;
                     g.retrying = false;
                     FLAP.gatesFlown += 1;
@@ -913,8 +1000,14 @@
         return g.readCount / Math.max(1, g.tokens.length);
     }
 
-    /* Under 75% the cat is only stunned: it bounces back, loses a life, and the
-       gate is pushed ahead for an immediate retry with the unread words red. */
+    function passRatio(level) {
+        const idx = (level == null) ? FLAP.levelIndex : level;
+        return PASS_RATIOS[Math.min(idx, PASS_RATIOS.length - 1)];
+    }
+
+    /* Under the level's pass ratio the cat is only stunned: it bounces back,
+       loses a life, and the gate is pushed ahead for an immediate retry with
+       the unread words red. Early levels ask for 60%, L4 asks for 75%. */
     function gateFail(g) {
         g.retries += 1;
         g.retrying = true;
@@ -1062,11 +1155,17 @@
         if (next) {
             if (el('saytext')) el('saytext').textContent = next.phrase;
             if (el('saylbl')) {
+                const need = Math.round(passRatio(next.level) * 100) + '% TO PASS';
                 el('saylbl').textContent = next.retrying || next.failFlash > 0
-                    ? 'SAY THE RED WORDS · 75% TO BREAK THROUGH'
-                    : 'READ THIS · YOUR VOICE LIFTS YOU';
+                    ? 'SAY THE RED WORDS · ' + need
+                    : 'READ THIS · ' + need;
             }
             renderChips();
+            if (el('heard') && FLAP.heardSig !== FLAP.transcript) {
+                FLAP.heardSig = FLAP.transcript;
+                const tail = words(FLAP.transcript).slice(-6).join(' ');
+                el('heard').textContent = tail ? 'Heard: ' + tail : 'Listening…';
+            }
         }
         if (el('meterfill')) el('meterfill').style.width = Math.round(Math.min(100, FLAP.lift * 70)) + '%';
     }
@@ -2502,6 +2601,10 @@
         });
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && FLAP.running) pauseRun();
+        });
+        window.addEventListener('pagehide', () => {
+            stopAsr();
+            closeMic();
         });
         window.addEventListener('resize', () => {
             if (current === 'play') draw();

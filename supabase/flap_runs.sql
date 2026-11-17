@@ -3,6 +3,10 @@
 -- Weekly leaderboard, Most improved and Paws awards.
 -- Run this once in Supabase → SQL Editor (project mggnwzirjmibreimrwiq)
 -- Safe to re-run.
+--
+-- Requires (already installed on this project):
+--   * public.student_logins                    → supabase/login_tracking.sql
+--   * public.paw_ledger / paw_practice_award   → supabase/store.sql
 -- ============================================================
 
 -- ---------- 1. runs ----------

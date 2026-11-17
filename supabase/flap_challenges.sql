@@ -3,9 +3,9 @@
 -- Run this AFTER supabase/flap_runs.sql.
 -- Supabase → SQL Editor (project mggnwzirjmireimrwiq). Safe to re-run.
 --
--- A challenge stores one score. A classmate joins with a 6-character code
--- and plays a normal ranked voice run later. There is no realtime match and
--- no extra Paws — the challenge run still pays through submit_flap_run().
+-- Requires public.student_logins (supabase/login_tracking.sql) for display
+-- names. A challenge stores one score; there is no realtime match and no
+-- extra Paws — the challenge run still pays through submit_flap_run().
 -- ============================================================
 
 -- ---------- 1. table ----------

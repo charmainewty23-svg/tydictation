@@ -18,7 +18,7 @@
     const W = 400;
     let H = 600;
     const GROUND = 64, BIRD_X = 96, BIRD_R = 13;
-    const RUN_SECONDS = 180;
+    const RUN_SECONDS = 165;
     const STEP = 1 / 120;
     const LIFT_SPEED = 300;
     const LIFT_PER_WORD = 0.75;
@@ -325,7 +325,8 @@
         resultCatRaf: 0,
         resultCatT: 0,
         toastTimer: 0,
-        lastPhrase: ''
+        lastPhrase: '',
+        usedPhrases: {},
     };
 
     /* ---------------- screens ---------------- */
@@ -895,6 +896,7 @@
         FLAP.ready = READY_SECONDS;
         FLAP.readyLabel = '';
         FLAP.lastPhrase = '';
+        FLAP.usedPhrases = {};
         FLAP.best = readBest();
         FLAP.cloud.submitted = false;
         FLAP.cloud.rank = 0;
@@ -1185,10 +1187,17 @@
     function pickPhrase(level) {
         const pool = (POOLS && POOLS[level]) || [];
         if (!pool.length) return 'I agree with this point of view.';
-        let phrase = pool[Math.floor(Math.random() * pool.length)];
-        if (pool.length > 1 && phrase === FLAP.lastPhrase) {
-            phrase = pool[(pool.indexOf(phrase) + 1) % pool.length];
+        let candidates = pool.filter((p) => !FLAP.usedPhrases[p]);
+        if (!candidates.length) {
+            /* The level pool is exhausted: use any unused phrase from another
+               pool before allowing a repeat. */
+            const all = (POOLS || []).reduce((acc, p) => acc.concat(p), [])
+                .filter((p) => !FLAP.usedPhrases[p]);
+            candidates = all.length ? all : pool.slice();
+            if (!all.length) FLAP.usedPhrases = {};
         }
+        const phrase = candidates[Math.floor(Math.random() * candidates.length)];
+        FLAP.usedPhrases[phrase] = true;
         FLAP.lastPhrase = phrase;
         return phrase;
     }
@@ -3052,6 +3061,7 @@
         loadChallenges,
         wordMatches,
         recoverSkipped,
-        levelFor
+        levelFor,
+        pickPhrase
     };
 })();

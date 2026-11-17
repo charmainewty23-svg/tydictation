@@ -48,13 +48,14 @@
                 title: "Indefinite Pronouns",
                 emoji: "🙋",
                 backTo: "grammar-view",
-                intro: "Indefinite pronouns refer to people, things or places without saying exactly who or what: somebody, anything, nowhere, everyone...",
+                intro: "Indefinite pronouns refer to people, things or places without saying exactly who or what: somebody, anything, nowhere, everyone, none...",
                 sections: [
                     { tag: "People", rule: "somebody / someone · anybody / anyone · nobody / no one · everybody / everyone", example: "Somebody left a bag. / Nobody knows the answer." },
                     { tag: "Things", rule: "something · anything · nothing · everything", example: "I need something to eat. / Nothing was missing." },
                     { tag: "Places", rule: "somewhere · anywhere · nowhere · everywhere", example: "Let's go somewhere quiet. / I looked everywhere." },
                     { tag: "some- vs any-", rule: "some- in positive statements/offers; any- in negatives/questions", example: "Someone called. / Did anyone call? / I didn't see anyone." },
-                    { tag: "Singular verb", rule: "indefinite pronouns take a singular verb", example: "Everyone is here. / Nothing works." },
+                    { tag: "None / none of", rule: "none = not any (people or things) · none of + the / this / my + noun or pronoun", example: "None of the water was wasted. / I wanted a ticket, but none were left." },
+                    { tag: "Singular verb", rule: "every- / some- / any- / no- pronouns take a singular verb; none of + plural can be singular or plural", example: "Everyone is here. / None of the students was/were late." },
                     { tag: "Adjective after", rule: "adjective comes after the pronoun", example: "something important / nobody perfect" }
                 ]
             }

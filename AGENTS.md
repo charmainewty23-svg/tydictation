@@ -126,7 +126,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `showStructureDetail('indefinite_pronouns')`，資料喺 `structureData`，有
   `backTo:'grammar-view'`（detail 返回 Grammar 首頁），內容有 explanation +
   examples（articles：a/an/the/zero article；indefinite pronouns：people/things/
-  places、some- vs any-、singular verb、adjective after）。Guest 會經
+  places、some- vs any-、none / none of、singular verb、adjective after）。Guest 會經
   `recordGuestUsage('Grammar Quest', …)` 記錄。
 - `Drive & Go!` 係 Mario Kart 式文法賽車：`showDriveAndGo()` 喺 `#grammar-detail-view`
   行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、題數 10／20／25／30／35／40／50、單人或多人），然後入 `#drive-and-go-view`

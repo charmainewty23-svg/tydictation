@@ -65,7 +65,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（74 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
-| 4 | `js/grammar-quest.js` | `tenseData`／`structureData`、`renderTenseGrid`／`showTenseDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
+| 4 | `js/grammar-quest.js` | `tenseData`／`structureData`（包括 Articles／Indefinite Pronouns explanation + examples）、`renderTenseGrid`／`showTenseDetail`、`showStructureDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
 | 5 | `js/grammar/drive-and-go.js` | Drive & Go! 開賽流程（**第一步 Solo／Multiplayer**）：Solo → Topic（Tenses／Agreement）→ Challenge → Cat → Controls → 題數 → Course → 直接開賽（冇舊嘅最後 Game mode 步）；Multi → Create／Join → 房主揀 Topic／Challenge／題數／Course，加入者只揀 Cat／Controls 再入房碼。Tenses 題庫（Google Sheet 頁 `tenses`／`Passives`，AV／PV／Mixed）＋ Agreement 題庫（頁 `Agreement`，Gap-fill／Choose／Mixed）、同一動詞時態干擾項、Agreement 三閘、貓仔造型、Tilt／Swipe／按鈕、題數（10／20／25／30／35／40／50）、三個場（`SCENES`／`normalizeScene`）、單人／多人（2–5）選擇、道具解鎖規則、複合分同時間獎勳、`tiltLaneTarget`／`nearestLane`／`laneStep`、`displayPrompt`、`submitCloudRun`（Solo／Multi 榜） |
 | 6 | `js/grammar/drive-and-go-race.js` | 全螢幕賽道（`#drive-and-go-view`）、HUD 句子／進度／用時、三條答案門、正確 Nitro +40 km/h、錯門 1.5s spin-out、按住加速（ACCEL／↑／W／Space，`ACCEL_KMH 110`／`SPEED_CAP 340`，唔會用蘑菇）、analog tilt、單人到 N 題正確完結、五種道具使用、三個場嘅天空／背景／景物／路面 |
 | 7 | `js/grammar/drive-and-go-multiplayer.js` | 2–5 人房（短碼 lobby）；房主揀嘅 N 同**場**適用全房（`p_scene`）；每人 N 題正確先完，全部剩餘玩家完（或離開）先結束，最高複合分贏。要老師自行喺 live 專案貼 `supabase/drive_and_go.sql`（已有房間先貼 `supabase/drive_and_go_question_count.sql`，再貼 `supabase/drive_and_go_scenes_and_boards.sql`）；單人唔使 SQL；**唔好**用 plugin 跑 SQL |
@@ -96,7 +96,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | view id | 內容 |
 |---|---|
 | `hub-view` | Grammar／Dictation 兩張入口卡＋Fluency Master／Word Jump／Word Battle 入口 |
-| `grammar-view` | Sentence Structures／Tenses 入口 |
+| `grammar-view` | Sentence Structures／Tenses／Articles／Indefinite Pronouns 入口 |
 | `sentence-structures-view` | 6 個句型（`showStructureDetail`） |
 | `grammar-revision-view` | Tenses 2 卡：let's revise!／Drive & Go! |
 | `grammar-tense-list-view` | Let's revise! 9 個時態格（`renderTenseGrid`，`showTenseDetail`） |
@@ -121,6 +121,13 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 - `grammar-revision-view` 只有 2 張卡：`let's revise!`（開 `grammar-tense-list-view`）同
   `Drive & Go!`（`showDriveAndGo()`）。9 個時態（`tenseData`，包括 `future perfect tense`）喺
   `grammar-tense-list-view` 嘅 `#tense-grid`，由 `renderTenseGrid()` 填，`showTenseDetail()` 返回呢頁。
+- `grammar-view` 而家有 **4 張卡**：Sentence Structures、Tenses、**Articles**、
+  **Indefinite Pronouns**。後兩張 call `showStructureDetail('articles')`／
+  `showStructureDetail('indefinite_pronouns')`，資料喺 `structureData`，有
+  `backTo:'grammar-view'`（detail 返回 Grammar 首頁），內容有 explanation +
+  examples（articles：a/an/the/zero article；indefinite pronouns：people/things/
+  places、some- vs any-、singular verb、adjective after）。Guest 會經
+  `recordGuestUsage('Grammar Quest', …)` 記錄。
 - `Drive & Go!` 係 Mario Kart 式文法賽車：`showDriveAndGo()` 喺 `#grammar-detail-view`
   行開賽流程（揀 AV／PV／Mixed、貓仔造型、操控、題數 10／20／25／30／35／40／50、單人或多人），然後入 `#drive-and-go-view`
   比賽。Back 返 `grammar-revision-view`，並會 `recordGuestUsage('Grammar Quest', 'Drive & Go!')`。
@@ -2464,6 +2471,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     （`#profile-paws-today`／`#profile-look-balance`）；朋友 profile 會
     hide 呢兩個數。`changeView('profile-view')`／`store-view` 會
     `loadStoreState(true)` refresh，所以做完練習再入 Me 會見到最新數。
+    **如果 `Today` 長期係 0**：舊安裝嘅 Supabase 可能未建立
+    `my_paws_today()`（client 收到 404 後 fallback 0）。跑短檔
+    `supabase/my_paws_today.sql` 或重跑 `supabase/paws_daily.sql` 即可。
   - **Admin Paws daily**：新 RPC `admin_paw_daily(p_days int default 7)`
     （只限 ADMIN_EMAIL）回傳每位 student_login 每日 earned／spent／balance
     （HK 日）；admin.js `loadAdminPaws()` 畫「🐾 Paws daily」卡：active
@@ -2471,7 +2481,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     Student Logins 卡已移到 admin-view **最頂**（preview box 之後），
     Paws daily 喺 Admin Dashboard 卡之後。
     已裝 `store.sql` 嘅老師只想補呢兩個 RPC，可以跑短檔
-    `supabase/paws_daily.sql`（可重跑，冇新 table）。
+    `supabase/paws_daily.sql`（可重跑，冇新 table；而家亦包含
+    `my_paws_today()`）。
 - **穿戴分層（2026-11 加）**：Store items 由單一 slot 改為 **wear layer**，
   同一 layer 只可以揀一件，但唔同 layer 可以一齊 wear：
   - `head`（普通帽）＋ `ears`（Lo-Fi Headphones）

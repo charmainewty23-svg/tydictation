@@ -30,7 +30,34 @@
             "not_only_but_also": { title: "Not only... but also", emoji: "➕", intro: "Used for emphasis with parallel structure.", sections: [{ tag: "Adjectives", rule: "not only [Adj] but also [Adj]", example: "He is not only smart but also kind." }, { tag: "Inverted", rule: "Not only did they lose...", example: "Not only did they lose the game, but also their pride." }] },
             "inversion": { title: "Inversion", emoji: "🔄", intro: "Reversing normal order for emphasis.", sections: [{ tag: "Only when...", rule: "Only when + [Clause], + [Inverted Clause]", example: "Only when the rain stopped did we go out." }] },
             "be_it_they": { title: "Be it / Be they", emoji: "🤔", intro: "Formal 'whether it is/they are'.", sections: [{ tag: "Singular", rule: "Be it A or B...", example: "Be it rain or shine, we will play." }, { tag: "Plural", rule: "Be they young or old...", example: "Everyone loves music, be they young or old." }] },
-            "with_noun_phrase": { title: "With + N/Gerund", emoji: "🧺", intro: "Describes accompanying circumstances or reasons.", sections: [{ tag: "Noun Phrase", rule: "With + Noun Phrase, ...", example: "With a heavy heart, she left." }, { tag: "Object + Ving", rule: "With + Obj + Ving, ...", example: "With the exams approaching, I'm busy." }] }
+            "with_noun_phrase": { title: "With + N/Gerund", emoji: "🧺", intro: "Describes accompanying circumstances or reasons.", sections: [{ tag: "Noun Phrase", rule: "With + Noun Phrase, ...", example: "With a heavy heart, she left." }, { tag: "Object + Ving", rule: "With + Obj + Ving, ...", example: "With the exams approaching, I'm busy." }] },
+            "articles": {
+                title: "Articles",
+                emoji: "📘",
+                backTo: "grammar-view",
+                intro: "Articles tell us whether a noun is general or specific. Use a/an for one non-specific thing, the for something specific, and no article for general plurals or uncountable nouns.",
+                sections: [
+                    { tag: "Indefinite · a / an", rule: "a + consonant sound · an + vowel sound", example: "I saw a cat. / She ate an apple." },
+                    { tag: "Definite · the", rule: "the + specific or already mentioned noun", example: "The cat was black. / Pass me the salt." },
+                    { tag: "Zero article", rule: "no article for general plurals / uncountables", example: "Cats are independent. / Water is essential." },
+                    { tag: "Sound, not spelling", rule: "a university · an hour", example: "a European country / an honest answer" },
+                    { tag: "Unique / superlative", rule: "the + unique thing or superlative", example: "the sun / the best choice" }
+                ]
+            },
+            "indefinite_pronouns": {
+                title: "Indefinite Pronouns",
+                emoji: "🙋",
+                backTo: "grammar-view",
+                intro: "Indefinite pronouns refer to people, things or places without saying exactly who or what: somebody, anything, nowhere, everyone...",
+                sections: [
+                    { tag: "People", rule: "somebody / someone · anybody / anyone · nobody / no one · everybody / everyone", example: "Somebody left a bag. / Nobody knows the answer." },
+                    { tag: "Things", rule: "something · anything · nothing · everything", example: "I need something to eat. / Nothing was missing." },
+                    { tag: "Places", rule: "somewhere · anywhere · nowhere · everywhere", example: "Let's go somewhere quiet. / I looked everywhere." },
+                    { tag: "some- vs any-", rule: "some- in positive statements/offers; any- in negatives/questions", example: "Someone called. / Did anyone call? / I didn't see anyone." },
+                    { tag: "Singular verb", rule: "indefinite pronouns take a singular verb", example: "Everyone is here. / Nothing works." },
+                    { tag: "Adjective after", rule: "adjective comes after the pronoun", example: "something important / nobody perfect" }
+                ]
+            }
         };
 
         // If-clause quiz state
@@ -102,9 +129,13 @@
             const data = structureData[key];
             if (key === 'conditionals' || key === 'participle_clauses') {
                 recordGuestUsage('Grammar Quest', key === 'conditionals' ? 'Conditionals' : 'Participle Clauses');
+            } else if (key === 'articles') {
+                recordGuestUsage('Grammar Quest', 'Articles');
+            } else if (key === 'indefinite_pronouns') {
+                recordGuestUsage('Grammar Quest', 'Indefinite Pronouns');
             }
             const content = document.getElementById('grammar-detail-content');
-            document.getElementById('detail-back-btn').onclick = () => changeView('sentence-structures-view');
+            document.getElementById('detail-back-btn').onclick = () => changeView(data.backTo || 'sentence-structures-view');
 
             if (key === 'conditionals') {
                 ifClauseTab = 'revision';

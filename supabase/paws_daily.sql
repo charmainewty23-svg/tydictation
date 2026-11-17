@@ -2,11 +2,40 @@
 -- Run once in the Supabase SQL editor. Safe to re-run.
 --
 -- Creates:
+--   my_paws_today()           -> Me profile "My look" +N Paws Today
 --   admin_paw_daily(p_days)   -> teacher dashboard "🐾 Paws daily"
 --   friend_paws_daily(user, n) -> friend profile "Daily Paws" chips
 --
 -- Requires supabase/store.sql (paw_ledger, store tables) and
 -- supabase/login_tracking.sql (student_logins) to have been run already.
+
+create or replace function public.my_paws_today()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_me uuid := auth.uid();
+    v_day_start timestamptz :=
+        ((now() at time zone 'Asia/Hong_Kong')::date::timestamp at time zone 'Asia/Hong_Kong');
+    v_total int := 0;
+begin
+    if v_me is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+    select coalesce(sum(amount), 0)::int into v_total
+      from public.paw_ledger
+     where user_id = v_me
+       and amount > 0
+       and created_at >= v_day_start
+       and (reason like 'practice:%' or reason = 'class_battle');
+    return v_total;
+end;
+$fn$;
+
+revoke all on function public.my_paws_today() from public;
+grant execute on function public.my_paws_today() to authenticated;
 
 create or replace function public.friend_paws_daily(p_user_id uuid, p_days int default 7)
 returns table (day date, earned int)
@@ -108,3 +137,5 @@ revoke all on function public.admin_paw_daily(int) from public;
 
 grant execute on function public.friend_paws_daily(uuid, int) to authenticated;
 grant execute on function public.admin_paw_daily(int) to authenticated;
+
+notify pgrst, 'reload schema';

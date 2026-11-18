@@ -1901,6 +1901,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   手機控制列：`HOLD ◀ ⟳ ▶ DROP`（5 個，PARK 收起；PARK 仍可撳下面 zone bar）。
   桌面／平板：`HOLD ◀ ⟳ ▶ PARK DROP`。
   HOLD 每局 **5 次**，HUD 顯示剩餘次數；亦可撳 HOLD 卡。
+- 按住左右移動（DAS）：◀ ▶ 同 ← → ／A D 按住會一路逐格移（`pointerdown`／keydown
+  先即刻移一格，約 200ms 後每 55ms 再移一格），放手、撞牆／卡住、pause、
+  game over、restart、blur／轉 tab 就停；唔會一下飛到牆邊。
+- 開始卡：`#overlay-howto` 用 point form 分 **How to play** 同 **Scoring** 兩張清單
+  （唔再係 `.overlay-mini`／`.overlay-short` 一句），短螢幕同窄螢幕都照顯示，
+  內容太高就自己 scroll，唔會推走 ▶ Start。
 - 計分：放啱 +10；放啱 + hard drop 額外 +20；放錯 -20（最低 0）＋combo 清零；
   跨兩個 zone = 0 分但 combo 保留；消行 `100 × 行數 × combo`；每 3 連 combo
   觸發 RESCUE（清一個錯方塊）。Best score 存 `localStorage`。

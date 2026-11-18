@@ -61,6 +61,30 @@
     object-fit: cover;
     object-position: 50% 44%;
   }
+  /* Top 7 chip that sits in the header gap between the logo and the score.
+     Same cream / brown family as the scorebox; compact so the three pieces
+     still fit one row on a 390px phone. */
+  .top7-btn {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    border: 2px solid var(--linebrown);
+    border-radius: 12px;
+    background: var(--cream);
+    color: var(--deepbrown);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: .01em;
+    white-space: nowrap;
+    box-shadow: 0 3px 0 rgba(169,116,63,.16);
+    cursor: pointer;
+  }
+  .top7-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(169,116,63,.16); }
+  .top7-btn:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
   .overlay-logo {
     display: none;
     width: min(210px, 80%);
@@ -538,8 +562,12 @@
       gap: 6px;
     }
     header p { display: none; }
-    .brand-logo { width: 132px; height: 36px; }
-    .scorebox { text-align: left; min-width: 0; padding: 2px 6px; }
+    .brand-logo { width: 132px; max-width: 100%; height: 36px; }
+    /* The right-hand panel column is only 220px, so the logo gives up width
+       before the chip or the score can be pushed out of the header. */
+    .brand { flex: 1 1 auto; min-width: 0; }
+    .top7-btn { padding: 3px 6px; font-size: 10px; }
+    .scorebox { flex: 0 0 auto; text-align: left; min-width: 0; padding: 2px 6px; }
     .stage { grid-area: stage; align-self: center; justify-self: center; }
     .hud { grid-area: hud; grid-template-columns: 1fr; margin-bottom: 0; }
     .zones { grid-area: zones; margin-top: 0; }
@@ -579,7 +607,11 @@
     }
     h1 { font-size: 19px; }
     header p { display: none; }
-    .brand-logo { width: 104px; height: 30px; }
+    .brand-logo { width: 104px; max-width: 100%; height: 30px; }
+    /* The 190px header column is tight: let the logo shrink before the chip
+       or the score can be pushed out. */
+    .brand { flex: 1 1 auto; min-width: 0; }
+    .top7-btn { padding: 2px 5px; font-size: 9px; }
     .scorebox { padding: 2px 6px; min-width: 0; text-align: center; }
     .scorebox span, .scorebox small { display: none; }
     .scorebox b { font-size: 18px; }
@@ -606,6 +638,7 @@
   @media (max-width: 520px) {
     .hint { display: none; }
     header p { display: none; }
+    .top7-btn { padding: 4px 7px; font-size: 11px; }
     .hud { margin-bottom: 5px; }
     .zone { min-height: 44px; }
     .zone .count { display: none; }
@@ -613,6 +646,7 @@
     .startbar button { min-height: 38px; }
   }
   @media (max-width: 380px) {
+    .top7-btn { padding: 3px 6px; font-size: 10px; }
     .overlay p { display: none; }
     .overlay .overlay-mini { display: none; }
     .overlay .overlay-short { display: block; }
@@ -679,6 +713,7 @@
       <img class="brand-logo" src="assets/purrstackLogo.png" alt="PurrStack">
       <p>🐱 DEMO · Noun / Verb / Adjective</p>
     </div>
+    <button type="button" class="top7-btn" id="top7-btn" aria-label="View the Top 7 leaderboard">🏆 Top 7</button>
     <div class="scorebox">
       <span>Score</span>
       <b id="score">0</b>
@@ -821,6 +856,7 @@
   const holdLeftEl = document.getElementById('holdleft');
   const fsBtn = document.getElementById('fullscreen');
   const fsScoreEl = document.getElementById('fs-score');
+  const top7Btn = document.getElementById('top7-btn');
 
   let board = emptyBoard();
   let current = null;
@@ -1383,6 +1419,13 @@
     return mode === 'review' ? 'rank' : mode;
   }
 
+  /* The header Top 7 chip is only live on the start card and after a run.
+     During play (and while the pause card owns the overlay) it does nothing,
+     so it can never interrupt or pause a game. */
+  function purrCanPeek(isRunning, isGameOver) {
+    return !isRunning || !!isGameOver;
+  }
+
   function purrEsc(text) {
     return String(text == null ? '' : text)
       .replace(/&/g, '&amp;')
@@ -1429,6 +1472,28 @@
         + '<div><div class="num">' + piecesPlaced + '</div><div class="lbl">words</div></div>';
     }
     if (overlayBoard) overlayBoard.innerHTML = purrBoardHTML(rankBoard);
+  }
+
+  /* The header chip peeks at the same Top 7 board before a run. It asks the
+     parent for the board and never posts a score, so viewing the ranking
+     never saves anything. */
+  function requestPeekBoard() {
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ type: 'purrstack-board-request' }, window.location.origin);
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  function renderPeekStep() {
+    if (overlayBoard) overlayBoard.innerHTML = purrBoardHTML(rankBoard);
+  }
+
+  function openPeek() {
+    if (!purrCanPeek(running, gameOver)) return;
+    rankBoard = { status: 'loading', rows: [], me: '', guest: false, error: false };
+    setOverlay('peek');
+    requestPeekBoard();
   }
 
   function endGame() {
@@ -1552,7 +1617,7 @@
     if (overlayEmoji) overlayEmoji.style.display = startMode ? 'none' : 'block';
     if (overlayReview) overlayReview.style.display = mode === 'review' ? 'block' : 'none';
     if (overlayStats) overlayStats.style.display = mode === 'rank' ? 'flex' : 'none';
-    if (overlayBoard) overlayBoard.style.display = mode === 'rank' ? 'block' : 'none';
+    if (overlayBoard) overlayBoard.style.display = (mode === 'rank' || mode === 'peek') ? 'block' : 'none';
     if (mode === 'paused') {
       overlayEmoji.textContent = '⏸️';
       overlayTitle.textContent = 'Paused';
@@ -1578,6 +1643,12 @@
       overlayText.innerHTML = 'Score <b>' + score + '</b> · Best <b>' + Math.max(score, best) + '</b>';
       renderRankStep();
       overlayBtn.textContent = '▶ Play again';
+    } else if (mode === 'peek') {
+      overlayEmoji.textContent = '🏆';
+      overlayTitle.textContent = 'Top 7';
+      overlayText.innerHTML = 'Class rankings — best run per student. Play a game to climb the board.';
+      renderPeekStep();
+      overlayBtn.textContent = '← Back';
     } else {
       overlayEmoji.textContent = '🏗️';
       overlayTitle.textContent = 'PurrStack';
@@ -2485,8 +2556,13 @@
   overlayBtn.addEventListener('click', function () {
     if (overlayMode === 'paused') togglePause();
     else if (overlayMode === 'review') setOverlay(purrNextStep(overlayMode));
+    else if (overlayMode === 'peek') setOverlay('start');
     else startGame();
   });
+
+  /* Header chip: peek at the Top 7 board without starting or resetting a run.
+     Tapping it while the board is already open refreshes it. */
+  if (top7Btn) top7Btn.addEventListener('click', openPeek);
 
   /* Same-origin reply from the parent page with the Top 7 board. It can
      arrive while the review step is showing, so it is cached and rendered
@@ -2503,6 +2579,7 @@
       error: !!data.error
     };
     if (overlayMode === 'rank') renderRankStep();
+    else if (overlayMode === 'peek') renderPeekStep();
   });
 
   startBtn.addEventListener('click', function () {
@@ -2735,7 +2812,10 @@
     /* Two-step game over (review -> ranking), exposed for quick checks. */
     endStep: purrEndStep,
     nextStep: purrNextStep,
-    boardHTML: purrBoardHTML
+    boardHTML: purrBoardHTML,
+    /* Pre-game Top 7 peek (header chip) and its run guard. */
+    peek: openPeek,
+    canPeek: purrCanPeek
   };
 })();
 </script>

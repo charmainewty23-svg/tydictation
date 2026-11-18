@@ -1919,6 +1919,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `submitPurrStackScore()`；guest／teacher preview 唔會上傳。
   Hub Leaderboard 有 **🐾 PurrStack** tab（top 10，score → words）。
   未跑 SQL 時顯示「Run supabase/purrstack_scores.sql」提示，遊戲照玩。
+- 開始畫面 header 有個 **🏆 Top 7** 掣（logo 同 score 中間），開同一個 Top 7 榜
+  （`{type:'purrstack-board-request'}`，唔會存分），撳 **← Back** 返開始卡。
 - Admin Dashboard 喺 Word Jump 卡同 Speak Flap 卡之間有 **🐾 PurrStack** 卡
   （`loadPurrStackAdmin()`／`renderPurrStackAdmin()` 喺 `js/admin.js`，
   `changeView('admin-view')` 會一齊 call）。Students／Games played／Top score／

@@ -98,6 +98,36 @@
             }
         }
 
+        /* Fetch the current Top 7 and shape the reply. Shared by the
+           game-over submit path and the pre-game peek request so both show
+           exactly the same board. Never writes a score. */
+        async function fetchPurrStackBoard(me, guest) {
+            if (guest) return purrStackBoardReply([], me, true, false);
+            try {
+                const board = await sb.from('purrstack_leaderboard')
+                    .select('user_id,nickname,email,score,words,created_at')
+                    .order('score', { ascending: false })
+                    .order('words', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(7);
+                if (board && board.error) throw board.error;
+                return purrStackBoardReply((board && board.data) || [], me, false, false);
+            } catch (e) {
+                console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
+                return purrStackBoardReply([], me, false, true);
+            }
+        }
+
+        /* The iframe's header 🏆 Top 7 chip asks for the board before a game.
+           This path only reads: it never inserts into purrstack_scores. */
+        async function requestPurrStackBoard() {
+            const me = currentUser ? currentUser.id : '';
+            const guest = !currentUser || isGuestUser() || !!previewStudentForm();
+            const reply = await fetchPurrStackBoard(me, guest);
+            postPurrStackBoard(reply);
+            return reply;
+        }
+
         async function submitPurrStackScore(data) {
             if (!data) return null;
             const me = currentUser ? currentUser.id : '';
@@ -129,20 +159,7 @@
             } catch (e) {
                 console.warn('PurrStack score not saved:', e && e.message ? e.message : e);
             }
-            let reply;
-            try {
-                const board = await sb.from('purrstack_leaderboard')
-                    .select('user_id,nickname,email,score,words,created_at')
-                    .order('score', { ascending: false })
-                    .order('words', { ascending: false })
-                    .order('created_at', { ascending: true })
-                    .limit(7);
-                if (board && board.error) throw board.error;
-                reply = purrStackBoardReply((board && board.data) || [], me, false, false);
-            } catch (e) {
-                console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
-                reply = purrStackBoardReply([], me, false, true);
-            }
+            const reply = await fetchPurrStackBoard(me, false);
             postPurrStackBoard(reply);
             return reply;
         }
@@ -153,6 +170,10 @@
             if (data && data.type === 'purrstack-score') {
                 Promise.resolve(submitPurrStackScore(data)).catch(function (e) {
                     console.warn('PurrStack score not saved:', e && e.message ? e.message : e);
+                });
+            } else if (data && data.type === 'purrstack-board-request') {
+                Promise.resolve(requestPurrStackBoard()).catch(function (e) {
+                    console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
                 });
             }
         });

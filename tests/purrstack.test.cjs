@@ -121,7 +121,7 @@ function loadGameHelpers() {
     const start = gameHtml.indexOf('/* ---- purrstack end-of-game helpers');
     const end = gameHtml.indexOf('/* ---- end purrstack end-of-game helpers');
     assert.ok(start !== -1 && end !== -1, 'the two-step game-over helpers are marked');
-    const code = gameHtml.slice(start, end) + '\nthis.H = { purrEndStep, purrNextStep, purrBoardHTML };';
+    const code = gameHtml.slice(start, end) + '\nthis.H = { purrEndStep, purrNextStep, purrBoardHTML, purrCanPeek };';
     const context = vm.createContext({ console });
     vm.runInContext(code, context);
     return context.H;
@@ -183,6 +183,111 @@ test('the ranking card shows Loading, guest, SQL hint and Top 7 rows', () => {
     assert.match(board, /class="rank-row me"/);
     assert.match(board, /rank-name">c</, 'a missing nickname falls back to the email local part');
     assert.equal((board.match(/class="rank-row/g) || []).length, 3);
+});
+
+/* ---------------- 1b) pre-game Top 7 peek (header chip) ---------------- */
+
+test('the start screen header has a Top 7 chip between the logo and the score', () => {
+    const brandAt = gameHtml.indexOf('<div class="brand">');
+    const btnAt = gameHtml.indexOf('id="top7-btn"');
+    const scoreAt = gameHtml.indexOf('<div class="scorebox">');
+    assert.ok(brandAt !== -1 && btnAt !== -1 && scoreAt !== -1);
+    assert.ok(brandAt < btnAt && btnAt < scoreAt, 'the chip sits in the header gap');
+
+    const open = gameHtml.lastIndexOf('<button', btnAt);
+    const tag = gameHtml.slice(open, gameHtml.indexOf('</button>', btnAt) + '</button>'.length);
+    assert.ok(open > brandAt && open < scoreAt, 'it is a real button element in the header');
+    assert.match(tag, /type="button"/);
+    assert.match(tag, /🏆 Top 7/, 'the visible label keeps the trophy and Top 7');
+    assert.match(tag, /aria-label="[^"]*Top 7[^"]*"/, 'the chip has an accessible name');
+
+    /* Compact cream / brown chip, in the same family as the scorebox. */
+    assert.match(gameHtml, /\.top7-btn \{[^}]*border: 2px solid var\(--linebrown\);/);
+    assert.match(gameHtml, /\.top7-btn \{[^}]*background: var\(--cream\);/);
+    assert.match(gameHtml, /\.top7-btn \{[^}]*white-space: nowrap;/);
+
+    /* The chip lives on the start screen only: the play HUD keeps no copy. */
+    const hudAt = gameHtml.indexOf('<div class="hud">');
+    const hudEnd = gameHtml.indexOf('<div class="stage"', hudAt);
+    assert.doesNotMatch(gameHtml.slice(hudAt, hudEnd), /top7-btn/);
+});
+
+test('opening the peek board asks the parent for the Top 7 and never posts a score', () => {
+    const requestAt = gameHtml.indexOf('function requestPeekBoard()');
+    const openAt = gameHtml.indexOf('function openPeek()');
+    const endAt = gameHtml.indexOf('function endGame()', openAt);
+    assert.ok(requestAt !== -1 && openAt !== -1 && endAt !== -1, 'the peek helpers exist');
+
+    const requestSrc = gameHtml.slice(requestAt, openAt);
+    assert.match(requestSrc, /type: 'purrstack-board-request'/);
+    assert.match(requestSrc, /window\.location\.origin/, 'the request is posted same-origin only');
+    assert.doesNotMatch(requestSrc, /purrstack-score/);
+
+    const openSrc = gameHtml.slice(openAt, endAt);
+    assert.match(openSrc, /purrCanPeek\(running, gameOver\)/, 'a live run is guarded');
+    assert.match(openSrc, /setOverlay\('peek'\)/);
+    assert.match(openSrc, /requestPeekBoard\(\)/);
+    assert.doesNotMatch(openSrc, /purrstack-score/);
+    assert.doesNotMatch(openSrc, /startGame\(\)/, 'peeking never starts or resets a run');
+
+    assert.match(gameHtml, /top7Btn\.addEventListener\('click', openPeek\)/);
+    assert.equal((gameHtml.match(/type: 'purrstack-score'/g) || []).length, 1,
+        'only endGame saves a run score');
+});
+
+test('the peek chip does nothing during a run but opens on the start / finished card', () => {
+    const H = loadGameHelpers();
+    assert.equal(H.purrCanPeek(true, false), false, 'a run in progress is never interrupted');
+    assert.equal(H.purrCanPeek(false, false), true, 'the start card can peek');
+    assert.equal(H.purrCanPeek(true, true), true, 'the finished game can peek');
+    assert.equal(H.purrCanPeek(false, true), true);
+});
+
+test('the peek card is a Top 7 board, not a game-over card, and hides the run stats', () => {
+    const at = gameHtml.indexOf("} else if (mode === 'peek') {");
+    assert.ok(at !== -1, 'setOverlay has a dedicated peek mode');
+    const end = gameHtml.indexOf('} else {', at);
+    assert.ok(end !== -1, 'the peek branch is closed');
+    const src = gameHtml.slice(at, end);
+
+    assert.match(src, /overlayTitle\.textContent = 'Top 7'/);
+    assert.doesNotMatch(src, /Game over/);
+    assert.doesNotMatch(src, /New best/);
+    assert.match(src, /renderPeekStep\(\)/);
+    assert.match(src, /overlayBtn\.textContent = '← Back'/);
+
+    /* score / best / words stay on the finished-run card only. */
+    assert.match(gameHtml, /overlayStats\.style\.display = mode === 'rank' \? 'flex' : 'none'/);
+    assert.match(gameHtml, /overlayBoard\.style\.display = \(mode === 'rank' \|\| mode === 'peek'\) \? 'block' : 'none'/);
+
+    /* Same rows / guest / SQL-missing rendering as the post-game board. */
+    const peekAt = gameHtml.indexOf('function renderPeekStep()');
+    const peekSrc = gameHtml.slice(peekAt, gameHtml.indexOf('function openPeek()', peekAt));
+    assert.ok(peekAt !== -1);
+    assert.match(peekSrc, /purrBoardHTML\(rankBoard\)/);
+    assert.match(gameHtml, /overlayMode === 'peek'\) renderPeekStep\(\)/,
+        'a late board reply refreshes the peek card too');
+    assert.ok(gameHtml.indexOf('function requestPeekBoard()') < gameHtml.indexOf('function openPeek()'),
+        'the peek board is requested after the card opens');
+});
+
+test('Back from the peek card returns to the start card and never starts a run', () => {
+    const at = gameHtml.indexOf('overlayBtn.addEventListener');
+    const end = gameHtml.indexOf('startBtn.addEventListener', at);
+    assert.ok(at !== -1 && end !== -1);
+    const src = gameHtml.slice(at, end);
+
+    assert.match(src, /overlayMode === 'paused'\) togglePause\(\)/);
+    assert.match(src, /overlayMode === 'review'\) setOverlay\(purrNextStep\(overlayMode\)\)/);
+
+    const peekAt = src.indexOf("overlayMode === 'peek'");
+    assert.ok(peekAt !== -1, 'the peek branch exists');
+    assert.match(src.slice(peekAt), /^overlayMode === 'peek'\) setOverlay\('start'\);/,
+        'Back restores the start card');
+
+    const fallbackAt = src.indexOf('else startGame();');
+    assert.ok(fallbackAt !== -1 && fallbackAt > peekAt,
+        'startGame stays the fallback for a finished / start card only');
 });
 
 /* ---------------- 2) parent side: submit + board reply ---------------- */
@@ -281,6 +386,81 @@ test('a missing leaderboard view surfaces the SQL hint without breaking the scor
     assert.equal(posted.type, 'purrstack-board');
     assert.equal(posted.error, true);
     assert.equal(posted.guest, false);
+});
+
+/* ---------------- 2b) parent side: pre-game board request ---------------- */
+
+test('a board request from a signed-in student reads the top 7 and saves nothing', async () => {
+    const rows = Array.from({ length: 7 }, (_, i) => ({
+        user_id: i === 1 ? 'u1' : 'u' + i,
+        nickname: 'Player ' + i,
+        email: 's' + i + '@lstyoungkhl.edu.hk',
+        score: 700 - i * 10,
+        words: 20 - i,
+        created_at: '2026-11-' + (10 + i) + 'T00:00:00Z'
+    }));
+    const { run, state } = loadShared({ rows: { purrstack_leaderboard: rows } });
+    run('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: { full_name: "4C 01 Chan" } };');
+
+    const reply = await run('requestPurrStackBoard()');
+
+    assert.equal(state.inserts.length, 0, 'viewing the board never saves a score');
+    const boardQuery = state.queries.find((q) => q.table === 'purrstack_leaderboard');
+    assert.ok(boardQuery, 'the board is fetched');
+    assert.deepEqual(boardQuery.orders, [['score', false], ['words', false], ['created_at', true]]);
+    assert.equal(boardQuery.limit, 7);
+
+    assert.equal(reply.type, 'purrstack-board');
+    assert.equal(reply.guest, false);
+    assert.equal(reply.error, false);
+    assert.equal(reply.me, 'u1');
+    assert.equal(reply.rows.length, 7);
+
+    assert.equal(state.posts.length, 1, 'exactly one board reply is posted');
+    assert.equal(state.posts[0].message.type, 'purrstack-board');
+    assert.equal(state.posts[0].target, ORIGIN);
+});
+
+test('a guest board request is marked guest and neither queries nor inserts', async () => {
+    const { run, state } = loadShared();
+    const reply = await run('requestPurrStackBoard()');
+    assert.equal(state.inserts.length, 0);
+    assert.equal(state.queries.length, 0, 'guests do not query the shared board');
+    assert.equal(reply.guest, true);
+    assert.deepEqual(Array.from(reply.rows), []);
+    assert.equal(state.posts.length, 1);
+    assert.equal(state.posts[0].message.guest, true);
+});
+
+test('a board request from a teacher preview is also marked guest', async () => {
+    const { run, state } = loadShared();
+    run('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };');
+    run('previewStudentForm = function () { return "F4"; };');
+    const reply = await run('requestPurrStackBoard()');
+    assert.equal(state.inserts.length, 0);
+    assert.equal(state.queries.length, 0);
+    assert.equal(reply.guest, true);
+});
+
+test('a board request with a missing view returns the SQL hint and never inserts', async () => {
+    const { run, state } = loadShared({ errorTables: { purrstack_leaderboard: true } });
+    run('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };');
+    const reply = await run('requestPurrStackBoard()');
+    assert.equal(state.inserts.length, 0, 'a failed read must not write anything either');
+    assert.equal(reply.error, true);
+    assert.equal(reply.guest, false);
+    assert.deepEqual(Array.from(reply.rows), []);
+    assert.equal(state.posts[0].message.type, 'purrstack-board');
+    assert.equal(state.posts[0].message.error, true);
+});
+
+test('the page listens for the peek request next to the score post', () => {
+    assert.match(sharedSource, /data\.type === 'purrstack-score'/);
+    assert.match(sharedSource, /data\.type === 'purrstack-board-request'/);
+    const requestAt = sharedSource.indexOf("data.type === 'purrstack-board-request'");
+    const handler = sharedSource.slice(requestAt, sharedSource.indexOf('});', requestAt));
+    assert.doesNotMatch(handler, /purrstack_scores/, 'the request path never touches the table');
+    assert.match(handler, /requestPurrStackBoard\(\)/);
 });
 
 /* ---------------- 3) admin dashboard ---------------- */

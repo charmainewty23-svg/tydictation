@@ -256,6 +256,7 @@
         gold: 0,
         elapsed: 0,
         voicedMs: 0,
+        asrVoicedUntil: 0,
         longest: 0,
         runSec: 0,
         pauses: 0,
@@ -483,6 +484,18 @@
         if (node) node.textContent = text || '';
     }
 
+    /* Some Android builds only allow one microphone consumer. When the
+       browser's speech service can take the mic, hand it over instead of
+       keeping our analyser stream open. */
+    function asrOwnsMic() {
+        return /Android/i.test(navigator.userAgent || '')
+            && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    }
+
+    function markAsrVoiced() {
+        FLAP.asrVoicedUntil = Date.now() + 1100;
+    }
+
     async function openMic() {
         const fill = el('micfill');
         const state = el('micstate');
@@ -622,7 +635,10 @@
             asr.interimResults = true;
             try { asr.maxAlternatives = 3; } catch (e) { /* ignore */ }
             asr.lang = FLAP.asrLang || 'en-US';
+            asr.onspeechstart = () => markAsrVoiced();
+            asr.onsoundstart = () => markAsrVoiced();
             asr.onresult = (e) => {
+                markAsrVoiced();
                 let s = '';
                 for (let i = e.resultIndex; i < e.results.length; i += 1) {
                     const result = e.results[i];
@@ -679,7 +695,8 @@
             };
             asr.start();
             FLAP.asrOk = true;
-            setMicDiag('Speech-to-text listening · ' + asr.lang);
+            setMicDiag('Speech-to-text listening · ' + asr.lang
+                + (asrOwnsMic() ? ' · mic handed to Chrome' : ''));
         } catch (e) {
             FLAP.asrOk = false;
             setMicDiag('Speech-to-text could not start. Use Chrome or Practice mode.');
@@ -690,6 +707,7 @@
     function stopAsr() {
         const asr = FLAP.asr;
         FLAP.asr = null;
+        FLAP.asrVoicedUntil = 0;
         if (!asr) return;
         try {
             asr.onend = null;
@@ -872,7 +890,12 @@
         fitWorld();
         const useTap = tapMode === true || !FLAP.stream;
         show('play');
-        if (useTap) closeMic(); else stopMicMeter();
+        /* Android Chrome cannot run SpeechRecognition while our own
+           getUserMedia stream holds the microphone, so the mic test passes
+           and the run then fails with audio-capture. Release the level-meter
+           stream and let Chrome own the mic; `voiced` falls back to ASR
+           activity (see `update`). */
+        if (useTap || asrOwnsMic()) closeMic(); else stopMicMeter();
         FLAP.duel.result = null;
         FLAP.tap = useTap;
         FLAP.ranked = !useTap;
@@ -882,6 +905,7 @@
         FLAP.micOn = !useTap;
         FLAP.elapsed = 0;
         FLAP.voicedMs = 0;
+        FLAP.asrVoicedUntil = 0;
         FLAP.longest = 0;
         FLAP.runSec = 0;
         FLAP.pauses = 0;
@@ -966,6 +990,12 @@
         if (useTap) {
             FLAP.asrOk = false;
             stopAsr();
+        } else if (asrOwnsMic()) {
+            /* Give Chrome a moment to release the audio session we just
+               closed, otherwise Android answers with audio-capture. */
+            setTimeout(() => {
+                if (FLAP.running && !FLAP.tap && !FLAP.asr) startAsr();
+            }, 350);
         } else {
             startAsr();
         }
@@ -1002,12 +1032,16 @@
         const node = el('pause');
         if (node) node.classList.remove('on');
         if (!FLAP.tap) {
-            openMic().then(() => {
-                if (!FLAP.paused && FLAP.running) {
-                    stopMicMeter();
-                    if (!FLAP.asr) startAsr();
-                }
-            });
+            if (asrOwnsMic()) {
+                startAsr();
+            } else {
+                openMic().then(() => {
+                    if (!FLAP.paused && FLAP.running) {
+                        stopMicMeter();
+                        if (!FLAP.asr) startAsr();
+                    }
+                });
+            }
         }
         syncFsUi();
         FLAP.raf = requestAnimationFrame(loop);
@@ -1077,7 +1111,10 @@
             FLAP.silentWarned = true;
             toast('🎤 No words heard yet — speak closer, or use Practice mode.');
         }
-        const voiced = FLAP.micOn ? (readDb() > FLAP.threshold) : FLAP.tapHeld;
+        const levelVoiced = FLAP.analyser
+            ? (readDb() > FLAP.threshold)
+            : Date.now() < (FLAP.asrVoicedUntil || 0);
+        const voiced = FLAP.micOn ? levelVoiced : FLAP.tapHeld;
 
         if (voiced) {
             FLAP.voicedMs += dt * 1000;

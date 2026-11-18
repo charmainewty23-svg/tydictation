@@ -288,6 +288,17 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   其他 error 會 toast 並建議 Practice mode。Android Chrome 仍然需要
   Google speech services ＋網絡；in-app browser／部分 Samsung 瀏覽器可能
   完全冇 `SpeechRecognition`，要開 Chrome。
+- **Android 要把咪交給 SpeechRecognition（2026-11）**：Android Chrome 唔可以
+  同時用 `getUserMedia` stream ＋ `SpeechRecognition`，所以以前「試咪得、
+  一入 game 就唔得」（`audio-capture`）。`asrOwnsMic()`（Android 而且有
+  `SpeechRecognition`）為 true 時，`startRun(false)` 會先 `closeMic()`
+  放走 stream／AudioContext，再等 350ms 才 `startAsr()`（`setMicDiag` 會寫
+  `mic handed to Chrome`）。冇 analyser 時 `voiced` 改用 ASR 活動
+  （`markAsrVoiced()` 喺 `onsoundstart`／`onspeechstart`／`onresult` 設
+  `FLAP.asrVoicedUntil = now + 1100ms`），所以貓照樣有下沉減速，`voicedMs`
+  亦照計。Pause 後 Resume 只重開 ASR，唔會再開自己個 stream；
+  Result 的 `🔁 Again` 會先 `openMic()` 確認權限，`startRun` 再交咪。
+  其他平台維持 analyser 音量模式，行為不變。
 - Result 嘅 `🔁 Again`：如果上一局係 ranked，會返 `mic` 重新開咪（唔會靜靜變
   practice）；practice 局就繼續 practice。
 - 語音辨識放寬：`maxAlternatives = 3`（final result 會餵埋其他候選字）、

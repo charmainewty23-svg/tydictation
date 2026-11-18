@@ -49,7 +49,7 @@
 
         // --- Bottom tab bar -------------------------------------------------
         // Exactly five tabs. Each tab always returns to its section root.
-        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'battle-view', 'store-view', 'profile-view'];
+        const NAV_TABS = ['hub-view', 'home-view', 'wordjump-view', 'purrstack-view', 'battle-view', 'store-view', 'profile-view'];
         // Views that keep the screen immersive: the bar would cover controls or
         // compete with the game HUD, so it hides and the view keeps its own exit.
         const NAV_HIDDEN_VIEWS = ['quiz-view', 'drive-and-go-view', 'admin-view'];
@@ -58,11 +58,49 @@
         function navTabForView(viewId) {
             if (viewId === 'home-view' || viewId === 'sub-category-view' || viewId === 'word-list-view' || viewId === 'quiz-view' || viewId === 'error-book-view') return 'home-view';
             if (viewId === 'wordjump-view') return 'wordjump-view';
+            if (viewId === 'purrstack-view') return 'purrstack-view';
             if (viewId === 'battle-view') return 'battle-view';
             if (viewId === 'store-view') return 'store-view';
             if (viewId === 'profile-view') return 'profile-view';
             return 'hub-view'; // hub, grammar tree, records, leaderboard
         }
+
+        function openPurrStack() {
+            const frame = document.getElementById('purrstack-frame');
+            if (frame && !frame.getAttribute('src')) {
+                frame.src = frame.dataset.src || 'vocab-tetris-demo.html';
+            }
+            changeView('purrstack-view');
+        }
+
+        function submitPurrStackScore(data) {
+            if (!data || !currentUser) return;
+            if (isGuestUser() || previewStudentForm()) return;
+            const payload = {
+                user_id: currentUser.id,
+                email: currentUser.email || '',
+                nickname: displayName({
+                    email: currentUser.email,
+                    nickname: (currentUser.user_metadata || {}).full_name
+                }),
+                score: Math.max(0, Math.round(Number(data.score) || 0)),
+                words: Math.max(0, Math.round(Number(data.words) || 0)),
+                correct: Math.max(0, Math.round(Number(data.correct) || 0)),
+                wrong: Math.max(0, Math.round(Number(data.wrong) || 0)),
+                best_combo: Math.max(0, Math.round(Number(data.bestCombo) || 0))
+            };
+            sb.from('purrstack_scores').insert(payload).then(function (res) {
+                if (res && res.error) {
+                    console.warn('PurrStack score not saved:', res.error.message || res.error);
+                }
+            });
+        }
+
+        window.addEventListener('message', function (event) {
+            if (event.origin !== window.location.origin) return;
+            const data = event.data;
+            if (data && data.type === 'purrstack-score') submitPurrStackScore(data);
+        });
 
         function navShouldShow(viewId) {
             if (NAV_HIDDEN_VIEWS.indexOf(viewId) !== -1) return false;
@@ -2366,6 +2404,12 @@
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             if (viewId !== 'wordjump-view' && typeof WJC !== 'undefined') WJC.onLeaveView();
             if (viewId !== 'fluency-flap-view' && typeof FLAP !== 'undefined') FLAP.stop();
+            if (viewId !== 'purrstack-view') {
+                const pf = document.getElementById('purrstack-frame');
+                try {
+                    if (pf && pf.contentWindow) pf.contentWindow.postMessage('purrstack-pause', '*');
+                } catch (e) { /* ignore */ }
+            }
             if (typeof fluencyStopSpeech === 'function') fluencyStopSpeech();
             if (typeof DG !== 'undefined' && typeof DG.onLeaveView === 'function') DG.onLeaveView(viewId);
             const keepVocabPoll = (viewId === 'sub-category-view' || viewId === 'word-list-view') && currentTopic === NEW_VOCAB;

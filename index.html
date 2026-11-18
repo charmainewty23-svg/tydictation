@@ -278,8 +278,25 @@
             min-height: 44px;
         }
 
+        /* ---- PurrStack (embedded game) ---- */
+        #purrstack-view {
+            position: fixed;
+            inset: 0;
+            bottom: calc(58px + env(safe-area-inset-bottom));
+            z-index: 850;
+            padding: 0;
+            background: #fdf3e3;
+        }
+        #purrstack-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #fdf3e3;
+        }
+
         /* ---- Bottom tab bar ---- */
-        /* Five fixed tabs on phones. On iPad / desktop the inner row stays
+        /* Seven fixed tabs on phones. On iPad / desktop the inner row stays
            centred at 720px instead of stretching into a left rail. */
         #bottom-nav {
             position: fixed;
@@ -303,7 +320,7 @@
             max-width: 720px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(7, 1fr);
             padding: 0 6px;
         }
         .bottom-nav-tab {
@@ -4625,6 +4642,10 @@
             </div>
 
             <!-- Word Battle View -->
+            <div id="purrstack-view" class="view hidden w-full">
+                <iframe id="purrstack-frame" title="PurrStack" data-src="vocab-tetris-demo.html" allow="fullscreen" loading="lazy"></iframe>
+            </div>
+
             <div id="battle-view" class="view hidden w-full">
                 <button id="battle-back-btn" onclick="battleBackToHub()" class="nav-back mb-8 text-gray-400 flex items-center gap-2 hover:text-blue-500 transition-colors text-xl font-bold">
                     <span>←</span> Back to Hub
@@ -4873,6 +4894,7 @@
                         <button onclick="loadLeaderboard('recitation')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Recitation</button>
                         <button onclick="loadLeaderboard('streaks')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🔥 Streaks</button>
                         <button onclick="loadLeaderboard('wordjump')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Word Jump</button>
+                        <button onclick="loadLeaderboard('purrstack')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🐾 PurrStack</button>
                         <button onclick="loadLeaderboard('flap')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🃏 Speak Flap</button>
                         <button onclick="loadLeaderboard('wjchallenge')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">WJ Challenge wins</button>
                         <button onclick="loadLeaderboard('dgsolo')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Drive &amp; Go! Solo</button>
@@ -5350,6 +5372,10 @@
                 <button type="button" class="bottom-nav-tab" data-nav-view="wordjump-view" onclick="changeView('wordjump-view')">
                     <span class="bottom-nav-icon" aria-hidden="true">🦘</span>
                     <span>Jump</span>
+                </button>
+                <button type="button" class="bottom-nav-tab" data-nav-view="purrstack-view" onclick="openPurrStack()">
+                    <span class="bottom-nav-icon" aria-hidden="true">🐾</span>
+                    <span>PurrStack</span>
                 </button>
                 <button type="button" class="bottom-nav-tab" data-nav-view="battle-view" onclick="changeView('battle-view')">
                     <span class="bottom-nav-icon" aria-hidden="true">⚔️</span>

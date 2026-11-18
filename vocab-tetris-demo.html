@@ -1,0 +1,2542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PurrStack — Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #fff9f2;
+    --ink: #2f2440;
+    --violet: #7c3aed;
+    --brown: #a9743f;
+    --brown-dark: #7a4d24;
+    --violet2: #a78bfa;
+    --deepbrown: #5b3a1e;
+    --linebrown: #e7cfae;
+    --linebrown2: #d9b98f;
+    --noun: #3b82f6;
+    --verb: #10b981;
+    --adj: #f59e0b;
+    --danger: #ef4444;
+    --board: #141024;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background-color: #fdf3e3;
+    background-image: url("assets/purrstackbg1.png");
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    color: var(--ink);
+    font-family: Fredoka, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  button { font-family: inherit; }
+  .app {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: max(4px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  h1 { margin: 0; font-size: 24px; line-height: 1; color: var(--deepbrown); }
+  .brand { position: relative; }
+  .brand-logo {
+    display: block;
+    width: clamp(110px, 36vw, 150px);
+    height: 40px;
+    object-fit: cover;
+    object-position: 50% 44%;
+  }
+  .overlay-logo {
+    display: none;
+    width: min(210px, 80%);
+    height: 58px;
+    object-fit: cover;
+    object-position: 50% 44%;
+    margin: 0 auto 4px;
+  }
+  header p { margin: 3px 0 0; font-size: 11px; font-weight: 600; color: #8a7f9e; }
+  .scorebox {
+    text-align: right;
+    background: #fff;
+    border: 2px solid var(--linebrown);
+    border-radius: 12px;
+    padding: 3px 8px;
+    min-width: 72px;
+    box-shadow: 0 3px 0 rgba(169,116,63,.16);
+  }
+  .scorebox span { display: block; font-size: 8px; font-weight: 700; letter-spacing: .12em; color: #b08b63; text-transform: uppercase; }
+  .scorebox b { display: block; font-size: 18px; line-height: 1; color: var(--deepbrown); }
+  .scorebox small { display: block; font-size: 9px; font-weight: 600; color: #a08262; margin-top: 2px; }
+  .hud {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+  .card {
+    min-width: 0;
+    background: #fff;
+    border: 2px solid var(--linebrown);
+    border-radius: 13px;
+    padding: 5px 7px;
+    text-align: center;
+    box-shadow: 0 3px 0 rgba(169,116,63,.13);
+  }
+  .card > span {
+    display: block;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #b08b63;
+  }
+  .card b, .card div {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.1;
+    font-weight: 700;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .holdcard small {
+    display: block;
+    margin-top: 1px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #a08262;
+  }
+  .holdcard small.used { color: #b91c1c; }
+  .wordcard {
+    background: linear-gradient(160deg, #fdf1dd, #fff);
+    border-color: var(--linebrown2);
+  }
+  .wordcard b {
+    font-size: clamp(17px, 5.6vw, 24px);
+    line-height: 1.05;
+    color: var(--deepbrown);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wordcard small {
+    display: block;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #a9825c;
+    margin-top: 2px;
+  }
+  .wordcard #zone-preview {
+    display: inline-block;
+    margin: 0 auto 2px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1.5px solid #3b82f6;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+  }
+  #zone-preview.zone-0 { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+  #zone-preview.zone-1 { border-color: #10b981; background: #ecfdf5; color: #047857; }
+  #zone-preview.zone-2 { border-color: #f59e0b; background: #fffbeb; color: #b45309; }
+  #zone-preview.tie { border-style: dashed; border-color: #d97706; color: #b45309; }
+  .wordcard #zone-preview.tie { color: #d97706; }
+  .stage {
+    position: relative;
+    -webkit-touch-callout: none;
+    user-select: none;
+    border-radius: 18px;
+    border: 3px solid #2f5b3d;
+    background: #e8f7ff;
+    overflow: hidden;
+    box-shadow: 0 12px 0 rgba(47,91,61,.18), 0 20px 40px rgba(47,91,61,.16);
+    touch-action: manipulation;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .stage.danger {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 4px rgba(239,68,68,.22), 0 0 28px rgba(239,68,68,.45);
+    animation: dangerPulse .75s infinite;
+  }
+  .stage.shake { animation: shake .16s linear; }
+  canvas { display: block; width: 100%; height: auto; margin: 0 auto; touch-action: none; -webkit-touch-callout: none; user-select: none; }
+  .overlay {
+    position: absolute;
+    -webkit-touch-callout: none;
+    user-select: none;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(20,16,36,.78);
+    backdrop-filter: blur(5px);
+    z-index: 5;
+  }
+  .overlay.hidden { display: none; }
+  .overlay-card {
+    width: 100%;
+    max-width: 330px;
+    max-height: calc(100% - 6px);
+    overflow-y: auto;
+    background: #fff9f2;
+    border: 3px solid var(--linebrown2);
+    border-radius: 22px;
+    padding: 20px 18px;
+    text-align: center;
+    box-shadow: 0 10px 0 rgba(169,116,63,.2);
+  }
+  .overlay-emoji { font-size: 42px; line-height: 1; margin-bottom: 7px; }
+  .overlay h2 {
+    margin: 0;
+    font-size: 26px;
+    color: var(--brown);
+  }
+  .overlay p { margin: 8px 0 15px; font-size: 13px; line-height: 1.45; color: #87684d; font-weight: 600; }
+  .overlay p b { color: var(--ink); }
+  .overlay .overlay-mini { display: none; margin: 4px 0 9px; font-size: 11px; }
+  .overlay-review {
+    display: none;
+    max-height: 128px;
+    overflow-y: auto;
+    margin: 6px 0 9px;
+    padding: 6px 8px;
+    border: 1.5px solid var(--linebrown);
+    border-radius: 10px;
+    background: #fffdf7;
+    text-align: left;
+  }
+  .overlay-review b {
+    display: block;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #a9743f;
+    margin-bottom: 3px;
+  }
+  .overlay-review .rw {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px dashed #eadfce;
+    font-size: 11px;
+    font-weight: 700;
+    color: #5b3a1e;
+  }
+  .overlay-review .rw:last-child { border-bottom: 0; }
+  .overlay-review .rw-ans { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .overlay-review .rw-ok { color: #d43a2f; font-weight: 800; }
+  .overlay-review .rw-no { color: #8a7a6a; font-weight: 600; }
+  .overlay .overlay-short { display: none; margin: 4px 0 9px; font-size: 11px; }
+  .overlay button {
+    width: 100%;
+    min-height: 50px;
+    border: 0;
+    border-radius: 15px;
+    background: var(--brown);
+    color: #fff8ec;
+    font-size: 16px;
+    font-weight: 700;
+    box-shadow: 0 5px 0 var(--brown-dark);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .overlay button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--brown-dark); }
+
+  @media (max-height: 700px) {
+    .overlay-card { padding: 12px 13px; }
+    .overlay-emoji { font-size: 30px; margin-bottom: 4px; }
+    .overlay h2 { font-size: 22px; }
+    .overlay p { font-size: 12px; margin: 6px 0 10px; line-height: 1.38; }
+  }
+  @media (max-height: 620px) {
+    .overlay p { display: none; }
+    .overlay .overlay-mini { display: block; }
+    .overlay-emoji { display: none; }
+    .overlay-card { padding: 10px 12px; }
+    .overlay h2 { font-size: 20px; }
+    .overlay button { min-height: 42px; }
+  }
+  /* One long rectangular bar split into three zones. */
+  .zones {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-top: 6px;
+    border: 2px solid var(--linebrown);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 3px 0 rgba(122,77,36,.14);
+  }
+  .zone {
+    position: relative;
+    min-height: 44px;
+    border: 0;
+    border-right: 1px solid var(--linebrown);
+    border-radius: 0;
+    background: #fff;
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: none;
+    touch-action: manipulation;
+    transition: background .12s;
+  }
+  .zone:last-child { border-right: 0; }
+  .zone .count { display: none; }
+  .zone[data-zone="0"] { border-right-color: rgba(59,130,246,.42); }
+  .zone[data-zone="1"] { border-right-color: rgba(16,185,129,.42); }
+  .zone[data-zone="2"] { border-right: 0; }
+  .zone[data-zone="0"].active { background: #eff6ff; }
+  .zone[data-zone="1"].active { background: #ecfdf5; }
+  .zone[data-zone="2"].active { background: #fffbeb; }
+  .zone:active { background: #fdf1dd; }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    margin-top: 6px;
+  }
+  .controls button {
+    min-height: 46px;
+    border: 2px solid var(--linebrown);
+    border-radius: 14px;
+    background: #fff;
+    color: var(--brown);
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(169,116,63,.16);
+    touch-action: manipulation;
+  }
+  .controls button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(169,116,63,.16); }
+  .controls button.wide { font-size: 9.5px; letter-spacing: .02em; }
+  #snapbtn { background: var(--brown); border-color: var(--brown); color: #fff8ec; box-shadow: 0 3px 0 var(--brown-dark); }
+  #snapbtn:active { box-shadow: 0 1px 0 var(--brown-dark); }
+  .startbar {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr .8fr .7fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .startbar button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--brown);
+    color: #fff8ec;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--brown-dark);
+    touch-action: manipulation;
+  }
+  .startbar button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--brown-dark); }
+  .startbar #sound { font-size: 18px; }
+  .hint {
+    margin: 8px 2px 0;
+    font-size: 10.5px;
+    line-height: 1.45;
+    font-weight: 600;
+    color: #a08262;
+    text-align: center;
+  }
+  .toast {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    transform: translate(-50%, -8px);
+    max-width: 88%;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.96);
+    border: 2px solid var(--linebrown2);
+    color: var(--deepbrown);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s, transform .18s;
+    z-index: 4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @keyframes dangerPulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(239,68,68,.18), 0 0 24px rgba(239,68,68,.35); }
+    50% { box-shadow: 0 0 0 6px rgba(239,68,68,.34), 0 0 38px rgba(239,68,68,.62); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateY(0); }
+    25% { transform: translateY(2px); }
+    55% { transform: translateY(-1px); }
+    80% { transform: translateY(2px); }
+  }
+  /* Phone play view: same idea as Word Jump's full-screen stage. The
+     header disappears and the board takes the whole screen. */
+  body.playing-phone { position: fixed; inset: 0; overflow: hidden; }
+  body.playing-phone .app { height: 100dvh; overflow: hidden; padding-left: 4px; padding-right: 4px; }
+  body.playing-phone header { display: none; }
+  body.playing-phone .hint { display: none; }
+  body.playing-phone .fs-score { display: block; }
+  body.playing-phone .zones,
+  body.is-full .zones { min-height: 0; margin-top: 4px; }
+  body.playing-phone .zone,
+  body.is-full .zone { min-height: 26px; font-size: 10px; }
+  body.playing-phone .hud,
+  body.is-full .hud { gap: 4px; margin-bottom: 4px; }
+  body.playing-phone .card,
+  body.is-full .card { padding: 2px 4px; border-radius: 9px; }
+  body.playing-phone .card > span,
+  body.is-full .card > span { font-size: 6.5px; }
+  body.playing-phone .card b,
+  body.playing-phone .card div,
+  body.is-full .card b,
+  body.is-full .card div { font-size: 10px; }
+  body.playing-phone .wordcard b,
+  body.is-full .wordcard b { font-size: 16px; min-height: 20px; }
+  body.playing-phone .wordcard small,
+  body.is-full .wordcard small { font-size: 6.5px; margin-top: 0; }
+  body.playing-phone .holdcard small,
+  body.is-full .holdcard small { font-size: 7px; }
+  /* ---- full screen ---- */
+  html:fullscreen, html:-webkit-full-screen { background: #fdf3e3 url("assets/purrstackbg1.png") center top / cover no-repeat; }
+  html:fullscreen .app, html:-webkit-full-screen .app {
+    max-width: 900px;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+  body.css-fs {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    z-index: 9999;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.css-fs .app { max-width: 900px; min-height: 100dvh; }
+  body.is-full .hint { display: none; }
+  body.is-full .app { padding-top: max(4px, env(safe-area-inset-top)); }
+  body.is-full header { display: none; }
+  body.is-full .hud { margin-bottom: 4px; }
+  body.is-full .zones,
+  body.is-full .controls,
+  body.is-full .startbar { margin-top: 3px; }
+  body.is-full .zone { min-height: 26px; font-size: 10px; }
+  body.is-full .controls button { min-height: 44px; }
+  body.is-full .startbar button { min-height: 36px; }
+  .fs-score {
+    display: none;
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 3;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.94);
+    border: 2px solid var(--linebrown2);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--deepbrown);
+  }
+  body.is-full .fs-score { display: block; }
+  /* Tablets and desktop: board on the left, panel on the right so the
+     board can use the full height instead of being squeezed. */
+  @media (min-width: 500px) {
+    .app {
+      max-width: 880px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      grid-template-areas:
+        "stage header"
+        "stage hud"
+        "stage zones"
+        "stage controls"
+        "stage startbar";
+      grid-template-rows: auto auto auto auto auto;
+      column-gap: 12px;
+      row-gap: 8px;
+      min-height: 100dvh;
+      align-items: start;
+      align-content: center;
+    }
+    header {
+      grid-area: header;
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+    }
+    header p { display: none; }
+    .brand-logo { width: 132px; height: 36px; }
+    .scorebox { text-align: left; min-width: 0; padding: 2px 6px; }
+    .stage { grid-area: stage; align-self: center; justify-self: center; }
+    .hud { grid-area: hud; grid-template-columns: 1fr; margin-bottom: 0; }
+    .zones { grid-area: zones; margin-top: 0; }
+    .controls { grid-area: controls; grid-template-columns: repeat(3, 1fr); margin-top: 0; }
+    .startbar { grid-area: startbar; grid-template-columns: 1fr 1fr; margin-top: 0; }
+    .startbar button { white-space: nowrap; min-height: 42px; }
+    .wordcard b { font-size: 22px; }
+    .hint { display: none; }
+    .zone { min-height: 44px; }
+  }
+  /* Landscape phones: board on the left, controls on the right. */
+  @media (orientation: landscape) and (max-height: 560px) {
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 190px;
+      grid-template-areas:
+        "stage header"
+        "stage hud"
+        "stage zones"
+        "stage controls"
+        "stage startbar";
+      grid-template-rows: auto auto auto 1fr auto;
+      column-gap: 10px;
+      row-gap: 4px;
+      max-width: 100%;
+      height: 100dvh;
+      align-items: start;
+      padding: 6px 10px;
+    }
+    header {
+      grid-area: header;
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 5px;
+    }
+    h1 { font-size: 19px; }
+    header p { display: none; }
+    .brand-logo { width: 104px; height: 30px; }
+    .scorebox { padding: 2px 6px; min-width: 0; text-align: center; }
+    .scorebox span, .scorebox small { display: none; }
+    .scorebox b { font-size: 18px; }
+    .stage { grid-area: stage; align-self: center; justify-self: center; }
+    .hud { grid-area: hud; margin-bottom: 0; }
+    .zones { grid-area: zones; margin-top: 0; }
+    .controls { grid-area: controls; grid-template-columns: repeat(3, 1fr); margin-top: 0; }
+    .startbar { grid-area: startbar; grid-template-columns: 1fr 1fr; margin-top: 0; }
+    .startbar button { white-space: nowrap; min-height: 34px; }
+    .hud { grid-template-columns: 1fr 1.4fr 1fr; }
+    .wordcard b { font-size: 17px; }
+    .card { padding: 4px 5px; }
+    .hint { display: none; }
+  }
+  @media (max-width: 560px) {
+    #snapbtn { display: none; }
+    .controls {
+      grid-template-columns: repeat(5, 1fr);
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+  @media (max-width: 520px) {
+    .hint { display: none; }
+    header p { display: none; }
+    .hud { margin-bottom: 5px; }
+    .zone { min-height: 44px; }
+    .zone .count { display: none; }
+    .controls button { min-height: 44px; }
+    .startbar button { min-height: 38px; }
+  }
+  @media (max-width: 380px) {
+    .overlay p { display: none; }
+    .overlay .overlay-mini { display: none; }
+    .overlay .overlay-short { display: block; }
+    .overlay .overlay-logo { display: none !important; }
+  }
+  @media (max-width: 360px) {
+    .app { padding-left: 8px; padding-right: 8px; }
+    h1 { font-size: 21px; }
+    .hud { gap: 5px; }
+    .card { padding: 4px 6px; }
+    .controls { gap: 4px; }
+    .controls button { min-height: 42px; }
+    .zone { font-size: 11.5px; min-height: 44px; }
+    .wordcard b { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <img class="brand-logo" src="assets/purrstackLogo.png" alt="PurrStack">
+      <p>🐱 DEMO · Noun / Verb / Adjective</p>
+    </div>
+    <div class="scorebox">
+      <span>Score</span>
+      <b id="score">0</b>
+      <small>Best <span id="best">0</span></small>
+    </div>
+  </header>
+
+  <div class="hud">
+    <div class="card holdcard">
+      <span>Hold</span>
+      <div id="hold">—</div>
+      <small id="holdleft">5 left</small>
+    </div>
+    <div class="card wordcard">
+      <b id="word">—</b>
+      <small id="combo">Combo —</small>
+    </div>
+    <div class="card">
+      <span>Next</span>
+      <div id="next">—</div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="board" width="384" height="640" aria-label="PurrStack board"></canvas>
+    <div class="fs-score" id="fs-score">⭐ 0</div>
+    <div class="toast" id="toast"></div>
+    <div class="overlay" id="overlay">
+      <div class="overlay-card">
+        <div class="overlay-emoji" id="overlay-emoji">🏗️</div>
+        <img class="overlay-logo" id="overlay-logo" src="assets/purrstackLogo.png" alt="PurrStack">
+        <h2 id="overlay-title">PurrStack</h2>
+        <p id="overlay-text">Read the word, then move the piece into the matching zone. Tap to rotate · double-tap or swipe down = drop · drag left/right = move.<br><b>Base forms only</b> — past tense (-ed) and past participle (pp) forms are not counted.</p>
+        <div class="overlay-review" id="overlay-review"></div>
+        <p class="overlay-mini">Tap = rotate · double-tap or swipe down = drop · drag left/right = move · base forms only (no -ed/pp).</p>
+        <p class="overlay-short">Tap = rotate · long-press = drop</p>
+        <button id="overlay-btn" type="button">▶ Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="zones">
+    <button type="button" class="zone active" data-zone="0">Noun<span class="count">0/20</span></button>
+    <button type="button" class="zone" data-zone="1">Verb<span class="count">0/20</span></button>
+    <button type="button" class="zone" data-zone="2">Adjective<span class="count">0/20</span></button>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="holdbtn" class="wide" aria-label="Hold">HOLD</button>
+    <button type="button" id="left" aria-label="Move left">◀</button>
+    <button type="button" id="rotate" aria-label="Rotate">⟳</button>
+    <button type="button" id="right" aria-label="Move right">▶</button>
+    <button type="button" id="snapbtn" class="wide" aria-label="Park in zone" title="Park in zone (泊位)">🅿 PARK</button>
+    <button type="button" id="drop" class="wide" aria-label="Hard drop">⬇ DROP</button>
+  </div>
+
+  <div class="startbar">
+    <button type="button" id="start">▶ Start</button>
+    <button type="button" id="pause">⏸ Pause</button>
+    <button type="button" id="sound" aria-label="Sound">🔊</button>
+    <button type="button" id="fullscreen" aria-label="Full screen">⛶</button>
+  </div>
+
+  <p class="hint">Tap = rotate · double-tap or swipe down = drop · drag left/right = move. Landed piece? Slide or PARK it in before it locks. Base forms only — past tense (-ed) and past participle (pp) forms are not counted. 5 HOLDs per game.<br>Desktop: ←/→ move · ↑ rotate · Space drop · C hold · S park · P pause · F full screen.</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const WORDS = {"noun":[{"e":"Caritas","p":"noun"},{"e":"ORBIS","p":"noun"},{"e":"Oxfam","p":"noun"},{"e":"UNICEF","p":"noun"},{"e":"bazaar","p":"noun"},{"e":"donor","p":"noun"},{"e":"orphanage","p":"noun"},{"e":"sponsorship","p":"noun"},{"e":"benefactor","p":"noun"},{"e":"outreach","p":"noun+adjective"},{"e":"episode","p":"noun"},{"e":"host","p":"noun+verb"},{"e":"viewers","p":"noun"},{"e":"cartoon","p":"noun"},{"e":"commercial","p":"noun+adjective"},{"e":"documentary","p":"noun+adjective"},{"e":"comedy","p":"noun"},{"e":"drama","p":"noun"},{"e":"musical","p":"noun+adjective"},{"e":"romance","p":"noun+verb+adjective"},{"e":"war","p":"noun"},{"e":"actor","p":"noun"},{"e":"actress","p":"noun"},{"e":"cast","p":"noun+verb"},{"e":"director","p":"noun"},{"e":"editing","p":"noun"},{"e":"extra","p":"noun+adjective"},{"e":"plot","p":"noun+verb"},{"e":"producer","p":"noun"},{"e":"trailer","p":"noun"},{"e":"voice-over","p":"noun"},{"e":"beat","p":"noun+verb+adjective"},{"e":"chorus","p":"noun+verb"},{"e":"headphones","p":"noun"},{"e":"key","p":"noun+adjective"},{"e":"lyrics","p":"noun"},{"e":"melody","p":"noun"},{"e":"microphone","p":"noun"},{"e":"orchestra","p":"noun"},{"e":"rehearsal","p":"noun"},{"e":"rhythm","p":"noun"},{"e":"studio","p":"noun"},{"e":"cello","p":"noun"},{"e":"erhu","p":"noun"},{"e":"flute","p":"noun"},{"e":"guitar","p":"noun"},{"e":"guzheng","p":"noun"},{"e":"piano","p":"noun"},{"e":"recorder","p":"noun"},{"e":"saxophone","p":"noun"},{"e":"trumpet","p":"noun+verb"},{"e":"viola","p":"noun"},{"e":"violin","p":"noun"},{"e":"composer","p":"noun"},{"e":"conductor","p":"noun"},{"e":"drummer","p":"noun"},{"e":"guitarist","p":"noun"},{"e":"lyricist","p":"noun"},{"e":"pianist","p":"noun"},{"e":"violinist","p":"noun"},{"e":"jazz","p":"noun"},{"e":"act","p":"noun+verb"},{"e":"costume","p":"noun"},{"e":"dialogue","p":"noun"},{"e":"make-up","p":"noun+verb"},{"e":"narration","p":"noun"},{"e":"opera","p":"noun"},{"e":"play","p":"noun+verb"},{"e":"props","p":"noun"},{"e":"scene","p":"noun"},{"e":"setting","p":"noun"},{"e":"stage","p":"noun+verb"},{"e":"theatre","p":"noun"},{"e":"ballet","p":"noun"},{"e":"audience","p":"noun"},{"e":"celebrity","p":"noun"},{"e":"climax","p":"noun+verb"},{"e":"fan","p":"noun+verb"},{"e":"idol","p":"noun"},{"e":"premiere","p":"noun"},{"e":"screen","p":"noun+verb"},{"e":"sequel","p":"noun"},{"e":"subtitle","p":"noun"},{"e":"superstar","p":"noun"},{"e":"newscaster","p":"noun"},{"e":"ratings","p":"noun"},{"e":"phone-in","p":"noun+verb"},{"e":"thriller","p":"noun"},{"e":"audition","p":"noun+verb"},{"e":"blockbuster","p":"noun"},{"e":"casting","p":"noun+verb"},{"e":"cinematographer","p":"noun"},{"e":"dub","p":"noun+verb"},{"e":"score","p":"noun+verb"},{"e":"screenwriter","p":"noun"},{"e":"stuntman","p":"noun"},{"e":"duet","p":"noun"},{"e":"scale","p":"noun+verb"},{"e":"solo","p":"noun"},{"e":"brass","p":"noun+adjective"},{"e":"harmonica","p":"noun"},{"e":"harp","p":"noun"},{"e":"percussion","p":"noun"},{"e":"pipa","p":"noun"},{"e":"strings","p":"noun+verb+adjective"},{"e":"ukulele","p":"noun"},{"e":"woodwind","p":"noun+adjective"},{"e":"accompanist","p":"noun"},{"e":"singer-songwriter","p":"noun"},{"e":"soloist","p":"noun"},{"e":"blues","p":"noun"},{"e":"symphony","p":"noun"},{"e":"antagonist","p":"noun"},{"e":"choreographer","p":"noun"},{"e":"comedian","p":"noun"},{"e":"intermission","p":"noun"},{"e":"kabuki","p":"noun"},{"e":"mime","p":"noun+verb"},{"e":"monologue","p":"noun"},{"e":"protagonist","p":"noun"},{"e":"flamenco","p":"noun"},{"e":"tango","p":"noun"},{"e":"waltz","p":"noun+verb"},{"e":"artiste","p":"noun"},{"e":"autograph","p":"noun+verb"},{"e":"credits","p":"noun"},{"e":"paparazzi","p":"noun"},{"e":"pollution","p":"noun"},{"e":"emissions","p":"noun"},{"e":"extinction","p":"noun"},{"e":"littering","p":"noun"},{"e":"overfishing","p":"noun"},{"e":"sewage","p":"noun"},{"e":"consequence","p":"noun"},{"e":"crisis","p":"noun"},{"e":"damage","p":"noun+verb"},{"e":"destruction","p":"noun"},{"e":"disturbance","p":"noun"},{"e":"loss","p":"noun"},{"e":"pollutant","p":"noun"},{"e":"rainforest","p":"noun"},{"e":"smog","p":"noun"},{"e":"conservation","p":"noun"},{"e":"conservationist","p":"noun+adjective"},{"e":"environmentalist","p":"noun"},{"e":"ecosystem","p":"noun"},{"e":"Greenpeace","p":"noun"},{"e":"incinerator","p":"noun"},{"e":"landfill","p":"noun"},{"e":"seriousness","p":"noun"},{"e":"solution","p":"noun"},{"e":"herbicides","p":"noun"},{"e":"pesticides","p":"noun"},{"e":"deforestation","p":"noun"},{"e":"desertification","p":"noun"},{"e":"effluent","p":"noun"},{"e":"logging","p":"noun"},{"e":"deterioration","p":"noun"},{"e":"nuisance","p":"noun"},{"e":"biofuel","p":"noun"},{"e":"biodiversity","p":"noun"},{"e":"ecologist","p":"noun"},{"e":"ecology","p":"noun"},{"e":"aunt","p":"noun"},{"e":"brother","p":"noun"},{"e":"cousin","p":"noun"},{"e":"daughter","p":"noun"},{"e":"father","p":"noun+verb"},{"e":"grandchild","p":"noun"},{"e":"grandfather","p":"noun"},{"e":"grandmother","p":"noun"},{"e":"mother","p":"noun+verb"},{"e":"relative","p":"noun+adjective"},{"e":"sister","p":"noun+adjective"},{"e":"son","p":"noun"},{"e":"uncle","p":"noun"},{"e":"camping","p":"noun"},{"e":"cycling","p":"noun+verb"},{"e":"dancing","p":"noun+verb"},{"e":"hiking","p":"noun"},{"e":"painting","p":"noun"},{"e":"shopping","p":"noun"},{"e":"bride","p":"noun"},{"e":"divorce","p":"noun+verb"},{"e":"ex-husband","p":"noun"},{"e":"ex-wife","p":"noun"},{"e":"generation","p":"noun"},{"e":"groom","p":"noun+verb"},{"e":"parenting","p":"noun"},{"e":"partner","p":"noun+verb"},{"e":"twins","p":"noun"},{"e":"brother-in-law","p":"noun"},{"e":"daughter-in-law","p":"noun"},{"e":"father-in-law","p":"noun"},{"e":"fiancé","p":"noun"},{"e":"fiancée","p":"noun"},{"e":"mother-in-law","p":"noun"},{"e":"nephew","p":"noun"},{"e":"niece","p":"noun"},{"e":"sibling","p":"noun"},{"e":"sister-in-law","p":"noun"},{"e":"son-in-law","p":"noun"},{"e":"stepfather","p":"noun"},{"e":"stepmother","p":"noun"},{"e":"barbecuing","p":"noun"},{"e":"photography","p":"noun"},{"e":"ancestor","p":"noun"},{"e":"cohabitation","p":"noun"},{"e":"descendent","p":"noun"},{"e":"godfather","p":"noun"},{"e":"godmother","p":"noun"},{"e":"heir","p":"noun"},{"e":"heredity","p":"noun"},{"e":"spouse","p":"noun"},{"e":"triplets","p":"noun"},{"e":"apron","p":"noun"},{"e":"blouse","p":"noun"},{"e":"coat","p":"noun+verb"},{"e":"dress","p":"noun+verb+adjective"},{"e":"jacket","p":"noun"},{"e":"jeans","p":"noun"},{"e":"jumper","p":"noun"},{"e":"miniskirt","p":"noun"},{"e":"nightdress","p":"noun"},{"e":"pyjamas","p":"noun"},{"e":"raincoat","p":"noun"},{"e":"shirt","p":"noun"},{"e":"shorts","p":"noun"},{"e":"skirt","p":"noun+verb"},{"e":"suit","p":"noun+verb"},{"e":"swimsuit","p":"noun"},{"e":"trousers","p":"noun"},{"e":"T-shirt","p":"noun"},{"e":"underwear","p":"noun"},{"e":"vest","p":"noun"},{"e":"windbreaker","p":"noun"},{"e":"cotton","p":"noun"},{"e":"denim","p":"noun"},{"e":"lace","p":"noun+verb"},{"e":"leather","p":"noun"},{"e":"linen","p":"noun"},{"e":"nylon","p":"noun"},{"e":"silk","p":"noun"},{"e":"wool","p":"noun"},{"e":"trainers","p":"noun"},{"e":"boots","p":"noun+verb"},{"e":"flats","p":"noun"},{"e":"sandals","p":"noun"},{"e":"slippers","p":"noun"},{"e":"belt","p":"noun+verb"},{"e":"bracelet","p":"noun"},{"e":"briefcase","p":"noun"},{"e":"cap","p":"noun+verb"},{"e":"earrings","p":"noun"},{"e":"handbag","p":"noun"},{"e":"handkerchief","p":"noun"},{"e":"hat","p":"noun"},{"e":"headband","p":"noun"},{"e":"jewellery","p":"noun"},{"e":"necklace","p":"noun+verb"},{"e":"purse","p":"noun+verb"},{"e":"ring","p":"noun+verb"},{"e":"scarf","p":"noun+verb"},{"e":"socks","p":"noun+verb"},{"e":"stockings","p":"noun"},{"e":"sunglasses","p":"noun"},{"e":"tie","p":"noun+verb"},{"e":"wallet","p":"noun"},{"e":"watch","p":"noun+verb"},{"e":"catalogue","p":"noun+verb"},{"e":"fabric","p":"noun"},{"e":"hairstyle","p":"noun"},{"e":"perfume","p":"noun"},{"e":"shoelace","p":"noun"},{"e":"style","p":"noun+verb"},{"e":"bikini","p":"noun"},{"e":"cardigan","p":"noun"},{"e":"hoodie","p":"noun"},{"e":"knitwear","p":"noun"},{"e":"lingerie","p":"noun"},{"e":"pullover","p":"noun"},{"e":"tights","p":"noun"},{"e":"trenchcoat","p":"noun"},{"e":"tuxedo","p":"noun"},{"e":"tartan","p":"noun"},{"e":"cashmere","p":"noun"},{"e":"chiffon","p":"noun+adjective"},{"e":"corduroy","p":"noun"},{"e":"polyester","p":"noun"},{"e":"velvet","p":"noun+adjective"},{"e":"backpack","p":"noun+verb"},{"e":"bangle","p":"noun"},{"e":"beret","p":"noun"},{"e":"brooch","p":"noun"},{"e":"cufflinks","p":"noun"},{"e":"mittens","p":"noun"},{"e":"shawl","p":"noun"},{"e":"comeback","p":"noun"},{"e":"must-have","p":"noun"},{"e":"outfit","p":"noun+verb"},{"e":"trendsetter","p":"noun"},{"e":"Christmas","p":"noun"},{"e":"Easter","p":"noun"},{"e":"Halloween","p":"noun"},{"e":"temple","p":"noun"},{"e":"firecracker","p":"noun"},{"e":"tangerine","p":"noun+adjective"},{"e":"descendant","p":"noun"},{"e":"incense","p":"noun+verb"},{"e":"angel","p":"noun"},{"e":"gingerbread","p":"noun"},{"e":"turkey","p":"noun"},{"e":"broomstick","p":"noun"},{"e":"mask","p":"noun+verb"},{"e":"pumpkin","p":"noun"},{"e":"sweets","p":"noun+adjective"},{"e":"vampire","p":"noun"},{"e":"witch","p":"noun"},{"e":"lantern","p":"noun"},{"e":"mooncake","p":"noun"},{"e":"starfruit","p":"noun"},{"e":"bouquet","p":"noun"},{"e":"lover","p":"noun"},{"e":"celebration","p":"noun"},{"e":"float","p":"noun+verb"},{"e":"cemetery","p":"noun"},{"e":"reindeer","p":"noun"},{"e":"sleigh","p":"noun"},{"e":"resurrection","p":"noun"},{"e":"disguising","p":"noun+verb"},{"e":"Jack-o'-lantern","p":"noun"},{"e":"skeleton","p":"noun"},{"e":"zombie","p":"noun"},{"e":"pomelo","p":"noun"},{"e":"couple","p":"noun+verb"},{"e":"cupid","p":"noun"},{"e":"highlight","p":"noun+verb"},{"e":"donut","p":"noun"},{"e":"kimchi","p":"noun"},{"e":"pasta","p":"noun"},{"e":"pizza","p":"noun"},{"e":"ramen","p":"noun"},{"e":"tiramisu","p":"noun"},{"e":"appetiser","p":"noun"},{"e":"dessert","p":"noun"},{"e":"herb","p":"noun"},{"e":"seasoning","p":"noun"},{"e":"tips","p":"noun+verb"},{"e":"croissant","p":"noun"},{"e":"gelato","p":"noun"},{"e":"lasagne","p":"noun"},{"e":"macaron","p":"noun"},{"e":"macaroon","p":"noun"},{"e":"risotto","p":"noun"},{"e":"sashimi","p":"noun"},{"e":"tempura","p":"noun"},{"e":"tortilla","p":"noun"},{"e":"truffle","p":"noun"},{"e":"bartender","p":"noun"},{"e":"cutlery","p":"noun"},{"e":"specialty","p":"noun"},{"e":"aroma","p":"noun"},{"e":"broth","p":"noun"},{"e":"acne","p":"noun"},{"e":"asthma","p":"noun"},{"e":"autism","p":"noun"},{"e":"cholera","p":"noun"},{"e":"depression","p":"noun"},{"e":"diabetes","p":"noun"},{"e":"influenza","p":"noun"},{"e":"heatstroke","p":"noun"},{"e":"hypertension","p":"noun"},{"e":"obesity","p":"noun"},{"e":"pneumonia","p":"noun"},{"e":"anxiety","p":"noun"},{"e":"constipation","p":"noun"},{"e":"diarrhoea","p":"noun"},{"e":"dizziness","p":"noun"},{"e":"headache","p":"noun"},{"e":"insomnia","p":"noun"},{"e":"toothache","p":"noun"},{"e":"swelling","p":"noun"},{"e":"injection","p":"noun"},{"e":"medication","p":"noun"},{"e":"operation","p":"noun"},{"e":"painkiller","p":"noun"},{"e":"prescription","p":"noun"},{"e":"stitches","p":"noun+verb"},{"e":"surgery","p":"noun"},{"e":"vaccination","p":"noun"},{"e":"emergency","p":"noun"},{"e":"surgeon","p":"noun"},{"e":"cholesterol","p":"noun"},{"e":"clinic","p":"noun"},{"e":"allergy","p":"noun"},{"e":"anorexia","p":"noun"},{"e":"bronchitis","p":"noun"},{"e":"dyslexia","p":"noun"},{"e":"hepatitis","p":"noun"},{"e":"paranoia","p":"noun"},{"e":"phobia","p":"noun"},{"e":"schizophrenia","p":"noun"},{"e":"nausea","p":"noun"},{"e":"dislocation","p":"noun"},{"e":"chemotherapy","p":"noun"},{"e":"physiotherapy","p":"noun"},{"e":"radiotherapy","p":"noun"},{"e":"pharmacy","p":"noun"},{"e":"hormones","p":"noun"},{"e":"referral","p":"noun"},{"e":"willpower","p":"noun"},{"e":"balcony","p":"noun"},{"e":"bedroom","p":"noun+adjective"},{"e":"corridor","p":"noun"},{"e":"storeroom","p":"noun"},{"e":"ceiling","p":"noun"},{"e":"curtains","p":"noun"},{"e":"decor","p":"noun"},{"e":"furniture","p":"noun"},{"e":"villa","p":"noun"},{"e":"basement","p":"noun"},{"e":"furnishing","p":"noun"},{"e":"house-warming","p":"noun"},{"e":"bribery","p":"noun"},{"e":"burglary","p":"noun"},{"e":"corruption","p":"noun"},{"e":"homicide","p":"noun"},{"e":"kidnapping","p":"noun"},{"e":"pickpocketing","p":"noun"},{"e":"robbery","p":"noun"},{"e":"shoplifting","p":"noun"},{"e":"smuggling","p":"noun"},{"e":"terrorism","p":"noun"},{"e":"imprisonment","p":"noun"},{"e":"penalty","p":"noun"},{"e":"prohibition","p":"noun"},{"e":"arsonist","p":"noun"},{"e":"kidnapper","p":"noun"},{"e":"murderer","p":"noun"},{"e":"offender","p":"noun"},{"e":"robber","p":"noun"},{"e":"shoplifter","p":"noun"},{"e":"smuggler","p":"noun"},{"e":"thief","p":"noun"},{"e":"fingerprints","p":"noun+verb"},{"e":"abduction","p":"noun"},{"e":"cyberstalking","p":"noun"},{"e":"deception","p":"noun"},{"e":"extortion","p":"noun"},{"e":"forgery","p":"noun"},{"e":"hijacking","p":"noun"},{"e":"intimidation","p":"noun"},{"e":"manslaughter","p":"noun"},{"e":"phishing","p":"noun"},{"e":"vandalism","p":"noun"},{"e":"accomplice","p":"noun"},{"e":"hijacker","p":"noun"},{"e":"handcuffs","p":"noun"},{"e":"interrogation","p":"noun"},{"e":"prosecutor","p":"noun"},{"e":"sergeant","p":"noun"},{"e":"verdict","p":"noun"},{"e":"plaintiff","p":"noun"},{"e":"notebook","p":"noun"},{"e":"netbook","p":"noun"},{"e":"scanner","p":"noun"},{"e":"speaker","p":"noun"},{"e":"intranet","p":"noun"},{"e":"toolbar","p":"noun"},{"e":"username","p":"noun"},{"e":"website","p":"noun"},{"e":"application","p":"noun"},{"e":"gadget","p":"noun"},{"e":"smartphone","p":"noun"},{"e":"telecommunication","p":"noun"},{"e":"server","p":"noun"},{"e":"malware","p":"noun"},{"e":"netizen","p":"noun"},{"e":"videoconferencing","p":"noun"},{"e":"programmer","p":"noun"},{"e":"pigtail","p":"noun"},{"e":"moustache","p":"noun"},{"e":"adolescence","p":"noun"},{"e":"adulthood","p":"noun"},{"e":"childhood","p":"noun"},{"e":"dreadlocks","p":"noun"},{"e":"birthmark","p":"noun"},{"e":"goatee","p":"noun"},{"e":"insect","p":"noun"},{"e":"mammal","p":"noun"},{"e":"dove","p":"noun"},{"e":"penguin","p":"noun"},{"e":"sparrow","p":"noun"},{"e":"seahorse","p":"noun"},{"e":"cockroach","p":"noun"},{"e":"ladybird","p":"noun"},{"e":"deer","p":"noun"},{"e":"dolphin","p":"noun"},{"e":"donkey","p":"noun"},{"e":"elephant","p":"noun"},{"e":"giraffe","p":"noun"},{"e":"koala","p":"noun"},{"e":"leopard","p":"noun"},{"e":"tiger","p":"noun"},{"e":"zebra","p":"noun"},{"e":"goldfish","p":"noun"},{"e":"tortoise","p":"noun"},{"e":"habitat","p":"noun"},{"e":"lifespan","p":"noun"},{"e":"owner","p":"noun"},{"e":"species","p":"noun"},{"e":"carnivore","p":"noun"},{"e":"herbivore","p":"noun"},{"e":"cobra","p":"noun"},{"e":"python","p":"noun"},{"e":"ostrich","p":"noun"},{"e":"woodpecker","p":"noun"},{"e":"dragonfly","p":"noun"},{"e":"anteater","p":"noun"},{"e":"antelope","p":"noun"},{"e":"chimpanzee","p":"noun"},{"e":"hippopotamus","p":"noun"},{"e":"orangutan","p":"noun"},{"e":"otter","p":"noun"},{"e":"raccoon","p":"noun"},{"e":"rhinoceros","p":"noun"},{"e":"chinchilla","p":"noun"},{"e":"lizard","p":"noun"},{"e":"predator","p":"noun"},{"e":"canteen","p":"noun"},{"e":"classroom","p":"noun"},{"e":"gymnasium","p":"noun"},{"e":"laboratory","p":"noun"},{"e":"library","p":"noun"},{"e":"locker","p":"noun"},{"e":"noticeboard","p":"noun"},{"e":"staffroom","p":"noun"},{"e":"creativity","p":"noun"},{"e":"teamwork","p":"noun"},{"e":"chairperson","p":"noun"},{"e":"librarian","p":"noun"},{"e":"monitress","p":"noun"},{"e":"prefect","p":"noun"},{"e":"vice-principal","p":"noun"},{"e":"assessment","p":"noun"},{"e":"graduation","p":"noun"},{"e":"lunchtime","p":"noun"},{"e":"syllabus","p":"noun"},{"e":"janitor","p":"noun"},{"e":"technician","p":"noun"},{"e":"Walkathon","p":"noun"},{"e":"curriculum","p":"noun"},{"e":"detention","p":"noun"},{"e":"retention","p":"noun"},{"e":"bakery","p":"noun"},{"e":"bookshop","p":"noun"},{"e":"boutique","p":"noun"},{"e":"café","p":"noun"},{"e":"florist","p":"noun"},{"e":"restaurant","p":"noun"},{"e":"supermarket","p":"noun"},{"e":"sale","p":"noun"},{"e":"delivery","p":"noun"},{"e":"necessity","p":"noun"},{"e":"packaging","p":"noun"},{"e":"retailer","p":"noun"},{"e":"window-shopping","p":"noun"},{"e":"counselling","p":"noun"},{"e":"heroin","p":"noun"},{"e":"ketamine","p":"noun"},{"e":"loneliness","p":"noun"},{"e":"temptation","p":"noun"},{"e":"compensation","p":"noun"},{"e":"greenery","p":"noun"},{"e":"infrastructure","p":"noun"},{"e":"maintenance","p":"noun"},{"e":"renovation","p":"noun"},{"e":"skyscraper","p":"noun"},{"e":"ventilation","p":"noun"},{"e":"curiosity","p":"noun"},{"e":"dating","p":"noun+verb"},{"e":"expectation","p":"noun"},{"e":"materialism","p":"noun"},{"e":"misbehaviour","p":"noun"},{"e":"self-esteem","p":"noun"},{"e":"commitment","p":"noun"},{"e":"discrimination","p":"noun"},{"e":"status","p":"noun"},{"e":"dignity","p":"noun"},{"e":"patience","p":"noun"},{"e":"misconception","p":"noun"},{"e":"cyberbullying","p":"noun"},{"e":"homelessness","p":"noun"},{"e":"inflation","p":"noun"},{"e":"racism","p":"noun"},{"e":"shortage","p":"noun"},{"e":"rehabilitation","p":"noun"},{"e":"reclamation","p":"noun"},{"e":"pornography","p":"noun"},{"e":"longevity","p":"noun"},{"e":"HKU","p":"noun"},{"e":"Admiralty","p":"noun"},{"e":"Jordan","p":"noun"},{"e":"Whampoa","p":"noun"},{"e":"Racecourse","p":"noun"},{"e":"University","p":"noun"},{"e":"Fanling","p":"noun"},{"e":"Kowloon","p":"noun"},{"e":"Airport","p":"noun"},{"e":"badminton","p":"noun"},{"e":"baseball","p":"noun"},{"e":"biking","p":"noun+verb"},{"e":"bowling","p":"noun"},{"e":"boxing","p":"noun"},{"e":"volleyball","p":"noun"},{"e":"jogging","p":"noun"},{"e":"weightlifting","p":"noun"},{"e":"judo","p":"noun"},{"e":"Taekwondo","p":"noun"},{"e":"kickboxing","p":"noun"},{"e":"gymnastics","p":"noun"},{"e":"fencing","p":"noun"},{"e":"Pilates","p":"noun"},{"e":"hurdles","p":"noun"},{"e":"discus","p":"noun"},{"e":"rowing","p":"noun"},{"e":"windsurfing","p":"noun"},{"e":"snowboarding","p":"noun"},{"e":"parachuting","p":"noun+verb"},{"e":"waterskiing","p":"noun"},{"e":"campsite","p":"noun"},{"e":"arena","p":"noun"},{"e":"sportsmanship","p":"noun"},{"e":"semi-final","p":"noun"},{"e":"spectator","p":"noun"},{"e":"tournament","p":"noun"},{"e":"athlete","p":"noun"},{"e":"metabolism","p":"noun"},{"e":"suspension","p":"noun"},{"e":"choreographers","p":"noun"},{"e":"Monday","p":"noun"},{"e":"Tuesday","p":"noun"},{"e":"Wednesday","p":"noun"},{"e":"Thursday","p":"noun"},{"e":"Friday","p":"noun"},{"e":"twenty","p":"noun"},{"e":"thirty","p":"noun"},{"e":"fifty","p":"noun"},{"e":"fifteen","p":"noun"},{"e":"two-thirds","p":"noun"},{"e":"three-quarters","p":"noun"},{"e":"hundred","p":"noun"},{"e":"trillion","p":"noun"},{"e":"zillion","p":"noun"},{"e":"midday","p":"noun"},{"e":"lane","p":"noun"},{"e":"avenue","p":"noun"},{"e":"occupation","p":"noun"},{"e":"century","p":"noun"},{"e":"decade","p":"noun"},{"e":"kilogram","p":"noun"},{"e":"millimeter","p":"noun"},{"e":"centimetre","p":"noun"},{"e":"nationality","p":"noun"},{"e":"destination","p":"noun"},{"e":"altogether","p":"noun"},{"e":"cooperation","p":"noun"},{"e":"corporation","p":"noun"},{"e":"Belgium","p":"noun"},{"e":"Russia","p":"noun"},{"e":"Cambodia","p":"noun"},{"e":"Indonesia","p":"noun"},{"e":"Sweden","p":"noun"},{"e":"Portugal","p":"noun"},{"e":"Egypt","p":"noun"},{"e":"narcotics","p":"noun+adjective"},{"e":"concern","p":"noun+verb"},{"e":"volunteer","p":"noun+verb"},{"e":"broadcast","p":"noun+verb"},{"e":"impact","p":"noun+verb"},{"e":"countdown","p":"noun"},{"e":"curry","p":"noun+verb"},{"e":"hamburger","p":"noun"},{"e":"oyster","p":"noun"},{"e":"pancake","p":"noun"},{"e":"sushi","p":"noun"},{"e":"fry","p":"noun+verb"},{"e":"grill","p":"noun+verb"},{"e":"steam","p":"noun+verb"},{"e":"stir-fry","p":"noun+verb"},{"e":"brunch","p":"noun"},{"e":"buffet","p":"noun+verb"},{"e":"chef","p":"noun"},{"e":"menu","p":"noun"},{"e":"spice","p":"noun+verb"},{"e":"takeaway","p":"noun"},{"e":"waiter","p":"noun"},{"e":"waitress","p":"noun"},{"e":"flavour","p":"noun+verb"},{"e":"smell","p":"noun+verb"},{"e":"soufflé","p":"noun"},{"e":"barbecue","p":"noun"},{"e":"microwave","p":"noun"},{"e":"roast","p":"noun+verb+adjective"},{"e":"stew","p":"noun+verb"},{"e":"gourmet","p":"noun+adjective"},{"e":"supper","p":"noun"},{"e":"filling","p":"noun+adjective"},{"e":"tender","p":"noun+verb+adjective"},{"e":"cancer","p":"noun"},{"e":"fever","p":"noun"},{"e":"stroke","p":"noun+verb"},{"e":"cough","p":"noun+verb"},{"e":"itch","p":"noun+verb"},{"e":"rash","p":"noun+adjective"},{"e":"sneeze","p":"noun+verb"},{"e":"stress","p":"noun+verb"},{"e":"bite","p":"noun+verb"},{"e":"bruise","p":"noun+verb"},{"e":"burn","p":"noun+verb"},{"e":"cut","p":"noun+verb"},{"e":"fracture","p":"noun+verb"},{"e":"sting","p":"noun+verb"},{"e":"wound","p":"noun+verb"},{"e":"bandage","p":"noun+verb"},{"e":"ambulance","p":"noun"},{"e":"patient","p":"noun+adjective"},{"e":"ward","p":"noun"},{"e":"x-ray","p":"noun"},{"e":"ulcer","p":"noun"},{"e":"cramp","p":"noun+verb"},{"e":"malfunction","p":"noun+verb"},{"e":"blister","p":"noun+verb"},{"e":"graze","p":"noun+verb"},{"e":"pull","p":"noun+verb"},{"e":"twist","p":"noun+verb"},{"e":"acupuncture","p":"noun"},{"e":"transplant","p":"noun+verb"},{"e":"specialist","p":"noun"},{"e":"kitchen","p":"noun"},{"e":"lobby","p":"noun+verb"},{"e":"paint","p":"noun+verb"},{"e":"wallpaper","p":"noun+verb"},{"e":"budget","p":"noun+verb+adjective"},{"e":"landlord","p":"noun"},{"e":"mortgage","p":"noun+verb"},{"e":"rent","p":"noun+verb"},{"e":"study","p":"noun+verb"},{"e":"tile","p":"noun+verb"},{"e":"arson","p":"noun"},{"e":"blackmail","p":"noun+verb"},{"e":"hacking","p":"noun+verb"},{"e":"murder","p":"noun+verb"},{"e":"rape","p":"noun+verb"},{"e":"speeding","p":"noun"},{"e":"gangster","p":"noun"},{"e":"hacker","p":"noun"},{"e":"arrest","p":"noun+verb"},{"e":"constable","p":"noun"},{"e":"evidence","p":"noun"},{"e":"judge","p":"noun+verb"},{"e":"jury","p":"noun"},{"e":"patrol","p":"noun+verb"},{"e":"sentence","p":"noun+verb"},{"e":"witness","p":"noun+verb"},{"e":"bodyguard","p":"noun"},{"e":"permission","p":"noun"},{"e":"shot","p":"noun+adjective"},{"e":"snatch","p":"noun+verb"},{"e":"victim","p":"noun"},{"e":"violence","p":"noun"},{"e":"assault","p":"noun+verb"},{"e":"fraud","p":"noun"},{"e":"libel","p":"noun"},{"e":"summons","p":"noun"},{"e":"trial","p":"noun+verb"},{"e":"alibi","p":"noun"},{"e":"defendant","p":"noun"},{"e":"hostage","p":"noun"},{"e":"cable","p":"noun+verb"},{"e":"wire","p":"noun+verb"},{"e":"keyboard","p":"noun+verb"},{"e":"mouse","p":"noun"},{"e":"webcam","p":"noun"},{"e":"bookmark","p":"noun+verb"},{"e":"broadband","p":"noun"},{"e":"click","p":"noun+verb"},{"e":"hyperlink","p":"noun"},{"e":"spam","p":"noun"},{"e":"password","p":"noun"},{"e":"register","p":"noun+verb"},{"e":"podcast","p":"noun"},{"e":"tablet","p":"noun"},{"e":"wi-fi","p":"noun"},{"e":"firewall","p":"noun"},{"e":"modem","p":"noun"},{"e":"router","p":"noun"},{"e":"insert","p":"noun+verb"},{"e":"scan","p":"noun+verb"},{"e":"fringe","p":"noun"},{"e":"perm","p":"noun"},{"e":"ponytail","p":"noun"},{"e":"beard","p":"noun+verb"},{"e":"dimple","p":"noun"},{"e":"freckle","p":"noun"},{"e":"mole","p":"noun"},{"e":"pimple","p":"noun"},{"e":"scar","p":"noun+verb"},{"e":"square","p":"noun+verb+adjective"},{"e":"wrinkle","p":"noun+verb"},{"e":"plait","p":"noun+verb"},{"e":"panic","p":"noun+verb"},{"e":"amphibian","p":"noun"},{"e":"bird","p":"noun"},{"e":"fish","p":"noun+verb"},{"e":"reptile","p":"noun"},{"e":"crocodile","p":"noun"},{"e":"eagle","p":"noun"},{"e":"owl","p":"noun"},{"e":"peacock","p":"noun"},{"e":"pigeon","p":"noun"},{"e":"swallow","p":"noun+verb"},{"e":"swan","p":"noun+verb"},{"e":"shark","p":"noun"},{"e":"ant","p":"noun"},{"e":"bee","p":"noun"},{"e":"butterfly","p":"noun"},{"e":"flea","p":"noun"},{"e":"fly","p":"noun+verb"},{"e":"mosquito","p":"noun"},{"e":"bat","p":"noun+verb"},{"e":"bear","p":"noun+verb"},{"e":"buffalo","p":"noun"},{"e":"camel","p":"noun"},{"e":"fox","p":"noun+verb"},{"e":"goat","p":"noun+adjective"},{"e":"hare","p":"noun+verb"},{"e":"kangaroo","p":"noun"},{"e":"lion","p":"noun"},{"e":"monkey","p":"noun"},{"e":"seal","p":"noun+verb"},{"e":"squirrel","p":"noun"},{"e":"whale","p":"noun"},{"e":"wolf","p":"noun+verb"},{"e":"cat","p":"noun"},{"e":"dog","p":"noun+verb"},{"e":"frog","p":"noun"},{"e":"hamster","p":"noun"},{"e":"kitten","p":"noun"},{"e":"parrot","p":"noun+verb"},{"e":"puppy","p":"noun"},{"e":"rabbit","p":"noun"},{"e":"snake","p":"noun+verb"},{"e":"turtle","p":"noun"},{"e":"wild","p":"noun+adjective"},{"e":"discard","p":"noun+verb"},{"e":"veterinarian","p":"noun"},{"e":"invertebrate","p":"noun"},{"e":"vertebrate","p":"noun+adjective"},{"e":"alligator","p":"noun"},{"e":"crow","p":"noun+verb"},{"e":"seagull","p":"noun"},{"e":"caterpillar","p":"noun"},{"e":"grasshopper","p":"noun"},{"e":"moth","p":"noun"},{"e":"hedgehog","p":"noun"},{"e":"mule","p":"noun"},{"e":"walrus","p":"noun"},{"e":"scorpion","p":"noun"},{"e":"spider","p":"noun"},{"e":"stray","p":"noun+verb+adjective"},{"e":"thoroughbred","p":"noun"},{"e":"slaughter","p":"noun+verb"},{"e":"breeding","p":"noun"},{"e":"prey","p":"noun"},{"e":"campus","p":"noun"},{"e":"coach","p":"noun+verb"},{"e":"principal","p":"noun+adjective"},{"e":"conduct","p":"noun+verb"},{"e":"recess","p":"noun"},{"e":"scholarship","p":"noun"},{"e":"caretaker","p":"noun"},{"e":"seminar","p":"noun"},{"e":"workshop","p":"noun+verb"},{"e":"grocery","p":"noun"},{"e":"discount","p":"noun+verb"},{"e":"exchange","p":"noun+verb"},{"e":"receipt","p":"noun"},{"e":"refund","p":"noun+verb"},{"e":"branch","p":"noun+verb"},{"e":"display","p":"noun+verb"},{"e":"luxury","p":"noun"},{"e":"repair","p":"noun+verb"},{"e":"sample","p":"noun+verb"},{"e":"bargain","p":"noun+verb"},{"e":"warranty","p":"noun"},{"e":"cocaine","p":"noun"},{"e":"overdose","p":"noun+verb"},{"e":"pleasure","p":"noun"},{"e":"construct","p":"noun+verb"},{"e":"attitude","p":"noun"},{"e":"bully","p":"noun+verb"},{"e":"suicide","p":"noun"},{"e":"tattoo","p":"noun+verb"},{"e":"offensive","p":"noun+adjective"},{"e":"respect","p":"noun+verb"},{"e":"aged","p":"noun+adjective"},{"e":"prejudice","p":"noun+verb"},{"e":"wheelchair","p":"noun"},{"e":"tension","p":"noun"},{"e":"feminist","p":"noun+adjective"},{"e":"Station","p":"noun+verb"},{"e":"Central","p":"noun+adjective"},{"e":"Austin","p":"noun"},{"e":"basketball","p":"noun"},{"e":"soccer","p":"noun"},{"e":"cricket","p":"noun"},{"e":"rugby","p":"noun"},{"e":"snooker","p":"noun+verb"},{"e":"squash","p":"noun+verb"},{"e":"tennis","p":"noun"},{"e":"marathon","p":"noun+adjective"},{"e":"relay","p":"noun+verb"},{"e":"javelin","p":"noun"},{"e":"diving","p":"noun"},{"e":"sailing","p":"noun"},{"e":"racket","p":"noun"},{"e":"shuttlecock","p":"noun"},{"e":"compass","p":"noun"},{"e":"lighter","p":"noun"},{"e":"tent","p":"noun"},{"e":"sunscreen","p":"noun"},{"e":"map","p":"noun+verb"},{"e":"captain","p":"noun+verb"},{"e":"champion","p":"noun+verb"},{"e":"foul","p":"noun+verb+adjective"},{"e":"referee","p":"noun+verb"},{"e":"freestyle","p":"noun"},{"e":"amateur","p":"noun+adjective"},{"e":"trophy","p":"noun"},{"e":"backstroke","p":"noun"},{"e":"Saturday","p":"noun"},{"e":"Sunday","p":"noun"},{"e":"Spring","p":"noun+verb+adjective"},{"e":"Summer","p":"noun+verb"},{"e":"Autumn","p":"noun"},{"e":"Winter","p":"noun+verb"},{"e":"block","p":"noun+verb"},{"e":"garden","p":"noun"},{"e":"centre","p":"noun+verb+adjective"},{"e":"pound","p":"noun+verb"},{"e":"minute","p":"noun+verb+adjective"},{"e":"inch","p":"noun+verb"},{"e":"district","p":"noun"},{"e":"country","p":"noun"},{"e":"junction","p":"noun"},{"e":"east","p":"noun+adjective"},{"e":"south","p":"noun+adjective"},{"e":"west","p":"noun+adjective"},{"e":"north","p":"noun+adjective"},{"e":"session","p":"noun"},{"e":"section","p":"noun+verb"},{"e":"access","p":"noun+verb"},{"e":"climate","p":"noun+adjective"},{"e":"contact","p":"noun+verb"},{"e":"contract","p":"noun+verb"},{"e":"diary","p":"noun"},{"e":"fare","p":"noun+verb"},{"e":"fee","p":"noun"},{"e":"Japanese","p":"noun+adjective"},{"e":"French","p":"noun+adjective"},{"e":"canadian","p":"noun+adjective"},{"e":"parkour","p":"noun"}],"verb":[{"e":"maltreated","p":"verb+adjective"},{"e":"benefit","p":"noun+verb"},{"e":"set","p":"noun+verb+adjective"},{"e":"star","p":"noun+verb+adjective"},{"e":"ad-lib","p":"verb"},{"e":"improvise","p":"verb"},{"e":"jam","p":"noun+verb"},{"e":"record","p":"noun+verb+adjective"},{"e":"contaminate","p":"verb"},{"e":"dump","p":"noun+verb"},{"e":"suffocate","p":"verb"},{"e":"threaten","p":"verb"},{"e":"ban","p":"noun+verb"},{"e":"generate","p":"verb"},{"e":"minimise","p":"verb"},{"e":"preserve","p":"noun+verb"},{"e":"recycle","p":"verb"},{"e":"reuse","p":"verb"},{"e":"rear","p":"noun+verb+adjective"},{"e":"raise","p":"noun+verb"},{"e":"celebrate","p":"verb"},{"e":"greet","p":"verb"},{"e":"investigate","p":"verb"},{"e":"deny","p":"verb"},{"e":"activate","p":"verb"},{"e":"tranquillise","p":"verb"},{"e":"subsidise","p":"verb"},{"e":"demolish","p":"verb"},{"e":"relocate","p":"verb"},{"e":"degrade","p":"verb"},{"e":"assess","p":"verb"},{"e":"bake","p":"verb"},{"e":"braise","p":"verb"},{"e":"deep-fry","p":"verb"},{"e":"taste","p":"noun+verb"},{"e":"sauté","p":"verb"},{"e":"vomit","p":"verb"},{"e":"bleed","p":"verb"},{"e":"treat","p":"noun+verb"},{"e":"strain","p":"noun+verb"},{"e":"decorate","p":"verb"},{"e":"furnish","p":"verb"},{"e":"suspect","p":"noun+verb+adjective"},{"e":"grab","p":"noun+verb"},{"e":"monitor","p":"noun+verb"},{"e":"install","p":"verb"},{"e":"refresh","p":"verb"},{"e":"pale","p":"verb+adjective"},{"e":"mature","p":"verb+adjective"},{"e":"plump","p":"verb+adjective"},{"e":"frown","p":"verb"},{"e":"tame","p":"verb+adjective"},{"e":"compare","p":"verb"},{"e":"rebuild","p":"verb"},{"e":"retire","p":"verb"},{"e":"run-down","p":"verb+adjective"},{"e":"juggle","p":"verb"},{"e":"adapt","p":"verb"},{"e":"adopt","p":"verb"}],"adjective":[{"e":"worsening","p":"adjective"},{"e":"younger","p":"noun+adjective"},{"e":"compassionate","p":"adjective"},{"e":"generous","p":"adjective"},{"e":"helpful","p":"adjective"},{"e":"kind-hearted","p":"adjective"},{"e":"public-spirited","p":"adjective"},{"e":"boring","p":"adjective"},{"e":"educational","p":"adjective"},{"e":"exciting","p":"adjective"},{"e":"interesting","p":"adjective"},{"e":"relaxing","p":"adjective"},{"e":"romantic","p":"noun+adjective"},{"e":"scary","p":"adjective"},{"e":"amusing","p":"adjective"},{"e":"award-winning","p":"adjective"},{"e":"dramatic","p":"adjective"},{"e":"entertaining","p":"noun+adjective"},{"e":"overrated","p":"adjective"},{"e":"predictable","p":"adjective"},{"e":"superb","p":"adjective"},{"e":"tragic","p":"adjective"},{"e":"unpredictable","p":"adjective"},{"e":"disastrous","p":"adjective"},{"e":"disgusting","p":"adjective"},{"e":"harmful","p":"adjective"},{"e":"severe","p":"adjective"},{"e":"uncaring","p":"adjective"},{"e":"wasteful","p":"adjective"},{"e":"considerate","p":"adjective"},{"e":"reusable","p":"adjective"},{"e":"detrimental","p":"adjective"},{"e":"devastating","p":"adjective"},{"e":"hazardous","p":"adjective"},{"e":"sustainable","p":"adjective"},{"e":"divorced","p":"adjective"},{"e":"eldest","p":"noun+adjective"},{"e":"harmonious","p":"adjective"},{"e":"married","p":"adjective"},{"e":"separated","p":"verb+adjective"},{"e":"single","p":"noun+adjective"},{"e":"youngest","p":"noun+adjective"},{"e":"unmarried","p":"adjective"},{"e":"alienated","p":"adjective"},{"e":"engaged","p":"adjective"},{"e":"filial","p":"adjective"},{"e":"overprotective","p":"adjective"},{"e":"widowed","p":"adjective"},{"e":"checked","p":"adjective"},{"e":"dotted","p":"adjective"},{"e":"floral","p":"adjective"},{"e":"patterned","p":"adjective"},{"e":"plain","p":"noun+adjective"},{"e":"striped","p":"adjective"},{"e":"chic","p":"adjective"},{"e":"classic","p":"noun+adjective"},{"e":"comfortable","p":"adjective"},{"e":"cool","p":"noun+verb+adjective"},{"e":"elegant","p":"adjective"},{"e":"fashionable","p":"adjective"},{"e":"fit","p":"noun+verb+adjective"},{"e":"formal","p":"noun+adjective"},{"e":"latest","p":"noun+adjective"},{"e":"long-sleeved","p":"adjective"},{"e":"loose","p":"verb+adjective"},{"e":"old-fashioned","p":"adjective"},{"e":"oversized","p":"adjective"},{"e":"short-sleeved","p":"adjective"},{"e":"sleeveless","p":"adjective"},{"e":"straight","p":"noun+adjective"},{"e":"stylish","p":"adjective"},{"e":"tight","p":"adjective"},{"e":"trendy","p":"noun+adjective"},{"e":"fashion-conscious","p":"adjective"},{"e":"overdressed","p":"adjective"},{"e":"retro","p":"adjective"},{"e":"stunning","p":"adjective"},{"e":"timeless","p":"adjective"},{"e":"underdressed","p":"adjective"},{"e":"washable","p":"adjective"},{"e":"delicious","p":"adjective"},{"e":"juicy","p":"adjective"},{"e":"salty","p":"adjective"},{"e":"spicy","p":"adjective"},{"e":"tasteless","p":"adjective"},{"e":"lukewarm","p":"adjective"},{"e":"mouth-watering","p":"adjective"},{"e":"overdone","p":"adjective"},{"e":"stringy","p":"adjective"},{"e":"addicted","p":"adjective"},{"e":"alarming","p":"adjective"},{"e":"curable","p":"adjective"},{"e":"infectious","p":"adjective"},{"e":"crowded","p":"adjective"},{"e":"noisy","p":"adjective"},{"e":"spacious","p":"adjective"},{"e":"cramped","p":"adjective"},{"e":"luxurious","p":"adjective"},{"e":"unlawful","p":"adjective"},{"e":"user-friendly","p":"adjective"},{"e":"multifunctional","p":"adjective"},{"e":"muscular","p":"adjective"},{"e":"well-built","p":"adjective"},{"e":"spiky","p":"adjective"},{"e":"dark-skinned","p":"adjective"},{"e":"fair-skinned","p":"adjective"},{"e":"cute","p":"adjective"},{"e":"good-looking","p":"adjective"},{"e":"annoyed","p":"adjective"},{"e":"confused","p":"adjective"},{"e":"depressed","p":"adjective"},{"e":"determined","p":"adjective"},{"e":"disappointed","p":"adjective"},{"e":"embarrassed","p":"adjective"},{"e":"excited","p":"adjective"},{"e":"frightened","p":"adjective"},{"e":"frustrated","p":"adjective"},{"e":"joyful","p":"adjective"},{"e":"lonely","p":"adjective"},{"e":"lost","p":"adjective"},{"e":"nervous","p":"adjective"},{"e":"painful","p":"adjective"},{"e":"pleased","p":"adjective"},{"e":"satisfied","p":"adjective"},{"e":"scared","p":"adjective"},{"e":"shocked","p":"adjective"},{"e":"stressed","p":"adjective"},{"e":"touched","p":"adjective"},{"e":"ambitious","p":"adjective"},{"e":"cheerful","p":"adjective"},{"e":"easy-going","p":"adjective"},{"e":"hard-working","p":"adjective"},{"e":"humorous","p":"adjective"},{"e":"open-minded","p":"adjective"},{"e":"optimistic","p":"adjective"},{"e":"organised","p":"adjective"},{"e":"pessimistic","p":"adjective"},{"e":"selfish","p":"adjective"},{"e":"serious","p":"adjective"},{"e":"stocky","p":"adjective"},{"e":"adorable","p":"adjective"},{"e":"attractive","p":"adjective"},{"e":"glamorous","p":"adjective"},{"e":"gorgeous","p":"adjective"},{"e":"anxious","p":"adjective"},{"e":"contented","p":"adjective"},{"e":"delighted","p":"adjective"},{"e":"furious","p":"adjective"},{"e":"homesick","p":"adjective"},{"e":"moved","p":"adjective"},{"e":"puzzled","p":"adjective"},{"e":"regretful","p":"adjective"},{"e":"relieved","p":"adjective"},{"e":"terrified","p":"adjective"},{"e":"arrogant","p":"adjective"},{"e":"bad-tempered","p":"adjective"},{"e":"courageous","p":"adjective"},{"e":"diligent","p":"adjective"},{"e":"indecisive","p":"adjective"},{"e":"industrious","p":"adjective"},{"e":"introverted","p":"adjective"},{"e":"modest","p":"adjective"},{"e":"quick-tempered","p":"adjective"},{"e":"reasonable","p":"adjective"},{"e":"self-centred","p":"adjective"},{"e":"sentimental","p":"adjective"},{"e":"thoughtful","p":"adjective"},{"e":"fierce","p":"adjective"},{"e":"non-poisonous","p":"adjective"},{"e":"poisonous","p":"adjective"},{"e":"trained","p":"adjective"},{"e":"neglected","p":"adjective"},{"e":"man-eating","p":"adjective"},{"e":"underfed","p":"adjective"},{"e":"expensive","p":"adjective"},{"e":"faulty","p":"adjective"},{"e":"high-quality","p":"adjective"},{"e":"imported","p":"adjective"},{"e":"interest-free","p":"adjective"},{"e":"off-the-peg","p":"adjective"},{"e":"rebellious","p":"adjective"},{"e":"biased","p":"adjective"},{"e":"indecent","p":"adjective"},{"e":"self-reliant","p":"adjective"},{"e":"hearing-impaired","p":"adjective"},{"e":"unauthorised","p":"adjective"},{"e":"exhausted","p":"adjective"},{"e":"enthusiastic","p":"adjective"},{"e":"decisive","p":"adjective"},{"e":"disgusted","p":"adjective"},{"e":"ridiculous","p":"adjective"},{"e":"tactful","p":"adjective"},{"e":"elder","p":"noun+adjective"},{"e":"bitter","p":"noun+adjective"},{"e":"creamy","p":"adjective"},{"e":"crispy","p":"adjective"},{"e":"fresh","p":"adjective"},{"e":"sour","p":"noun+verb+adjective"},{"e":"sweet","p":"noun+adjective"},{"e":"tasty","p":"adjective"},{"e":"tough","p":"noun+adjective"},{"e":"bland","p":"adjective"},{"e":"greasy","p":"adjective"},{"e":"medium","p":"noun+adjective"},{"e":"rare","p":"adjective"},{"e":"raw","p":"adjective"},{"e":"stale","p":"adjective"},{"e":"cold","p":"noun+adjective"},{"e":"faint","p":"noun+verb+adjective"},{"e":"incurable","p":"adjective"},{"e":"sickly","p":"adjective"},{"e":"flat","p":"noun+adjective"},{"e":"quiet","p":"noun+verb+adjective"},{"e":"fine","p":"noun+verb+adjective"},{"e":"compulsory","p":"adjective"},{"e":"mandatory","p":"adjective"},{"e":"lawful","p":"adjective"},{"e":"legal","p":"adjective"},{"e":"fatal","p":"adjective"},{"e":"online","p":"adjective"},{"e":"average","p":"noun+verb+adjective"},{"e":"chubby","p":"adjective"},{"e":"slim","p":"noun+verb+adjective"},{"e":"bald","p":"adjective"},{"e":"curly","p":"adjective"},{"e":"wavy","p":"adjective"},{"e":"oval","p":"adjective"},{"e":"round","p":"noun+verb+adjective"},{"e":"beautiful","p":"adjective"},{"e":"handsome","p":"adjective"},{"e":"pretty","p":"adjective"},{"e":"ugly","p":"adjective"},{"e":"glad","p":"adjective"},{"e":"jealous","p":"adjective"},{"e":"sorry","p":"adjective"},{"e":"upset","p":"noun+verb+adjective"},{"e":"confident","p":"adjective"},{"e":"creative","p":"noun+adjective"},{"e":"emotional","p":"adjective"},{"e":"energetic","p":"adjective"},{"e":"independent","p":"noun+adjective"},{"e":"intelligent","p":"adjective"},{"e":"loyal","p":"adjective"},{"e":"passionate","p":"adjective"},{"e":"passive","p":"noun+adjective"},{"e":"proud","p":"adjective"},{"e":"reliable","p":"adjective"},{"e":"responsible","p":"adjective"},{"e":"shy","p":"verb+adjective"},{"e":"sincere","p":"adjective"},{"e":"sociable","p":"adjective"},{"e":"skinny","p":"noun+adjective"},{"e":"slender","p":"adjective"},{"e":"charming","p":"adjective"},{"e":"unattractive","p":"adjective"},{"e":"mad","p":"adjective"},{"e":"impulsive","p":"adjective"},{"e":"persevering","p":"adjective"},{"e":"sensitive","p":"adjective"},{"e":"stubborn","p":"adjective"},{"e":"sympathetic","p":"adjective"},{"e":"diurnal","p":"adjective"},{"e":"nocturnal","p":"adjective"},{"e":"cheap","p":"adjective"},{"e":"fake","p":"noun+verb+adjective"},{"e":"pricey","p":"adjective"},{"e":"defective","p":"adjective"},{"e":"dependent","p":"adjective"},{"e":"historic","p":"adjective"},{"e":"mild","p":"noun+adjective"},{"e":"Olympic","p":"adjective"},{"e":"honest","p":"adjective"},{"e":"aggressive","p":"adjective"},{"e":"critical","p":"adjective"},{"e":"uncertain","p":"adjective"},{"e":"ignorant","p":"adjective"},{"e":"certain","p":"adjective"},{"e":"opposite","p":"noun+adjective"},{"e":"adept","p":"adjective"},{"e":"dairy","p":"noun+adjective"},{"e":"daily","p":"noun+adjective"},{"e":"effective","p":"adjective"},{"e":"efficient","p":"adjective"},{"e":"fair","p":"noun+adjective"},{"e":"offline","p":"adjective"}]};
+
+  const COLS = 12;
+  const ROWS = 20;
+  const ZONE_W = 4;
+  const ZONES = [
+    { id: 'noun', label: 'Noun', color: '#3b82f6', soft: 'rgba(59,130,246,.07)' },
+    { id: 'verb', label: 'Verb', color: '#10b981', soft: 'rgba(16,185,129,.07)' },
+    { id: 'adjective', label: 'Adjective', color: '#f59e0b', soft: 'rgba(245,158,11,.09)' }
+  ];
+  const ZONE_BY_ID = { noun: ZONES[0], verb: ZONES[1], adjective: ZONES[2] };
+
+  function posList(pos) {
+    if (Array.isArray(pos)) return pos;
+    if (typeof pos === 'string' && pos) return pos.split('+');
+    return [];
+  }
+
+  function posLabel(pos) {
+    return posList(pos).map(function (id) { return (ZONE_BY_ID[id] || { label: id }).label; }).join(' / ');
+  }
+
+  function posMatches(pos, zoneId) {
+    return posList(pos).indexOf(zoneId) !== -1;
+  }
+  const SHAPES = [
+    [[1, 1, 1, 1]],
+    [[1, 1], [1, 1]],
+    [[0, 1, 0], [1, 1, 1]],
+    [[0, 1, 1], [1, 1, 0]],
+    [[1, 1, 0], [0, 1, 1]],
+    [[1, 0, 0], [1, 1, 1]],
+    [[0, 0, 1], [1, 1, 1]]
+  ];
+  const BEST_KEY = 'vocab_tetris_demo_best';
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('stage');
+  const overlay = document.getElementById('overlay');
+  const overlayEmoji = document.getElementById('overlay-emoji');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const overlayLogo = document.getElementById('overlay-logo');
+  const overlayMini = document.querySelector('.overlay-mini');
+  const overlayReview = document.getElementById('overlay-review');
+  const overlayBtn = document.getElementById('overlay-btn');
+  const toastEl = document.getElementById('toast');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const comboEl = document.getElementById('combo');
+  const zonePreviewEl = document.getElementById('zone-preview');
+  const wordEl = document.getElementById('word');
+  const nextEl = document.getElementById('next');
+  const holdEl = document.getElementById('hold');
+  const zoneEls = Array.from(document.querySelectorAll('.zone'));
+  const startBtn = document.getElementById('start');
+  const pauseBtn = document.getElementById('pause');
+  const soundBtn = document.getElementById('sound');
+  const leftBtn = document.getElementById('left');
+  const rightBtn = document.getElementById('right');
+  const rotateBtn = document.getElementById('rotate');
+  const holdBtn = document.getElementById('holdbtn');
+  const dropBtn = document.getElementById('drop');
+  const snapBtn = document.getElementById('snapbtn');
+  const holdLeftEl = document.getElementById('holdleft');
+  const fsBtn = document.getElementById('fullscreen');
+  const fsScoreEl = document.getElementById('fs-score');
+
+  let board = emptyBoard();
+  let current = null;
+  let nextWord = null;
+  let holdWord = null;
+  const HOLDS_PER_GAME = 5;
+  let holdLeft = HOLDS_PER_GAME;
+  let selectedZone = 0;
+  let score = 0;
+  let best = Number(localStorage.getItem(BEST_KEY) || 0) || 0;
+  let combo = 0;
+  let piecesPlaced = 0;
+  let wrongWords = [];
+  let correctPieces = 0;
+  let maxCombo = 0;
+  let dropInterval = 900;
+  let dropAcc = 0;
+  /* After a piece lands it stays movable for a moment ("sip it in"). */
+  const LOCK_DELAY = 1100;
+  let lockTimer = 0;
+  let lockResets = 0;
+  let lockHintShown = false;
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+  let particles = [];
+  let flashUntil = 0;
+  let catJumpUntil = 0;
+  let danger = false;
+  let raf = 0;
+  let lastTime = 0;
+  let toastTimer = 0;
+  let overlayMode = 'start';
+  let soundOn = true;
+  let audioCtx = null;
+  let bank = { noun: [], verb: [], adjective: [] };
+  let lastPos = '';
+  let posStreak = 0;
+  let CELL = 32;
+
+  const music = new Audio('music/towerMusic.mp3');
+  music.loop = true;
+  music.volume = 0.28;
+  music.preload = 'auto';
+
+  function emptyBoard() {
+    return Array.from({ length: ROWS }, function () { return Array(COLS).fill(null); });
+  }
+
+  function escHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function shuffle(list) {
+    const a = list.slice();
+    for (let i = a.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function resetBank() {
+    bank = {
+      noun: shuffle(WORDS.noun || []),
+      verb: shuffle(WORDS.verb || []),
+      adjective: shuffle(WORDS.adjective || [])
+    };
+    lastPos = '';
+    posStreak = 0;
+  }
+
+  function drawWord() {
+    let pos = 'noun';
+    let tries = 0;
+    do {
+      const r = Math.random();
+      pos = r < 0.4 ? 'noun' : (r < 0.7 ? 'verb' : 'adjective');
+      tries += 1;
+    } while (pos === lastPos && posStreak >= 2 && tries < 12);
+
+    let list = bank[pos];
+    if (!list || !list.length) {
+      bank[pos] = shuffle(WORDS[pos] || []);
+      list = bank[pos];
+    }
+    if (!list || !list.length) {
+      const order = ['noun', 'verb', 'adjective'];
+      for (let i = 0; i < order.length; i += 1) {
+        if (bank[order[i]] && bank[order[i]].length) { pos = order[i]; list = bank[pos]; break; }
+      }
+    }
+    if (!list || !list.length) return { e: 'word', p: 'noun' };
+    const word = list.pop();
+    if (pos === lastPos) posStreak += 1;
+    else { lastPos = pos; posStreak = 1; }
+    return word;
+  }
+
+  function zoneStart(zone) { return zone * ZONE_W; }
+
+  function cloneShape(shape) { return shape.map(function (row) { return row.slice(); }); }
+
+  function rotateShape(shape) {
+    const h = shape.length;
+    const w = shape[0].length;
+    const out = Array.from({ length: w }, function () { return Array(h).fill(0); });
+    for (let y = 0; y < h; y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        out[x][h - 1 - y] = shape[y][x];
+      }
+    }
+    return out;
+  }
+
+  function pieceFor(word, zone) {
+    const template = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const shape = cloneShape(template);
+    return {
+      word: word,
+      shape: shape,
+      x: zoneStart(zone) + Math.floor((ZONE_W - shape[0].length) / 2),
+      y: 0,
+      zone: zone,
+      hard: false
+    };
+  }
+
+  function valid(shape, x, y) {
+    for (let dy = 0; dy < shape.length; dy += 1) {
+      for (let dx = 0; dx < shape[dy].length; dx += 1) {
+        if (!shape[dy][dx]) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
+        if (board[ny][nx]) return false;
+      }
+    }
+    return true;
+  }
+
+  function zoneForPiece(piece) {
+    if (!piece) return selectedZone;
+    const center = piece.x + (piece.shape[0].length - 1) / 2;
+    return Math.max(0, Math.min(ZONES.length - 1, Math.floor(center / ZONE_W)));
+  }
+
+  function pieceZoneCounts(piece) {
+    const counts = [0, 0, 0];
+    if (!piece) return counts;
+    for (let dy = 0; dy < piece.shape.length; dy += 1) {
+      for (let dx = 0; dx < piece.shape[dy].length; dx += 1) {
+        if (!piece.shape[dy][dx]) continue;
+        const z = Math.max(0, Math.min(ZONES.length - 1, Math.floor((piece.x + dx) / ZONE_W)));
+        counts[z] += 1;
+      }
+    }
+    return counts;
+  }
+
+  function pieceStraddles(piece) {
+    const counts = pieceZoneCounts(piece);
+    const top = Math.max.apply(null, counts);
+    return counts.filter(function (n) { return n === top; }).length > 1;
+  }
+
+  function paintZonePreview() {
+    if (!zonePreviewEl) return;
+    zonePreviewEl.classList.remove('zone-0', 'zone-1', 'zone-2');
+    zonePreviewEl.style.display = current ? '' : 'none';
+    if (!current) {
+      zonePreviewEl.classList.remove('tie');
+      return;
+    }
+    const tie = pieceStraddles(current);
+    zonePreviewEl.textContent = ZONES[selectedZone].label.toUpperCase() + (tie ? ' · TIE' : '');
+    zonePreviewEl.classList.add('zone-' + selectedZone);
+    zonePreviewEl.classList.toggle('tie', tie);
+  }
+
+  function syncZoneFromPiece() {
+    if (!current) return;
+    const zone = zoneForPiece(current);
+    current.zone = zone;
+    selectedZone = zone;
+    zoneEls.forEach(function (el, i) {
+      el.classList.toggle('active', i === zone);
+    });
+    paintZonePreview();
+  }
+
+  function spawnNext() {
+    if (!running || gameOver) return;
+    const word = nextWord || drawWord();
+    nextWord = drawWord();
+    current = pieceFor(word, selectedZone);
+    dropAcc = 0;
+    if (!valid(current.shape, current.x, current.y)) {
+      current = null;
+      endGame();
+      return;
+    }
+    syncZoneFromPiece();
+    updateHud();
+  }
+
+  function setZone(zone) {
+    if (zone < 0 || zone >= ZONES.length) return;
+    selectedZone = zone;
+    if (current && running && !paused && !gameOver) {
+      const oldZone = current.zone;
+      const oldX = current.x;
+      const targetX = zoneStart(zone) + Math.floor((ZONE_W - current.shape[0].length) / 2);
+      let ok = valid(current.shape, targetX, current.y);
+      let nextX = targetX;
+      if (!ok) {
+        const offsets = [-1, 1, -2, 2];
+        for (let i = 0; i < offsets.length; i += 1) {
+          if (valid(current.shape, targetX + offsets[i], current.y)) {
+            nextX = targetX + offsets[i];
+            ok = true;
+            break;
+          }
+        }
+      }
+      if (ok) {
+        current.x = nextX;
+        current.zone = zone;
+        touchLockDelay();
+        toast('🅿 PARKED · ' + ZONES[zone].label);
+      } else {
+        current.zone = oldZone;
+        current.x = oldX;
+        selectedZone = oldZone;
+        toast('That zone is blocked — try another');
+      }
+    }
+    zoneEls.forEach(function (el, i) {
+      el.classList.toggle('active', i === selectedZone);
+    });
+    updateHud();
+    draw();
+  }
+
+  function touchLockDelay() {
+    if (!current) return;
+    if (valid(current.shape, current.x, current.y + 1)) { lockTimer = 0; return; }
+    if (lockResets < 18) { lockTimer = 0; lockResets += 1; }
+  }
+
+  function move(dx) {
+    if (!current || paused || gameOver) return;
+    if (valid(current.shape, current.x + dx, current.y)) {
+      current.x += dx;
+      touchLockDelay();
+      syncZoneFromPiece();
+      draw();
+    }
+  }
+
+  /* 🅿 PARK (泊位): slide the piece to the middle of its zone so it sits
+     fully inside that zone and cannot straddle a border by accident. */
+  function park() {
+    if (!current || paused || gameOver) return false;
+    const w = current.shape[0].length;
+    const zone = zoneForPiece(current);
+    const minX = zoneStart(zone);
+    const maxX = minX + ZONE_W - w;
+    const centre = minX + Math.floor((ZONE_W - w) / 2);
+    const order = [centre];
+    for (let d = 1; d <= ZONE_W; d += 1) {
+      if (centre - d >= minX) order.push(centre - d);
+      if (centre + d <= maxX) order.push(centre + d);
+    }
+    for (let i = 0; i < order.length; i += 1) {
+      if (valid(current.shape, order[i], current.y)) {
+        current.x = order[i];
+        touchLockDelay();
+        syncZoneFromPiece();
+        draw();
+        toast('🅿 PARKED · ' + ZONES[zone].label);
+        return true;
+      }
+    }
+    toast('Zone is blocked — try another');
+    return false;
+  }
+
+  function rotateCurrent() {
+    if (!current || paused || gameOver) return;
+    const next = rotateShape(current.shape);
+    const offsets = [0, -1, 1, -2, 2];
+    for (let i = 0; i < offsets.length; i += 1) {
+      if (valid(next, current.x + offsets[i], current.y)) {
+        current.shape = next;
+        current.x += offsets[i];
+        touchLockDelay();
+        syncZoneFromPiece();
+        draw();
+        return;
+      }
+    }
+  }
+
+  function softDrop() {
+    if (!current || paused || gameOver) return false;
+    if (valid(current.shape, current.x, current.y + 1)) {
+      current.y += 1;
+      draw();
+      return true;
+    }
+    lock();
+    return false;
+  }
+
+  function ghostY() {
+    if (!current) return 0;
+    let y = current.y;
+    while (valid(current.shape, current.x, y + 1)) y += 1;
+    return y;
+  }
+
+  function hardDrop() {
+    if (!current || paused || gameOver) return;
+    while (valid(current.shape, current.x, current.y + 1)) current.y += 1;
+    current.hard = true;
+    lock();
+  }
+
+  function lock() {
+    if (!current) return;
+    const piece = current;
+    const zone = zoneForPiece(piece);
+    piece.zone = zone;
+    const straddle = pieceStraddles(piece);
+    const correct = !straddle && posMatches(piece.word.p, ZONES[zone].id);
+    const color = straddle ? '#f59e0b' : (correct ? ZONES[zone].color : '#ef4444');
+
+    for (let dy = 0; dy < piece.shape.length; dy += 1) {
+      for (let dx = 0; dx < piece.shape[dy].length; dx += 1) {
+        if (!piece.shape[dy][dx]) continue;
+        const x = piece.x + dx;
+        const y = piece.y + dy;
+        board[y][x] = {
+          pos: piece.word.p,
+          wrong: !correct && !straddle,
+          straddle: straddle,
+          zone: zone,
+          color: color,
+          motif: correct ? ZONES[zone].id : ''
+        };
+      }
+    }
+
+    if (straddle) {
+      // Half-half straddle: no placement points, no penalty, keep the combo.
+      // The warning is shown after the line-clear check so it is not lost.
+    } else if (correct) {
+      score += 10;
+      correctPieces += 1;
+    } else {
+      score = Math.max(0, score - 20);
+      combo = 0;
+      toast('❌ ' + piece.word.e + ' is ' + posLabel(piece.word.p));
+      if (!wrongWords.some(function (w) {
+        return w.e.toLowerCase() === piece.word.e.toLowerCase();
+      })) {
+        wrongWords.push({
+          e: piece.word.e,
+          p: posLabel(piece.word.p),
+          zone: ZONES[zone].label
+        });
+      }
+    }
+
+    if (piece.hard) {
+      shake();
+      thud();
+      if (correct) score += 20;
+    }
+
+    const cleared = clearLines();
+    if (cleared > 0) {
+      combo += 1;
+      maxCombo = Math.max(maxCombo, combo);
+      score += 100 * cleared * combo;
+      flashUntil = performance.now() + 180;
+      spawnFish(cleared);
+      chime();
+      catJumpUntil = performance.now() + 520;
+      const clearText = (cleared > 1 ? cleared + ' LINES' : 'LINE CLEAR') + (combo > 1 ? ' · COMBO x' + combo : '!');
+      toast(straddle ? '⚠️ STRADDLING · 0 pts · ' + clearText : clearText);
+      if (combo % 3 === 0) rescue();
+    } else if (straddle) {
+      toast('⚠️ STRADDLING — 0 pts · combo kept');
+    } else {
+      combo = 0;
+    }
+
+    piecesPlaced += 1;
+    dropInterval = Math.max(120, 900 - piecesPlaced * 9);
+    current = null;
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
+    }
+    updateHud();
+    if (!gameOver) spawnNext();
+  }
+
+  function clearLines() {
+    let cleared = 0;
+    for (let y = ROWS - 1; y >= 0; y -= 1) {
+      if (board[y].every(function (cell) { return !!cell; })) {
+        board.splice(y, 1);
+        board.unshift(Array(COLS).fill(null));
+        cleared += 1;
+        y += 1;
+      }
+    }
+    return cleared;
+  }
+
+  function collapseColumn(x) {
+    const stack = [];
+    for (let y = ROWS - 1; y >= 0; y -= 1) {
+      if (board[y][x]) stack.push(board[y][x]);
+      board[y][x] = null;
+    }
+    let y = ROWS - 1;
+    for (let i = 0; i < stack.length; i += 1) {
+      board[y][x] = stack[i];
+      y -= 1;
+    }
+  }
+
+  function rescue() {
+    let target = null;
+    for (let y = ROWS - 1; y >= 0 && !target; y -= 1) {
+      for (let x = 0; x < COLS; x += 1) {
+        if (board[y][x] && board[y][x].wrong) { target = { x: x, y: y }; break; }
+      }
+    }
+    if (target) {
+      board[target.y][target.x] = null;
+      collapseColumn(target.x);
+    } else {
+      let bestX = 0;
+      let bestTop = ROWS;
+      for (let x = 0; x < COLS; x += 1) {
+        for (let y = 0; y < ROWS; y += 1) {
+          if (board[y][x]) {
+            if (y < bestTop) { bestTop = y; bestX = x; }
+            break;
+          }
+        }
+      }
+      for (let y = ROWS - 1; y >= 0; y -= 1) {
+        if (board[y][bestX]) {
+          board[y][bestX] = null;
+          collapseColumn(bestX);
+          break;
+        }
+      }
+    }
+    const extra = clearLines();
+    if (extra > 0) score += extra * 100;
+    spawnSparkles();
+    toast('🛟 RESCUE!' + (extra > 0 ? ' +' + extra + ' line' + (extra > 1 ? 's' : '') : ''));
+  }
+
+  function hold() {
+    if (!current || !running || paused || gameOver) return;
+    if (holdLeft <= 0) {
+      toast('No HOLD left this game (5)');
+      return;
+    }
+    const swap = holdWord;
+    holdWord = current.word;
+    holdLeft -= 1;
+    if (swap) {
+      current = pieceFor(swap, selectedZone);
+      if (!valid(current.shape, current.x, current.y)) {
+        current = null;
+        endGame();
+        return;
+      }
+      syncZoneFromPiece();
+    } else {
+      spawnNext();
+    }
+    updateHud();
+    draw();
+  }
+
+  function columnTop(x) {
+    for (let y = 0; y < ROWS; y += 1) {
+      if (board[y][x]) return y;
+    }
+    return ROWS;
+  }
+
+  function zoneHeight(zone) {
+    let h = 0;
+    for (let x = zoneStart(zone); x < zoneStart(zone) + ZONE_W; x += 1) {
+      h = Math.max(h, ROWS - columnTop(x));
+    }
+    return h;
+  }
+
+  function maxHeight() {
+    let h = 0;
+    for (let x = 0; x < COLS; x += 1) h = Math.max(h, ROWS - columnTop(x));
+    return h;
+  }
+
+  function updateHud() {
+    scoreEl.textContent = String(score);
+    bestEl.textContent = String(best);
+    comboEl.textContent = combo > 1 ? 'Combo x' + combo : 'Combo —';
+    paintZonePreview();
+    wordEl.textContent = current ? current.word.e : '—';
+    nextEl.textContent = nextWord ? nextWord.e : '—';
+    holdEl.textContent = holdWord ? holdWord.e : '—';
+    if (fsScoreEl) fsScoreEl.textContent = '⭐ ' + score;
+    if (holdLeftEl) {
+      holdLeftEl.textContent = holdLeft > 0 ? holdLeft + ' left' : 'none left';
+      holdLeftEl.classList.toggle('used', holdLeft <= 0);
+    }
+    zoneEls.forEach(function (el, i) {
+      const count = el.querySelector('.count');
+      if (count) count.textContent = zoneHeight(i) + '/20';
+      el.classList.toggle('active', i === selectedZone);
+    });
+    danger = maxHeight() >= ROWS - 3 || board.slice(0, 3).some(function (row) {
+      return row.some(function (cell) { return !!cell; });
+    });
+    stage.classList.toggle('danger', !!(danger && running && !gameOver));
+    if (music) {
+      music.playbackRate = danger ? 1.5 : 1;
+      try { music.preservesPitch = true; } catch (e) {}
+    }
+  }
+
+  function endGame() {
+    running = false;
+    updateStartBtn();
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({
+          type: 'purrstack-score',
+          score: score,
+          words: piecesPlaced,
+          correct: correctPieces,
+          wrong: wrongWords.length,
+          bestCombo: maxCombo
+        }, '*');
+      } catch (e) { /* ignore */ }
+    }
+    gameOver = true;
+    current = null;
+    if (music) music.pause();
+    stage.classList.remove('danger');
+    updateHud();
+    setOverlay('over');
+    draw();
+  }
+
+  function resetGame() {
+    board = emptyBoard();
+    current = null;
+    nextWord = null;
+    holdWord = null;
+    holdLeft = HOLDS_PER_GAME;
+    selectedZone = 0;
+    score = 0;
+    combo = 0;
+    piecesPlaced = 0;
+    dropInterval = 900;
+    dropAcc = 0;
+    lockTimer = 0;
+    lockResets = 0;
+    lockHintShown = false;
+    running = false;
+    paused = false;
+    gameOver = false;
+    particles = [];
+    wrongWords = [];
+    correctPieces = 0;
+    maxCombo = 0;
+    flashUntil = 0;
+    catJumpUntil = 0;
+    danger = false;
+    resetBank();
+    nextWord = drawWord();
+    updateHud();
+    draw();
+  }
+
+  function updateStartBtn() {
+    if (!startBtn) return;
+    startBtn.textContent = (running && !gameOver) ? '↻ Restart' : '▶ Start';
+  }
+
+  function restartGame() {
+    if (score > 0 && typeof window.confirm === 'function'
+        && !window.confirm('Restart this game? Your score will be lost.')) {
+      return;
+    }
+    startGame();
+  }
+
+  function startGame() {
+    /* Phones: start in an immersive full-screen play view, like Word Jump.
+       The class makes the board grow even if the browser blocks the native
+       fullscreen API (e.g. iPhone Safari). */
+    if (window.innerWidth <= 560) {
+      document.body.classList.add('playing-phone');
+      if (!fsActive() && !document.body.classList.contains('css-fs')) toggleFullscreen();
+    } else {
+      document.body.classList.remove('playing-phone');
+    }
+    resetGame();
+    running = true;
+    setOverlay(null);
+    ensureAudio();
+    startMusic();
+    if (raf) cancelAnimationFrame(raf);
+    lastTime = 0;
+    spawnNext();
+    raf = requestAnimationFrame(loop);
+    draw();
+    updateStartBtn();
+  }
+
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    if (paused) {
+      setOverlay('paused');
+      if (music) music.pause();
+    } else {
+      setOverlay(null);
+      if (music && soundOn) music.play().catch(function () {});
+      lastTime = 0;
+    }
+    updateHud();
+  }
+
+  function setOverlay(mode) {
+    overlayMode = mode || '';
+    if (!mode) {
+      overlay.classList.add('hidden');
+      return;
+    }
+    overlay.classList.remove('hidden');
+    const startMode = !mode || mode === 'start';
+    if (overlayMini) overlayMini.style.display = startMode ? '' : 'none';
+    if (overlayLogo) overlayLogo.style.display = startMode ? 'block' : 'none';
+    if (overlayTitle) overlayTitle.style.display = startMode ? 'none' : 'block';
+    if (overlayEmoji) overlayEmoji.style.display = startMode ? 'none' : 'block';
+    if (mode !== 'over' && overlayReview) overlayReview.style.display = 'none';
+    if (mode === 'paused') {
+      overlayEmoji.textContent = '⏸️';
+      overlayTitle.textContent = 'Paused';
+      overlayText.innerHTML = 'Take a breath. Your tower will wait.';
+      overlayBtn.textContent = '▶ Resume';
+    } else if (mode === 'over') {
+      overlayEmoji.textContent = '💥';
+      overlayTitle.textContent = 'Game Over';
+      overlayText.innerHTML = 'Score <b>' + score + '</b> · Best <b>' + best + '</b>';
+      if (overlayReview) {
+        if (wrongWords.length) {
+          overlayReview.style.display = 'block';
+          overlayReview.innerHTML = '<b>Words to review</b>' + wrongWords.map(function (w) {
+            return '<div class="rw"><span>' + escHtml(w.e) + '</span>'
+              + '<span class="rw-ans">'
+              + '<span class="rw-ok">✅ ' + escHtml(w.p) + '</span>'
+              + '<span class="rw-no">❌ ' + escHtml(w.zone) + '</span>'
+              + '</span></div>';
+          }).join('');
+        } else {
+          overlayReview.style.display = 'none';
+        }
+      }
+      overlayBtn.textContent = '▶ Play again';
+    } else {
+      overlayEmoji.textContent = '🏗️';
+      overlayTitle.textContent = 'PurrStack';
+      overlayText.innerHTML = 'Read the word, then move the piece into the matching zone. Tap to rotate · double-tap or swipe down = drop · drag left/right = move.<br><b>Base forms only</b> — past tense (-ed) and past participle (pp) forms are not counted.';
+      overlayBtn.textContent = '▶ Start';
+    }
+  }
+
+  function loop(ts) {
+    const dt = lastTime ? Math.min(60, ts - lastTime) : 0;
+    lastTime = ts;
+    if (running && !paused && !gameOver && current) {
+      if (valid(current.shape, current.x, current.y + 1)) {
+        dropAcc += dt;
+        lockTimer = 0;
+        lockResets = 0;
+        if (dropAcc >= dropInterval) {
+          dropAcc = 0;
+          current.y += 1;
+          draw();
+        }
+      } else {
+        /* Grounded: keep it slideable for LOCK_DELAY before locking. */
+        if (!lockHintShown) {
+          lockHintShown = true;
+          toast('↔ Slide or 🅿 PARK to fit before it locks');
+        }
+        lockTimer += dt;
+        if (lockTimer >= LOCK_DELAY) {
+          dropAcc = 0;
+          lockTimer = 0;
+          lock();
+        }
+      }
+    }
+    updateParticles(dt);
+    draw();
+    if (running && !gameOver) raf = requestAnimationFrame(loop);
+    else raf = 0;
+  }
+
+  /* ---------------- canvas sizing / drawing ---------------- */
+  function resizeCanvas() {
+    const app = stage.parentElement;
+    const appStyle = getComputedStyle(app);
+    let appW = Math.max(240, app.clientWidth
+      - (parseFloat(appStyle.paddingLeft) || 0)
+      - (parseFloat(appStyle.paddingRight) || 0));
+    /* Measure everything around the board (header, HUD, zones, buttons) so
+       the whole game fits without scrolling. Measured element by element so
+       a stretched min-height container cannot fool the maths. */
+    const side = window.innerWidth >= 500;
+    if (side) {
+      const tracks = String(getComputedStyle(app).gridTemplateColumns || '')
+        .split(' ').map(parseFloat).filter(function (n) { return n > 0; });
+      if (tracks.length) appW = Math.max(220, tracks[0]);
+    }
+    let maxBoardH;
+    if (side) {
+      maxBoardH = Math.max(240, window.innerHeight - 24);
+    } else {
+      const stageRect = stage.getBoundingClientRect();
+      const appRect = app.getBoundingClientRect();
+      let chrome = stageRect.top - appRect.top;
+      ['zones', 'controls', 'startbar', 'hint'].forEach(function (cls) {
+        const el = document.querySelector('.' + cls);
+        if (!el) return;
+        const st = getComputedStyle(el);
+        if (st.display === 'none') return;
+        const r = el.getBoundingClientRect();
+        chrome += r.height + (parseFloat(st.marginTop) || 0);
+      });
+      chrome += parseFloat(appStyle.paddingBottom) || 0;
+      maxBoardH = Math.max(240, window.innerHeight - chrome - 12);
+    }
+    const byW = appW / COLS;
+    const byH = maxBoardH / ROWS;
+    const cell = Math.max(12, Math.min(byW, byH));
+    const cssW = cell * COLS;
+    const cssH = cell * ROWS;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    stage.style.width = cssW + 'px';
+    stage.style.marginLeft = 'auto';
+    stage.style.marginRight = 'auto';
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    CELL = cssW / COLS;
+    draw();
+  }
+
+  function roundedRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  /* Tiny zoo motifs stamped inside each block: paw = Noun, leaf = Verb,
+     zebra stripes = Adjective. Kept low-contrast so the colours still read. */
+  function drawBlockMotif(cx, cy, s, motif) {
+    ctx.save();
+    ctx.globalAlpha = 0.34;
+    ctx.fillStyle = '#ffffff';
+    if (motif === 'verb') {
+      ctx.beginPath();
+      ctx.ellipse(cx - s * 0.11, cy, s * 0.23, s * 0.11, -0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + s * 0.11, cy, s * 0.23, s * 0.11, 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1, s * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.14, cy + s * 0.12);
+      ctx.lineTo(cx + s * 0.14, cy + s * 0.02);
+      ctx.stroke();
+    } else if (motif === 'adjective') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1, s * 0.09);
+      for (let i = -1; i <= 1; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i * s * 0.15 - s * 0.06, cy + s * 0.24);
+        ctx.lineTo(cx + i * s * 0.15 + s * 0.14, cy - s * 0.24);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + s * 0.1, s * 0.2, s * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      [[-0.23, -0.06], [-0.08, -0.18], [0.08, -0.18], [0.23, -0.06]].forEach(function (t) {
+        ctx.beginPath();
+        ctx.arc(cx + t[0] * s, cy + t[1] * s, s * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    ctx.restore();
+  }
+
+  function drawBlock(x, y, color, wrong, motif) {
+    const pad = Math.max(1, CELL * 0.04);
+    const px = x * CELL + pad;
+    const py = y * CELL + pad;
+    const s = CELL - pad * 2;
+    roundedRect(px, py, s, s, Math.max(3, CELL * 0.16));
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.38)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    if (wrong) {
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.font = '700 ' + Math.round(CELL * 0.5) + 'px Fredoka, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('×', x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
+    } else if (CELL >= 20) {
+      drawBlockMotif(px + s / 2, py + s / 2, s, motif || 'noun');
+    }
+  }
+
+  function drawGhost() {
+    if (!current) return;
+    const gy = ghostY();
+    ctx.save();
+    ctx.setLineDash([Math.max(3, CELL * 0.16), Math.max(3, CELL * 0.13)]);
+    ctx.strokeStyle = 'rgba(122,77,36,.5)';
+    ctx.lineWidth = 2;
+    for (let dy = 0; dy < current.shape.length; dy += 1) {
+      for (let dx = 0; dx < current.shape[dy].length; dx += 1) {
+        if (!current.shape[dy][dx]) continue;
+        const x = current.x + dx;
+        const y = gy + dy;
+        roundedRect(x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4, Math.max(3, CELL * 0.14));
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawCurrent() {
+    if (!current) return;
+    ctx.save();
+    ctx.shadowColor = 'rgba(90,50,20,.5)';
+    ctx.shadowBlur = CELL * 0.38;
+    for (let dy = 0; dy < current.shape.length; dy += 1) {
+      for (let dx = 0; dx < current.shape[dy].length; dx += 1) {
+        if (!current.shape[dy][dx]) continue;
+        drawBlock(current.x + dx, current.y + dy, '#9a6a3a', false, 'noun');
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawCat() {
+    let bestX = 6;
+    let bestTop = ROWS;
+    for (let x = 0; x < COLS; x += 1) {
+      for (let y = 0; y < ROWS; y += 1) {
+        if (board[y][x]) {
+          if (y < bestTop) { bestTop = y; bestX = x; }
+          break;
+        }
+      }
+    }
+    const baseY = bestTop === ROWS ? ROWS - 1 : bestTop;
+    const cx = bestX * CELL + CELL / 2;
+    let cy = baseY * CELL - CELL * 0.12;
+    const jump = catJumpUntil > performance.now() ? Math.sin((catJumpUntil - performance.now()) / 520 * Math.PI) * CELL * 0.35 : 0;
+    cy -= jump;
+    const size = Math.min(CELL * 1.2, 38);
+    cy = Math.max(size * 0.8, cy);
+
+    const mood = gameOver ? 'dead' : (danger ? 'scared' : 'normal');
+    const bodyY = cy - size * 0.38;
+    const headY = cy - size * 0.78;
+    const headR = size * 0.34;
+
+    ctx.save();
+    // spiky fur
+    if (mood === 'scared') {
+      ctx.strokeStyle = 'rgba(255,214,102,.95)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 10; i += 1) {
+        const a = (Math.PI * 2 / 10) * i;
+        const r1 = size * 0.4;
+        const r2 = size * (0.55 + (i % 2) * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * r1, bodyY + Math.sin(a) * r1);
+        ctx.lineTo(cx + Math.cos(a) * r2, bodyY + Math.sin(a) * r2);
+        ctx.stroke();
+      }
+    }
+    // body
+    ctx.fillStyle = '#fbf3e7';
+    ctx.strokeStyle = '#6b5148';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, bodyY, size * 0.42, size * 0.36, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // head
+    ctx.beginPath();
+    ctx.arc(cx, headY, headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // ears
+    ctx.beginPath();
+    ctx.moveTo(cx - headR * 0.85, headY - headR * 0.55);
+    ctx.lineTo(cx - headR * 1.15, headY - headR * 1.25);
+    ctx.lineTo(cx - headR * 0.25, headY - headR * 0.92);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + headR * 0.85, headY - headR * 0.55);
+    ctx.lineTo(cx + headR * 1.15, headY - headR * 1.25);
+    ctx.lineTo(cx + headR * 0.25, headY - headR * 0.92);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // eyes
+    if (mood === 'dead') {
+      ctx.strokeStyle = '#2f2440';
+      ctx.lineWidth = 2;
+      [-1, 1].forEach(function (side) {
+        const ex = cx + side * headR * 0.42;
+        const ey = headY - headR * 0.08;
+        ctx.beginPath();
+        ctx.moveTo(ex - 3, ey - 3); ctx.lineTo(ex + 3, ey + 3);
+        ctx.moveTo(ex + 3, ey - 3); ctx.lineTo(ex - 3, ey + 3);
+        ctx.stroke();
+      });
+    } else {
+      const eyeR = mood === 'scared' ? 3.4 : 2.5;
+      ctx.fillStyle = '#2f2440';
+      [-1, 1].forEach(function (side) {
+        ctx.beginPath();
+        ctx.arc(cx + side * headR * 0.42, headY - headR * 0.08, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      if (mood === 'scared') {
+        ctx.fillStyle = '#fff';
+        [-1, 1].forEach(function (side) {
+          ctx.beginPath();
+          ctx.arc(cx + side * headR * 0.42 + 1, headY - headR * 0.08 - 1, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+    }
+    // nose
+    ctx.fillStyle = '#e7a0ae';
+    ctx.beginPath();
+    ctx.moveTo(cx - 2.5, headY + headR * 0.18);
+    ctx.lineTo(cx + 2.5, headY + headR * 0.18);
+    ctx.lineTo(cx, headY + headR * 0.34);
+    ctx.closePath();
+    ctx.fill();
+    // whiskers
+    ctx.strokeStyle = 'rgba(80,60,55,.55)';
+    ctx.lineWidth = 1;
+    [-1, 1].forEach(function (side) {
+      for (let i = 0; i < 2; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(cx + side * headR * 0.35, headY + headR * (0.18 + i * 0.12));
+        ctx.lineTo(cx + side * headR * 1.15, headY + headR * (0.08 + i * 0.18));
+        ctx.stroke();
+      }
+    });
+    // sweat
+    if (mood === 'scared') {
+      ctx.fillStyle = '#60a5fa';
+      for (let i = 0; i < 2; i += 1) {
+        const sx = cx + (i ? 1 : -1) * headR * 1.05;
+        const sy = headY - headR * 0.25 + i * 5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (let i = 0; i < particles.length; i += 1) {
+      const p = particles[i];
+      const alpha = Math.max(0, Math.min(1, p.life));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (p.type === 'fish') {
+        zooPaw(p.x, p.y, p.size, p.rot, alpha);
+      } else if (p.type === 'spark') {
+        ctx.fillStyle = p.color || '#fde047';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = p.color || 'rgba(255,255,255,.6)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /* ---------------- zoo backdrop ---------------- */
+  function zooCloud(x, y, s, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x, y, 13 * s, 0, Math.PI * 2);
+    ctx.arc(x + 15 * s, y - 7 * s, 17 * s, 0, Math.PI * 2);
+    ctx.arc(x + 34 * s, y, 12 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function zooPaw(x, y, s, rot, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.rotate(rot || 0);
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.ellipse(0, s * 0.3, s * 0.78, s * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    [[-0.9, -0.3], [-0.32, -0.82], [0.32, -0.82], [0.9, -0.3]].forEach(function (t) {
+      ctx.beginPath();
+      ctx.ellipse(t[0] * s, t[1] * s, s * 0.3, s * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function zooPalm(x, baseY, s) {
+    ctx.save();
+    ctx.globalAlpha = 0.62;
+    ctx.strokeStyle = '#a9743f';
+    ctx.lineWidth = Math.max(2, 5 * s);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, baseY);
+    ctx.quadraticCurveTo(x + 7 * s, baseY - 46 * s, x + 3 * s, baseY - 86 * s);
+    ctx.stroke();
+    const tx = x + 3 * s;
+    const ty = baseY - 86 * s;
+    ctx.strokeStyle = '#4f9e56';
+    ctx.lineWidth = Math.max(1.5, 3.2 * s);
+    [[-1, -0.2, -30], [-0.85, -0.75, -24], [-0.25, -1, -14], [0.55, -0.85, 12], [0.95, -0.15, 28]].forEach(function (f) {
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(tx + f[0] * 20 * s, ty + f[1] * 32 * s, tx + f[0] * 36 * s, ty + (f[1] * 40 + f[2]) * s);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function zooGiraffe(x, groundY, s) {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#d9a441';
+    // body
+    ctx.beginPath();
+    ctx.ellipse(x, groundY - 24 * s, 21 * s, 12 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // legs
+    ctx.strokeStyle = '#c59233';
+    ctx.lineWidth = Math.max(2, 3.4 * s);
+    ctx.lineCap = 'round';
+    [[-13, 12], [-4, 14], [8, 11], [16, 13]].forEach(function (l) {
+      ctx.beginPath();
+      ctx.moveTo(x + l[0] * s, groundY - 20 * s);
+      ctx.lineTo(x + (l[0] + 1) * s, groundY - (24 - l[1]) * s);
+      ctx.stroke();
+    });
+    // neck + head
+    ctx.strokeStyle = '#d9a441';
+    ctx.lineWidth = Math.max(3, 7 * s);
+    ctx.beginPath();
+    ctx.moveTo(x + 16 * s, groundY - 30 * s);
+    ctx.quadraticCurveTo(x + 23 * s, groundY - 54 * s, x + 25 * s, groundY - 72 * s);
+    ctx.stroke();
+    ctx.fillStyle = '#d9a441';
+    ctx.beginPath();
+    ctx.ellipse(x + 29 * s, groundY - 75 * s, 8 * s, 5 * s, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#b07f2a';
+    ctx.lineWidth = Math.max(1, 1.6 * s);
+    ctx.beginPath();
+    ctx.moveTo(x + 25 * s, groundY - 79 * s);
+    ctx.lineTo(x + 24 * s, groundY - 86 * s);
+    ctx.moveTo(x + 28 * s, groundY - 80 * s);
+    ctx.lineTo(x + 28 * s, groundY - 87 * s);
+    ctx.stroke();
+    // spots
+    ctx.fillStyle = 'rgba(169,121,42,.85)';
+    [[-10, -26], [-1, -20], [9, -27], [18, -38], [21, -51]].forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(x + p[0] * s, groundY + p[1] * s, 2.2 * s, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function zooElephant(x, groundY, s) {
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#8d9aa6';
+    ctx.strokeStyle = '#7a8794';
+    ctx.lineWidth = Math.max(2, 3 * s);
+    ctx.beginPath();
+    ctx.ellipse(x, groundY - 18 * s, 20 * s, 13 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // head + ear
+    ctx.beginPath();
+    ctx.arc(x + 18 * s, groundY - 22 * s, 9 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + 20 * s, groundY - 24 * s, 6 * s, 7 * s, 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = '#9fabb6';
+    ctx.fill();
+    // trunk
+    ctx.strokeStyle = '#8d9aa6';
+    ctx.lineWidth = Math.max(2, 4 * s);
+    ctx.beginPath();
+    ctx.moveTo(x + 25 * s, groundY - 19 * s);
+    ctx.quadraticCurveTo(x + 31 * s, groundY - 12 * s, x + 28 * s, groundY - 4 * s);
+    ctx.stroke();
+    // legs
+    [[-12, 10], [-4, 12], [8, 11]].forEach(function (l) {
+      ctx.beginPath();
+      ctx.moveTo(x + l[0] * s, groundY - 10 * s);
+      ctx.lineTo(x + (l[0] + 1) * s, groundY);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function zooSign(x, y, s) {
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = '#a9743f';
+    ctx.fillRect(x - 2.5 * s, y - 2 * s, 5 * s, 20 * s);
+    ctx.fillStyle = '#c98b4b';
+    roundedRect(x - 18 * s, y - 17 * s, 36 * s, 16 * s, 4 * s);
+    ctx.fill();
+    ctx.strokeStyle = '#8a5a2b';
+    ctx.lineWidth = Math.max(1, 1.4 * s);
+    ctx.stroke();
+    ctx.fillStyle = '#fff7e6';
+    ctx.font = '700 ' + Math.round(9 * s) + 'px Fredoka, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ZOO', x, y - 9 * s);
+    ctx.restore();
+  }
+
+  function zooRainbow(cx, cy, r) {
+    const colors = ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = Math.max(3, CELL * 0.3);
+    colors.forEach(function (c, i) {
+      ctx.strokeStyle = c;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(10, r - i * ctx.lineWidth), Math.PI * 1.06, Math.PI * 1.94);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  /* A sleepy cat-shaped hill: round head with two ears. */
+  function zooCatHill(cx, baseY, r, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#7cc48a';
+    ctx.beginPath();
+    ctx.arc(cx, baseY, r, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    [[-0.6, 0.8], [0.6, 0.8]].forEach(function (e) {
+      const ex = cx + e[0] * r;
+      const ey = baseY - Math.sqrt(Math.max(0, 1 - e[0] * e[0])) * r;
+      ctx.beginPath();
+      ctx.moveTo(ex - r * 0.2, ey + r * 0.12);
+      ctx.lineTo(ex, ey - r * 0.36);
+      ctx.lineTo(ex + r * 0.2, ey + r * 0.12);
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function drawZooBackdrop(W, H) {
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#c9ecff');
+    sky.addColorStop(0.42, '#e6f8ea');
+    sky.addColorStop(0.72, '#f7f4dc');
+    sky.addColorStop(1, '#f1e6c6');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // sun
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#ffe082';
+    ctx.beginPath();
+    ctx.arc(W * 0.84, H * 0.09, Math.max(9, CELL * 0.62), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.22;
+    ctx.beginPath();
+    ctx.arc(W * 0.84, H * 0.09, Math.max(15, CELL * 1.05), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    zooRainbow(W * 0.5, H * 0.7, W * 0.5);
+    zooCloud(W * 0.08, H * 0.07, 1, 0.76);
+    zooCloud(W * 0.54, H * 0.14, 0.82, 0.62);
+
+    // cat-shaped hills
+    zooCatHill(W * 0.18, H * 0.87, W * 0.16, 0.36);
+    zooCatHill(W * 0.82, H * 0.9, W * 0.13, 0.3);
+
+    // rolling hills
+    ctx.save();
+    ctx.fillStyle = 'rgba(125,197,133,.55)';
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.79);
+    ctx.quadraticCurveTo(W * 0.2, H * 0.68, W * 0.45, H * 0.79);
+    ctx.quadraticCurveTo(W * 0.72, H * 0.9, W, H * 0.75);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // grass strip
+    ctx.save();
+    ctx.fillStyle = 'rgba(104,178,110,.45)';
+    ctx.fillRect(0, H * 0.93, W, H * 0.07);
+    ctx.strokeStyle = 'rgba(74,148,84,.45)';
+    ctx.lineWidth = Math.max(1, CELL * 0.05);
+    for (let i = 0; i < 14; i += 1) {
+      const gx = (i + 0.5) * (W / 14);
+      ctx.beginPath();
+      ctx.moveTo(gx, H * 0.985);
+      ctx.quadraticCurveTo(gx + CELL * 0.06, H * 0.955, gx + CELL * 0.12, H * 0.94);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // paw trail
+    [[0.12, 0.35, 0.2], [0.26, 0.31, 0.5], [0.4, 0.37, -0.2], [0.54, 0.32, 0.4], [0.68, 0.38, 0.1], [0.82, 0.33, -0.3]].forEach(function (p) {
+      zooPaw(W * p[0], H * p[1], CELL * 0.34, p[2], 0.1);
+    });
+
+    zooElephant(W * 0.32, H * 0.93, Math.max(0.65, CELL / 40));
+    zooGiraffe(W * 0.64, H * 0.93, Math.max(0.72, CELL / 34));
+
+    zooPalm(W * 0.075, H * 0.66, 1);
+    zooPalm(W * 0.93, H * 0.74, 0.86);
+    zooSign(W * 0.16, H * 0.9, Math.max(0.8, CELL / 30));
+  }
+
+  /* Board cells stay a plain creamy yellow; purrstackbg1 is the page
+     background behind the whole game, not the grid. */
+  function drawGameBackdrop(W, H) {
+    ctx.fillStyle = '#fff6d2';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function draw() {
+    const W = COLS * CELL;
+    const H = ROWS * CELL;
+    ctx.clearRect(0, 0, W, H);
+    drawGameBackdrop(W, H);
+
+    ZONES.forEach(function (z, i) {
+      ctx.fillStyle = z.soft;
+      ctx.fillRect(zoneStart(i) * CELL, 0, ZONE_W * CELL, H);
+    });
+
+    ctx.strokeStyle = 'rgba(52,78,62,.10)';
+    ctx.lineWidth = 1;
+    for (let x = 1; x < COLS; x += 1) {
+      ctx.beginPath();
+      ctx.moveTo(x * CELL, 0);
+      ctx.lineTo(x * CELL, H);
+      ctx.stroke();
+    }
+    for (let y = 1; y < ROWS; y += 1) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * CELL);
+      ctx.lineTo(W, y * CELL);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(38,74,52,.24)';
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(i * ZONE_W * CELL, 0);
+      ctx.lineTo(i * ZONE_W * CELL, H);
+      ctx.stroke();
+    }
+
+    for (let y = 0; y < ROWS; y += 1) {
+      for (let x = 0; x < COLS; x += 1) {
+        const cell = board[y][x];
+        if (cell) drawBlock(x, y, cell.color || '#64748b', !!cell.wrong, cell.motif);
+      }
+    }
+
+    drawGhost();
+    drawCat();
+    drawCurrent();
+
+    // red danger line
+    ctx.save();
+    ctx.setLineDash([Math.max(5, CELL * 0.22), Math.max(4, CELL * 0.14)]);
+    ctx.strokeStyle = 'rgba(239,68,68,.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 2 * CELL);
+    ctx.lineTo(W, 2 * CELL);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(239,68,68,.9)';
+    ctx.font = '700 ' + Math.max(8, Math.round(CELL * 0.3)) + 'px Fredoka, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('DANGER', W - 4, 2 * CELL - 3);
+    ctx.restore();
+
+    if (performance.now() < flashUntil) {
+      ctx.fillStyle = 'rgba(255,255,255,.34)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    drawParticles();
+  }
+
+  /* ---------------- particles / juice ---------------- */
+  function spawnFish(lines) {
+    const count = Math.min(70, 12 + lines * 10);
+    for (let i = 0; i < count; i += 1) {
+      particles.push({
+        type: 'fish',
+        x: Math.random() * COLS * CELL,
+        y: (ROWS - 1 - Math.random() * Math.min(4, lines + 1)) * CELL + CELL / 2,
+        vx: (Math.random() * 2 + 1.2) * (Math.random() < 0.5 ? 1 : -1),
+        vy: -(Math.random() * 2.4 + 1.1),
+        life: 1,
+        size: Math.max(3, CELL * (0.14 + Math.random() * 0.09)),
+        rot: (Math.random() - 0.5) * 0.6
+      });
+    }
+  }
+
+  function spawnSparkles() {
+    for (let i = 0; i < 24; i += 1) {
+      particles.push({
+        type: 'spark',
+        x: Math.random() * COLS * CELL,
+        y: Math.random() * ROWS * CELL,
+        vx: (Math.random() - 0.5) * 2.4,
+        vy: (Math.random() - 0.5) * 2.4,
+        life: 1,
+        size: Math.max(1.5, CELL * 0.06),
+        color: ['#fde047', '#fbbf24', '#fff7ed'][i % 3]
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    const step = Math.min(2, dt / 16);
+    for (let i = particles.length - 1; i >= 0; i -= 1) {
+      const p = particles[i];
+      p.x += p.vx * step;
+      p.y += p.vy * step;
+      p.vy += 0.035 * step;
+      p.life -= dt / 900;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    if (particles.length > 260) particles.splice(0, particles.length - 260);
+  }
+
+  function shake() {
+    stage.classList.remove('shake');
+    void stage.offsetWidth;
+    stage.classList.add('shake');
+    setTimeout(function () { stage.classList.remove('shake'); }, 190);
+  }
+
+  function toast(text) {
+    if (!toastEl) return;
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1250);
+  }
+
+  /* ---------------- audio ---------------- */
+  function ensureAudio() {
+    if (!audioCtx) {
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      } catch (e) {}
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function tone(freq, dur, type, vol) {
+    if (!soundOn || !audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.06;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    osc.start(now);
+    osc.stop(now + dur);
+  }
+
+  function thud() {
+    tone(92, 0.16, 'sine', 0.14);
+    tone(170, 0.07, 'triangle', 0.05);
+  }
+
+  function chime() {
+    [523, 659, 784].forEach(function (f, i) {
+      setTimeout(function () { tone(f, 0.13, 'sine', 0.055); }, i * 60);
+    });
+  }
+
+  function startMusic() {
+    if (!soundOn) return;
+    try {
+      music.currentTime = 0;
+      music.play().catch(function () {});
+    } catch (e) {}
+  }
+
+  function toggleSound() {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    if (!soundOn) {
+      music.pause();
+    } else if (running && !paused && !gameOver) {
+      music.play().catch(function () {});
+    }
+    updateHud();
+  }
+
+  /* ---------------- full screen ---------------- */
+  function fsActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function syncFsUi() {
+    const on = fsActive() || document.body.classList.contains('css-fs');
+    if (fsBtn) {
+      fsBtn.textContent = on ? '✕' : '⛶';
+      fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+    }
+    document.body.classList.toggle('is-full', on);
+    resizeCanvas();
+    setTimeout(resizeCanvas, 120);
+    setTimeout(resizeCanvas, 360);
+  }
+
+  let fsToken = 0;
+
+  function toggleFullscreen() {
+    const token = (fsToken += 1);
+    if (fsActive()) {
+      try {
+        const p = document.exitFullscreen
+          ? document.exitFullscreen()
+          : document.webkitExitFullscreen();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) {}
+      document.body.classList.remove('css-fs');
+      document.body.classList.remove('playing-phone');
+      syncFsUi();
+      return;
+    }
+    if (document.body.classList.contains('css-fs')) {
+      document.body.classList.remove('css-fs');
+      document.body.classList.remove('playing-phone');
+      syncFsUi();
+      return;
+    }
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) {
+      document.body.classList.add('css-fs');
+      syncFsUi();
+      return;
+    }
+    try {
+      const p = req.call(el, { navigationUI: 'hide' });
+      if (p && p.catch) {
+        p.catch(function () {
+          document.body.classList.add('css-fs');
+          syncFsUi();
+        });
+      }
+    } catch (e) {
+      document.body.classList.add('css-fs');
+      syncFsUi();
+    }
+    setTimeout(function () {
+      if (token !== fsToken) return;
+      if (!fsActive()) {
+        document.body.classList.add('css-fs');
+        syncFsUi();
+      }
+    }, 700);
+  }
+
+  document.addEventListener('fullscreenchange', syncFsUi);
+  document.addEventListener('webkitfullscreenchange', syncFsUi);
+
+  /* ---------------- events ---------------- */
+  overlayBtn.addEventListener('click', function () {
+    if (overlayMode === 'paused') togglePause();
+    else startGame();
+  });
+
+  startBtn.addEventListener('click', function () {
+    if (!running || gameOver) startGame();
+    else if (paused) togglePause();
+    else restartGame();
+  });
+
+  pauseBtn.addEventListener('click', togglePause);
+  soundBtn.addEventListener('click', toggleSound);
+
+  leftBtn.addEventListener('click', function () { move(-1); });
+  rightBtn.addEventListener('click', function () { move(1); });
+  rotateBtn.addEventListener('click', rotateCurrent);
+  holdBtn.addEventListener('click', hold);
+  const holdCard = document.querySelector('.holdcard');
+  if (holdCard) holdCard.addEventListener('click', function () { hold(); });
+  snapBtn.addEventListener('click', park);
+  dropBtn.addEventListener('click', hardDrop);
+  fsBtn.addEventListener('click', toggleFullscreen);
+
+  zoneEls.forEach(function (el) {
+    el.addEventListener('click', function () {
+      setZone(Number(el.dataset.zone));
+    });
+  });
+
+  /* Touch controls on the board:
+       tap            = rotate
+       long press     = hard drop
+       swipe down     = hard drop
+       drag sideways  = move the piece                                    */
+  let gesture = null;
+  let gestureTimer = 0;
+
+  let tapTimer = 0;
+  let lastTapAt = 0;
+
+  function clearGesture() {
+    clearTimeout(gestureTimer);
+    gestureTimer = 0;
+    gesture = null;
+  }
+
+  function handleTap() {
+    const now = performance.now();
+    if (now - lastTapAt < 300) {
+      clearTimeout(tapTimer);
+      tapTimer = 0;
+      lastTapAt = 0;
+      hardDrop();
+      return;
+    }
+    lastTapAt = now;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () {
+      tapTimer = 0;
+      lastTapAt = 0;
+      rotateCurrent();
+    }, 260);
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (!running || paused || gameOver) return;
+    gesture = {
+      x0: e.clientX, y0: e.clientY,
+      x: e.clientX, y: e.clientY,
+      t: performance.now(),
+      moved: false,
+      acted: false,
+      dragStarted: false
+    };
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    clearTimeout(gestureTimer);
+    gestureTimer = setTimeout(function () {
+      if (gesture && !gesture.moved && !gesture.acted) {
+        gesture.acted = true;
+        hardDrop();
+        try { if (navigator.vibrate) navigator.vibrate(30); } catch (err) {}
+      }
+    }, 480);
+  });
+
+  function boardCellAt(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      col: (clientX - r.left) / r.width * COLS,
+      row: (clientY - r.top) / r.height * ROWS
+    };
+  }
+
+  canvas.addEventListener('pointermove', function (e) {
+    if (!gesture || gesture.acted || !current) return;
+    const dx = e.clientX - gesture.x0;
+    const dy = e.clientY - gesture.y0;
+    if (!gesture.dragStarted) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      gesture.dragStarted = true;
+      gesture.moved = true;
+      clearTimeout(gestureTimer);
+    }
+    /* Horizontal only: left/right drags just move the piece. */
+    const at = boardCellAt(e.clientX, e.clientY);
+    const w = current.shape[0].length;
+    let nx = Math.round(at.col - w / 2);
+    nx = Math.max(0, Math.min(COLS - w, nx));
+    if (nx !== current.x && valid(current.shape, nx, current.y)) current.x = nx;
+    syncZoneFromPiece();
+    draw();
+  });
+
+  canvas.addEventListener('pointerup', function (e) {
+    if (!gesture) return;
+    const g = gesture;
+    const dt = performance.now() - g.t;
+    const dx = e.clientX - g.x0;
+    const dy = e.clientY - g.y0;
+    clearGesture();
+    if (g.acted) return;
+    if (g.dragStarted) {
+      /* Only a downward swipe drops. Left/right drags never drop. */
+      if (dy > 55 && Math.abs(dy) > Math.abs(dx) * 1.2) hardDrop();
+      return;
+    }
+    if (Math.abs(dx) < 16 && Math.abs(dy) < 16 && dt < 480) {
+      handleTap();
+    }
+  });
+
+  canvas.addEventListener('pointercancel', clearGesture);
+  ['contextmenu', 'selectstart'].forEach(function (name) {
+    stage.addEventListener(name, function (e) { e.preventDefault(); });
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === '1') { setZone(0); e.preventDefault(); return; }
+    if (e.key === '2') { setZone(1); e.preventDefault(); return; }
+    if (e.key === '3') { setZone(2); e.preventDefault(); return; }
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { move(-1); e.preventDefault(); return; }
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { move(1); e.preventDefault(); return; }
+    if (e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X') { rotateCurrent(); e.preventDefault(); return; }
+    if (e.key === 'ArrowDown') { softDrop(); e.preventDefault(); return; }
+    if (e.key === ' ' || e.key === 'Spacebar') { hardDrop(); e.preventDefault(); return; }
+    if (e.key === 'c' || e.key === 'C') { hold(); e.preventDefault(); return; }
+    if (e.key === 's' || e.key === 'S') { park(); e.preventDefault(); return; }
+    if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); e.preventDefault(); return; }
+    if (e.key === 'r' || e.key === 'R') { restartGame(); e.preventDefault(); return; }
+    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { togglePause(); e.preventDefault(); }
+  });
+
+  window.addEventListener('message', function (e) {
+    if (e && e.data === 'purrstack-pause') {
+      if (running && !paused) togglePause();
+      if (music) music.pause();
+    }
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', function () { setTimeout(resizeCanvas, 220); });
+
+  /* Drop the logo's white background so it sits on the cat-pattern page. */
+  (function transparentLogo() {
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const size = 900;
+        const c = document.createElement('canvas');
+        c.width = size;
+        c.height = size;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0, size, size);
+        const frame = g.getImageData(0, 0, size, size);
+        const d = frame.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const m = Math.min(d[i], d[i + 1], d[i + 2]);
+          if (m >= 248) d[i + 3] = 0;
+          else if (m > 228) d[i + 3] = Math.round(((248 - m) / 20) * 255);
+        }
+        g.putImageData(frame, 0, 0);
+        const url = c.toDataURL('image/png');
+        document.querySelectorAll('.brand-logo, .overlay-logo').forEach(function (el) {
+          el.src = url;
+        });
+      } catch (e) { /* fall back to the original picture */ }
+    };
+    img.src = 'assets/purrstackLogo.png';
+  })();
+
+  /* ---------------- init ---------------- */
+  bestEl.textContent = String(best);
+  setOverlay('start');
+  resizeCanvas();
+  requestAnimationFrame(resizeCanvas);
+  updateHud();
+  draw();
+
+  window.VT = {
+    words: WORDS,
+    start: startGame,
+    pause: togglePause,
+    setZone: setZone,
+    move: move,
+    rotate: rotateCurrent,
+    softDrop: softDrop,
+    hardDrop: hardDrop,
+    hold: hold,
+    park: park,
+    restart: restartGame,
+    fullscreen: toggleFullscreen,
+    state: function () {
+      return {
+        board: board,
+        current: current,
+        next: nextWord,
+        hold: holdWord,
+        holdLeft: holdLeft,
+        score: score,
+        best: best,
+        combo: combo,
+        selectedZone: selectedZone,
+        running: running,
+        paused: paused,
+        gameOver: gameOver,
+        danger: danger,
+        piecesPlaced: piecesPlaced
+      };
+    },
+    setBoard: function (rows) { board = rows; draw(); },
+    spawnNext: spawnNext
+  };
+})();
+</script>
+</body>
+</html>

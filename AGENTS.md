@@ -1872,6 +1872,42 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   裝飾一定要畫喺背景層、用低透明度，唔好蓋住 `quiz` 字磚。
   改 `CACHE_NAME` 時記得一齊 bump（現時 v98）。
 
+## 10.16 PurrStack（2026-11，7th tab）
+
+- 入口：底部 tab **PurrStack（🐾）**，放喺 **Jump 同 Battle 中間**。
+  `#purrstack-view` 係 `position: fixed; inset: 0; bottom: calc(58px + safe-area)`
+  的全屏 iframe，蓋過 app header；底部 tab bar 仍然喺上面（z-index 900 > 850）。
+  第一次撳 tab 才載入 `vocab-tetris-demo.html`（`data-src`），離開 view 會
+  `postMessage('purrstack-pause')`，遊戲自動 pause＋停音樂。
+- 遊戲檔案：`vocab-tetris-demo.html`（獨立頁，唔係 ES module），圖片在
+  `assets/purrstackLogo.png`、`assets/purrstackbg1.png`，音樂 `music/towerMusic.mp3`。
+  `stickers/` 係 gitignore，所以用 `assets/` 副本；**唔好**只 commit demo 而漏 assets。
+- 字庫：**1,317 字**（Noun 973、Verb 59、Adjective 285；105 個 Both-POS），
+  由 Dictation Sheet 抽出並用 Cambridge Dictionary 校對。開場卡寫明
+  **base forms only**（過去式／pp 唔計）。Cambridge 有的多個 POS 會一齊接受
+  （例如 `strain` Noun+Verb、`set` Noun+Verb+Adjective），衍生形容詞
+  （stressed／worsening／organised…）維持 Adjective。
+- 棋盤：12×20，三個 4-column zone（Noun／Verb／Adjective）。方塊顏色跟 zone；
+  方塊內有簡單 zoo motif（🐾／葉／斑馬紋）。落底後有 **1.1 秒 lock delay**，
+  可以左右拖或撳 zone bar 泊位，之後才鎖定（每次移動重置，最多 18 次）。
+- 操作：點棋盤 = 轉方向；左右拖 = 移動；**向下掃 = hard drop**；
+  **雙擊 = hard drop**；長按 = hard drop。
+  手機控制列：`HOLD ◀ ⟳ ▶ DROP`（5 個，PARK 收起；PARK 仍可撳下面 zone bar）。
+  桌面／平板：`HOLD ◀ ⟳ ▶ PARK DROP`。
+  HOLD 每局 **5 次**，HUD 顯示剩餘次數；亦可撳 HOLD 卡。
+- 計分：放啱 +10；放啱 + hard drop 額外 +20；放錯 -20（最低 0）＋combo 清零；
+  跨兩個 zone = 0 分但 combo 保留；消行 `100 × 行數 × combo`；每 3 連 combo
+  觸發 RESCUE（清一個錯方塊）。Best score 存 `localStorage`。
+- Game Over：**WORDS TO REVIEW** 逐個錯字顯示正確 POS（紅色、✅）同學生放錯的
+  zone（灰色、❌），同一局重複只顯示一次。
+- 排行榜：`supabase/purrstack_scores.sql`（老師自己喺 SQL editor 跑，可重跑）
+  建 `purrstack_scores` ＋ `purrstack_leaderboard`（每人最佳，score → words →
+  created_at）。RLS：select 公開、insert 只准自己。遊戲 Game Over 時經
+  `postMessage({type:'purrstack-score'})` 交給 `js/shared.js` 的
+  `submitPurrStackScore()`；guest／teacher preview 唔會上傳。
+  Hub Leaderboard 有 **🐾 PurrStack** tab（top 10，score → words）。
+  未跑 SQL 時顯示「Run supabase/purrstack_scores.sql」提示，遊戲照玩。
+
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
 每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。
@@ -2002,18 +2038,24 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ### 12.4 底部 tab bar（2026-11 加）
 
-手機同 iPad 用 Instagram 式固定底欄，**六個 tab，次序固定**：
+手機同 iPad 用 Instagram 式固定底欄，**七個 tab，次序固定**：
 
 | Tab | Icon | 開啟 view | Active 範圍 |
 |---|---|---|---|
 | Home | 🏠 | `hub-view` | hub、grammar 系列、my-records、leaderboard |
 | Dictation | ✍️ | `home-view` | home、sub-category、word-list、quiz、error-book |
 | Jump | 🦘 | `wordjump-view` | wordjump |
+| PurrStack | 🐾 | `purrstack-view` | PurrStack 遊戲（見 §10.16） |
 | Battle | ⚔️ | `battle-view` | battle |
 | Store | 🛍️ | `store-view` | store |
 | Me | 🐱 | `profile-view` | profile（個人頁，見 §12.6） |
 
-- Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；六個
+- 七格：`grid-template-columns: repeat(7, 1fr)`。實測 390×844 每格 54px、字 11px；
+  320×568 每格 44px、字 9px（`Dictation`／`PurrStack` 仍然一行，冇 overflow）。
+  320px 的 44px 剛好等於最低 tap target，視覺會比六格密。
+- PurrStack tab 用 `openPurrStack()`：第一次撳才把 iframe 的 `data-src`
+  載入 `vocab-tetris-demo.html`，再 `changeView('purrstack-view')`。
+- Markup 係 `#app` 最尾（`</main>` 之後）的 `<nav id="bottom-nav">`；七個
   `[data-nav-view]` button 直接 call `changeView(...)`，所以每個 tab 永遠返到該區根頁。
   冇 Admin shortcut。Active tab 用深橙（`#c2410c`，11px 字過 4.5:1）＋底線；`updateBottomNav()`
   會設 `aria-current="page"`。

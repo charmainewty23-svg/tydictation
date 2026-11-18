@@ -22,7 +22,9 @@
                 ? 'Current daily streaks — top 10 by consecutive Hong Kong practice days.'
                 : lbModeFilter === 'wordjump'
                     ? 'Personal bests — top 10 by best score and words collected.'
-                    : lbModeFilter === 'flap'
+                    : lbModeFilter === 'purrstack'
+                        ? 'PurrStack — personal bests. Top 10 by score, then words placed.'
+                        : lbModeFilter === 'flap'
                         ? 'Speak Flap — all-time personal bests. Top 10 by best score and phrases.'
                         : lbModeFilter === 'wjchallenge'
                         ? 'All-time Challenge wins — match history lasts 7 days; wins stay.'
@@ -73,6 +75,18 @@
             if (lbModeFilter === 'wordjump') {
                 const { data, error } = await sb.from('wj_leaderboard')
                     .select('user_id,nickname,email,score,height,words,plays,created_at')
+                    .order('score', { ascending: false })
+                    .order('words', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(10);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
+            if (lbModeFilter === 'purrstack') {
+                const { data, error } = await sb.from('purrstack_leaderboard')
+                    .select('user_id,nickname,email,score,words,correct,wrong,best_combo,created_at')
                     .order('score', { ascending: false })
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
@@ -151,6 +165,33 @@
             container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
                 `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
             , { emptyAll: '<p class="text-gray-400 text-center py-10">No Word Jump games recorded yet.</p>' });
+        }
+
+        function renderPurrStackLeaderboard(container) {
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">PurrStack leaderboard not available. Run <code class="text-orange-600">supabase/purrstack_scores.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            if (!lbRows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No PurrStack games recorded yet.</p>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${leaderboardNameHTML(r, isAdmin() ? classBadge(r.email, r.nickname) : '')}</span>
+                            ${formAssignControl(r.email, r.nickname)}
+                            <span class="text-gray-400 text-sm mx-2">${Number(r.words) || 0} words</span>
+                            <span class="font-bold text-orange-600 text-lg">${Number(r.score) || 0} pts</span>
+                        </div>`;
+            if (!isAdmin()) {
+                container.innerHTML = `<div class="space-y-3">${lbRows.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No PurrStack games recorded yet.</p>' });
         }
 
         function renderFlapLeaderboard(container) {
@@ -307,6 +348,10 @@
             }
             if (lbModeFilter === 'wordjump') {
                 renderWordJumpLeaderboard(container);
+                return;
+            }
+            if (lbModeFilter === 'purrstack') {
+                renderPurrStackLeaderboard(container);
                 return;
             }
             if (lbModeFilter === 'flap') {

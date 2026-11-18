@@ -175,6 +175,10 @@
                 Promise.resolve(requestPurrStackBoard()).catch(function (e) {
                     console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
                 });
+            } else if (data && data.type === 'purrstack-hub') {
+                // The ranking card's ← Back to Hub. changeView() posts
+                // purrstack-pause on the way out, so the game stops cleanly.
+                changeView('hub-view');
             }
         });
 

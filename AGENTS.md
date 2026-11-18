@@ -1904,6 +1904,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 按住左右移動（DAS）：◀ ▶ 同 ← → ／A D 按住會一路逐格移（`pointerdown`／keydown
   先即刻移一格，約 200ms 後每 55ms 再移一格），放手、撞牆／卡住、pause、
   game over、restart、blur／轉 tab 就停；唔會一下飛到牆邊。
+- ⬇ DROP 同 ↓ 按住係**逐格 soft drop**：pointerdown／keydown 即刻落一行，夠
+  `HOLD_DAS_DELAY` 就每 `HOLD_DAS_REPEAT` 再落一行，放手即停；到地／被擋只會停
+  repeat，唔會即刻鎖（交返 lock delay）。Space 同棋盤雙擊／向下掃／長按仍然係
+  hard drop。左右同 DROP 兩邊 hold 唔會同時行（一邊開始會停另一邊）。
+- 開始卡 header：🏆 Top 7 chip 同 Score box 包喺 `.header-tools`，chip 貼住 Score
+  左邊、同 Score 底邊對齊（`align-items: flex-end`、gap 4px），剩低嘅空位留喺
+  logo 同呢組之間。
 - 開始卡：`#overlay-howto` 用 point form 分 **How to play** 同 **Scoring** 兩張清單
   （唔再係 `.overlay-mini`／`.overlay-short` 一句），短螢幕同窄螢幕都照顯示，
   內容太高就自己 scroll，唔會推走 ▶ Start。
@@ -1920,6 +1927,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `error`（未跑 SQL）就寫「run supabase/purrstack_scores.sql」，遊戲照玩。
   如果 board 喺 review 步驟已經到，就會 cache 落 `rankBoard`，撳 Next 即刻顯示；
   未到就顯示 Loading…。
+- Ranking 卡喺 **▶ Play again** 下面多一粒次要嘅 **← Back to Hub**（只有 rank
+  模式見到；start／pause／review／peek 都收埋），撳落會
+  `postMessage({type:'purrstack-hub'}, window.location.origin)`；有 parent 才 post，
+  standalone 唔會 post 俾自己。`js/shared.js` 的同源 `message` listener 收到
+  `purrstack-hub` 就 `changeView('hub-view')`（照樣 post `purrstack-pause` 停遊戲）。
 - 排行榜：`supabase/purrstack_scores.sql`（老師自己喺 SQL editor 跑，可重跑）
   建 `purrstack_scores` ＋ `purrstack_leaderboard`（每人最佳，score → words →
   created_at）。RLS：select 公開、insert 只准自己。遊戲 Game Over 時經

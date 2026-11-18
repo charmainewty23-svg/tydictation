@@ -73,9 +73,41 @@
             changeView('purrstack-view');
         }
 
-        function submitPurrStackScore(data) {
-            if (!data || !currentUser) return;
-            if (isGuestUser() || previewStudentForm()) return;
+        /* PurrStack's game-over card asks for the Top 7 board once the run is
+           saved. The iframe only accepts same-origin messages, so the reply is
+           always posted with the page origin. */
+        function purrStackBoardReply(rows, me, guest, error) {
+            return {
+                type: 'purrstack-board',
+                rows: Array.isArray(rows) ? rows : [],
+                me: me || '',
+                guest: !!guest,
+                error: !!error
+            };
+        }
+
+        function postPurrStackBoard(message) {
+            const frame = document.getElementById('purrstack-frame');
+            const win = frame && frame.contentWindow;
+            if (!win || typeof win.postMessage !== 'function') return false;
+            try {
+                win.postMessage(message, window.location.origin);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function submitPurrStackScore(data) {
+            if (!data) return null;
+            const me = currentUser ? currentUser.id : '';
+            // Guests and teacher preview accounts never upload, but the iframe
+            // still needs a reply so it can hide the rankings.
+            if (!currentUser || isGuestUser() || previewStudentForm()) {
+                const guestReply = purrStackBoardReply([], me, true, false);
+                postPurrStackBoard(guestReply);
+                return guestReply;
+            }
             const payload = {
                 user_id: currentUser.id,
                 email: currentUser.email || '',
@@ -89,17 +121,40 @@
                 wrong: Math.max(0, Math.round(Number(data.wrong) || 0)),
                 best_combo: Math.max(0, Math.round(Number(data.bestCombo) || 0))
             };
-            sb.from('purrstack_scores').insert(payload).then(function (res) {
+            try {
+                const res = await sb.from('purrstack_scores').insert(payload);
                 if (res && res.error) {
                     console.warn('PurrStack score not saved:', res.error.message || res.error);
                 }
-            });
+            } catch (e) {
+                console.warn('PurrStack score not saved:', e && e.message ? e.message : e);
+            }
+            let reply;
+            try {
+                const board = await sb.from('purrstack_leaderboard')
+                    .select('user_id,nickname,email,score,words,created_at')
+                    .order('score', { ascending: false })
+                    .order('words', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(7);
+                if (board && board.error) throw board.error;
+                reply = purrStackBoardReply((board && board.data) || [], me, false, false);
+            } catch (e) {
+                console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
+                reply = purrStackBoardReply([], me, false, true);
+            }
+            postPurrStackBoard(reply);
+            return reply;
         }
 
         window.addEventListener('message', function (event) {
             if (event.origin !== window.location.origin) return;
             const data = event.data;
-            if (data && data.type === 'purrstack-score') submitPurrStackScore(data);
+            if (data && data.type === 'purrstack-score') {
+                Promise.resolve(submitPurrStackScore(data)).catch(function (e) {
+                    console.warn('PurrStack score not saved:', e && e.message ? e.message : e);
+                });
+            }
         });
 
         function navShouldShow(viewId) {
@@ -2497,6 +2552,7 @@
                     loadGuestAdmin();
                     loadBattleAdmin();
                     loadWordJumpAdmin();
+                    if (typeof loadPurrStackAdmin === 'function') loadPurrStackAdmin();
                     if (typeof loadFlapAdmin === 'function') loadFlapAdmin();
                     loadAdminPaws();
                 });

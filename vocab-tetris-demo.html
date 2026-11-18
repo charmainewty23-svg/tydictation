@@ -256,6 +256,45 @@
   .overlay-review .rw-ans { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
   .overlay-review .rw-ok { color: #d43a2f; font-weight: 800; }
   .overlay-review .rw-no { color: #8a7a6a; font-weight: 600; }
+  .overlay-rank-stats { display: none; justify-content: center; gap: 18px; margin: 6px 0 10px; }
+  .overlay-rank-stats .num { font-size: 24px; font-weight: 800; color: var(--brown); line-height: 1.1; }
+  .overlay-rank-stats .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #a9743f; font-weight: 800; }
+  .overlay-board {
+    display: none;
+    max-height: 150px;
+    overflow-y: auto;
+    margin: 6px 0 10px;
+    padding: 6px 8px;
+    border: 1.5px solid var(--linebrown);
+    border-radius: 10px;
+    background: #fffdf7;
+    text-align: left;
+  }
+  .overlay-board .board-title {
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #a9743f;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  .overlay-board .board-note { margin: 0; font-size: 11px; font-weight: 600; color: #8a7a6a; line-height: 1.4; }
+  .overlay-board .rank-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 2px;
+    border-bottom: 1px dashed #eadfce;
+    font-size: 11px;
+    font-weight: 700;
+    color: #5b3a1e;
+  }
+  .overlay-board .rank-row:last-child { border-bottom: 0; }
+  .overlay-board .rank-row.me { background: #fff3d6; border-radius: 6px; }
+  .overlay-board .rank-medal { width: 18px; text-align: center; flex: none; }
+  .overlay-board .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .overlay-board .rank-pts { color: #c2410c; font-weight: 800; flex: none; }
+  .overlay-board .rank-words { color: #8a7a6a; font-size: 10px; font-weight: 600; flex: none; }
   .overlay .overlay-short { display: none; margin: 4px 0 9px; font-size: 11px; }
   .overlay button {
     width: 100%;
@@ -633,6 +672,8 @@
         <h2 id="overlay-title">PurrStack</h2>
         <p id="overlay-text">Read the word, then move the piece into the matching zone. Tap to rotate · double-tap or swipe down = drop · drag left/right = move.<br><b>Base forms only</b> — past tense (-ed) and past participle (pp) forms are not counted.</p>
         <div class="overlay-review" id="overlay-review"></div>
+        <div class="overlay-rank-stats" id="overlay-stats"></div>
+        <div class="overlay-board" id="overlay-board"></div>
         <p class="overlay-mini">Tap = rotate · double-tap or swipe down = drop · drag left/right = move · base forms only (no -ed/pp).</p>
         <p class="overlay-short">Tap = rotate · long-press = drop</p>
         <button id="overlay-btn" type="button">▶ Start</button>
@@ -715,6 +756,8 @@
   const overlayLogo = document.getElementById('overlay-logo');
   const overlayMini = document.querySelector('.overlay-mini');
   const overlayReview = document.getElementById('overlay-review');
+  const overlayStats = document.getElementById('overlay-stats');
+  const overlayBoard = document.getElementById('overlay-board');
   const overlayBtn = document.getElementById('overlay-btn');
   const toastEl = document.getElementById('toast');
   const scoreEl = document.getElementById('score');
@@ -747,6 +790,7 @@
   let selectedZone = 0;
   let score = 0;
   let best = Number(localStorage.getItem(BEST_KEY) || 0) || 0;
+  let bestAtStart = best;
   let combo = 0;
   let piecesPlaced = 0;
   let wrongWords = [];
@@ -770,6 +814,8 @@
   let lastTime = 0;
   let toastTimer = 0;
   let overlayMode = 'start';
+  /* Reply from the parent page after it saves this run: the Top 7 board. */
+  let rankBoard = { status: 'loading', rows: [], me: '', guest: false, error: false };
   let soundOn = true;
   let audioCtx = null;
   let bank = { noun: [], verb: [], adjective: [] };
@@ -1285,6 +1331,65 @@
     }
   }
 
+  /* ---- purrstack end-of-game helpers -----------------------------------
+     Two-step finish: wrong words first, then the Top 7 ranking. Kept pure
+     (no DOM) so tests/purrstack.test.cjs can exercise them directly. */
+  function purrEndStep(wrongCount) {
+    return (Number(wrongCount) || 0) > 0 ? 'review' : 'rank';
+  }
+
+  function purrNextStep(mode) {
+    return mode === 'review' ? 'rank' : mode;
+  }
+
+  function purrEsc(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function purrBoardHTML(data) {
+    data = data || {};
+    var head = '<div class="board-title">🏆 Top 7</div>';
+    if (data.guest) {
+      return head + '<div class="board-note">Leaderboards are hidden in guest mode. Sign in with your school account to see class rankings.</div>';
+    }
+    if (data.error) {
+      return head + '<div class="board-note">Leaderboard unavailable — ask your teacher to run <code>supabase/purrstack_scores.sql</code>.</div>';
+    }
+    if (data.status !== 'ready') {
+      return head + '<div class="board-note">Loading…</div>';
+    }
+    var rows = data.rows || [];
+    if (!rows.length) {
+      return head + '<div class="board-note">No scores yet — sign in and play a game to get on the board.</div>';
+    }
+    return head + rows.map(function (row, i) {
+      var medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+      var mine = data.me && row.user_id === data.me;
+      var name = row.nickname || (row.email ? String(row.email).split('@')[0] : 'Player');
+      return '<div class="rank-row' + (mine ? ' me' : '') + '">'
+        + '<span class="rank-medal">' + medal + '</span>'
+        + '<span class="rank-name">' + purrEsc(name) + (mine ? ' (you)' : '') + '</span>'
+        + '<span class="rank-pts">' + (Number(row.score) || 0) + ' pts</span>'
+        + '<span class="rank-words">' + (Number(row.words) || 0) + ' words</span>'
+        + '</div>';
+    }).join('');
+  }
+  /* ---- end purrstack end-of-game helpers ------------------------------- */
+
+  function renderRankStep() {
+    if (overlayStats) {
+      overlayStats.innerHTML =
+        '<div><div class="num">' + score + '</div><div class="lbl">score</div></div>'
+        + '<div><div class="num">' + Math.max(score, best) + '</div><div class="lbl">best</div></div>'
+        + '<div><div class="num">' + piecesPlaced + '</div><div class="lbl">words</div></div>';
+    }
+    if (overlayBoard) overlayBoard.innerHTML = purrBoardHTML(rankBoard);
+  }
+
   function endGame() {
     running = false;
     updateStartBtn();
@@ -1305,7 +1410,8 @@
     if (music) music.pause();
     stage.classList.remove('danger');
     updateHud();
-    setOverlay('over');
+    rankBoard = { status: 'loading', rows: [], me: '', guest: false, error: false };
+    setOverlay(purrEndStep(wrongWords.length));
     draw();
   }
 
@@ -1317,6 +1423,7 @@
     holdLeft = HOLDS_PER_GAME;
     selectedZone = 0;
     score = 0;
+    bestAtStart = best;
     combo = 0;
     piecesPlaced = 0;
     dropInterval = 900;
@@ -1402,30 +1509,33 @@
     if (overlayLogo) overlayLogo.style.display = startMode ? 'block' : 'none';
     if (overlayTitle) overlayTitle.style.display = startMode ? 'none' : 'block';
     if (overlayEmoji) overlayEmoji.style.display = startMode ? 'none' : 'block';
-    if (mode !== 'over' && overlayReview) overlayReview.style.display = 'none';
+    if (overlayReview) overlayReview.style.display = mode === 'review' ? 'block' : 'none';
+    if (overlayStats) overlayStats.style.display = mode === 'rank' ? 'flex' : 'none';
+    if (overlayBoard) overlayBoard.style.display = mode === 'rank' ? 'block' : 'none';
     if (mode === 'paused') {
       overlayEmoji.textContent = '⏸️';
       overlayTitle.textContent = 'Paused';
       overlayText.innerHTML = 'Take a breath. Your tower will wait.';
       overlayBtn.textContent = '▶ Resume';
-    } else if (mode === 'over') {
-      overlayEmoji.textContent = '💥';
-      overlayTitle.textContent = 'Game Over';
-      overlayText.innerHTML = 'Score <b>' + score + '</b> · Best <b>' + best + '</b>';
+    } else if (mode === 'review') {
+      overlayEmoji.textContent = '📝';
+      overlayTitle.textContent = 'Words to review';
+      overlayText.innerHTML = 'Score <b>' + score + '</b> · Best <b>' + Math.max(score, best) + '</b>';
       if (overlayReview) {
-        if (wrongWords.length) {
-          overlayReview.style.display = 'block';
-          overlayReview.innerHTML = '<b>Words to review</b>' + wrongWords.map(function (w) {
-            return '<div class="rw"><span>' + escHtml(w.e) + '</span>'
-              + '<span class="rw-ans">'
-              + '<span class="rw-ok">✅ ' + escHtml(w.p) + '</span>'
-              + '<span class="rw-no">❌ ' + escHtml(w.zone) + '</span>'
-              + '</span></div>';
-          }).join('');
-        } else {
-          overlayReview.style.display = 'none';
-        }
+        overlayReview.innerHTML = wrongWords.map(function (w) {
+          return '<div class="rw"><span>' + escHtml(w.e) + '</span>'
+            + '<span class="rw-ans">'
+            + '<span class="rw-ok">✅ ' + escHtml(w.p) + '</span>'
+            + '<span class="rw-no">❌ ' + escHtml(w.zone) + '</span>'
+            + '</span></div>';
+        }).join('');
       }
+      overlayBtn.textContent = 'Next →';
+    } else if (mode === 'rank') {
+      overlayEmoji.textContent = '🏆';
+      overlayTitle.textContent = score > bestAtStart ? 'New best!' : 'Game over';
+      overlayText.innerHTML = 'Score <b>' + score + '</b> · Best <b>' + Math.max(score, best) + '</b>';
+      renderRankStep();
       overlayBtn.textContent = '▶ Play again';
     } else {
       overlayEmoji.textContent = '🏗️';
@@ -2305,7 +2415,25 @@
   /* ---------------- events ---------------- */
   overlayBtn.addEventListener('click', function () {
     if (overlayMode === 'paused') togglePause();
+    else if (overlayMode === 'review') setOverlay(purrNextStep(overlayMode));
     else startGame();
+  });
+
+  /* Same-origin reply from the parent page with the Top 7 board. It can
+     arrive while the review step is showing, so it is cached and rendered
+     when the student taps Next. */
+  window.addEventListener('message', function (event) {
+    if (!event || event.origin !== window.location.origin) return;
+    const data = event.data;
+    if (!data || data.type !== 'purrstack-board') return;
+    rankBoard = {
+      status: 'ready',
+      rows: Array.isArray(data.rows) ? data.rows : [],
+      me: data.me ? String(data.me) : '',
+      guest: !!data.guest,
+      error: !!data.error
+    };
+    if (overlayMode === 'rank') renderRankStep();
   });
 
   startBtn.addEventListener('click', function () {
@@ -2534,7 +2662,11 @@
       };
     },
     setBoard: function (rows) { board = rows; draw(); },
-    spawnNext: spawnNext
+    spawnNext: spawnNext,
+    /* Two-step game over (review -> ranking), exposed for quick checks. */
+    endStep: purrEndStep,
+    nextStep: purrNextStep,
+    boardHTML: purrBoardHTML
   };
 })();
 </script>

@@ -1898,8 +1898,16 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 計分：放啱 +10；放啱 + hard drop 額外 +20；放錯 -20（最低 0）＋combo 清零；
   跨兩個 zone = 0 分但 combo 保留；消行 `100 × 行數 × combo`；每 3 連 combo
   觸發 RESCUE（清一個錯方塊）。Best score 存 `localStorage`。
-- Game Over：**WORDS TO REVIEW** 逐個錯字顯示正確 POS（紅色、✅）同學生放錯的
-  zone（灰色、❌），同一局重複只顯示一次。
+- Game Over：**兩步**。先出 **Words to review**（逐個錯字顯示正確 POS 紅色 ✅ 同學生
+  放錯的 zone 灰色 ❌），撳 **Next →** 才轉去 **ranking** 卡：score／best／words 同
+  **🏆 Top 7**（每人最佳，score → words，自己一個 row 會標 `(you)`）；冇錯字就直接
+  去 ranking。`endGame()` 仍然第一時間 post `purrstack-score`，`js/shared.js` 的
+  `submitPurrStackScore()` await insert 之後再 post `{type:'purrstack-board', rows, me,
+  guest}` 返 iframe（同 origin only）。Guest／teacher preview 唔上傳，board reply
+  標 `guest`，卡片寫「Leaderboards are hidden in guest mode…」；如果 reply 係
+  `error`（未跑 SQL）就寫「run supabase/purrstack_scores.sql」，遊戲照玩。
+  如果 board 喺 review 步驟已經到，就會 cache 落 `rankBoard`，撳 Next 即刻顯示；
+  未到就顯示 Loading…。
 - 排行榜：`supabase/purrstack_scores.sql`（老師自己喺 SQL editor 跑，可重跑）
   建 `purrstack_scores` ＋ `purrstack_leaderboard`（每人最佳，score → words →
   created_at）。RLS：select 公開、insert 只准自己。遊戲 Game Over 時經
@@ -1907,6 +1915,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `submitPurrStackScore()`；guest／teacher preview 唔會上傳。
   Hub Leaderboard 有 **🐾 PurrStack** tab（top 10，score → words）。
   未跑 SQL 時顯示「Run supabase/purrstack_scores.sql」提示，遊戲照玩。
+- Admin Dashboard 喺 Word Jump 卡同 Speak Flap 卡之間有 **🐾 PurrStack** 卡
+  （`loadPurrStackAdmin()`／`renderPurrStackAdmin()` 喺 `js/admin.js`，
+  `changeView('admin-view')` 會一齊 call）。Students／Games played／Top score／
+  Today（HK 日）＋每人最佳，用 `renderFormSections` 按 F3／F4／F6／Unassigned
+  分組（scope `purrstack-admin`），row 跟 Word Jump。表／view 未建立時只顯示
+  跑 `supabase/purrstack_scores.sql` 的提示。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

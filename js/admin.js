@@ -15,7 +15,8 @@
             paws: null,
             pawsError: null,
             flap: null,
-            flapError: null
+            flapError: null,
+            purrstack: null
         };
 
         // Teacher dashboard names open the student's profile (and Follow).
@@ -323,6 +324,91 @@
                     </div>`;
                 }).join('') + '</div>',
                 { collapsible: true, scope: 'flap-admin', emptyAll: '<p class="text-gray-400 text-center py-10">No Speak Flap runs yet.</p>' });
+        }
+
+        /* ---------------- Admin: PurrStack ---------------- */
+        async function loadPurrStackAdmin(forceForms) {
+            const statsEl = document.getElementById('purrstack-admin-stats');
+            const listEl = document.getElementById('purrstack-admin-container');
+            if (!statsEl || !listEl) return;
+            if (!isAdmin()) return;
+            if (forceForms) await ensureFormDirectory(true);
+            statsEl.innerHTML = '';
+            listEl.innerHTML = '<div class="flex flex-col items-center py-10"><div class="loader mb-4"></div><p class="text-orange-400 font-bold">Loading PurrStack...</p></div>';
+
+            const dayStart = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Hong_Kong' }));
+            dayStart.setHours(0, 0, 0, 0);
+
+            const [boardRes, totalsRes, todayRes] = await Promise.all([
+                sb.from('purrstack_leaderboard')
+                    .select('user_id,nickname,email,score,words,created_at')
+                    .order('score', { ascending: false })
+                    .order('words', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .limit(1000),
+                sb.from('purrstack_scores').select('id', { count: 'exact', head: true }),
+                sb.from('purrstack_scores').select('id', { count: 'exact', head: true })
+                    .gte('created_at', dayStart.toISOString())
+            ]);
+
+            adminCache.purrstack = {
+                board: boardRes.data || [],
+                error: boardRes.error || null,
+                totalGames: totalsRes.count || 0,
+                todayGames: todayRes.count || 0
+            };
+            renderPurrStackAdmin();
+        }
+
+        function renderPurrStackAdmin() {
+            const statsEl = document.getElementById('purrstack-admin-stats');
+            const listEl = document.getElementById('purrstack-admin-container');
+            if (!statsEl || !listEl || !adminCache.purrstack) return;
+            const pack = adminCache.purrstack;
+            if (pack.error) {
+                statsEl.innerHTML = '';
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">PurrStack scores are not available. Run <code class="text-orange-600">supabase/purrstack_scores.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            const board = pack.board || [];
+            const best = board.length ? Number(board[0].score) || 0 : 0;
+            const todayLabel = pack.todayGames === null ? '—' : pack.todayGames;
+            statsEl.innerHTML = `
+                <div class="bg-orange-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-orange-600">${board.length}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Students</p>
+                </div>
+                <div class="bg-blue-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-blue-600">${pack.totalGames}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Games played</p>
+                </div>
+                <div class="bg-amber-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-amber-600">${best}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Top score</p>
+                </div>
+                <div class="bg-indigo-50 rounded-2xl p-5 text-center">
+                    <p class="text-3xl font-bold text-indigo-600">${todayLabel}</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">Today</p>
+                </div>`;
+            if (!board.length) {
+                listEl.innerHTML = '<p class="text-gray-400 text-center py-10">No PurrStack games recorded yet.</p>';
+                return;
+            }
+            listEl.innerHTML = renderFormSections(groupRowsByForm(board), (list) =>
+                '<div class="space-y-2">' + list.map((r, i) => {
+                const medal = ['🥇', '🥈', '🥉'][i] || `<span class="text-gray-400">${i + 1}.</span>`;
+                return `<div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
+                    <span class="w-7 text-center text-sm font-bold">${medal}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 min-w-0"><p class="text-sm font-bold text-gray-700 truncate">${adminProfileName(r, '')}</p>${classBadge(r.email, r.nickname)}${formAssignControl(r.email, r.nickname)}</div>
+                        <p class="text-[10px] text-gray-400" title="${escapeHtml(hkDate(r.created_at))}">last ${timeAgo(r.created_at)}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-bold text-orange-600">${Number(r.score) || 0} pts</p>
+                        <p class="text-[10px] text-gray-400">${Number(r.words) || 0} words</p>
+                    </div>
+                </div>`;
+            }).join('') + '</div>', { collapsible: true, scope: 'purrstack-admin' });
         }
 
         async function loadAdminDashboard() {

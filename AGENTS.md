@@ -279,6 +279,15 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `voiced` 時下沉速度 ×0.4（唔會 lift，所以音量本身仍然唔會令貓上升），
   令 ASR 慢半拍時貓冇咁易跌。`openMic()` 有 `micToken` 防止遲來的
   `getUserMedia` 在離開後重新開咪。
+- **Android / mic 診斷（2026-11）**：mic screen 有 `#flap-micdiag`，會顯示
+  `Mic ready · speech-to-text: available / not available · Android` 或
+  `Speech-to-text error: <code>`。`startAsr()` 預設 `en-US`；如果 error 係
+  `language-not-supported`，會自動 retry 一次 `en-GB`。另外會處理
+  `audio-capture`（其他 app 佔用咪）、`not-allowed`／`service-not-allowed`
+  （Chrome 權限）、`network`（離線）同 `no-speech`／`aborted`（正常 restart）。
+  其他 error 會 toast 並建議 Practice mode。Android Chrome 仍然需要
+  Google speech services ＋網絡；in-app browser／部分 Samsung 瀏覽器可能
+  完全冇 `SpeechRecognition`，要開 Chrome。
 - Result 嘅 `🔁 Again`：如果上一局係 ranked，會返 `mic` 重新開咪（唔會靜靜變
   practice）；practice 局就繼續 practice。
 - 語音辨識放寬：`maxAlternatives = 3`（final result 會餵埋其他候選字）、

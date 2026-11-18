@@ -478,12 +478,21 @@
     }
 
     /* ---------------- mic ---------------- */
+    function setMicDiag(text) {
+        const node = el('micdiag');
+        if (node) node.textContent = text || '';
+    }
+
     async function openMic() {
         const fill = el('micfill');
         const state = el('micstate');
         const floor = el('micfloor');
         const samples = [];
         const token = (FLAP.micToken = (FLAP.micToken || 0) + 1);
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const android = /Android/i.test(navigator.userAgent);
+        setMicDiag('Requesting microphone · speech-to-text: ' + (SR ? 'available' : 'not available')
+            + (android ? ' · Android' : ''));
         try {
             if (!FLAP.stream) {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -512,9 +521,11 @@
                 state.textContent = 'Listening — say “hello”.';
                 state.className = 'flap-mic-state';
             }
-            if (floor && !(window.SpeechRecognition || window.webkitSpeechRecognition)) {
+            if (floor && !SR) {
                 floor.textContent = 'This browser has no speech-to-text — Practice mode still works.';
             }
+            setMicDiag('Mic ready · speech-to-text: ' + (SR ? 'available' : 'not available')
+                + (android ? ' · Android' : ''));
 
             const tick = () => {
                 if (!FLAP.micMeterOn || token !== FLAP.micToken) return;
@@ -548,6 +559,7 @@
                 state.className = 'flap-mic-state bad';
             }
             if (token === FLAP.micToken && floor) floor.textContent = 'Permission denied or no device found.';
+            if (token === FLAP.micToken) setMicDiag('Microphone blocked or unavailable.');
             return false;
         }
     }
@@ -599,14 +611,17 @@
     /* ---------------- speech-to-text ---------------- */
     function startAsr() {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return;
+        if (!SR) {
+            setMicDiag('This browser has no speech-to-text. Use Chrome or Practice mode.');
+            return;
+        }
         try {
             const asr = new SR();
             FLAP.asr = asr;
             asr.continuous = true;
             asr.interimResults = true;
             try { asr.maxAlternatives = 3; } catch (e) { /* ignore */ }
-            asr.lang = 'en-US';
+            asr.lang = FLAP.asrLang || 'en-US';
             asr.onresult = (e) => {
                 let s = '';
                 for (let i = e.resultIndex; i < e.results.length; i += 1) {
@@ -629,12 +644,32 @@
             asr.onerror = (e) => {
                 FLAP.asrOk = false;
                 const code = e && e.error;
+                setMicDiag('Speech-to-text error: ' + (code || 'unknown'));
                 if (code === 'not-allowed' || code === 'service-not-allowed') {
                     FLAP.micOn = false;
-                    toast('🎤 Microphone blocked — allow it in the browser, or use Practice mode.');
+                    toast('🎤 Allow microphone and speech recognition in Chrome, or use Practice mode.');
+                } else if (code === 'audio-capture') {
+                    FLAP.micOn = false;
+                    toast('🎤 Another app is using the microphone. Close it, then try again or use Practice mode.');
+                } else if (code === 'language-not-supported') {
+                    if ((FLAP.asrLang || 'en-US') !== 'en-GB') {
+                        FLAP.asrLang = 'en-GB';
+                        stopAsr();
+                        setMicDiag('Speech-to-text: retrying with en-GB…');
+                        setTimeout(() => {
+                            if (FLAP.running && FLAP.micOn && !FLAP.tap) startAsr();
+                        }, 300);
+                        return;
+                    }
+                    FLAP.micOn = false;
+                    toast('🎤 English speech recognition is not installed. Add English in Android settings, or use Practice mode.');
                 } else if (code === 'network') {
                     FLAP.micOn = false;
                     toast('🎤 Speech-to-text is blocked/offline — use Practice mode.');
+                } else if (code === 'no-speech' || code === 'aborted') {
+                    /* normal Android restart; onend will try again */
+                } else {
+                    toast('🎤 Speech-to-text error: ' + (code || 'unknown') + ' — use Practice mode.');
                 }
             };
             asr.onend = () => {
@@ -644,8 +679,11 @@
             };
             asr.start();
             FLAP.asrOk = true;
+            setMicDiag('Speech-to-text listening · ' + asr.lang);
         } catch (e) {
             FLAP.asrOk = false;
+            setMicDiag('Speech-to-text could not start. Use Chrome or Practice mode.');
+            toast('🎤 Speech-to-text could not start — use Practice mode.');
         }
     }
 

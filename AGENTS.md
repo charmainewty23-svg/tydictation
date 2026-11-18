@@ -375,8 +375,12 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   `en-GB`／`en-US`（例如 Daniel／Aaron），搵唔到就用任何 `en-*`，再冇就用
   `utterance.lang`。`toggleQuizAccent()` 只喺 UK／US 之間切，切完即刻重讀。
   **冇港式（HK）選項**（2026-11 移除：zh-HK 讀英文太怪）。
-  同一時間只會播一段（`playAudioUrl()` 會 pause 上一段），切題後遲到嘅
-  `await` 會見到 `quizIdx` 變咗而放棄，唔會讀錯字。
+  同一時間只會播一段（`playAudioUrl()` 會 pause 上一段）。`updateQuizUI()`
+  一開始會 `stopQuizAudio()`（pause Cambridge mp3 ＋ `speechSynthesis.cancel()`），
+  所以上一題嘅錄音／裝置語音唔會喺新題目顯示時繼續播（以前會出現「題目
+  lend a helping hand、聲係上一題 a couch potato」）。另外每次 `startQuiz()`
+  會 `quizEpoch += 1`，`speakCurrentWord()` 同 `playAudioUrl(url, epoch)` 都會
+  檢查 epoch ＋ `quizIdx`，新一局第 1 題唔會被上一局遲到嘅 audio callback 蓋過。
   `updateQuizUI()` 同 `voiceschanged` 會同步掣字。Word Battle 仍然固定 en-US。
 
 ## 4. 資料流

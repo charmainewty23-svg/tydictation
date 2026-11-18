@@ -73,6 +73,8 @@
         let quizAnswerLocked = false;   // true while advancing / after a result
         let quizRevealMode = false;     // 3rd wrong: the answer is shown and the
                                         // student must type it to move on.
+        // Every new quiz invalidates late audio callbacks from the previous one.
+        let quizEpoch = 0;
 
         // Listening voice: British (default) or American. Both play the real
         // Cambridge Dictionary recording for the word; the device voice is only
@@ -170,8 +172,17 @@
             return (quizAccent === 'us' ? entry.us : entry.uk) || '';
         }
 
-        function playAudioUrl(url) {
+        function stopQuizAudio() {
+            if (quizAudio) {
+                try { quizAudio.pause(); } catch (e) {}
+                quizAudio = null;
+            }
+            try { if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel(); } catch (e) {}
+        }
+
+        function playAudioUrl(url, epoch) {
             return new Promise(resolve => {
+                if (epoch != null && epoch !== quizEpoch) { resolve(false); return; }
                 if (quizAudio) { try { quizAudio.pause(); } catch (e) {} quizAudio = null; }
                 if (!url) { resolve(false); return; }
                 try {
@@ -579,6 +590,8 @@
                 allWords = withChinese;
             }
             
+            quizEpoch += 1;
+            stopQuizAudio();
             quizMode = mode;
             const limit = (currentTopic === NEW_VOCAB || quizSource === 'errorbook') ? allWords.length : 15;
             quizWords = [...allWords].sort(() => 0.5 - Math.random()).slice(0, limit);
@@ -610,6 +623,9 @@
         }
 
         function updateQuizUI() {
+            // Never let the previous question's recording keep playing over
+            // the new word (this caused audio/text mismatches in Listening).
+            stopQuizAudio();
             const word = quizWords[quizIdx];
             document.getElementById('quiz-progress').innerText = `Word ${quizIdx + 1} of ${quizWords.length}`;
             document.getElementById('quiz-score').innerText = `Score: ${quizScore}`;
@@ -648,12 +664,13 @@
 
         async function speakCurrentWord() {
             if (quizIdx >= quizWords.length) return;
+            const epoch = quizEpoch;
             const startedAt = quizIdx;
             const word = primaryAnswer(quizWords[startedAt].en);
             const url = await cambridgeAudioFor(word);
-            if (startedAt !== quizIdx) return;   // question already moved on
-            if (url && await playAudioUrl(url)) return;
-            if (startedAt !== quizIdx) return;
+            if (epoch !== quizEpoch || startedAt !== quizIdx) return;   // moved on
+            if (url && await playAudioUrl(url, epoch)) return;
+            if (epoch !== quizEpoch || startedAt !== quizIdx) return;
             speakWithDevice(word);
         }
 
@@ -797,6 +814,7 @@
         }
 
         function finishQuiz() {
+            stopQuizAudio();
             const total = quizWords.length;
             const correctCount = quizResults.filter(r => r.correct).length;
             const accuracy = Math.round((correctCount / total) * 100);

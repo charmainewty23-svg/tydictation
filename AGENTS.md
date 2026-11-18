@@ -2911,7 +2911,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     都可以狂撳；每撳一下即時浮 emoji＋震動，並經 RPC `cheer_class_battle()`
     累加，`class_battle_cheers()` 每 1.5 秒 poll 總數。SQL：
     `supabase/class_battle_cheers.sql`（可重跑；未跑只會本地加數）。
-    冠軍有 Victory effect 就喺冠軍卡彈出後 ~1.2 秒直接播，冇就保留三隻貓 podium。
+    冠軍有 Victory effect 就喺冠軍卡彈出後 ~0.6 秒直接播，冇就保留三隻貓 podium。
     `VICTORY.showPodium` 喺 0.4s／1.5s／**2.6s** 依次彈 2nd／1st／champion；
     `claimForWin` 用 podium 的 `data-started-at` 對 2.6s，再等 0.6s，所以
     victory effect 喺 ceremony 開始後約 **3.2 秒**（冠軍卡後 0.6 秒）播出。

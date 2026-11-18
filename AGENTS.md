@@ -2911,6 +2911,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     累加，`class_battle_cheers()` 每 1.5 秒 poll 總數。SQL：
     `supabase/class_battle_cheers.sql`（可重跑；未跑只會本地加數）。
     冠軍有 Victory effect 就喺冠軍卡彈出後 ~1.2 秒直接播，冇就保留三隻貓 podium。
+    `VICTORY.showPodium` 喺 0.4s／1.5s／**2.6s** 依次彈 2nd／1st／champion；
+    `claimForWin` 用 podium 的 `data-started-at` 對 2.6s，再等 1.2s，所以
+    victory effect 喺 ceremony 開始後約 **3.8 秒**（冠軍卡後 1.2 秒）播出。
+    偵測唔到 podium 時最多 9s + 1.2s（約 10.2s）作後備。
     老師帳戶 preview 會用**老師自己隻貓**做示範。冠軍卡彈出、特效關閉後會
     **自動 smooth scroll** 到合照／互動區（`ceremonyExtras` 內 `autoScroll`，最多等 25 秒）。
   - 手機／平板示範：`/ceremony-devices-demo.html`（iPhone 390×844 ＋

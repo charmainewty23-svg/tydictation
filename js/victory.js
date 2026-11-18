@@ -602,8 +602,11 @@
             }
             const champ = trophy.querySelector('.battle-trophy-place.champion') ||
                 trophy.querySelector('[data-trophy-place="0"]');
+            const podium = document.getElementById('victory-podium');
+            const podiumStart = podium ? Number(podium.dataset.startedAt || 0) : 0;
+            const championAt = podium ? Number(podium.dataset.championAt || 2600) : 0;
             const shown = (champ && champ.classList.contains('show')) ||
-                (!!document.getElementById('victory-podium') && Date.now() - startedAt > 5200);
+                (podiumStart > 0 && Date.now() - podiumStart >= championAt);
             if ((shown && Date.now() - started > 900) || Date.now() - started > 9000) {
                 setTimeout(function () {
                     VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
@@ -775,6 +778,8 @@
         const box = document.createElement('div');
         box.id = 'victory-podium';
         box.className = 'victory-podium-overlay';
+        box.dataset.startedAt = String(Date.now());
+        box.dataset.championAt = '2600';
         box.innerHTML =
             '<div class="vp-head"><div><p class="vp-kicker">' + escapeHtml(o.kicker || 'Class battle') + '</p>' +
             '<h2 class="vp-title">' + escapeHtml(o.title || '🏆 Prize stand') + '</h2></div>' +

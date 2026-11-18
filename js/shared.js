@@ -370,7 +370,7 @@
                         row = {
                             user_id: uid,
                             email: currentUser.email,
-                            nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                            nickname: cleanLoginNickname(currentUser.email, currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]),
                             streak_count: 0,
                             streak_best: 0,
                             last_practice_date: null,
@@ -416,7 +416,7 @@
             const row = {
                 user_id: currentUser.id,
                 email: currentUser.email,
-                nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                nickname: cleanLoginNickname(currentUser.email, currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]),
                 streak_count: state.count,
                 streak_best: state.best,
                 last_practice_date: state.last || null,
@@ -1087,6 +1087,25 @@
             return { form, classId: digit + letter };
         }
 
+        // Some allowlisted Google accounts carry their mail-domain label in
+        // the display name, e.g. "lam ka ho wbss" for t44@wbss.edu.hk. That
+        // trailing token is part of the account, not the student's name, so
+        // drop it before the name is recorded or shown anywhere.
+        const NICKNAME_KEEP_DOMAIN = new Set(['gmail', 'hotmail', 'outlook', 'yahoo', 'icloud', 'me', 'live', 'msn']);
+
+        function cleanLoginNickname(email, nickname) {
+            const name = String(nickname == null ? '' : nickname).replace(/\s+/g, ' ').trim();
+            if (!name) return '';
+            const domain = String(email == null ? '' : email).split('@')[1] || '';
+            const label = domain.split('.')[0].trim().toLowerCase();
+            if (!label || NICKNAME_KEEP_DOMAIN.has(label)) return name;
+            const words = name.split(' ');
+            // Never reduce a name to nothing: "wbss" on its own stays.
+            if (words.length < 2) return name;
+            if (words[words.length - 1].toLowerCase() !== label) return name;
+            return words.slice(0, -1).join(' ').trim() || name;
+        }
+
         // A real Google / on-screen name, not an email or email local-part
         // fallback such as s231014.
         function displayedLoginName(email, nickname) {
@@ -1096,7 +1115,7 @@
             const local = em.split('@')[0].trim();
             if (em && name.toLowerCase() === em.toLowerCase()) return '';
             if (local && name.toLowerCase() === local.toLowerCase()) return '';
-            return name;
+            return cleanLoginNickname(em, name);
         }
 
         function parseDisplayNameFormClass(nickname) {
@@ -1514,7 +1533,8 @@
             if (lbCard) lbCard.classList.remove('hidden');
             if (recCard) recCard.classList.remove('hidden');
             if (currentUser) {
-                const name = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
+                const name = cleanLoginNickname(currentUser.email,
+                    currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]);
                 const form = previewStudentForm();
                 if (btn) { btn.innerText = 'Logout'; btn.onclick = signOut; }
                 if (nickname) nickname.innerText = form ? (form + ' preview') : name;
@@ -1986,7 +2006,8 @@
         async function recordLogin(user) {
             if (!user || loginRecorded) return;
             loginRecorded = true;
-            const nickname = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
+            const rawNickname = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
+            const nickname = cleanLoginNickname(user.email, rawNickname);
             const { error } = await sb.rpc('record_login', {
                 p_nickname: nickname,
                 p_user_agent: navigator.userAgent
@@ -2196,7 +2217,9 @@
         }
 
         function displayName(row) {
-            return (row && (row.nickname || ((row.email || '').split('@')[0]))) || 'student';
+            const email = (row && row.email) || '';
+            const name = (row && (row.nickname || email.split('@')[0])) || 'student';
+            return cleanLoginNickname(email, name) || 'student';
         }
 
         function escapeHtml(s) {

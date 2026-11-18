@@ -714,3 +714,203 @@ test('game over keeps the start bar fully on screen in enlarged phone play', () 
         gameHtml.indexOf('</style>'));
     assert.doesNotMatch(phoneRules, /\.startbar[^}]*display:\s*none/);
 });
+
+/* ---------------- 5) hold-to-slide on ◀ ▶ (delayed auto-shift) ---------------- */
+
+function holdBlock() {
+    const at = gameHtml.indexOf('/* Hold to slide (delayed auto-shift)');
+    const end = gameHtml.indexOf('function softDrop()', at);
+    assert.ok(at !== -1 && end !== -1, 'the hold-to-slide block is marked');
+    return gameHtml.slice(at, end);
+}
+
+test('◀ ▶ step once on pointerdown then auto-repeat on a delay, not on click', () => {
+    const src = holdBlock();
+    assert.doesNotMatch(gameHtml, /leftBtn\.addEventListener\('click'/, 'no click-only movement');
+    assert.doesNotMatch(gameHtml, /rightBtn\.addEventListener\('click'/);
+    assert.match(gameHtml, /bindHoldButton\(leftBtn, -1\);/);
+    assert.match(gameHtml, /bindHoldButton\(rightBtn, 1\);/);
+
+    assert.match(src, /addEventListener\('pointerdown'/);
+    assert.match(src, /'pointerup'/);
+    assert.match(src, /'pointercancel'/);
+    assert.match(src, /'lostpointercapture'/);
+    assert.match(src, /setPointerCapture\(e\.pointerId\)/, 'capture is attempted when allowed');
+    assert.match(src, /contextmenu/, 'the long-press context menu is suppressed');
+
+    /* One immediate column on tap, then a DAS delay (180-220ms) and a fast
+       repeat (45-70ms) that steps one column at a time. */
+    assert.match(src, /move\(dir\);\s+\/\* a short tap must not feel delayed \*\//);
+    const delay = Number((src.match(/HOLD_DAS_DELAY = (\d+)/) || [])[1]);
+    const repeat = Number((src.match(/HOLD_DAS_REPEAT = (\d+)/) || [])[1]);
+    assert.ok(delay >= 180 && delay <= 220, 'DAS delay is short but not instant, got ' + delay);
+    assert.ok(repeat >= 45 && repeat <= 70, 'repeat is fast but still one column at a time, got ' + repeat);
+    assert.match(src, /holdDelayTimer = setTimeout\(/);
+    assert.match(src, /holdRepeatTimer = setInterval\(function \(\) \{ holdStep\(dir\); \}, HOLD_DAS_REPEAT\)/);
+    assert.doesNotMatch(src, /while \(/, 'the piece never flies to the wall in one step');
+});
+
+test('the hold stops on release, when blocked, and on pause / end / blur', () => {
+    const src = holdBlock();
+    /* Release and cancelled touches clear both timers. */
+    assert.match(src, /function stopHoldMove\(\) \{[\s\S]*?clearTimeout\(holdDelayTimer\)[\s\S]*?clearInterval\(holdRepeatTimer\)/);
+    assert.match(src, /btn\.addEventListener\(name, stopHoldMove\)/);
+
+    /* Blocked / edge / paused / finished clears the repeat instead of idling. */
+    assert.match(src, /function holdStep\(dir\) \{[\s\S]*?current\.x === x0\) stopHoldMove\(\)/);
+
+    const pauseAt = gameHtml.indexOf('function togglePause()');
+    const pauseSrc = gameHtml.slice(pauseAt, gameHtml.indexOf('function setOverlay(mode)', pauseAt));
+    assert.match(pauseSrc, /stopHoldMove\(\)/, 'pausing clears the repeat timer');
+
+    const endAt = gameHtml.indexOf('function endGame()');
+    const endSrc = gameHtml.slice(endAt, gameHtml.indexOf('function resetGame()', endAt));
+    assert.match(endSrc, /stopHoldMove\(\)/, 'game over clears the repeat timer');
+
+    const startAt = gameHtml.indexOf('function startGame()');
+    const startSrc = gameHtml.slice(startAt, gameHtml.indexOf('function togglePause()', startAt));
+    assert.match(startSrc, /stopHoldMove\(\)/, 'restarting/starting clears the repeat timer');
+
+    assert.match(gameHtml, /window\.addEventListener\('blur', stopHoldMove\)/);
+    const visibilityAt = gameHtml.indexOf("document.addEventListener('visibilitychange'");
+    assert.ok(visibilityAt !== -1, 'a hidden tab stops the repeat');
+    assert.match(gameHtml.slice(visibilityAt, visibilityAt + 160), /stopHoldMove\(\)/);
+
+    /* The parent's pause message (leaving the PurrStack tab) stops it too. */
+    const msgAt = gameHtml.indexOf("e.data === 'purrstack-pause'");
+    assert.ok(msgAt !== -1);
+    assert.match(gameHtml.slice(msgAt, msgAt + 200), /stopHoldMove\(\)/);
+});
+
+test('◀ ▶ are not turned into page scroll while held', () => {
+    const rule = cssRule(gameHtml, '#left, #right');
+    assert.match(rule, /touch-action:\s*none;/, 'a held button must not cancel on page scroll');
+});
+
+test('the arrow / A D keys use the same hold and ignore OS key repeat', () => {
+    const keyAt = gameHtml.indexOf("window.addEventListener('keydown'");
+    const upAt = gameHtml.indexOf("window.addEventListener('keyup'", keyAt);
+    assert.ok(keyAt !== -1 && upAt !== -1);
+    const down = gameHtml.slice(keyAt, upAt);
+
+    assert.match(down, /e\.key === 'ArrowLeft' \|\| e\.key === 'a' \|\| e\.key === 'A'/);
+    assert.match(down, /e\.key === 'ArrowRight' \|\| e\.key === 'd' \|\| e\.key === 'D'/);
+    assert.match(down, /if \(e\.repeat\) return;/, 'our timer owns the repeat');
+    assert.match(down, /startHoldMove\(-1\)/);
+    assert.match(down, /startHoldMove\(1\)/);
+    assert.doesNotMatch(down, /move\(-1\)/, 'a keydown no longer steps on its own');
+    assert.doesNotMatch(down, /move\(1\)/);
+
+    const up = gameHtml.slice(upAt, gameHtml.indexOf("window.addEventListener('message'", upAt));
+    assert.match(up, /stopHoldMove\(\)/, 'releasing the key stops the slide');
+});
+
+/* ---------------- 6) start-screen how-to (point form) ---------------- */
+
+function howtoMarkup() {
+    const at = gameHtml.indexOf('<div id="overlay-howto">');
+    const end = gameHtml.indexOf('id="overlay-review"', at);
+    assert.ok(at !== -1 && end !== -1, 'the guide sits in its own element on the start card');
+    return gameHtml.slice(at, end);
+}
+
+test('the start card has a point-form How to play + Scoring guide', () => {
+    const src = howtoMarkup();
+    assert.match(src, /class="howto-head">How to play</);
+    assert.match(src, /class="howto-head">Scoring</);
+    assert.equal((src.match(/<ul>/g) || []).length, 2, 'two lists');
+    assert.ok((src.match(/<li>/g) || []).length >= 12, 'the steps are bullet points');
+
+    /* How to play: zone, hold-to-slide, buttons, board gestures, hold, forms, end. */
+    assert.match(src, /matching zone \(Noun \/ Verb \/ Adjective\)/);
+    assert.match(src, /◀ ▶ move one column/);
+    assert.match(src, /hold either button/);
+    assert.match(src, /release to stop/);
+    assert.match(src, /⟳ rotates/);
+    assert.match(src, /⬇ DROP lands at once/);
+    assert.match(src, /🅿 PARK sits the piece fully in its zone/);
+    assert.match(src, /tap = rotate/);
+    assert.match(src, /drag left\/right = move/);
+    assert.match(src, /double-tap, swipe down or long-press = drop/);
+    assert.match(src, /5 times per game/);
+    assert.match(src, /base forms/);
+    assert.match(src, /-ed\) and past participle \(pp\)/);
+    assert.match(src, /ends when a new piece cannot fit/);
+
+    /* Scoring: the documented numbers, unchanged. */
+    assert.match(src, /Correct placement: <b>\+10<\/b>/);
+    assert.match(src, /Wrong placement: <b>−20<\/b>/);
+    assert.match(src, /never below 0/);
+    assert.match(src, /combo resets/);
+    assert.match(src, /Straddling two zones: <b>0 points<\/b>/);
+    assert.match(src, /combo is kept/);
+    assert.match(src, /Hard drop on a correct piece: <b>\+20 extra<\/b>/);
+    assert.match(src, /Line clear: <b>\+100 × lines × combo<\/b>/);
+    assert.match(src, /Every 3rd combo triggers a <b>RESCUE<\/b>/);
+    assert.match(src, /review missed words/);
+    assert.match(src, /Top 7/);
+});
+
+test('the guide is a div, never a paragraph, and is not collapsed to one line', () => {
+    assert.doesNotMatch(gameHtml, /<p[^>]*id="overlay-howto"/, 'the guide is not a bare p');
+    assert.doesNotMatch(gameHtml, /class="overlay-mini"/, 'the truncated start line is retired');
+    assert.doesNotMatch(gameHtml, /class="overlay-short"/, 'the one-line phone help is retired');
+
+    const rule = cssRule(gameHtml, '#overlay-howto');
+    assert.match(rule, /display:\s*none;/, 'hidden until the start card asks for it');
+    assert.match(rule, /max-height:\s*min\(42vh, 280px\)/, 'it scrolls instead of pushing Start away');
+    assert.match(rule, /overflow-y:\s*auto/);
+    assert.match(rule, /text-align:\s*left;/, 'the lists are left-aligned');
+});
+
+test('short and narrow phones keep the guide and never display:none it', () => {
+    function mediaBlock(header) {
+        const at = gameHtml.indexOf(header);
+        assert.ok(at !== -1, 'media query ' + header + ' exists');
+        const open = gameHtml.indexOf('{', at);
+        let depth = 0;
+        let i = open;
+        for (; i < gameHtml.length; i += 1) {
+            if (gameHtml[i] === '{') depth += 1;
+            else if (gameHtml[i] === '}') {
+                depth -= 1;
+                if (depth === 0) break;
+            }
+        }
+        return gameHtml.slice(at, i + 1);
+    }
+
+    ['@media (max-height: 620px)', '@media (max-width: 380px)'].forEach((header) => {
+        const block = mediaBlock(header);
+        assert.match(block, /#overlay-howto/, 'the guide is tuned for ' + header);
+        assert.doesNotMatch(block, /#overlay-howto[^{]*\{[^}]*display:\s*none/,
+            header + ' must not hide the guide');
+    });
+
+    /* The old collapse rules are gone, so nothing replaces the guide with a line. */
+    assert.doesNotMatch(gameHtml, /\.overlay-short/);
+    assert.doesNotMatch(gameHtml, /\.overlay-mini/);
+});
+
+test("setOverlay('start') shows the how-to and the other cards hide it", () => {
+    const at = gameHtml.indexOf('function setOverlay(mode)');
+    const end = gameHtml.indexOf('function loop(ts)', at);
+    assert.ok(at !== -1 && end !== -1);
+    const src = gameHtml.slice(at, end);
+
+    assert.match(src, /const startMode = mode === 'start';/);
+    assert.match(src, /overlayHowto\.style\.display = startMode \? 'block' : 'none'/);
+    assert.match(src, /overlayText\.style\.display = startMode \? 'none' : ''/,
+        'the old paragraph is not repeated on the start card');
+
+    /* The toggle runs before every mode branch, so pause / review / rank / peek
+       all keep the guide hidden. */
+    const toggleAt = src.indexOf('overlayHowto.style.display');
+    ['paused', 'review', 'rank', 'peek'].forEach((mode) => {
+        const branchAt = src.indexOf("mode === '" + mode + "'");
+        assert.ok(branchAt !== -1, 'the ' + mode + ' card still exists');
+        assert.ok(toggleAt < branchAt, 'the guide is hidden for ' + mode);
+    });
+    assert.ok(gameHtml.indexOf("setOverlay('start')") !== -1, 'the game opens on the start card');
+    assert.match(gameHtml, /overlayMode === 'peek'\) setOverlay\('start'\)/);
+});

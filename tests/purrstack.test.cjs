@@ -562,10 +562,17 @@ test('phone play fills the iframe and never re-adds the bottom safe area', () =>
     assert.match(app, /height:\s*100%;/, 'the iframe height, not the phone screen');
     assert.doesNotMatch(app, /100dvh/, 'no dvh: that measures the wrong box inside an iframe');
     assert.doesNotMatch(app, /safe-area/, 'the parent iframe already sits above the home indicator');
-    assert.match(app, /padding:\s*2px 2px 0;/, '2px sides, no bottom padding');
+    assert.match(app, /padding:\s*2px 2px 3px;/, '3px bottom is the start bar shadow, not a safe-area gap');
     assert.match(app, /max-width:\s*none;/, 'allowed to use the full iframe width');
     assert.match(app, /display:\s*flex;/);
     assert.match(app, /flex-direction:\s*column;/);
+
+    /* The document fills the iframe (height chain), never the phone screen. */
+    const phoneBody = cssRule(gameHtml, 'body.playing-phone,\n  body.playing-phone.css-fs');
+    assert.match(phoneBody, /height:\s*100%;/);
+    assert.match(phoneBody, /overflow:\s*hidden;/, 'no page scroll: that reopens the wallpaper gap');
+    assert.doesNotMatch(phoneBody, /overflow-y:\s*auto/);
+    assert.doesNotMatch(phoneBody, /100dvh/);
 
     const cssFs = cssRule(gameHtml, 'body.css-fs .app');
     assert.doesNotMatch(cssFs, /100dvh/);
@@ -582,7 +589,7 @@ test('phone play fills the iframe and never re-adds the bottom safe area', () =>
 
 test('phone play pins the start bar to the bottom and gives the rest to the stage', () => {
     const stage = cssRule(gameHtml, 'body.playing-phone .app > .stage');
-    assert.match(stage, /flex:\s*1 1 auto;/, 'the board area grows into the leftover height');
+    assert.match(stage, /flex:\s*1 1 0;/, 'the board area is exactly the leftover height');
     assert.match(stage, /min-height:\s*0;/);
 
     const bar = cssRule(gameHtml, 'body.playing-phone .app > .startbar');
@@ -599,7 +606,7 @@ function loadSizingHelpers() {
     const end = gameHtml.indexOf('/* ---- end purrstack phone-play sizing');
     assert.ok(start !== -1 && end !== -1, 'the phone-play sizing helpers are marked');
     const code = gameHtml.slice(start, end)
-        + '\nthis.S = { purrContainerHeight, purrBoardHeight, purrBoardLeftover };';
+        + '\nthis.S = { purrContainerHeight, purrBoardHeight, purrBoardLeftover, purrStageFrame, PURR_STAGE_FRAME };';
     const context = vm.createContext({ console });
     vm.runInContext(code, context);
     return context.S;
@@ -623,16 +630,39 @@ test('the board height comes from the game container, not the phone screen', () 
         { innerHeight: 900 },
         { documentElement: { clientHeight: 0 } }), 900);
 
-    /* 560 for the app minus 240 of chrome leaves 320 for the board. */
+    /* 560 for the app minus 240 of chrome AND the 6px stage frame leaves 314
+       for the canvas, minus rounding. The old 320 (no border) is gone. */
     const budget = S.purrBoardHeight(560, 240);
-    assert.ok(budget >= 316 && budget <= 320, 'the board gets the leftover space (at most 4px held back), got ' + budget);
+    assert.ok(budget >= 309 && budget <= 314, 'the board budget removes the stage frame, got ' + budget);
+    assert.ok(budget < 560 - 240, 'the too-tall board that ignored the 3px borders is no longer used');
     assert.ok(S.purrBoardLeftover(320) <= 4);
     assert.equal(S.purrBoardLeftover(0), 0);
     assert.ok(S.purrBoardHeight(560, 240) > S.purrBoardHeight(560, 300), 'more chrome = smaller board');
 
+    /* The frame is measured from the live stage style, with a 3px+3px default. */
+    assert.equal(S.PURR_STAGE_FRAME, 6);
+    assert.equal(S.purrStageFrame({ borderTopWidth: '3px', borderBottomWidth: '3px' }), 6);
+    assert.equal(S.purrStageFrame({ borderTopWidth: '0px', borderBottomWidth: '0px' }), 6, 'falls back to the default frame');
+    assert.equal(S.purrStageFrame(null), 6);
+    assert.equal(S.purrBoardHeight(560, 240, 0), 319, 'an explicit zero frame restores the old maths');
+
     /* Never negative, and keeps a usable board on a cramped screen. */
     assert.equal(S.purrBoardHeight(100, 240), 120);
     assert.equal(S.purrBoardHeight(undefined, undefined), 120);
+});
+
+test('the canvas, the stage border, the chrome and the bar shadow all fit the container', () => {
+    const S = loadSizingHelpers();
+    const containerH = 640;
+    const chrome = 210; /* hud + zones + controls + start bar + 3px bar shadow */
+    const frame = S.purrStageFrame({ borderTopWidth: '3px', borderBottomWidth: '3px' });
+    const board = S.purrBoardHeight(containerH, chrome, frame);
+    assert.ok(board + frame + chrome <= containerH,
+        'canvas ' + board + ' + border ' + frame + ' + chrome ' + chrome + ' must not push the bar out');
+    /* There is real leftover for the button shadow / rounding, but never a
+       safe-area-sized strip of wallpaper. */
+    assert.ok(containerH - (board + frame + chrome) >= 0);
+    assert.ok(containerH - (board + frame + chrome) <= 4);
 });
 
 test('resizeCanvas measures the container and keeps the 12:20 board ratio', () => {
@@ -640,10 +670,47 @@ test('resizeCanvas measures the container and keeps the 12:20 board ratio', () =
     assert.ok(at !== -1);
     const src = gameHtml.slice(at, gameHtml.indexOf('function roundedRect', at));
     assert.match(src, /purrContainerHeight\(app, window, document\)/);
-    assert.match(src, /purrBoardHeight\(containerH, chrome\)/);
+    assert.match(src, /purrStageFrame\(stageStyle\)/, 'the 3px stage border is measured, not assumed');
+    assert.match(src, /purrBoardHeight\(containerH, chrome, frameY\)/, 'the frame is removed from the board budget');
+    assert.doesNotMatch(src, /purrBoardHeight\(containerH, chrome\)/, 'the border-less budget is gone');
+    assert.match(src, /Math\.max\(0, appW - frameX\) \/ COLS/, 'the side borders are not part of the board width');
     assert.doesNotMatch(src, /window\.innerHeight - chrome/, 'the old innerHeight - chrome - 12 maths is gone');
     assert.doesNotMatch(src, /- chrome - 12/);
     assert.match(src, /Math\.min\(byW, byH\)/, 'cell = min(width / 12, height / 20)');
     assert.match(gameHtml, /const COLS = 12;/);
     assert.match(gameHtml, /const ROWS = 20;/);
+});
+
+test('game over keeps the start bar fully on screen in enlarged phone play', () => {
+    /* The two-step cards open inside .stage, so the pinned start bar below it
+       is never covered or removed. */
+    const stageAt = gameHtml.indexOf('<div class="stage" id="stage">');
+    const overlayAt = gameHtml.indexOf('<div class="overlay" id="overlay">');
+    const zonesAt = gameHtml.indexOf('<div class="zones">');
+    const barAt = gameHtml.indexOf('<div class="startbar">');
+    assert.ok(stageAt !== -1 && overlayAt !== -1 && zonesAt !== -1 && barAt !== -1);
+    assert.ok(stageAt < overlayAt && overlayAt < zonesAt && zonesAt < barAt,
+        'the overlay lives inside the stage; the start bar stays after it');
+
+    /* endGame only swaps the card: it never hides the start bar. */
+    const endAt = gameHtml.indexOf('function endGame()');
+    const endSrc = gameHtml.slice(endAt, gameHtml.indexOf('function resetGame()', endAt));
+    assert.doesNotMatch(endSrc, /startbar/);
+    assert.doesNotMatch(endSrc, /startBtn\.style/);
+    assert.match(endSrc, /setOverlay\(purrEndStep\(wrongWords\.length\)\)/, 'review / Top 7 card');
+    assert.match(endSrc, /updateStartBtn\(\)/, 'the Restart button label is refreshed');
+
+    /* Opening the card re-runs the phone sizing, so the board cannot grow past
+       the bar while the enlarged layout is still on. */
+    const overlaySrc = gameHtml.slice(
+        gameHtml.indexOf('function setOverlay(mode)'),
+        gameHtml.indexOf('function loop(ts)', gameHtml.indexOf('function setOverlay(mode)')));
+    assert.match(overlaySrc, /classList\.contains\('playing-phone'\)/);
+    assert.match(overlaySrc, /resizeCanvas\(\)/);
+
+    /* The bar itself is never hidden by CSS in phone play. */
+    const phoneRules = gameHtml.slice(
+        gameHtml.indexOf('/* ---- Phone play inside the site iframe'),
+        gameHtml.indexOf('</style>'));
+    assert.doesNotMatch(phoneRules, /\.startbar[^}]*display:\s*none/);
 });

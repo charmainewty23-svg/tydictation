@@ -1883,6 +1883,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `height: 100%`（唔再用 `100dvh`）、左右各 2px 同**冇**底部 safe-area padding，
   startbar 貼住 iframe 底部（即 tab bar 上面，冇空隙），`.stage` 食晒剩餘高度，
   `resizeCanvas()` 用 `.app` 的 `clientHeight` 計棋盤，所以多出嚟嘅空間全部俾棋盤。
+  搞大手機玩完一局（review／Top 7 卡出現）之後，Restart／縮細 startbar 仍然完整可見、
+  撳得到，喺 site tab bar 上面（棋盤會縮細讓位，唔使 scroll）。
 - 遊戲檔案：`vocab-tetris-demo.html`（獨立頁，唔係 ES module），圖片在
   `assets/purrstackLogo.png`、`assets/purrstackbg1.png`，音樂 `music/towerMusic.mp3`。
   `stickers/` 係 gitignore，所以用 `assets/` 副本；**唔好**只 commit demo 而漏 assets。

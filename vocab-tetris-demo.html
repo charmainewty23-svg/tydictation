@@ -674,7 +674,12 @@
   /* css-fs alone allows vertical scroll; that must not reopen a gap
      under the start bar when both classes are on during phone play. */
   body.playing-phone,
-  body.playing-phone.css-fs { overflow: hidden; }
+  body.playing-phone.css-fs {
+    /* Fill the iframe box (height chain, never the phone screen) so the app
+       can hand the start bar a definite bottom edge. */
+    height: 100%;
+    overflow: hidden;
+  }
   body.playing-phone .app {
     display: flex;
     flex-direction: column;
@@ -682,7 +687,10 @@
     min-height: 0;
     max-width: none;
     margin: 0;
-    padding: 2px 2px 0;
+    /* The 3px bottom padding is where the start bar's 3px hard shadow paints;
+       it is layout space, so resizeCanvas already removes it from the board
+       budget and the bar still sits flush above the tab bar. */
+    padding: 2px 2px 3px;
     overflow: hidden;
   }
   body.playing-phone .app > header,
@@ -692,7 +700,9 @@
     flex: 0 0 auto;
   }
   body.playing-phone .app > .stage {
-    flex: 1 1 auto;
+    /* 0 basis: the stage takes exactly the leftover height, so an over-tall
+       board can never push the pinned start bar out of the iframe. */
+    flex: 1 1 0;
     min-height: 0;
     display: flex;
     align-items: center;
@@ -1655,6 +1665,10 @@
       overlayText.innerHTML = 'Read the word, then move the piece into the matching zone. Tap to rotate · double-tap or swipe down = drop · drag left/right = move.<br><b>Base forms only</b> — past tense (-ed) and past participle (pp) forms are not counted.';
       overlayBtn.textContent = '▶ Start';
     }
+    /* Ending a run leaves the enlarged phone layout on while the review / Top 7
+       card opens. Re-measure here so the board budget matches the layout around
+       the card and the pinned start bar stays fully visible below it. */
+    if (document.body.classList.contains('playing-phone')) resizeCanvas();
   }
 
   function loop(ts) {
@@ -1712,8 +1726,21 @@
     return Math.min(3, Math.max(0, n));
   }
 
-  function purrBoardHeight(containerH, chromeH) {
-    const total = Math.max(0, (containerH || 0) - (chromeH || 0));
+  /* .stage draws a 3px border on every side. The canvas lives inside it, so a
+     board given the whole leftover height makes the stage 6px too tall and
+     pushes the pinned start bar past the overflow-hidden iframe edge. The
+     frame therefore comes out of the budget before the board is sized. */
+  const PURR_STAGE_FRAME = 6;
+
+  function purrStageFrame(style) {
+    const n = (parseFloat(style && style.borderTopWidth) || 0)
+      + (parseFloat(style && style.borderBottomWidth) || 0);
+    return n > 0 ? n : PURR_STAGE_FRAME;
+  }
+
+  function purrBoardHeight(containerH, chromeH, frameH) {
+    const frame = frameH == null ? PURR_STAGE_FRAME : Math.max(0, frameH);
+    const total = Math.max(0, (containerH || 0) - (chromeH || 0) - frame);
     return Math.max(120, total - purrBoardLeftover(total));
   }
   /* ---- end purrstack phone-play sizing ---- */
@@ -1721,6 +1748,10 @@
   function resizeCanvas() {
     const app = stage.parentElement;
     const appStyle = getComputedStyle(app);
+    const stageStyle = getComputedStyle(stage);
+    const frameY = purrStageFrame(stageStyle);
+    const frameX = (parseFloat(stageStyle.borderLeftWidth) || 0)
+      + (parseFloat(stageStyle.borderRightWidth) || 0);
     let appW = Math.max(240, app.clientWidth
       - (parseFloat(appStyle.paddingLeft) || 0)
       - (parseFloat(appStyle.paddingRight) || 0));
@@ -1749,10 +1780,14 @@
         const r = el.getBoundingClientRect();
         chrome += r.height + (parseFloat(st.marginTop) || 0);
       });
+      /* The app's bottom padding is where the start bar's hard shadow paints,
+         so it is part of the chrome, not the board. */
       chrome += parseFloat(appStyle.paddingBottom) || 0;
-      maxBoardH = purrBoardHeight(containerH, chrome);
+      /* Subtract the stage frame as well: canvas + 3px borders + chrome must
+         fit inside the container or the bar is clipped. */
+      maxBoardH = purrBoardHeight(containerH, chrome, frameY);
     }
-    const byW = appW / COLS;
+    const byW = Math.max(0, appW - frameX) / COLS;
     const byH = maxBoardH / ROWS;
     const cell = Math.max(12, Math.min(byW, byH));
     const cssW = cell * COLS;

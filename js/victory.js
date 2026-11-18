@@ -610,7 +610,7 @@
             if ((shown && Date.now() - started > 900) || Date.now() - started > 9000) {
                 setTimeout(function () {
                     VICTORY.play(id, Object.assign({}, opts || {}, { trial: trial }));
-                }, 1200);
+                }, 600);
                 return;
             }
             setTimeout(waitForTrophy, 250);

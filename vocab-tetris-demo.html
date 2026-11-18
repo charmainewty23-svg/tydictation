@@ -2906,7 +2906,7 @@
 
   function handleTap() {
     const now = performance.now();
-    if (now - lastTapAt < 300) {
+    if (now - lastTapAt < 240) {
       clearTimeout(tapTimer);
       tapTimer = 0;
       lastTapAt = 0;
@@ -2919,7 +2919,7 @@
       tapTimer = 0;
       lastTapAt = 0;
       rotateCurrent();
-    }, 260);
+    }, 190);
   }
 
   canvas.addEventListener('pointerdown', function (e) {
@@ -2930,7 +2930,10 @@
       t: performance.now(),
       moved: false,
       acted: false,
-      dragStarted: false
+      dragStarted: false,
+      axis: '',
+      stepY: 0,
+      movedDown: false
     };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     clearTimeout(gestureTimer);
@@ -2962,11 +2965,28 @@
       clearTimeout(gestureTimer);
     }
     /* Horizontal only: left/right drags just move the piece. */
-    const at = boardCellAt(e.clientX, e.clientY);
-    const w = current.shape[0].length;
-    let nx = Math.round(at.col - w / 2);
-    nx = Math.max(0, Math.min(COLS - w, nx));
-    if (nx !== current.x && valid(current.shape, nx, current.y)) current.x = nx;
+    if (!gesture.axis) {
+      gesture.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      gesture.stepY = e.clientY;
+    }
+    if (gesture.axis === 'x') {
+      const at = boardCellAt(e.clientX, e.clientY);
+      const w = current.shape[0].length;
+      let nx = Math.round(at.col - w / 2);
+      nx = Math.max(0, Math.min(COLS - w, nx));
+      if (nx !== current.x && valid(current.shape, nx, current.y)) current.x = nx;
+    } else {
+      /* Vertical drag: lower the piece with the finger (soft drop). */
+      const step = Math.max(10, CELL * 0.75);
+      while (e.clientY - gesture.stepY > step) {
+        if (valid(current.shape, current.x, current.y + 1)) {
+          current.y += 1;
+          gesture.movedDown = true;
+        }
+        gesture.stepY += step;
+      }
+      if (e.clientY < gesture.stepY) gesture.stepY = e.clientY;
+    }
     syncZoneFromPiece();
     draw();
   });
@@ -2980,8 +3000,8 @@
     clearGesture();
     if (g.acted) return;
     if (g.dragStarted) {
-      /* Only a downward swipe drops. Left/right drags never drop. */
-      if (dy > 55 && Math.abs(dy) > Math.abs(dx) * 1.2) hardDrop();
+      /* Downward gesture (swipe or slow drag) drops; sideways never does. */
+      if (g.axis === 'y' && dy > 40) hardDrop();
       return;
     }
     if (Math.abs(dx) < 16 && Math.abs(dy) < 16 && dt < 480) {

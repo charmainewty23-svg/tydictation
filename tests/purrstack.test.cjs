@@ -212,6 +212,41 @@ test('the start screen header has a Top 7 chip between the logo and the score', 
     assert.doesNotMatch(gameHtml.slice(hudAt, hudEnd), /top7-btn/);
 });
 
+test('the Top 7 chip is grouped with the score box, bottom-aligned on the right', () => {
+    const headerAt = gameHtml.indexOf('<header>');
+    const headerEnd = gameHtml.indexOf('</header>', headerAt);
+    assert.ok(headerAt !== -1 && headerEnd !== -1);
+    const header = gameHtml.slice(headerAt, headerEnd + '</header>'.length);
+
+    const brandAt = header.indexOf('<div class="brand">');
+    const toolsAt = header.indexOf('<div class="header-tools">');
+    const btnAt = header.indexOf('id="top7-btn"');
+    const scoreAt = header.indexOf('<div class="scorebox">');
+    assert.ok(brandAt !== -1 && toolsAt !== -1 && btnAt !== -1 && scoreAt !== -1);
+    assert.ok(brandAt < toolsAt, 'the logo stays on the left');
+    assert.ok(toolsAt < btnAt && btnAt < scoreAt, 'the chip sits inside the right-hand group, before the score');
+
+    /* The group closes after the score box, so only the logo-to-group gap is
+       left over on wide headers. */
+    assert.match(header,
+        /<div class="header-tools">[\s\S]*?id="top7-btn"[\s\S]*?<div class="scorebox">[\s\S]*?<\/div>\s*<\/div>\s*<\/header>/,
+        'the Top 7 chip and the score box share one wrapper');
+
+    /* CSS: group on the right, bottom-aligned, tight gap, chip not centred. */
+    const tools = cssRule(gameHtml, '.header-tools');
+    assert.match(tools, /display:\s*flex;/);
+    assert.match(tools, /align-items:\s*flex-end;/, 'the chip shares the score box bottom edge');
+    assert.match(tools, /gap:\s*4px;/, 'only a tight gap between chip and score');
+    assert.match(tools, /flex:\s*0 0 auto;/);
+
+    const chip = cssRule(gameHtml, '.top7-btn');
+    assert.doesNotMatch(chip, /align-self/, 'no centred chip floating in the header gap');
+    assert.match(chip, /white-space:\s*nowrap;/);
+
+    const headerRule = cssRule(gameHtml, 'header');
+    assert.match(headerRule, /justify-content:\s*space-between;/, 'the leftover gap stays between the logo and the group');
+});
+
 test('opening the peek board asks the parent for the Top 7 and never posts a score', () => {
     const requestAt = gameHtml.indexOf('function requestPeekBoard()');
     const openAt = gameHtml.indexOf('function openPeek()');
@@ -288,6 +323,72 @@ test('Back from the peek card returns to the start card and never starts a run',
     const fallbackAt = src.indexOf('else startGame();');
     assert.ok(fallbackAt !== -1 && fallbackAt > peekAt,
         'startGame stays the fallback for a finished / start card only');
+});
+
+/* ---------------- 1c) ranking card: ← Back to Hub ---------------- */
+
+function loadHubHelpers() {
+    const at = gameHtml.indexOf('/* ---- purrstack back to hub');
+    const end = gameHtml.indexOf('/* ---- end purrstack back to hub', at);
+    assert.ok(at !== -1 && end !== -1, 'the back-to-hub helper block is marked');
+    return { code: gameHtml.slice(at, end) + '\nthis.H = { purrHubRequest, backToHub };' };
+}
+
+test('the ranking card carries a secondary ← Back to Hub under Play again', () => {
+    const btnAt = gameHtml.indexOf('id="overlay-btn"');
+    const hubAt = gameHtml.indexOf('id="overlay-hub"');
+    assert.ok(btnAt !== -1 && hubAt !== -1 && btnAt < hubAt, 'the hub exit sits under Play again');
+
+    const open = gameHtml.lastIndexOf('<button', hubAt);
+    const tag = gameHtml.slice(open, gameHtml.indexOf('</button>', hubAt) + '</button>'.length);
+    assert.match(tag, /type="button"/);
+    assert.match(tag, /← Back to Hub/);
+
+    const rule = cssRule(gameHtml, '#overlay-hub');
+    assert.match(rule, /display:\s*none;/, 'hidden until the ranking card asks for it');
+    assert.match(rule, /margin-top:\s*8px;/, 'a small gap under Play again');
+    assert.match(rule, /min-height:\s*48px;/, 'still easy to tap');
+    assert.match(rule, /background:\s*#fffdf7;/, 'outline / lighter, not a second primary button');
+    assert.match(rule, /border:\s*2px solid var\(--linebrown\);/);
+    assert.match(rule, /color:\s*var\(--brown\);/);
+
+    /* setOverlay shows it for rank only, so start / pause / review / peek
+       never get a second exit button. */
+    const at = gameHtml.indexOf('function setOverlay(mode)');
+    const src = gameHtml.slice(at, gameHtml.indexOf('function loop(ts)', at));
+    assert.match(src, /overlayHub\.style\.display = mode === 'rank' \? 'block' : 'none'/);
+
+    /* Play again keeps its own restart handler. */
+    const handlerAt = gameHtml.indexOf('overlayBtn.addEventListener');
+    const handler = gameHtml.slice(handlerAt, gameHtml.indexOf('top7Btn', handlerAt));
+    assert.match(handler, /else startGame\(\)/);
+    assert.match(gameHtml, /if \(overlayHub\) overlayHub\.addEventListener\('click', backToHub\)/);
+});
+
+test('Back to Hub posts purrstack-hub to the parent, same origin, and nothing standalone', () => {
+    const { code } = loadHubHelpers();
+
+    function run(framed) {
+        const posted = [];
+        const win = { location: { origin: 'https://purrstack.test' } };
+        win.parent = framed
+            ? { postMessage(msg, target) { posted.push({ msg, target }); } }
+            : win;
+        const context = vm.createContext({ console, window: win });
+        vm.runInContext(code, context);
+        context.H.backToHub();
+        return { posted, H: context.H };
+    }
+
+    const framed = run(true);
+    assert.equal(framed.posted.length, 1);
+    assert.equal(framed.posted[0].msg.type, 'purrstack-hub');
+    assert.equal(framed.posted[0].target, 'https://purrstack.test', 'never a wildcard target');
+    assert.equal(framed.H.purrHubRequest(true).type, 'purrstack-hub');
+
+    const standalone = run(false);
+    assert.equal(standalone.posted.length, 0, 'no parent: nothing is posted to itself');
+    assert.equal(standalone.H.purrHubRequest(false), null);
 });
 
 /* ---------------- 2) parent side: submit + board reply ---------------- */
@@ -461,6 +562,33 @@ test('the page listens for the peek request next to the score post', () => {
     const handler = sharedSource.slice(requestAt, sharedSource.indexOf('});', requestAt));
     assert.doesNotMatch(handler, /purrstack_scores/, 'the request path never touches the table');
     assert.match(handler, /requestPurrStackBoard\(\)/);
+});
+
+test('the page returns to the hub on purrstack-hub, from the same origin only', () => {
+    const listeners = [];
+    const context = makeContext({});
+    context.window.addEventListener = function (type, fn) {
+        if (type === 'message') listeners.push(fn);
+    };
+    vm.runInContext(sharedSource, context);
+    context.__views = [];
+    vm.runInContext('changeView = function (id) { __views.push(id); };', context);
+
+    assert.equal(listeners.length, 1, 'one same-origin message listener');
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-hub' } });
+    assert.deepEqual(Array.from(context.__views), ['hub-view'], 'the parent leaves the PurrStack view');
+
+    listeners[0]({ origin: 'https://evil.test', data: { type: 'purrstack-hub' } });
+    assert.equal(context.__views.length, 1, 'a foreign origin cannot navigate the page');
+
+    /* It sits next to the score / board handlers. */
+    const scoreAt = sharedSource.indexOf("data.type === 'purrstack-score'");
+    const boardAt = sharedSource.indexOf("data.type === 'purrstack-board-request'");
+    const hubAt = sharedSource.indexOf("data.type === 'purrstack-hub'");
+    assert.ok(scoreAt !== -1 && boardAt !== -1 && hubAt !== -1);
+    assert.ok(scoreAt < hubAt && boardAt < hubAt);
+    const handler = sharedSource.slice(hubAt, sharedSource.indexOf('});', hubAt));
+    assert.match(handler, /changeView\('hub-view'\)/);
 });
 
 /* ---------------- 3) admin dashboard ---------------- */
@@ -805,6 +933,148 @@ test('the arrow / A D keys use the same hold and ignore OS key repeat', () => {
     assert.match(up, /stopHoldMove\(\)/, 'releasing the key stops the slide');
 });
 
+/* ---------------- 5b) hold DROP to soft-drop ---------------- */
+
+function dropHoldBlock() {
+    const at = gameHtml.indexOf('/* ---- purrstack hold to soft-drop');
+    const end = gameHtml.indexOf('/* ---- end purrstack hold to soft-drop', at);
+    assert.ok(at !== -1 && end !== -1, 'the drop hold block is marked');
+    return gameHtml.slice(at, end);
+}
+
+function loadDropHold() {
+    const src = dropHoldBlock();
+    const code = src
+        + '\nthis.D = { startHoldDrop, stopHoldDrop, dropStep, isHolding: function () { return dropHolding; } };';
+    const state = { moved: 0, blocked: false, clearedMove: 0, timeouts: [], intervals: [] };
+    const context = vm.createContext({
+        console,
+        HOLD_DAS_DELAY: 200,
+        HOLD_DAS_REPEAT: 55,
+        running: true,
+        paused: false,
+        gameOver: false,
+        current: {},
+        softDrop() { if (state.blocked) return false; state.moved += 1; return true; },
+        stopHoldMove() { state.clearedMove += 1; },
+        setTimeout(fn, ms) { const t = { fn, ms, cleared: false }; state.timeouts.push(t); return t; },
+        clearTimeout(t) { if (t) t.cleared = true; },
+        setInterval(fn, ms) { const t = { fn, ms, cleared: false }; state.intervals.push(t); return t; },
+        clearInterval(t) { if (t) t.cleared = true; }
+    });
+    vm.runInContext(code, context);
+    return { state, context, D: context.D };
+}
+
+test('⬇ DROP starts a soft-drop hold on pointerdown, not a click-only hard drop', () => {
+    const src = dropHoldBlock();
+    assert.doesNotMatch(gameHtml, /dropBtn\.addEventListener\('click'/, 'DROP is not click-only any more');
+    assert.match(gameHtml, /bindHoldDropButton\(dropBtn\)/);
+
+    assert.match(src, /addEventListener\('pointerdown'/);
+    assert.match(src, /'pointerup'/);
+    assert.match(src, /'pointercancel'/);
+    assert.match(src, /'lostpointercapture'/);
+    assert.match(src, /setPointerCapture\(e\.pointerId\)/, 'capture is attempted when allowed');
+    assert.match(src, /contextmenu/, 'the long-press context menu is suppressed');
+
+    assert.match(src, /HOLD_DAS_DELAY/, 'it reuses the left/right DAS delay');
+    assert.match(src, /HOLD_DAS_REPEAT/);
+    assert.match(src, /setInterval\(dropStep, HOLD_DAS_REPEAT\)/);
+    assert.doesNotMatch(src, /hardDrop\(\)/, 'holding DROP never hard-drops');
+    assert.doesNotMatch(src, /lock\(\)/, 'the hold never locks the piece');
+    assert.doesNotMatch(src, /while \(/, 'one row at a time, never to the floor in one step');
+});
+
+test('DROP steps one row at once, repeats on the DAS delay, and stops on release', () => {
+    const { state, D } = loadDropHold();
+    D.startHoldDrop();
+    assert.equal(state.moved, 1, 'the first row is immediate, so a tap does not feel delayed');
+    assert.equal(state.clearedMove, 1, 'starting a drop stops the left/right hold');
+    assert.equal(D.isHolding(), true);
+    assert.equal(state.timeouts.length, 1);
+    assert.equal(state.timeouts[0].ms, 200, 'the repeat waits for the DAS delay');
+
+    state.timeouts[0].fn();
+    assert.equal(state.intervals.length, 1);
+    assert.equal(state.intervals[0].ms, 55);
+    assert.equal(D.isHolding(), true);
+
+    state.intervals[0].fn();
+    state.intervals[0].fn();
+    assert.equal(state.moved, 3, 'one row per repeat');
+
+    D.stopHoldDrop();
+    assert.equal(D.isHolding(), false);
+    assert.equal(state.intervals[0].cleared, true);
+    assert.equal(state.moved, 3, 'lifting the finger leaves the piece where it is');
+});
+
+test('a DROP held at the floor stops the repeat without locking', () => {
+    const { state, D } = loadDropHold();
+    state.blocked = true;
+    D.startHoldDrop();
+    assert.equal(state.moved, 0);
+    assert.equal(state.timeouts.length, 0, 'nothing repeats when the piece cannot move down');
+    assert.equal(D.isHolding(), false);
+
+    /* Blocked mid-hold: the interval clears itself, the lock delay takes over. */
+    const mid = loadDropHold();
+    mid.D.startHoldDrop();
+    mid.state.timeouts[0].fn();
+    mid.state.blocked = true;
+    mid.state.intervals[0].fn();
+    assert.equal(mid.state.moved, 1);
+    assert.equal(mid.state.intervals[0].cleared, true);
+    assert.equal(mid.D.isHolding(), false);
+});
+
+test('the drop hold stops on pause / end / start / blur / hidden tab / parent pause', () => {
+    const pauseAt = gameHtml.indexOf('function togglePause()');
+    const pauseSrc = gameHtml.slice(pauseAt, gameHtml.indexOf('function setOverlay(mode)', pauseAt));
+    assert.match(pauseSrc, /stopHoldDrop\(\)/, 'pausing clears the drop repeat');
+
+    const endAt = gameHtml.indexOf('function endGame()');
+    const endSrc = gameHtml.slice(endAt, gameHtml.indexOf('function resetGame()', endAt));
+    assert.match(endSrc, /stopHoldDrop\(\)/, 'game over clears the drop repeat');
+
+    const startAt = gameHtml.indexOf('function startGame()');
+    const startSrc = gameHtml.slice(startAt, gameHtml.indexOf('function togglePause()', startAt));
+    assert.match(startSrc, /stopHoldDrop\(\)/, 'starting / restarting clears the drop repeat');
+
+    assert.match(gameHtml, /window\.addEventListener\('blur', stopHoldDrop\)/);
+    assert.match(gameHtml, /window\.addEventListener\('pointerup', stopHoldDrop\)/);
+    assert.match(gameHtml, /window\.addEventListener\('pointercancel', stopHoldDrop\)/);
+
+    const visibilityAt = gameHtml.indexOf("document.addEventListener('visibilitychange'");
+    assert.ok(visibilityAt !== -1);
+    assert.match(gameHtml.slice(visibilityAt, visibilityAt + 200), /stopHoldDrop\(\)/);
+
+    const msgAt = gameHtml.indexOf("e.data === 'purrstack-pause'");
+    assert.ok(msgAt !== -1);
+    assert.match(gameHtml.slice(msgAt, msgAt + 200), /stopHoldDrop\(\)/);
+});
+
+test('ArrowDown holds the same soft drop while Space stays a hard drop', () => {
+    const keyAt = gameHtml.indexOf("window.addEventListener('keydown'");
+    const upAt = gameHtml.indexOf("window.addEventListener('keyup'", keyAt);
+    const down = gameHtml.slice(keyAt, upAt);
+    const up = gameHtml.slice(upAt, gameHtml.indexOf("window.addEventListener('message'", upAt));
+
+    assert.match(down, /if \(e\.key === 'ArrowDown'\) \{[\s\S]*?if \(e\.repeat\) return;[\s\S]*?startHoldDrop\(\)/,
+        'ArrowDown starts the hold and our timer owns the repeat');
+    assert.doesNotMatch(down, /softDrop\(\)/, 'keydown no longer soft-drops on its own');
+    assert.match(down, /e\.key === ' ' \|\| e\.key === 'Spacebar'\) \{ hardDrop\(\);/, 'Space is still a hard drop');
+
+    assert.match(up, /if \(e\.key === 'ArrowDown'\) stopHoldDrop\(\)/, 'releasing the key stops the fall');
+    assert.match(up, /stopHoldMove\(\)/, 'left/right keep their own release');
+});
+
+test('DROP is not turned into page scroll or a long-press menu while held', () => {
+    const rule = cssRule(gameHtml, '#drop');
+    assert.match(rule, /touch-action:\s*none;/, 'a held DROP must not cancel on page scroll');
+});
+
 /* ---------------- 6) start-screen how-to (point form) ---------------- */
 
 function howtoMarkup() {
@@ -827,11 +1097,13 @@ test('the start card has a point-form How to play + Scoring guide', () => {
     assert.match(src, /hold either button/);
     assert.match(src, /release to stop/);
     assert.match(src, /⟳ rotates/);
-    assert.match(src, /⬇ DROP lands at once/);
+    assert.match(src, /⬇ DROP soft-drops one row/);
+    assert.match(src, /<b>hold it<\/b> to keep falling until you let go/);
+    assert.doesNotMatch(src, /DROP lands at once/, 'DROP no longer drops the whole way on one tap');
     assert.match(src, /🅿 PARK sits the piece fully in its zone/);
     assert.match(src, /tap = rotate/);
     assert.match(src, /drag left\/right = move/);
-    assert.match(src, /double-tap, swipe down or long-press = drop/);
+    assert.match(src, /double-tap, swipe down or long-press = hard drop/);
     assert.match(src, /5 times per game/);
     assert.match(src, /base forms/);
     assert.match(src, /-ed\) and past participle \(pp\)/);

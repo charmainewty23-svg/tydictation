@@ -390,3 +390,52 @@ test('a brand-new install of guest_tracking.sql also ships the 24h prune', () =>
     assert.ok(usageFn.indexOf('perform public.prune_guest_records();') !== -1);
     assert.ok(guestSql.indexOf('drop table') === -1, 'tables are never dropped');
 });
+
+/* ---------------- 6) nicknames drop a trailing email-domain label ---------------- */
+
+test('a trailing mail-domain label is removed from login names', () => {
+    const { run } = loadAdmin();
+    const clean = (email, name) => run('cleanLoginNickname("' + email + '", "' + name + '")');
+
+    assert.equal(clean('t44@wbss.edu.hk', 'lam ka ho wbss'), 'lam ka ho');
+    assert.equal(clean('t44@wbss.edu.hk', 'Lam Ka Ho WBSS'), 'Lam Ka Ho');
+    assert.equal(clean('t44@wbss.edu.hk', '  lam ka ho   wbss  '), 'lam ka ho', 'spacing is cleaned');
+    assert.equal(clean('t44@wbss.edu.hk', 'lam ka ho'), 'lam ka ho', 'a name without the suffix is unchanged');
+
+    // The only remaining token is never stripped.
+    assert.equal(clean('t44@wbss.edu.hk', 'wbss'), 'wbss');
+    assert.equal(clean('t44@wbss.edu.hk', 'WBSS'), 'WBSS');
+
+    // Consumer mail domains keep whatever they contain.
+    ['gmail', 'hotmail', 'outlook', 'yahoo', 'icloud', 'me', 'live', 'msn'].forEach(label => {
+        const name = 'lam ka ho ' + label;
+        assert.equal(clean('t44@' + label + '.com', name), name, label + ' is never stripped');
+    });
+
+    // A school-domain student whose name ends in a Chinese name is unchanged.
+    assert.equal(clean('s231014@lstyoungkhl.edu.hk', '4C 16 Lai Ka Lok 黎嘉樂'), '4C 16 Lai Ka Lok 黎嘉樂');
+
+    assert.equal(clean('', 'lam ka ho wbss'), 'lam ka ho wbss', 'no email means no suffix to strip');
+});
+
+test('displayedLoginName / displayName show the cleaned name', () => {
+    const { run } = loadAdmin();
+
+    assert.equal(run('displayedLoginName("t44@wbss.edu.hk", "lam ka ho wbss")'), 'lam ka ho');
+    assert.equal(run('displayName({ email: "t44@wbss.edu.hk", nickname: "lam ka ho wbss" })'), 'lam ka ho');
+    assert.equal(run('displayedLoginName("s231014@lstyoungkhl.edu.hk", "4C 16 Lai Ka Lok 黎嘉樂")'),
+        '4C 16 Lai Ka Lok 黎嘉樂');
+    assert.equal(run('displayName({ email: "s231014@lstyoungkhl.edu.hk", nickname: "Liu Chun Ming" })'),
+        'Liu Chun Ming');
+
+    // Form parsing sees the cleaned name (no class code here either way).
+    assert.equal(run('parseDisplayNameFormClass(displayedLoginName("t44@wbss.edu.hk", "lam ka ho wbss")).form'), '');
+});
+
+test('recordLogin stores the cleaned nickname', async () => {
+    const { run, state } = loadAdmin({ admin: false });
+    await run('recordLogin({ email: "t44@wbss.edu.hk", user_metadata: { full_name: "lam ka ho wbss" } })');
+    const call = state.rpc.find(r => r.name === 'record_login');
+    assert.ok(call, 'record_login is called');
+    assert.equal(call.args.p_nickname, 'lam ka ho');
+});

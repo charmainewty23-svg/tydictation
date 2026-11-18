@@ -174,7 +174,8 @@ function profileRenderIdentity() {
         if (name) name.innerText = 'Preview · ' + previewStudentForm();
         if (sub) sub.innerText = 'Student account preview';
     } else if (currentUser) {
-        const full = currentUser.user_metadata?.full_name || currentUser.email.split('@')[0];
+        const full = cleanLoginNickname(currentUser.email,
+            currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]);
         if (name) name.innerText = full;
         if (sub) sub.innerText = currentUser.email;
     } else {

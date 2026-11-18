@@ -815,7 +815,7 @@
                 const payload = {
                     user_id: currentUser.id,
                     email: currentUser.email,
-                    nickname: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+                    nickname: cleanLoginNickname(currentUser.email, currentUser.user_metadata?.full_name || currentUser.email.split('@')[0]),
                     topic: currentTopic,
                     mode: quizMode,
                     score: quizScore,

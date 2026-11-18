@@ -1879,6 +1879,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   的全屏 iframe，蓋過 app header；底部 tab bar 仍然喺上面（z-index 900 > 850）。
   第一次撳 tab 才載入 `vocab-tetris-demo.html`（`data-src`），離開 view 會
   `postMessage('purrstack-pause')`，遊戲自動 pause＋停音樂。
+- 手機放大遊玩（`body.playing-phone`＋`body.css-fs`）：`.app` 用 iframe 自己的
+  `height: 100%`（唔再用 `100dvh`）、左右各 2px 同**冇**底部 safe-area padding，
+  startbar 貼住 iframe 底部（即 tab bar 上面，冇空隙），`.stage` 食晒剩餘高度，
+  `resizeCanvas()` 用 `.app` 的 `clientHeight` 計棋盤，所以多出嚟嘅空間全部俾棋盤。
 - 遊戲檔案：`vocab-tetris-demo.html`（獨立頁，唔係 ES module），圖片在
   `assets/purrstackLogo.png`、`assets/purrstackbg1.png`，音樂 `music/towerMusic.mp3`。
   `stickers/` 係 gitignore，所以用 `assets/` 副本；**唔好**只 commit demo 而漏 assets。

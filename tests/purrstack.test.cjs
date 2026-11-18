@@ -366,3 +366,104 @@ test('a missing PurrStack table shows the SQL hint and leaves the game helpers a
     assert.equal(H.purrEndStep(0), 'rank', 'the game itself still finishes');
     assert.match(H.purrBoardHTML({ status: 'ready', error: true }), /supabase\/purrstack_scores\.sql/);
 });
+
+/* ---------------- 4) phone play inside the site iframe ---------------- */
+
+function cssRule(source, selector) {
+    const at = source.indexOf(selector + ' {');
+    assert.ok(at !== -1, 'CSS rule ' + selector + ' exists');
+    const end = source.indexOf('}', at);
+    assert.ok(end !== -1, 'CSS rule ' + selector + ' is closed');
+    return source.slice(at, end + 1);
+}
+
+test('phone play fills the iframe and never re-adds the bottom safe area', () => {
+    const app = cssRule(gameHtml, 'body.playing-phone .app');
+    assert.match(app, /height:\s*100%;/, 'the iframe height, not the phone screen');
+    assert.doesNotMatch(app, /100dvh/, 'no dvh: that measures the wrong box inside an iframe');
+    assert.doesNotMatch(app, /safe-area/, 'the parent iframe already sits above the home indicator');
+    assert.match(app, /padding:\s*2px 2px 0;/, '2px sides, no bottom padding');
+    assert.match(app, /max-width:\s*none;/, 'allowed to use the full iframe width');
+    assert.match(app, /display:\s*flex;/);
+    assert.match(app, /flex-direction:\s*column;/);
+
+    const cssFs = cssRule(gameHtml, 'body.css-fs .app');
+    assert.doesNotMatch(cssFs, /100dvh/);
+    assert.match(cssFs, /min-height:\s*100%;/);
+
+    /* No phone-play rule may reserve the bottom inset a second time. */
+    const phoneRules = gameHtml.slice(
+        gameHtml.indexOf('/* ---- Phone play inside the site iframe'),
+        gameHtml.indexOf('</style>'));
+    assert.ok(phoneRules.length > 0);
+    assert.doesNotMatch(phoneRules, /env\(safe-area-inset-bottom\)/);
+    assert.doesNotMatch(phoneRules, /100dvh/);
+});
+
+test('phone play pins the start bar to the bottom and gives the rest to the stage', () => {
+    const stage = cssRule(gameHtml, 'body.playing-phone .app > .stage');
+    assert.match(stage, /flex:\s*1 1 auto;/, 'the board area grows into the leftover height');
+    assert.match(stage, /min-height:\s*0;/);
+
+    const bar = cssRule(gameHtml, 'body.playing-phone .app > .startbar');
+    assert.match(bar, /flex:\s*0 0 auto;/, 'the bar never shrinks');
+    assert.match(bar, /margin-top:\s*3px;/);
+    assert.match(bar, /margin-bottom:\s*0;/, 'nothing under the bar, so it sits flush');
+
+    /* The parent iframe is what reserves room for the tab bar. */
+    assert.match(htmlSource, /#purrstack-view \{[^}]*bottom: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
+});
+
+function loadSizingHelpers() {
+    const start = gameHtml.indexOf('/* ---- purrstack phone-play sizing');
+    const end = gameHtml.indexOf('/* ---- end purrstack phone-play sizing');
+    assert.ok(start !== -1 && end !== -1, 'the phone-play sizing helpers are marked');
+    const code = gameHtml.slice(start, end)
+        + '\nthis.S = { purrContainerHeight, purrBoardHeight, purrBoardLeftover };';
+    const context = vm.createContext({ console });
+    vm.runInContext(code, context);
+    return context.S;
+}
+
+test('the board height comes from the game container, not the phone screen', () => {
+    const S = loadSizingHelpers();
+
+    /* 560px of iframe inside a 900px phone screen: only 560 may be used. */
+    assert.equal(S.purrContainerHeight(
+        { clientHeight: 560 },
+        { innerHeight: 900 },
+        { documentElement: { clientHeight: 900 } }), 560);
+    /* Falls back to the document, then the window, when nothing is measurable. */
+    assert.equal(S.purrContainerHeight(
+        { clientHeight: 0 },
+        { innerHeight: 900 },
+        { documentElement: { clientHeight: 640 } }), 640);
+    assert.equal(S.purrContainerHeight(
+        null,
+        { innerHeight: 900 },
+        { documentElement: { clientHeight: 0 } }), 900);
+
+    /* 560 for the app minus 240 of chrome leaves 320 for the board. */
+    const budget = S.purrBoardHeight(560, 240);
+    assert.ok(budget >= 316 && budget <= 320, 'the board gets the leftover space (at most 4px held back), got ' + budget);
+    assert.ok(S.purrBoardLeftover(320) <= 4);
+    assert.equal(S.purrBoardLeftover(0), 0);
+    assert.ok(S.purrBoardHeight(560, 240) > S.purrBoardHeight(560, 300), 'more chrome = smaller board');
+
+    /* Never negative, and keeps a usable board on a cramped screen. */
+    assert.equal(S.purrBoardHeight(100, 240), 120);
+    assert.equal(S.purrBoardHeight(undefined, undefined), 120);
+});
+
+test('resizeCanvas measures the container and keeps the 12:20 board ratio', () => {
+    const at = gameHtml.indexOf('function resizeCanvas()');
+    assert.ok(at !== -1);
+    const src = gameHtml.slice(at, gameHtml.indexOf('function roundedRect', at));
+    assert.match(src, /purrContainerHeight\(app, window, document\)/);
+    assert.match(src, /purrBoardHeight\(containerH, chrome\)/);
+    assert.doesNotMatch(src, /window\.innerHeight - chrome/, 'the old innerHeight - chrome - 12 maths is gone');
+    assert.doesNotMatch(src, /- chrome - 12/);
+    assert.match(src, /Math\.min\(byW, byH\)/, 'cell = min(width / 12, height / 20)');
+    assert.match(gameHtml, /const COLS = 12;/);
+    assert.match(gameHtml, /const ROWS = 20;/);
+});

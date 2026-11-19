@@ -1976,6 +1976,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `purrstack-hub`）。
 - 檔案：`js/purrstack-battle.js` 已加入 `sw.js` CORE_ASSETS（cache v99）。
 
+- 1v1 排行榜：`supabase/purrstack_battle_results.sql`（喺 `purrstack_battle.sql`
+  之後跑，可重跑）建 `purrstack_match_results`（每局每位玩家一行 immutable
+  snapshot）＋ `purrstack_battle_leaderboard` view（每人 matches／wins／
+  best_score／lines／last_win_at）。`purrstack_finish_room()` 完場時寫入，
+  舊 finished rooms 會 backfill；rooms 兩日後刪除亦唔會影響戰績。
+  Hub Leaderboard 有 **🐾 PurrStack 1v1** tab（wins → best_score → matches），
+  row 顯示 `NW / NG` 同最佳單局分數；老師按年級分組。
+  未跑時顯示「Run supabase/purrstack_battle_results.sql」。
+
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
 每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。

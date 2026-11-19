@@ -24,6 +24,9 @@
                     ? 'Personal bests — top 10 by best score and words collected.'
                     : lbModeFilter === 'purrstack'
                         ? 'PurrStack — personal bests. Top 10 by score, then words placed.'
+                        : lbModeFilter === 'purrstack1v1'
+                        ? 'PurrStack 1v1 — top 10 by wins, then best score.'
+
                         : lbModeFilter === 'flap'
                         ? 'Speak Flap — all-time personal bests. Top 10 by best score and phrases.'
                         : lbModeFilter === 'wjchallenge'
@@ -90,6 +93,18 @@
                     .order('score', { ascending: false })
                     .order('words', { ascending: false })
                     .order('created_at', { ascending: true })
+                    .limit(10);
+                lbRows = data || [];
+                lbRowsError = error || null;
+                renderLeaderboard();
+                return;
+            }
+            if (lbModeFilter === 'purrstack1v1') {
+                const { data, error } = await sb.from('purrstack_battle_leaderboard')
+                    .select('user_id,nickname,email,matches,wins,best_score,lines,last_win_at')
+                    .order('wins', { ascending: false })
+                    .order('best_score', { ascending: false })
+                    .order('matches', { ascending: true })
                     .limit(10);
                 lbRows = data || [];
                 lbRowsError = error || null;
@@ -192,6 +207,34 @@
             container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
                 `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
             , { emptyAll: '<p class="text-gray-400 text-center py-10">No PurrStack games recorded yet.</p>' });
+        }
+
+        function renderPurrStackBattleLeaderboard(container) {
+            if (lbRowsError) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">PurrStack 1v1 leaderboard not available. Run <code class="text-orange-600">supabase/purrstack_battle_results.sql</code> in the SQL editor.</p>';
+                return;
+            }
+            if (!lbRows.length) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-10">No PurrStack 1v1 matches yet.</p>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const rowHtml = (r, i) => `
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 gap-3 ${i < 3 ? 'border-2 border-orange-200 bg-orange-50' : ''}">
+                            <span class="text-2xl w-10 text-center">${medals[i] || (i + 1)}</span>
+                            <span class="font-bold text-gray-700 flex-1 ml-3">${leaderboardNameHTML(r, isAdmin() ? classBadge(r.email, r.nickname) : '')}</span>
+                            ${formAssignControl(r.email, r.nickname)}
+                            <span class="text-gray-400 text-sm mx-2">${Number(r.wins) || 0}W / ${Number(r.matches) || 0}G</span>
+                            <span class="font-bold text-orange-600 text-lg">${Number(r.best_score) || 0} pts</span>
+                        </div>`;
+            if (!isAdmin()) {
+                container.innerHTML = '<p class="text-xs text-gray-400 mb-3">Wins first, then best single-game score.</p>'
+                    + `<div class="space-y-3">${lbRows.map(rowHtml).join('')}</div>`;
+                return;
+            }
+            container.innerHTML = renderFormSections(groupRowsByForm(lbRows), (rows) =>
+                `<div class="space-y-3">${rows.map(rowHtml).join('')}</div>`
+            , { emptyAll: '<p class="text-gray-400 text-center py-10">No PurrStack 1v1 matches yet.</p>' });
         }
 
         function renderFlapLeaderboard(container) {
@@ -352,6 +395,10 @@
             }
             if (lbModeFilter === 'purrstack') {
                 renderPurrStackLeaderboard(container);
+                return;
+            }
+            if (lbModeFilter === 'purrstack1v1') {
+                renderPurrStackBattleLeaderboard(container);
                 return;
             }
             if (lbModeFilter === 'flap') {

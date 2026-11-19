@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PurrStack 1v1 — Bot demo</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #1b2430;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #game {
+    display: block;
+    width: min(390px, 100vw);
+    height: min(844px, 100dvh);
+    border: 0;
+    background: #fdf3e3;
+    box-shadow: 0 12px 34px rgba(0,0,0,.32);
+  }
+  .badge {
+    position: fixed;
+    left: 10px;
+    top: 10px;
+    z-index: 40;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(255, 249, 242, .94);
+    border: 1.5px solid #d9b98f;
+    color: #7a4d24;
+    font: 700 10px/1.2 Fredoka, system-ui, sans-serif;
+    letter-spacing: .04em;
+    pointer-events: none;
+    animation: badgeOut .4s ease 5s forwards;
+  }
+  @keyframes badgeOut { to { opacity: 0; visibility: hidden; } }
+</style>
+</head>
+<body>
+<iframe id="game" src="vocab-tetris-demo.html" allow="fullscreen"></iframe>
+<div class="badge">🤖 DEMO vs BOT · no second account</div>
+<script>
+(function () {
+  'use strict';
+
+  const meId = 'demo-me';
+  const botId = 'demo-bot';
+  let room = null;
+  let botScoreTimer = 0;
+  let botGarbageTimer = 0;
+
+  function clone(o) { return o ? JSON.parse(JSON.stringify(o)) : o; }
+
+  function player(id, name) {
+    return {
+      user_id: id,
+      email: id + '@demo.local',
+      nickname: name,
+      score: 0,
+      lines: 0,
+      correct: 0,
+      wrong: 0,
+      garbage_pending: 0,
+      garbage_sent: 0,
+      alive: true,
+      done: false,
+      last_seen: new Date().toISOString()
+    };
+  }
+
+  function stopBot() {
+    if (botScoreTimer) { clearInterval(botScoreTimer); botScoreTimer = 0; }
+    if (botGarbageTimer) { clearInterval(botGarbageTimer); botGarbageTimer = 0; }
+  }
+
+  function startBot() {
+    stopBot();
+    botScoreTimer = setInterval(function () {
+      if (!room || room.status !== 'playing' || !room.players[1]) return;
+      const bot = room.players[1];
+      bot.score += 15 + Math.floor(Math.random() * 16);
+      if (Math.random() < 0.35) bot.lines += 1;
+    }, 4000);
+    botGarbageTimer = setInterval(function () {
+      if (!room || room.status !== 'playing' || !room.players[0]) return;
+      room.players[0].garbage_pending += Math.random() < 0.35 ? 2 : 1;
+    }, 10000);
+  }
+
+  function finishNow() {
+    if (!room || room.status !== 'playing') return;
+    room.status = 'finished';
+    room.finished_at = new Date().toISOString();
+    const me = room.players[0];
+    const bot = room.players[1];
+    if (!me.alive && bot.alive) room.winner_id = botId;
+    else if (me.alive && !bot.alive) room.winner_id = meId;
+    else if (me.score !== bot.score) room.winner_id = me.score > bot.score ? meId : botId;
+    else if (me.lines !== bot.lines) room.winner_id = me.lines > bot.lines ? meId : botId;
+    else room.winner_id = meId;
+    stopBot();
+  }
+
+  function freshRoom() {
+    return {
+      id: 'demo-room',
+      code: '4321',
+      status: 'waiting',
+      seed: Math.floor(Math.random() * 1000000000) + 1,
+      duration: 180,
+      host_id: meId,
+      guest_id: null,
+      started_at: null,
+      ends_at: null,
+      finished_at: null,
+      winner_id: null,
+      players: [player(meId, 'You')]
+    };
+  }
+
+  window.PSB = {
+    canPlay: function () { return true; },
+    myId: function () { return meId; },
+    create: async function () {
+      stopBot();
+      room = freshRoom();
+      setTimeout(function () {
+        if (!room || room.status !== 'waiting') return;
+        room.guest_id = botId;
+        room.players.push(player(botId, 'Bot'));
+      }, 1200);
+      return { data: clone(room) };
+    },
+    join: async function () { return { data: clone(room) }; },
+    start: async function () {
+      if (!room) return { data: null };
+      room.status = 'playing';
+      room.started_at = new Date().toISOString();
+      room.ends_at = new Date(Date.now() + room.duration * 1000).toISOString();
+      startBot();
+      return { data: clone(room) };
+    },
+    state: async function () {
+      if (room && room.status === 'playing' && room.ends_at
+          && Date.now() >= new Date(room.ends_at).getTime()) {
+        finishNow();
+      }
+      return { data: clone(room) };
+    },
+    garbage: async function (id, n) {
+      if (room && room.players[1]) room.players[1].garbage_pending += Math.max(0, n || 0);
+      return { data: null };
+    },
+    ackGarbage: async function (id, n) {
+      if (room && room.players[0]) {
+        room.players[0].garbage_pending = Math.max(0, room.players[0].garbage_pending - Math.max(0, n || 0));
+      }
+      return { data: null };
+    },
+    report: async function (id, p) {
+      if (room && room.players[0]) {
+        Object.assign(room.players[0], {
+          score: p.score, lines: p.lines, correct: p.correct,
+          wrong: p.wrong, alive: p.alive
+        });
+        if (p.alive === false) finishNow();
+      }
+      return { data: clone(room) };
+    },
+    finish: async function () {
+      finishNow();
+      return { data: clone(room) };
+    },
+    leave: async function () {
+      stopBot();
+      room = null;
+      return { data: null };
+    },
+    rematch: async function () {
+      if (!room) return { data: null };
+      room.status = 'playing';
+      room.seed = Math.floor(Math.random() * 1000000000) + 1;
+      room.started_at = new Date().toISOString();
+      room.ends_at = new Date(Date.now() + room.duration * 1000).toISOString();
+      room.finished_at = null;
+      room.winner_id = null;
+      room.players.forEach(function (p) {
+        p.score = 0; p.lines = 0; p.correct = 0; p.wrong = 0;
+        p.garbage_pending = 0; p.garbage_sent = 0;
+        p.alive = true; p.done = false;
+      });
+      startBot();
+      return { data: clone(room) };
+    }
+  };
+})();
+</script>
+</body>
+</html>

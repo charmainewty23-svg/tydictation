@@ -1186,3 +1186,172 @@ test("setOverlay('start') shows the how-to and the other cards hide it", () => {
     assert.ok(gameHtml.indexOf("setOverlay('start')") !== -1, 'the game opens on the start card');
     assert.match(gameHtml, /overlayMode === 'peek'\) setOverlay\('start'\)/);
 });
+
+/* ---------------- 7) daily practice streak ---------------- */
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+/* Same fake parent page as loadShared(), but the message listener is
+   captured so the real purrstack-* branches run. recordDailyPractice is
+   replaced with a recorder: the real one is already covered by the streak
+   UI, and this file only needs to know whether the hook fired. */
+function loadSharedListener(options) {
+    const opts = options || {};
+    const state = {
+        events: [],
+        queries: [],
+        inserts: [],
+        posts: [],
+        practice: [],
+        rows: opts.rows || {},
+        counts: opts.counts || {},
+        errorTables: opts.errorTables || {}
+    };
+    const sb = makeSb(state);
+    const frame = makeEl('purrstack-frame');
+    frame.contentWindow = {
+        postMessage(message, target) { state.posts.push({ message, target }); }
+    };
+    const listeners = [];
+    const context = makeContext({
+        sb,
+        byId: { 'purrstack-frame': frame },
+        globals: { __practice: state.practice }
+    });
+    context.window.addEventListener = function (type, fn) {
+        if (type === 'message') listeners.push(fn);
+    };
+    vm.runInContext(sharedSource, context);
+    vm.runInContext(
+        'recordDailyPractice = function (source, options) { __practice.push({ source: source, options: options }); };',
+        context);
+    return { context, state, listeners };
+}
+
+test('a finished solo run records one PurrStack practice day with an 800ms delay', async () => {
+    const { context, state, listeners } = loadSharedListener({ rows: { purrstack_leaderboard: [] } });
+    vm.runInContext('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };', context);
+
+    assert.equal(listeners.length, 1, 'one same-origin message listener');
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-score', score: 120, words: 8, correct: 6, wrong: 2, bestCombo: 4 } });
+    await flush();
+
+    assert.equal(state.practice.length, 1, 'the finished run counts once');
+    assert.equal(state.practice[0].source, 'PurrStack');
+    assert.deepEqual(state.practice[0].options, { delayMs: 800 });
+    assert.equal(state.inserts.length, 1, 'the signed-in run is still saved');
+});
+
+test('a guest solo run still counts as practice even though nothing is uploaded', async () => {
+    const { state, listeners } = loadSharedListener();
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-score', score: 90, words: 5 } });
+    await flush();
+
+    assert.equal(state.inserts.length, 0, 'guests never upload');
+    assert.equal(state.practice.length, 1);
+    assert.equal(state.practice[0].source, 'PurrStack');
+    assert.deepEqual(state.practice[0].options, { delayMs: 800 });
+});
+
+test('a teacher preview run counts as practice without uploading', async () => {
+    const { context, state, listeners } = loadSharedListener();
+    vm.runInContext('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };', context);
+    vm.runInContext('previewStudentForm = function () { return "F4"; };', context);
+
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-score', score: 70, words: 4 } });
+    await flush();
+
+    assert.equal(state.inserts.length, 0, 'preview never uploads');
+    assert.equal(state.practice.length, 1);
+    assert.equal(state.practice[0].source, 'PurrStack');
+});
+
+test('a failed score / board round-trip still counts the finished run', async () => {
+    const { context, state, listeners } = loadSharedListener({ errorTables: { purrstack_leaderboard: true } });
+    vm.runInContext('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };', context);
+
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-score', score: 50, words: 3 } });
+    await flush();
+
+    assert.equal(state.practice.length, 1, 'practice happened even when the board failed');
+    assert.equal(state.practice[0].source, 'PurrStack');
+    assert.equal(state.posts[0].message.error, true, 'the SQL hint still reaches the iframe');
+});
+
+test('peeking at the Top 7 or going back to the hub never records practice', async () => {
+    const { context, state, listeners } = loadSharedListener({ rows: { purrstack_leaderboard: [] } });
+    vm.runInContext('currentUser = { id: "u1", email: "4C 01 Chan@lstyoungkhl.edu.hk", user_metadata: {} };', context);
+    vm.runInContext('changeView = function () {};', context);
+
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-board-request' } });
+    await flush();
+    assert.equal(state.practice.length, 0, 'the pre-game peek is not a finished run');
+    assert.equal(state.inserts.length, 0);
+
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-hub' } });
+    await flush();
+    assert.equal(state.practice.length, 0, 'leaving from the rank card is not a finished run');
+});
+
+test('the parent records practice on purrstack-practice from the same origin only', async () => {
+    const { state, listeners } = loadSharedListener();
+
+    listeners[0]({ origin: 'https://evil.test', data: { type: 'purrstack-practice' } });
+    assert.equal(state.practice.length, 0, 'a foreign origin cannot extend the streak');
+
+    listeners[0]({ origin: ORIGIN, data: { type: 'purrstack-practice' } });
+    assert.equal(state.practice.length, 1, 'the finished 1v1 match counts once');
+    assert.equal(state.practice[0].source, 'PurrStack');
+    assert.deepEqual(state.practice[0].options, { delayMs: 800 });
+    assert.equal(state.inserts.length, 0, '1v1 never writes a solo score row');
+});
+
+/* ---- iframe side: a finished 1v1 result asks the parent to count practice ---- */
+
+function loadPracticeHelpers() {
+    const at = gameHtml.indexOf('/* ---- purrstack practice streak');
+    const end = gameHtml.indexOf('/* ---- end purrstack practice streak', at);
+    assert.ok(at !== -1 && end !== -1, 'the practice helper block is marked');
+    return gameHtml.slice(at, end) + '\nthis.H = { purrPracticeRequest, notePurrPractice };';
+}
+
+test('showBattleResult posts purrstack-practice to the parent, same origin, only when framed', () => {
+    const code = loadPracticeHelpers();
+
+    function run(framed) {
+        const posted = [];
+        const win = { location: { origin: 'https://purrstack.test' } };
+        win.parent = framed
+            ? { postMessage(msg, target) { posted.push({ msg, target }); } }
+            : win;
+        const context = vm.createContext({ console, window: win });
+        vm.runInContext(code, context);
+        context.H.notePurrPractice();
+        return { posted, H: context.H };
+    }
+
+    const framed = run(true);
+    assert.equal(framed.posted.length, 1);
+    assert.equal(framed.posted[0].msg.type, 'purrstack-practice');
+    assert.equal(framed.posted[0].target, 'https://purrstack.test', 'never a wildcard target');
+    assert.equal(framed.H.purrPracticeRequest(true).type, 'purrstack-practice');
+
+    const standalone = run(false);
+    assert.equal(standalone.posted.length, 0, 'no parent: nothing is posted to itself');
+    assert.equal(standalone.H.purrPracticeRequest(false), null);
+});
+
+test('only the finished result modal asks for practice, not the "waiting for the result" screen', () => {
+    assert.match(gameHtml, /function showBattleResult\(state\) \{[\s\S]*?showBattleModal\(title, body, actions\);\s*\n\s*notePurrPractice\(\);/,
+        'the win / lose / draw modal counts the finished match');
+
+    const battleAt = gameHtml.indexOf('if (battle.active && !battle.over) {');
+    assert.ok(battleAt !== -1, 'endGame has the early battle-out branch');
+    const battleBranch = gameHtml.slice(battleAt, gameHtml.indexOf('return;', battleAt));
+    assert.doesNotMatch(battleBranch, /notePurrPractice|purrstack-practice/,
+        'being out and waiting for the result is not a finished run');
+
+    /* 1v1 never posts a solo score: the score post stays in the solo branch. */
+    const endGame = gameHtml.slice(gameHtml.indexOf('function endGame()'), gameHtml.indexOf('function resetGame(', gameHtml.indexOf('function endGame()')));
+    assert.equal((endGame.match(/type: 'purrstack-score'/g) || []).length, 1);
+});

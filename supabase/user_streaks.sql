@@ -71,8 +71,11 @@ declare
     has_dg_multi boolean := to_regclass('public.drive_and_go_multi_scores') is not null;
     has_battle boolean := to_regclass('public.battle_players') is not null
                           and to_regclass('public.battle_rooms') is not null;
+    has_purrstack_scores boolean := to_regclass('public.purrstack_scores') is not null;
+    has_purrstack_matches boolean := to_regclass('public.purrstack_match_results') is not null;
 begin
-    if not has_dict and not has_wj and not has_dg_solo and not has_dg_multi and not has_battle then
+    if not has_dict and not has_wj and not has_dg_solo and not has_dg_multi and not has_battle
+       and not has_purrstack_scores and not has_purrstack_matches then
         raise notice 'No practice tables found; skipping streak backfill.';
         return;
     end if;
@@ -130,6 +133,24 @@ begin
               -- Class rooms are teacher-led and can include students who never
               -- answered, so they never count towards the streak.
               and coalesce(r.mode, 'duel') <> 'class'
+        $q$;
+    end if;
+
+    if has_purrstack_scores then
+        execute $q$
+            insert into _learnity_streak_activity (user_id, day, created_at)
+            select user_id, (created_at at time zone 'Asia/Hong_Kong')::date, created_at
+            from public.purrstack_scores
+            where user_id is not null and created_at is not null
+        $q$;
+    end if;
+
+    if has_purrstack_matches then
+        execute $q$
+            insert into _learnity_streak_activity (user_id, day, created_at)
+            select user_id, (created_at at time zone 'Asia/Hong_Kong')::date, created_at
+            from public.purrstack_match_results
+            where user_id is not null and created_at is not null
         $q$;
     end if;
 

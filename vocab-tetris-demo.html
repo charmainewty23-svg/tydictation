@@ -1951,6 +1951,24 @@
   }
   /* ---- end purrstack back to hub ---- */
 
+  /* ---- purrstack practice streak ----
+     A finished 1v1 match counts once towards the site daily practice streak.
+     Only the final result modal asks the parent: "You are out. Waiting for
+     the result…" is not a finished run, and 1v1 never posts a solo score.
+     Standalone (no parent) nothing is posted to itself. */
+  function purrPracticeRequest(hasParent) {
+    return hasParent ? { type: 'purrstack-practice' } : null;
+  }
+
+  function notePurrPractice() {
+    const request = purrPracticeRequest(window.parent && window.parent !== window);
+    if (!request) return;
+    try {
+      window.parent.postMessage(request, window.location.origin);
+    } catch (e) { /* ignore */ }
+  }
+  /* ---- end purrstack practice streak ---- */
+
   function openPeek() {
     if (!purrCanPeek(running, gameOver)) return;
     rankBoard = { status: 'loading', rows: [], me: '', guest: false, error: false };
@@ -3670,6 +3688,7 @@
     }
     actions.push({ act: 'hub', label: '← Back to Hub', ghost: true });
     showBattleModal(title, body, actions);
+    notePurrPractice();
     stopResultPoll();
     battleResultPoll = setInterval(async function () {
       const client = psb();

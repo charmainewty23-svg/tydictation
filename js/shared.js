@@ -128,6 +128,13 @@
             return reply;
         }
 
+        /* A finished run — solo score or a completed 1v1 match — counts once
+           towards the daily practice streak. Starting a run, leaving early or
+           peeking at the Top 7 never calls this. */
+        function notePurrStackPractice() {
+            return recordDailyPractice('PurrStack', { delayMs: 800 });
+        }
+
         async function submitPurrStackScore(data) {
             if (!data) return null;
             const me = currentUser ? currentUser.id : '';
@@ -168,13 +175,19 @@
             if (event.origin !== window.location.origin) return;
             const data = event.data;
             if (data && data.type === 'purrstack-score') {
+                // The run is finished, so it counts as practice even when the
+                // guest / preview path skips the upload or the fetch fails.
                 Promise.resolve(submitPurrStackScore(data)).catch(function (e) {
                     console.warn('PurrStack score not saved:', e && e.message ? e.message : e);
-                });
+                }).then(notePurrStackPractice);
             } else if (data && data.type === 'purrstack-board-request') {
                 Promise.resolve(requestPurrStackBoard()).catch(function (e) {
                     console.warn('PurrStack leaderboard not loaded:', e && e.message ? e.message : e);
                 });
+            } else if (data && data.type === 'purrstack-practice') {
+                // A finished 1v1 match only counts as practice; it never writes
+                // a solo leaderboard row.
+                notePurrStackPractice();
             } else if (data && data.type === 'purrstack-hub') {
                 // The ranking card's ← Back to Hub. changeView() posts
                 // purrstack-pause on the way out, so the game stops cleanly.

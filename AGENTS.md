@@ -1934,7 +1934,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   標 `guest`，卡片寫「Leaderboards are hidden in guest mode…」；如果 reply 係
   `error`（未跑 SQL）就寫「run supabase/purrstack_scores.sql」，遊戲照玩。
   如果 board 喺 review 步驟已經到，就會 cache 落 `rankBoard`，撳 Next 即刻顯示；
-  未到就顯示 Loading…。
+  未到就顯示 Loading…。完成嘅單人 run（post 咗 `purrstack-score`、出咗 review／
+  rank 卡之後）同完成嘅 1v1（出 win／lose／draw 結果卡之後 post
+  `purrstack-practice` 俾 parent）都會計一次每日練習 streak
+  （`recordDailyPractice('PurrStack', { delayMs: 800 })`）；開局、中途離開、
+  Top 7 peek、「You are out. Waiting for the result…」唔會計。
 - Ranking 卡喺 **▶ Play again** 下面多一粒次要嘅 **← Back to Hub**（只有 rank
   模式見到；start／pause／review／peek 都收埋），撳落會
   `postMessage({type:'purrstack-hub'}, window.location.origin)`；有 parent 才 post，
@@ -2251,6 +2255,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - Word Battle `battleFinishLocal()` → `'Word Battle'`（call 喺
     `await battlePoll()` 之後；**只計 1v1，`mode === 'class'` 班際房完全唔計**，
     因為班際房可以包括冇答過題嘅學生）。
+  - PurrStack 單人 → `'PurrStack'`：`js/shared.js` 嘅 `notePurrStackPractice()`
+    喺 `submitPurrStackScore()` settle 之後一定 call（`{ delayMs: 800 }`），
+    即係睇完 review／rank 卡之後；guest／老師 preview／上傳失敗都照計一次。
+    開局、中途離開、Top 7 peek 都唔會 call。
+  - PurrStack 1v1 → `'PurrStack'`：`vocab-tetris-demo.html` 嘅
+    `showBattleResult()` 出 win／lose／draw 結果卡之後，same-origin post
+    `{ type:'purrstack-practice' }` 俾 parent，由同一個
+    `notePurrStackPractice()` 記錄。「You are out. Waiting for the result…」
+    同 1v1 都**唔會** post `purrstack-score`（唔會寫單人榜）。
   - 只有**完成**先計，開始／中途離開唔計。加新遊戲喺完成位 call 同一個 helper，
     並盡量喺結果 DOM 出現之後才 call。
 - **持久化 / 跨裝置**：
@@ -2268,11 +2281,14 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - `supabase/user_streaks.sql` 最後有一段可重跑 backfill：由
     `dictation_results`／`wj_scores`／`drive_and_go_solo_scores`／
     `drive_and_go_multi_scores`／`battle_rooms.finished_at` 抽香港練習日，
+    （有嘅話）亦會讀 `purrstack_scores` 同 `purrstack_match_results` 嘅
+    `created_at`，
     計連續 run，寫入 `streak_count`（最新一段；**只限最後練習係今日或昨日，
     否則寫 0**）、`streak_best`（最長一段）、`last_practice_date` 同
     `first_seen`。**唔會扣補救卡**，亦唔會用舊歷史覆蓋較新嘅 row；
     舊學生嘅已斷 streak 只保留 `best`，當前顯示 0，第一次再練習由 1 開始。
     Word Battle 只計 1v1（`coalesce(mode,'duel') <> 'class'`），班際房完全唔計。
+    PurrStack 兩張表都係有 run 先有 row，所以 solo／1v1 完成都會計。
   - 本機 mirror key：`localStorage['learniTY_streak:user:<uuid>']`（學校帳戶）、
     `sessionStorage['learniTY_streak:preview:<form>']`（老師 preview）、
     `sessionStorage['learniTY_streak:guest']`（訪客，下一個同學唔會繼承）。

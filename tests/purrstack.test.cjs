@@ -391,6 +391,155 @@ test('Back to Hub posts purrstack-hub to the parent, same origin, and nothing st
     assert.equal(standalone.H.purrHubRequest(false), null);
 });
 
+/* ---------------- 1d) 1v1 result modal exits ---------------- */
+
+function sliceFunc(startMarker, endMarker, label) {
+    const at = gameHtml.indexOf(startMarker);
+    const end = gameHtml.indexOf(endMarker, at);
+    assert.ok(at !== -1 && end !== -1, label + ' is marked');
+    return gameHtml.slice(at, end);
+}
+
+test('the 1v1 result modal gives both host and guest ▶ Play again + ← Back to PurrStack', () => {
+    const src = sliceFunc('function showBattleResult(state)',
+        '  async function battleRematch()', 'showBattleResult');
+
+    /* One literal actions list, so neither button is host-only any more. */
+    assert.match(src, /\{ act: 'rematch', label: '▶ Play again' \}/);
+    assert.match(src, /\{ act: 'purrstack', label: '← Back to PurrStack', ghost: true \}/);
+    assert.doesNotMatch(src, /↻ Rematch/, 'the old host-only label is retired');
+    assert.doesNotMatch(src, /state\.guest_id/, 'the buttons no longer depend on a guest being seated');
+    assert.doesNotMatch(src, /Back to Hub|backToHub|purrstack-hub/i, 'the 1v1 card never offers the site hub');
+
+    /* Both entries are unconditional: no if around them. */
+    const actionsAt = src.indexOf('const actions = [');
+    const actionsEnd = src.indexOf('];', actionsAt);
+    assert.ok(actionsAt !== -1 && actionsEnd !== -1);
+    const actionsSrc = src.slice(actionsAt, actionsEnd);
+    assert.doesNotMatch(actionsSrc, /\bif\b/, 'both buttons are always shown');
+    assert.equal((actionsSrc.match(/act: '/g) || []).length, 2);
+
+    /* The guest still auto-starts through the result poll. */
+    assert.match(src, /res\.data\.status === 'playing' && Number\(res\.data\.seed\) !== battle\.seed/);
+    assert.match(src, /startBattle\(res\.data\)/);
+    assert.match(src, /notePurrPractice\(\);/);
+});
+
+test('the battle action listener maps purrstack to backToPurrStack, never to backToHub', () => {
+    const at = gameHtml.indexOf('battleActions.addEventListener');
+    const end = gameHtml.indexOf('overlayBtn.addEventListener', at);
+    assert.ok(at !== -1 && end !== -1);
+    const src = gameHtml.slice(at, end);
+
+    assert.match(src, /act === 'rematch'\) battleRematch\(\)/);
+    assert.match(src, /act === 'purrstack'\) backToPurrStack\(\)/);
+    assert.doesNotMatch(src, /act === 'hub'/);
+    assert.doesNotMatch(src, /backToHub/);
+    assert.doesNotMatch(src, /purrstack-hub/);
+    assert.doesNotMatch(src, /postMessage/);
+});
+
+test('Back to PurrStack leaves the room and returns to the start card without the hub', () => {
+    const src = sliceFunc('function backToPurrStack()',
+        '/* ---------------- init ---------------- */', 'backToPurrStack');
+    assert.doesNotMatch(src, /backToHub|purrstack-hub|postMessage/i, 'no site-hub navigation');
+
+    const calls = { leave: [], overlays: [], posts: [] };
+    let reset = 0;
+    let startBtn = 0;
+    let modalHidden = 0;
+    let stripHidden = 0;
+    const removed = [];
+    const battle = {
+        active: true, room: 'room-9', seed: 77, over: true,
+        finishSent: true, opponent: { user_id: 'g' }, lastState: { id: 'room-9' }
+    };
+    const api = { leave(room) { calls.leave.push(room); return Promise.resolve(); } };
+    const context = vm.createContext({
+        console,
+        battle,
+        startingBattle: true,
+        psb: () => api,
+        stopResultPoll() {},
+        stopLobbyPoll() {},
+        stopBattleTimers() {},
+        battleStrip: { classList: { add() { stripHidden += 1; } } },
+        hideBattleModal() { modalHidden += 1; },
+        document: {
+            body: { classList: { remove(cls) { removed.push(cls); } } }
+        },
+        fsActive: () => false,
+        syncFsUi() {},
+        resetGame() { reset += 1; },
+        setOverlay(mode) { calls.overlays.push(mode); },
+        updateStartBtn() { startBtn += 1; }
+    });
+    context.window = { parent: { postMessage(msg) { calls.posts.push(msg); } } };
+    vm.runInContext(src + '\nthis.B = backToPurrStack;', context);
+    context.B();
+
+    assert.deepEqual(calls.leave, ['room-9'], 'the finished room is left');
+    assert.equal(battle.active, false);
+    assert.equal(battle.room, '');
+    assert.equal(stripHidden, 1, 'the battle strip is hidden');
+    assert.equal(modalHidden, 1, 'the result modal is hidden');
+    assert.deepEqual(calls.overlays, ['start'], 'the PurrStack start card comes back');
+    assert.equal(reset, 1, 'the finished board is cleared for the next run');
+    assert.equal(startBtn, 1, 'the pinned bar goes back to ▶ Start');
+    assert.ok(removed.includes('playing-phone'), 'the enlarged phone layout is dropped');
+    assert.ok(removed.includes('css-fs'), 'the CSS fullscreen fallback is dropped');
+    assert.equal(calls.posts.length, 0, 'nothing is posted: the parent never navigates to the hub');
+
+    /* Nothing in the path can still be mistaken for the hub exit. */
+    assert.doesNotMatch(gameHtml, /act === 'hub'/);
+});
+
+test('guest Play again waits for the host, host Play again still rematches', async () => {
+    const src = sliceFunc('async function battleRematch()',
+        '/* Result modal → ← Back to PurrStack', 'battleRematch');
+
+    function load(role) {
+        const calls = { rematch: [], toasts: [], started: 0 };
+        const api = {
+            rematch(room) {
+                calls.rematch.push(room);
+                return Promise.resolve({ data: { id: room, status: 'playing', seed: 88 } });
+            }
+        };
+        const context = vm.createContext({
+            console,
+            battle: {
+                room: 'room-3',
+                hostId: 'host-1',
+                myId: role === 'host' ? 'host-1' : 'guest-1'
+            },
+            psb: () => api,
+            toast(text) { calls.toasts.push(text); },
+            battleApiOk: (res) => !!res && !res.error && !!res.data,
+            battleErrorText: () => 'ERR',
+            stopResultPoll() {},
+            startBattle() { calls.started += 1; }
+        });
+        vm.runInContext(src + '\nthis.R = battleRematch;', context);
+        return { context, calls };
+    }
+
+    const guest = load('guest');
+    await guest.context.R();
+    assert.equal(guest.calls.rematch.length, 0, 'a guest never calls the host-only RPC');
+    assert.equal(guest.calls.started, 0);
+    assert.deepEqual(guest.calls.toasts, ['Waiting for the host to start.']);
+
+    const host = load('host');
+    await host.context.R();
+    assert.deepEqual(host.calls.rematch, ['room-3']);
+    assert.equal(host.calls.started, 1);
+    assert.equal(host.calls.toasts.length, 0);
+
+    /* Real NOT_HOST failures still map to the old message. */
+    assert.match(gameHtml, /text === 'NOT_HOST'\) return 'Only the host can do that\.'/);
+});
+
 /* ---------------- 2) parent side: submit + board reply ---------------- */
 
 function loadShared(options) {

@@ -3105,17 +3105,7 @@
     else if (act === 'start') battleStart();
     else if (act === 'cancel') battleLeave();
     else if (act === 'rematch') battleRematch();
-    else if (act === 'hub') {
-      stopResultPoll();
-      stopBattleTimers();
-      const api = psb();
-      if (api && battle.room) api.leave(battle.room);
-      battle.active = false;
-      battle.room = '';
-      if (battleStrip) battleStrip.classList.add('hidden');
-      hideBattleModal();
-      backToHub();
-    }
+    else if (act === 'purrstack') backToPurrStack();
   });
 
   overlayBtn.addEventListener('click', function () {
@@ -3682,11 +3672,13 @@
     const body = '<div><b>You</b> ' + (me.score || 0) + ' pts · ' + (me.lines || 0) + ' lines<br>'
       + '<b>Opponent</b> ' + (opp.score || 0) + ' pts · ' + (opp.lines || 0) + ' lines</div>'
       + '<p style="margin-top:8px">' + (iWon ? 'Champion of this battle!' : (isDraw ? 'Same score — rematch?' : 'Good game!')) + '</p>';
-    const actions = [];
-    if (battle.hostId === battle.myId && state && state.guest_id) {
-      actions.push({ act: 'rematch', label: '↻ Rematch' });
-    }
-    actions.push({ act: 'hub', label: '← Back to Hub', ghost: true });
+    /* Both players get the same two exits. The guest's Play again only waits
+       for the host (see battleRematch); the result poll below still starts the
+       next round automatically as soon as the host's new seed arrives. */
+    const actions = [
+      { act: 'rematch', label: '▶ Play again' },
+      { act: 'purrstack', label: '← Back to PurrStack', ghost: true }
+    ];
     showBattleModal(title, body, actions);
     notePurrPractice();
     stopResultPoll();
@@ -3705,6 +3697,12 @@
   async function battleRematch() {
     const api = psb();
     if (!api || !battle.room) return;
+    /* Only the host can mint a new seed. A guest tapping Play again keeps the
+       result poll alive, so the round starts by itself once the host rematches. */
+    if (battle.hostId !== battle.myId) {
+      toast('Waiting for the host to start.');
+      return;
+    }
     const res = await api.rematch(battle.room);
     if (!battleApiOk(res)) {
       toast(battleErrorText(res));
@@ -3712,6 +3710,49 @@
     }
     stopResultPoll();
     startBattle(res.data);
+  }
+
+  /* Result modal → ← Back to PurrStack. Leave the finished room and return to
+     the pre-game start card (Solo ▶ Start + ⚔️ 1v1 Battle) so the student can
+     pick either mode again. This never asks the parent page for the LearniTY
+     hub and posts no message to it: the PurrStack tab stays open. */
+  function backToPurrStack() {
+    stopResultPoll();
+    stopLobbyPoll();
+    stopBattleTimers();
+    const api = psb();
+    if (api && battle.room) {
+      try {
+        const p = api.leave(battle.room);
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) { /* ignore */ }
+    }
+    battle.active = false;
+    battle.room = '';
+    battle.seed = 0;
+    battle.over = false;
+    battle.finishSent = false;
+    battle.opponent = null;
+    battle.lastState = null;
+    startingBattle = false;
+    if (battleStrip) battleStrip.classList.add('hidden');
+    hideBattleModal();
+    /* Drop the enlarged phone / fullscreen play layout so the start card sits
+       exactly where it did before the race (header, guide, Start). */
+    document.body.classList.remove('playing-phone');
+    document.body.classList.remove('css-fs');
+    if (fsActive()) {
+      try {
+        const p = document.exitFullscreen
+          ? document.exitFullscreen()
+          : document.webkitExitFullscreen();
+        if (p && p.catch) p.catch(function () {});
+      } catch (e) { /* ignore */ }
+    }
+    syncFsUi();
+    resetGame();
+    setOverlay('start');
+    updateStartBtn();
   }
 
   /* ---------------- init ---------------- */

@@ -1989,9 +1989,21 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   send_garbage/ack_garbage/report/finish/leave/rematch`。RLS：只有房員
   讀到 room／players；寫入全部經 security-definer RPC。
 - 未跑 SQL：lobby 會顯示「run supabase/purrstack_battle.sql」，遊戲照玩。
-- Rematch：host 可按 ↻ Rematch，server 換新 seed；guest 在結果卡 poll
-  到 `playing`＋新 seed 會自動開新局。結果卡有 ← Back to Hub（postMessage
-  `purrstack-hub`）。
+- 完場結果卡（1v1）：**兩位玩家**（host 同 guest）都見到兩粒英文掣 —
+  **▶ Play again** 同次要嘅 **← Back to PurrStack**。
+  - **▶ Play again**：host 撳＝呼叫 `purrstack_rematch` 換新 seed 並 `startBattle`；
+    guest 撳如果 host 未開始，只會 toast「Waiting for the host to start.」，
+    唔會 call rematch。結果卡 poll 仍然每 1.5 秒讀房，見到 `playing`＋新 seed
+    就自動開新局（同以前一樣），所以 guest 唔使再撳。
+  - **← Back to PurrStack**：`api.leave` 離開房間、停結果／lobby／battle timers、
+    清 `battle.active`／`battle.room`、收埋 battle strip 同結果 modal，然後
+    `resetGame()`＋`setOverlay('start')` 返到 PurrStack 開始卡
+    （▶ Start ＋ ⚔️ 1v1 Battle），可以再開單人或新一場 1v1。
+    會順手離開放大手機／全屏版面（`playing-phone`／`css-fs`／native fullscreen），
+    令開始卡同開賽前一樣用得。**唔會** call `backToHub()`，亦**唔會** post
+    `purrstack-hub`，所以唔會跳去 LearniTY site hub。
+  - 1v1 結果卡**冇**「← Back to Hub」。`← Back to Hub` 只留喺單人 ranking 卡
+    （`#overlay-hub`），行為不變。
 - 檔案：`js/purrstack-battle.js` 已加入 `sw.js` CORE_ASSETS（cache v99）。
 
 - 1v1 排行榜：`supabase/purrstack_battle_results.sql`（喺 `purrstack_battle.sql`

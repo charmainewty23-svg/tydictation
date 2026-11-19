@@ -124,11 +124,26 @@
             if (quizMode === 'listening') setTimeout(speakCurrentWord, 120);
         }
 
+        // Cambridge records one headword at a time, and phrasal verbs / idioms
+        // are often only the first verb ("help out" → "help",
+        // "look after" → "look"). Listening only uses a Cambridge mp3 for a
+        // single token; phrases are read in full by the device voice instead.
+        // Hyphenated tokens such as "binge-watch" are still one token.
+        const CAMBRIDGE_WORD_RE = /^\S+$/;
+
+        function cambridgeWordFor(word) {
+            const text = primaryAnswer(word);
+            if (!text || !CAMBRIDGE_WORD_RE.test(text)) return '';
+            return text;
+        }
+
         // Cambridge publishes one UK and one US mp3 per headword. Fetch both
         // once per word while the student is still reading the prompt, so the
         // first tap on 🔊 is instant.
         function prefetchCambridgeAudio(word) {
-            const key = quizNormalize(word);
+            const target = cambridgeWordFor(word);
+            if (!target) return;
+            const key = quizNormalize(target);
             if (!key || CAMBRIDGE_AUDIO[key] || CAMBRIDGE_PENDING[key]) return;
             let timer = null;
             const settle = () => {
@@ -136,7 +151,7 @@
                 delete CAMBRIDGE_PENDING[key];
             };
             try {
-                const request = fetch('/api/cambridge?word=' + encodeURIComponent(word))
+                const request = fetch('/api/cambridge?word=' + encodeURIComponent(target))
                     .then(r => (r.ok ? r.json() : null))
                     .then(data => {
                         const audio = (data && data.audio) || {};
@@ -667,7 +682,15 @@
             const epoch = quizEpoch;
             const startedAt = quizIdx;
             const word = primaryAnswer(quizWords[startedAt].en);
-            const url = await cambridgeAudioFor(word);
+            // A single token may use Cambridge's recording. A phrase or
+            // phrasal verb must be read in full by the device voice: Cambridge
+            // would otherwise play only the first word of the entry.
+            const target = cambridgeWordFor(word);
+            if (!target) {
+                speakWithDevice(word);
+                return;
+            }
+            const url = await cambridgeAudioFor(target);
             if (epoch !== quizEpoch || startedAt !== quizIdx) return;   // moved on
             if (url && await playAudioUrl(url, epoch)) return;
             if (epoch !== quizEpoch || startedAt !== quizIdx) return;

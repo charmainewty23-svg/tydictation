@@ -371,6 +371,13 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
   parse 頁面入面 `uk_pron`／`us_pron` 嘅 mp3 網址（`audio:{uk,us}`），
   `updateQuizUI()` 會 `prefetchCambridgeAudio()` 預先抓，`speakCurrentWord()`
   用 `cambridgeAudioFor()`（最多等 1.5 秒）攞 URL 再 `playAudioUrl()`。
+  **只認 entry 自己嘅發音**：`api/cambridge.js` 只會喺 `uk dpron-i`／
+  `us dpron-i` 發音區塊入面搵 mp3，唔會再攞 Word of the Day／feature widget
+  （`wotd-hw`／`feature-w-big`）嘅錄音；entry 冇自己錄音就回空字串。
+  **多字答案**（有空格，例如 `help out`／`look after`／`lend a helping hand`／
+  `Doctors Without Borders`）Listening **唔用** Cambridge（唔 prefetch、唔 call
+  `cambridgeAudioFor`），直接用 `speakWithDevice()` 讀**完整句子**，避免只播
+  第一個字；連字號單字（`binge-watch`）仍然可以用 Cambridge。Recitation 不變。
   Cambridge 冇錄音或者載入失敗才 fallback 裝置語音：`quizVoice()` 揀
   `en-GB`／`en-US`（例如 Daniel／Aaron），搵唔到就用任何 `en-*`，再冇就用
   `utterance.lang`。`toggleQuizAccent()` 只喺 UK／US 之間切，切完即刻重讀。

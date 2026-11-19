@@ -1994,6 +1994,16 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
+- **重複字提示（2026-11）**：老師按 Confirm 新增／修改字之前，`nvFindDuplicates()`
+  會比對 **F3／F4／F6 全部 New Vocab**（英文大小楷、前後空格、連續空格唔計；
+  英文空白時比中文）。如果個字已經喺 All words，會彈 `window.confirm`
+  「“word” is already in F4 (All words). Add another copy?」：
+  - Cancel → 唔會寫入，feedback 會講明已存在邊個年級，輸入保留
+  - OK → 照樣加多一份
+  只限老師帳戶（`isAdmin()`）；學生唔會見到。查詢失敗時 fallback 用畫面上
+  已載入嘅 `nvRows`（當前年級），唔會阻住 Confirm。
+
+
 每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。
 唔好加落 `SHEET_NAMES`（否則 Word Jump／隨機 battle 會撈埋）。
 

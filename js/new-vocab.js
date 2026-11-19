@@ -507,6 +507,29 @@
             if (save) { save.title = 'Confirm'; save.setAttribute('aria-label', 'Confirm'); save.textContent = 'Confirm'; }
         }
 
+        function nvWordKey(value) {
+            return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        }
+
+        async function nvFindDuplicates(en, zh, editingId) {
+            const targetEn = nvWordKey(en);
+            const targetZh = nvWordKey(zh);
+            if (!targetEn && !targetZh) return [];
+            let rows = [];
+            try {
+                const { data, error } = await sb.from('new_vocab_words')
+                    .select('id,en,zh,form')
+                    .in('form', FORM_LEVELS.map(f => f.id));
+                if (!error) rows = data || [];
+            } catch (e) { /* fall back to the rows already on screen */ }
+            if (!rows.length) rows = nvRows;
+            return rows.filter(function (w) {
+                if (editingId && Number(w.id) === Number(editingId)) return false;
+                if (targetEn) return nvWordKey(w.en) === targetEn;
+                return nvWordKey(w.zh) === targetZh;
+            });
+        }
+
         async function nvSaveWord() {
             if (!isAdmin() || nvSaving) return;
             const en = (document.getElementById('nv-en').value || '').trim();
@@ -523,6 +546,22 @@
             if (saveBtn) saveBtn.disabled = true;
             let data, error;
             try {
+                const duplicates = await nvFindDuplicates(en, zh, editingId);
+                if (duplicates.length) {
+                    const places = duplicates
+                        .map(function (w) { return formLabel(w.form); })
+                        .filter(function (v, i, a) { return a.indexOf(v) === i; })
+                        .join(' / ');
+                    const label = en || zh;
+                    const proceed = window.confirm(
+                        '“' + label + '” is already in ' + places + ' (All words). Add another copy?'
+                    );
+                    if (!proceed) {
+                        nvShowFeedback('Not added — “' + escapeHtml(label) + '” already exists in ' + escapeHtml(places) + '.', true);
+                        updateMascot('“' + label + '” is already in ' + places + '. Nothing was added.');
+                        return;
+                    }
+                }
                 if (editingId) {
                     ({ data, error } = await sb.from('new_vocab_words').update({ en, zh }).eq('id', editingId).eq('form', form).select('id,en,zh,created_at,updated_at').maybeSingle());
                 } else {

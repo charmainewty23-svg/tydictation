@@ -1579,6 +1579,7 @@
 
     DG.showMultiplayerResults = function (room, players) {
         if (S.resultShown) return;
+        if (typeof DG.stopMusic === 'function') DG.stopMusic();
         S.resultShown = true;
         S.phase = 'finished';
         S.paused = false;

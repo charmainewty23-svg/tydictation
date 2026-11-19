@@ -161,6 +161,7 @@
             // The bottom tab bar hides while a room is live, so the top
             // "Back to Hub" button becomes the exit again.
             window.navBattlePanel = name;
+            if (name !== 'class') stopBattleClassMusic();
             if (typeof updateBottomNav === 'function') updateBottomNav();
         }
 
@@ -419,6 +420,42 @@
         let battleTrophyKey = '';
         let battleTrophyTimers = [];
         let battleTrophyAudio = null;
+        let battleClassMusic = null;
+        let battleClassMusicOn = (() => {
+            try { return localStorage.getItem('learniTY_battle_class_music') !== '0'; } catch (e) { return true; }
+        })();
+
+        function syncBattleClassMusicUi() {
+            const btn = document.getElementById('battle-class-music');
+            if (btn) btn.textContent = (battleClassMusicOn ? '🔊' : '🔇') + ' Music';
+        }
+
+        function startBattleClassMusic() {
+            if (!battleClassMusicOn) return;
+            if (!battleClassMusic) {
+                battleClassMusic = new Audio('/music/battlemusic.mp3');
+                battleClassMusic.loop = true;
+                battleClassMusic.volume = 0.3;
+                battleClassMusic.preload = 'none';
+            }
+            try { battleClassMusic.play().catch(function () {}); } catch (e) {}
+        }
+
+        function stopBattleClassMusic() {
+            if (!battleClassMusic) return;
+            try {
+                battleClassMusic.pause();
+                battleClassMusic.currentTime = 0;
+            } catch (e) {}
+        }
+
+        function battleToggleClassMusic() {
+            battleClassMusicOn = !battleClassMusicOn;
+            try { localStorage.setItem('learniTY_battle_class_music', battleClassMusicOn ? '1' : '0'); } catch (e) {}
+            syncBattleClassMusicUi();
+            if (battleClassMusicOn && battleRoom && battleRoom.status === 'playing') startBattleClassMusic();
+            else stopBattleClassMusic();
+        }
 
         function battleMaybeTrophy(players) {
             if (!battleRoom || battleRoom.mode !== 'class') return;
@@ -1331,6 +1368,9 @@
         }
 
         async function battleStartClass() {
+            if (battleRoom && battleRoom.mode === 'class' && currentUser && battleRoom.host_id === currentUser.id) {
+                startBattleClassMusic();
+            }
             const { error } = await sb.rpc('start_battle', { p_room_id: battleRoom.id });
             if (error) return battleSetError(battleErrorMessage(error));
             battlePoll();
@@ -1364,6 +1404,11 @@
 
         function battleRenderClassHost() {
             battleShowPanel('class');
+            syncBattleClassMusicUi();
+            const musicBtn = document.getElementById('battle-class-music');
+            if (musicBtn) musicBtn.classList.toggle('hidden', battleRoom.status !== 'playing');
+            if (battleRoom.status === 'playing') startBattleClassMusic();
+            else stopBattleClassMusic();
             if (isAdmin() && !formDirectory.loaded) {
                 ensureFormDirectory().then(() => {
                     if (battleRoom && battleRoom.mode === 'class' && currentUser && battleRoom.host_id === currentUser.id) {
@@ -1600,6 +1645,7 @@
         }
 
         async function battleLeave() {
+            stopBattleClassMusic();
             battleStopPolling();
             if (battleTicker) { clearInterval(battleTicker); battleTicker = null; }
             if (battleRoom && currentUser) {

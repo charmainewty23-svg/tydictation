@@ -1049,6 +1049,13 @@ create policy "insert own" on dictation_results for insert with check (auth.uid(
   - 完場（poll plan `results`／`results-lobby`）會自動 `DG.mpCloseProjector()`，
     頒獎禮／結果畫面唔會被蓋住；`DG.onLeaveView()` 同 `DG.mpLeave()` 都會關閉。
   - 示範：`/drive-and-go-demo.html` 嘅 **📺 Projector board**（30 個 mock 學生）。
+- **Class music（2026-11）**：老師 host-only 開 class race（唔落場）時，
+  按 Start 會喺同一個手勢內 `DG.startMusic()` 播 `/music/battlemusic.mp3`
+  （loop，volume 0.35）；live class board 同 📺 projector 開住都會繼續播。
+  Watch panel 有 **🔊 Music** 掣（`DG.toggleClassMusic()`，記住
+  `learniTY_dg_music`）。Room 完場／`DG.showMultiplayerResults()`／
+  `DG.mpLeave()`／離開 view 會 `DG.stopMusic()`，之後才播頒獎禮音樂。
+  學生自己嘅 race music 行為不變（Start race 時播）。
 - **老師 30 學生房（`supabase/drive_and_go_class_room.sql`，可重跑）**：
   - `drive_and_go_rooms.max_players` 新欄，default **5**（舊房保持 5）。
   - `create_drive_and_go_class_room()` 只限 `is_drive_and_go_teacher()`

@@ -839,6 +839,8 @@
        room finishes. */
     DG.mpWatchRace = function (room, players) {
         if (!room) return;
+        if (typeof DG.startMusic === 'function' && room.status === 'playing') DG.startMusic();
+        if (typeof DG.stopMusic === 'function' && room.status === 'finished') DG.stopMusic();
         const content = DG.menuContent();
         if (!content) return;
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
@@ -878,6 +880,7 @@
             '</div><p class="text-center text-xs text-gray-400 mt-3">Updates about every second. Results appear automatically when the room finishes.</p></div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-4">' +
             '<button type="button" class="btn-paw" onclick="DG.mpOpenProjector()">📺 Projector board</button>' +
+            '<button type="button" class="dg-menu-button" id="dg-class-music" onclick="DG.toggleClassMusic()">' + (DG.musicOn ? '🔊' : '🔇') + ' Music</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpEndClassBattle()">⏹ Finish now</button>' +
             '<button type="button" class="dg-menu-button" onclick="DG.mpLeave()">Close room</button>' +
             '</div>' +
@@ -953,6 +956,13 @@
                 message: 'Rent a Victory Animation for THIS class race (20% of the price) or buy it for good in Store → 🏆 Victory.'
             });
         }
+    };
+
+    DG.toggleClassMusic = function () {
+        if (typeof DG.toggleMusic !== 'function') return;
+        DG.toggleMusic();
+        const btn = document.getElementById('dg-class-music');
+        if (btn) btn.textContent = (DG.musicOn ? '🔊' : '🔇') + ' Music';
     };
 
     DG.mpOpenProjector = function () {
@@ -1121,6 +1131,8 @@
         }
         DG.mpSetStatus('Starting race…', false);
         const hostOnly = DG.mpClassRoom && !MP.players.some(p => p && p.user_id === (currentUser && currentUser.id));
+        // Start inside the button's user gesture so Chrome allows autoplay.
+        if (hostOnly && typeof DG.startMusic === 'function') DG.startMusic();
         sb.rpc('start_drive_and_go_room', { p_room_id: MP.room.id }).then(({ data, error }) => {
             if (error) {
                 DG.mpSetStatus(DG.mpIsSqlMissing(error) ? 'Run supabase/drive_and_go.sql first.' : DG.mpErrorText(error), true);
@@ -1131,6 +1143,7 @@
             MP.timeUpArmed = false;
             DG.mpApplyDeadline();
             if (hostOnly) {
+                if (typeof DG.startMusic === 'function') DG.startMusic();
                 DG.mpWatchRace(MP.room, MP.players);
                 if (!MP.pollId) DG.mpStartLobbyPoll();
                 return;
@@ -1217,6 +1230,7 @@
         if (!window.confirm('Leave this room?')) return;
         const roomId = MP.room.id;
         MP.leaving = true;
+        if (typeof DG.stopMusic === 'function') DG.stopMusic();
         DG.mpCloseProjector();
         DG.mpStopPoll();
         DG.mpStopRacePoll();

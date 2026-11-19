@@ -1949,6 +1949,33 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   分組（scope `purrstack-admin`），row 跟 Word Jump。表／view 未建立時只顯示
   跑 `supabase/purrstack_scores.sql` 的提示。
 
+### 10.16a PurrStack 1v1（2026-11 加）
+
+- 入口：PurrStack 開始卡 **⚔️ 1v1 Battle**。只限學校帳戶；guest／teacher
+  preview 會 toast，不能開房。遊戲仍在 iframe，parent 的 `window.PSB`
+  （`js/purrstack-battle.js`）提供 Supabase RPC。
+- 規則：**3 分鐘**、2 人、4 位房碼；host create、guest join、host start。
+  同一個 `seed` → 兩邊字序＋方塊序完全一樣（demo 用 mulberry32 預先產生
+  400 件 `{word, shape}` 隊列；HOLD 換目前／held 方塊，不會額外抽 random）。
+- 垃圾行：一次消 2 行送 1、3 行送 2、4 行送 4；combo >1 額外 +1（最多 5）。
+  垃圾是灰色、無 motif、每行一個洞；在下一次 spawn 前由底部推上，
+  頂 row 有方塊即 top-out。
+- 計分沿用單人；時間到或 top-out 由 server 定 winner（alive → score →
+  lines → correct）。Game Over 先報 `alive=false`，等待 server `finished`
+  才出結果；1v1 分數**不會**寫入單人 `purrstack_scores` 榜。
+- 同步：demo 每 1 秒 `state`（對手分、lines、garbage、時間），每 3 秒
+  `report`；收到 `garbage_pending` 即加入並 `ack_garbage`。時間到由
+  client 叫 `finish`（idempotent）。
+- SQL：`supabase/purrstack_battle.sql`（可重跑；老師自己喺 SQL editor 跑）。
+  表 `purrstack_rooms`／`purrstack_players`；RPC `create/join/start/state/
+  send_garbage/ack_garbage/report/finish/leave/rematch`。RLS：只有房員
+  讀到 room／players；寫入全部經 security-definer RPC。
+- 未跑 SQL：lobby 會顯示「run supabase/purrstack_battle.sql」，遊戲照玩。
+- Rematch：host 可按 ↻ Rematch，server 換新 seed；guest 在結果卡 poll
+  到 `playing`＋新 seed 會自動開新局。結果卡有 ← Back to Hub（postMessage
+  `purrstack-hub`）。
+- 檔案：`js/purrstack-battle.js` 已加入 `sw.js` CORE_ASSETS（cache v99）。
+
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
 每個年級一份**長期字庫**（F3 / F4 / F6），唔會每日清走。老師刪咗先冇。

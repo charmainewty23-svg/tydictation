@@ -785,6 +785,90 @@
     margin-top: 3px;
     margin-bottom: 0;
   }
+  /* ---- 1v1 battle ---- */
+  .battle-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 5px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    background: #fff4d9;
+    border: 1.5px solid var(--linebrown);
+    color: #5b3a1e;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .battle-strip.hidden { display: none; }
+  .battle-strip .bs-opp { color: #a08262; }
+  .battle-strip .bs-time { margin-left: auto; color: #a9743f; }
+  .battle-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(20, 16, 36, .62);
+    backdrop-filter: blur(4px);
+  }
+  .battle-modal.hidden { display: none; }
+  .battle-card {
+    width: 100%;
+    max-width: 340px;
+    max-height: calc(100dvh - 36px);
+    overflow-y: auto;
+    padding: 16px 16px 14px;
+    border-radius: 20px;
+    border: 2.5px solid var(--linebrown2);
+    background: #fff9f2;
+    box-shadow: 0 10px 0 rgba(122,77,36,.16);
+    text-align: center;
+  }
+  .battle-card h2 { margin: 0 0 8px; font-size: 22px; color: var(--brown); }
+  .battle-body { font-size: 13px; font-weight: 600; color: #6f5541; line-height: 1.45; }
+  .battle-body .bcode { font-size: 30px; letter-spacing: .18em; color: #5b3a1e; margin: 6px 0; }
+  .battle-body input {
+    width: 140px;
+    padding: 8px 10px;
+    border: 2px solid var(--linebrown);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 18px;
+    letter-spacing: .2em;
+    text-align: center;
+    color: #5b3a1e;
+    background: #fff;
+  }
+  .battle-actions { display: grid; gap: 7px; margin-top: 12px; }
+  .battle-actions button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--brown);
+    color: #fff8ec;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--brown-dark);
+  }
+  .battle-actions button.ghost {
+    background: #fff;
+    color: #7a4d24;
+    border: 2px solid var(--linebrown);
+    box-shadow: none;
+  }
+  .battle-actions button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--brown-dark); }
+  #overlay-battle {
+    background: #fff;
+    color: #7a4d24;
+    border: 2px solid var(--linebrown2);
+    box-shadow: 0 4px 0 rgba(122,77,36,.14);
+    margin-top: 6px;
+  }
 </style>
 </head>
 <body>
@@ -819,6 +903,8 @@
       <div id="next">—</div>
     </div>
   </div>
+
+  <div id="battle-strip" class="battle-strip hidden"></div>
 
   <div class="stage" id="stage">
     <canvas id="board" width="384" height="640" aria-label="PurrStack board"></canvas>
@@ -856,6 +942,7 @@
         <div class="overlay-rank-stats" id="overlay-stats"></div>
         <div class="overlay-board" id="overlay-board"></div>
         <button id="overlay-btn" type="button">▶ Start</button>
+        <button id="overlay-battle" type="button">⚔️ 1v1 Battle</button>
         <button id="overlay-hub" type="button">← Back to Hub</button>
       </div>
     </div>
@@ -884,6 +971,14 @@
   </div>
 
   <p class="hint">Tap = rotate · double-tap or swipe down = hard drop · drag left/right = move · hold ⬇ DROP to keep falling. Landed piece? Slide or PARK it in before it locks. Base forms only — past tense (-ed) and past participle (pp) forms are not counted. 5 HOLDs per game.<br>Desktop: ←/→ move · ↑ rotate · hold ↓ soft drop · Space hard drop · C hold · S park · P pause · F full screen.</p>
+</div>
+
+<div id="battle-modal" class="battle-modal hidden" role="dialog" aria-modal="true">
+  <div class="battle-card">
+    <h2 id="battle-title">⚔️ 1v1 Battle</h2>
+    <div id="battle-body" class="battle-body"></div>
+    <div class="battle-actions" id="battle-actions"></div>
+  </div>
 </div>
 
 <script>
@@ -936,6 +1031,12 @@
   const overlayLogo = document.getElementById('overlay-logo');
   const overlayHowto = document.getElementById('overlay-howto');
   const overlayReview = document.getElementById('overlay-review');
+  const overlayBattleBtn = document.getElementById('overlay-battle');
+  const battleStrip = document.getElementById('battle-strip');
+  const battleModal = document.getElementById('battle-modal');
+  const battleTitle = document.getElementById('battle-title');
+  const battleBody = document.getElementById('battle-body');
+  const battleActions = document.getElementById('battle-actions');
   const overlayStats = document.getElementById('overlay-stats');
   const overlayBoard = document.getElementById('overlay-board');
   const overlayBtn = document.getElementById('overlay-btn');
@@ -967,6 +1068,10 @@
   let current = null;
   let nextWord = null;
   let holdWord = null;
+  let holdShape = null;
+  let rng = Math.random;
+  let pieceQueue = [];
+  let nextPiece = null;
   const HOLDS_PER_GAME = 5;
   let holdLeft = HOLDS_PER_GAME;
   let selectedZone = 0;
@@ -978,6 +1083,28 @@
   let wrongWords = [];
   let correctPieces = 0;
   let maxCombo = 0;
+  let linesCleared = 0;
+  let pendingGarbage = 0;
+  const battle = {
+    active: false,
+    room: '',
+    seed: 0,
+    hostId: '',
+    myId: '',
+    startedAt: 0,
+    duration: 180,
+    over: false,
+    finishSent: false,
+    pollTimer: 0,
+    reportTimer: 0,
+    polling: false,
+    opponent: null,
+    lastState: null
+  };
+  let battleLobbyRoom = null;
+  let battleLobbyPoll = 0;
+  let battleResultPoll = 0;
+  let startingBattle = false;
   let dropInterval = 900;
   let dropAcc = 0;
   /* After a piece lands it stays movable for a moment ("sip it in"). */
@@ -1022,37 +1149,50 @@
       .replace(/"/g, '&quot;');
   }
 
-  function shuffle(list) {
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(list, rand) {
+    const random = rand || rng;
     const a = list.slice();
     for (let i = a.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
     }
     return a;
   }
 
-  function resetBank() {
+  function resetBank(rand) {
+    const random = rand || rng;
     bank = {
-      noun: shuffle(WORDS.noun || []),
-      verb: shuffle(WORDS.verb || []),
-      adjective: shuffle(WORDS.adjective || [])
+      noun: shuffle(WORDS.noun || [], random),
+      verb: shuffle(WORDS.verb || [], random),
+      adjective: shuffle(WORDS.adjective || [], random)
     };
     lastPos = '';
     posStreak = 0;
   }
 
-  function drawWord() {
+  function drawWord(rand) {
+    const random = rand || rng;
     let pos = 'noun';
     let tries = 0;
     do {
-      const r = Math.random();
+      const r = random();
       pos = r < 0.4 ? 'noun' : (r < 0.7 ? 'verb' : 'adjective');
       tries += 1;
     } while (pos === lastPos && posStreak >= 2 && tries < 12);
 
     let list = bank[pos];
     if (!list || !list.length) {
-      bank[pos] = shuffle(WORDS[pos] || []);
+      bank[pos] = shuffle(WORDS[pos] || [], random);
       list = bank[pos];
     }
     if (!list || !list.length) {
@@ -1066,6 +1206,42 @@
     if (pos === lastPos) posStreak += 1;
     else { lastPos = pos; posStreak = 1; }
     return word;
+  }
+
+  function takePiece() {
+    if (!pieceQueue.length) {
+      for (let i = 0; i < 160; i += 1) {
+        const word = drawWord(rng);
+        const template = SHAPES[Math.floor(rng() * SHAPES.length)];
+        pieceQueue.push({ word: word, shape: cloneShape(template) });
+      }
+    }
+    return pieceQueue.shift() || null;
+  }
+
+  function buildQueue(seed) {
+    rng = mulberry32(Number(seed) >>> 0);
+    resetBank(rng);
+    pieceQueue = [];
+    for (let i = 0; i < 400; i += 1) {
+      const word = drawWord(rng);
+      const template = SHAPES[Math.floor(rng() * SHAPES.length)];
+      pieceQueue.push({ word: word, shape: cloneShape(template) });
+    }
+    nextPiece = takePiece();
+    nextWord = nextPiece ? nextPiece.word : null;
+  }
+
+  function pieceFromQueued(piece, zone) {
+    const shape = cloneShape(piece.shape);
+    return {
+      word: piece.word,
+      shape: shape,
+      x: zoneStart(zone) + Math.floor((ZONE_W - shape[0].length) / 2),
+      y: 0,
+      zone: zone,
+      hard: false
+    };
   }
 
   function zoneStart(zone) { return zone * ZONE_W; }
@@ -1160,11 +1336,48 @@
     paintZonePreview();
   }
 
+  function garbageRow() {
+    const hole = Math.floor(rng() * COLS);
+    const row = [];
+    for (let x = 0; x < COLS; x += 1) {
+      row.push(x === hole ? null : {
+        pos: '', wrong: false, color: '#9ca3af', motif: '', garbage: true
+      });
+    }
+    return row;
+  }
+
+  function applyIncomingGarbage() {
+    while (pendingGarbage > 0) {
+      if (board[0].some(Boolean)) {
+        pendingGarbage = 0;
+        return false;
+      }
+      board.shift();
+      board.push(garbageRow());
+      pendingGarbage -= 1;
+    }
+    return true;
+  }
+
+  function garbageFor(lines, comboNow) {
+    let n = lines >= 4 ? 4 : lines === 3 ? 2 : lines === 2 ? 1 : 0;
+    if (comboNow > 1) n += 1;
+    return Math.min(5, n);
+  }
+
   function spawnNext() {
     if (!running || gameOver) return;
-    const word = nextWord || drawWord();
-    nextWord = drawWord();
-    current = pieceFor(word, selectedZone);
+    if (pendingGarbage > 0 && !applyIncomingGarbage()) {
+      current = null;
+      endGame();
+      return;
+    }
+    if (!nextPiece) nextPiece = takePiece();
+    const piece = nextPiece;
+    nextPiece = takePiece();
+    nextWord = nextPiece ? nextPiece.word : null;
+    current = pieceFromQueued(piece, selectedZone);
     dropAcc = 0;
     if (!valid(current.shape, current.x, current.y)) {
       current = null;
@@ -1461,6 +1674,7 @@
     if (cleared > 0) {
       combo += 1;
       maxCombo = Math.max(maxCombo, combo);
+      linesCleared += cleared;
       score += 100 * cleared * combo;
       flashUntil = performance.now() + 180;
       spawnFish(cleared);
@@ -1468,6 +1682,13 @@
       catJumpUntil = performance.now() + 520;
       const clearText = (cleared > 1 ? cleared + ' LINES' : 'LINE CLEAR') + (combo > 1 ? ' · COMBO x' + combo : '!');
       toast(straddle ? '⚠️ STRADDLING · 0 pts · ' + clearText : clearText);
+      if (battle.active) {
+        const send = garbageFor(cleared, combo);
+        if (send > 0) {
+          const api = psb();
+          if (api) api.garbage(battle.room, send);
+        }
+      }
       if (combo % 3 === 0) rescue();
     } else if (straddle) {
       toast('⚠️ STRADDLING — 0 pts · combo kept');
@@ -1553,11 +1774,13 @@
       toast('No HOLD left this game (5)');
       return;
     }
-    const swap = holdWord;
+    const swapWord = holdWord;
+    const swapShape = holdShape;
     holdWord = current.word;
+    holdShape = cloneShape(current.shape);
     holdLeft -= 1;
-    if (swap) {
-      current = pieceFor(swap, selectedZone);
+    if (swapWord && swapShape) {
+      current = pieceFromQueued({ word: swapWord, shape: swapShape }, selectedZone);
       if (!valid(current.shape, current.x, current.y)) {
         current = null;
         endGame();
@@ -1565,7 +1788,17 @@
       }
       syncZoneFromPiece();
     } else {
-      spawnNext();
+      if (!nextPiece) nextPiece = takePiece();
+      const piece = nextPiece;
+      nextPiece = takePiece();
+      nextWord = nextPiece ? nextPiece.word : null;
+      current = pieceFromQueued(piece, selectedZone);
+      if (!valid(current.shape, current.x, current.y)) {
+        current = null;
+        endGame();
+        return;
+      }
+      syncZoneFromPiece();
     }
     updateHud();
     draw();
@@ -1726,6 +1959,20 @@
   }
 
   function endGame() {
+    if (battle.active && !battle.over) {
+      running = false;
+      stopHoldMove();
+      stopHoldDrop();
+      gameOver = true;
+      current = null;
+      if (music) music.pause();
+      stage.classList.remove('danger');
+      updateHud();
+      draw();
+      battleReport(true);
+      showBattleModal('⚔️ Battle', '<p>You are out.<br>Waiting for the result…</p>', []);
+      return;
+    }
     running = false;
     stopHoldMove();
     stopHoldDrop();
@@ -1752,11 +1999,12 @@
     draw();
   }
 
-  function resetGame() {
+  function resetGame(seedOverride) {
     board = emptyBoard();
     current = null;
     nextWord = null;
     holdWord = null;
+    holdShape = null;
     holdLeft = HOLDS_PER_GAME;
     selectedZone = 0;
     score = 0;
@@ -1775,11 +2023,15 @@
     wrongWords = [];
     correctPieces = 0;
     maxCombo = 0;
+    linesCleared = 0;
+    pendingGarbage = 0;
     flashUntil = 0;
     catJumpUntil = 0;
     danger = false;
-    resetBank();
-    nextWord = drawWord();
+    const seed = seedOverride != null
+      ? (Number(seedOverride) >>> 0)
+      : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
+    buildQueue(seed);
     updateHud();
     draw();
   }
@@ -1797,7 +2049,13 @@
     startGame();
   }
 
-  function startGame() {
+  function startGame(seedOverride) {
+    if (!startingBattle && battle.active) {
+      battle.active = false;
+      stopBattleTimers();
+      stopResultPoll();
+      if (battleStrip) battleStrip.classList.add('hidden');
+    }
     /* Phones: start in an immersive full-screen play view, like Word Jump.
        The class makes the board grow even if the browser blocks the native
        fullscreen API (e.g. iPhone Safari). */
@@ -1807,7 +2065,7 @@
     } else {
       document.body.classList.remove('playing-phone');
     }
-    resetGame();
+    resetGame(seedOverride);
     stopHoldMove();
     stopHoldDrop();
     running = true;
@@ -2106,7 +2364,7 @@
       ctx.textBaseline = 'middle';
       ctx.fillText('×', x * CELL + CELL / 2, y * CELL + CELL / 2 + 1);
     } else if (CELL >= 20) {
-      drawBlockMotif(px + s / 2, py + s / 2, s, motif || 'noun');
+      if (motif) drawBlockMotif(px + s / 2, py + s / 2, s, motif);
     }
   }
 
@@ -2819,6 +3077,29 @@
   document.addEventListener('webkitfullscreenchange', syncFsUi);
 
   /* ---------------- events ---------------- */
+  if (overlayBattleBtn) overlayBattleBtn.addEventListener('click', openBattleLobby);
+  battleActions.addEventListener('click', function (e) {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-act');
+    if (act === 'create') battleCreate();
+    else if (act === 'join') battleJoin();
+    else if (act === 'start') battleStart();
+    else if (act === 'cancel') battleLeave();
+    else if (act === 'rematch') battleRematch();
+    else if (act === 'hub') {
+      stopResultPoll();
+      stopBattleTimers();
+      const api = psb();
+      if (api && battle.room) api.leave(battle.room);
+      battle.active = false;
+      battle.room = '';
+      if (battleStrip) battleStrip.classList.add('hidden');
+      hideBattleModal();
+      backToHub();
+    }
+  });
+
   overlayBtn.addEventListener('click', function () {
     if (overlayMode === 'paused') togglePause();
     else if (overlayMode === 'review') setOverlay(purrNextStep(overlayMode));
@@ -3095,6 +3376,325 @@
     img.src = 'assets/purrstackLogo.png';
   })();
 
+
+  /* ---------------- 1v1 battle ---------------- */
+  function psb() {
+    try {
+      if (window.parent && window.parent !== window && window.parent.PSB) {
+        return window.parent.PSB;
+      }
+    } catch (e) { /* cross-origin or standalone */ }
+    return null;
+  }
+
+  function battleApiOk(res) {
+    return !!res && !res.error && !!res.data && !res.data.error;
+  }
+
+  function battleErrorText(res) {
+    const code = (res && (res.data && res.data.error || (res.error && res.error.message))) || 'UNKNOWN';
+    const text = String(code);
+    if (text === 'AUTH' || text === 'NOT_MEMBER') return 'Please sign in with a school account.';
+    if (text === 'NOT_FOUND') return 'Room not found. Check the 4-digit code.';
+    if (text === 'ROOM_FULL') return 'That room is already full.';
+    if (text === 'ROOM_ALREADY_STARTED') return 'That battle has already started.';
+    if (text === 'WAITING_GUEST') return 'Still waiting for the other player.';
+    if (text === 'NOT_HOST') return 'Only the host can do that.';
+    if (/could not find the function|PGRST202|does not exist/i.test(text)) {
+      return '1v1 is not set up yet — run supabase/purrstack_battle.sql in the Supabase SQL editor.';
+    }
+    return text;
+  }
+
+  function showBattleModal(title, html, actions) {
+    if (!battleModal) return;
+    battleTitle.textContent = title;
+    battleBody.innerHTML = html || '';
+    battleActions.innerHTML = (actions || []).map(function (a) {
+      return '<button type="button" data-act="' + a.act + '"'
+        + (a.ghost ? ' class="ghost"' : '') + '>' + a.label + '</button>';
+    }).join('');
+    battleModal.classList.remove('hidden');
+  }
+
+  function hideBattleModal() {
+    if (battleModal) battleModal.classList.add('hidden');
+  }
+
+  function stopLobbyPoll() {
+    if (battleLobbyPoll) { clearInterval(battleLobbyPoll); battleLobbyPoll = 0; }
+  }
+
+  function stopResultPoll() {
+    if (battleResultPoll) { clearInterval(battleResultPoll); battleResultPoll = 0; }
+  }
+
+  function stopBattleTimers() {
+    if (battle.pollTimer) { clearInterval(battle.pollTimer); battle.pollTimer = 0; }
+    if (battle.reportTimer) { clearInterval(battle.reportTimer); battle.reportTimer = 0; }
+  }
+
+  function openBattleLobby() {
+    const api = psb();
+    if (!api) {
+      toast('Open PurrStack inside LearniTY to play 1v1.');
+      return;
+    }
+    if (typeof api.canPlay === 'function' && !api.canPlay()) {
+      toast('Sign in with a school account to play 1v1.');
+      return;
+    }
+    battleLobbyRoom = null;
+    stopLobbyPoll();
+    showBattleModal('⚔️ 1v1 Battle',
+      '<p>3 minutes · same words and blocks.<br>Clear lines to send grey garbage rows.</p>'
+      + '<div style="margin:10px 0"><input id="battle-code" inputmode="numeric" maxlength="4" placeholder="4-digit code" autocomplete="off"></div>',
+      [
+        { act: 'create', label: 'Create room' },
+        { act: 'join', label: 'Join with code', ghost: true },
+        { act: 'cancel', label: '← Back', ghost: true }
+      ]);
+    const input = document.getElementById('battle-code');
+    if (input) input.focus();
+  }
+
+  async function battleCreate() {
+    const api = psb();
+    if (!api) return;
+    const res = await api.create();
+    if (!battleApiOk(res)) {
+      showBattleModal('⚔️ 1v1 Battle', '<p>' + escHtml(battleErrorText(res)) + '</p>',
+        [{ act: 'cancel', label: '← Back', ghost: true }]);
+      return;
+    }
+    battleLobbyRoom = res.data;
+    battleLobbyRoom.myId = api.myId ? api.myId() : '';
+    renderBattleWaiting(res.data);
+    startLobbyPoll();
+  }
+
+  async function battleJoin() {
+    const api = psb();
+    if (!api) return;
+    const input = document.getElementById('battle-code');
+    const code = (input && input.value || '').replace(/\D/g, '').slice(0, 4);
+    if (code.length !== 4) {
+      toast('Enter the 4-digit room code');
+      return;
+    }
+    const res = await api.join(code);
+    if (!battleApiOk(res)) {
+      showBattleModal('⚔️ 1v1 Battle', '<p>' + escHtml(battleErrorText(res)) + '</p>',
+        [{ act: 'cancel', label: '← Back', ghost: true }]);
+      return;
+    }
+    battleLobbyRoom = res.data;
+    battleLobbyRoom.myId = api.myId ? api.myId() : '';
+    renderBattleWaiting(res.data);
+    startLobbyPoll();
+  }
+
+  function renderBattleWaiting(state) {
+    const api = psb();
+    const me = api && api.myId ? api.myId() : '';
+    const players = (state && state.players) || [];
+    const host = me && state && state.host_id === me;
+    const names = players.map(function (p) {
+      return '<div>' + escHtml(p.nickname || p.email || 'Player') + '</div>';
+    }).join('') || '<div>Waiting…</div>';
+    const body = '<p>Room code</p><div class="bcode">' + escHtml(state && state.code || '----') + '</div>'
+      + '<div style="margin:8px 0 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase">Players</div>'
+      + names
+      + (players.length < 2 ? '<p style="margin-top:8px">Waiting for the other player…</p>' : '');
+    const actions = [];
+    if (host && players.length >= 2) actions.push({ act: 'start', label: '▶ Start battle' });
+    actions.push({ act: 'cancel', label: '← Leave', ghost: true });
+    showBattleModal('⚔️ 1v1 Battle', body, actions);
+  }
+
+  function startLobbyPoll() {
+    stopLobbyPoll();
+    battleLobbyPoll = setInterval(async function () {
+      const api = psb();
+      if (!api || !battleLobbyRoom) return;
+      const res = await api.state(battleLobbyRoom.id);
+      if (!battleApiOk(res)) return;
+      battleLobbyRoom = Object.assign({}, res.data, { myId: api.myId ? api.myId() : '' });
+      if (res.data.status === 'playing') {
+        stopLobbyPoll();
+        startBattle(res.data);
+        return;
+      }
+      if (res.data.status === 'finished') return;
+      renderBattleWaiting(res.data);
+    }, 1000);
+  }
+
+  async function battleStart() {
+    const api = psb();
+    if (!api || !battleLobbyRoom) return;
+    const res = await api.start(battleLobbyRoom.id);
+    if (!battleApiOk(res)) {
+      toast(battleErrorText(res));
+      return;
+    }
+    startBattle(res.data);
+  }
+
+  async function battleLeave() {
+    const api = psb();
+    if (api && battleLobbyRoom && battleLobbyRoom.status !== 'playing') {
+      try { await api.leave(battleLobbyRoom.id); } catch (e) {}
+    }
+    stopLobbyPoll();
+    battleLobbyRoom = null;
+    hideBattleModal();
+  }
+
+  function startBattle(state) {
+    const api = psb();
+    if (!api) return;
+    stopLobbyPoll();
+    stopResultPoll();
+    hideBattleModal();
+    battle.active = true;
+    battle.room = state.id;
+    battle.seed = Number(state.seed) || 0;
+    battle.hostId = state.host_id || '';
+    battle.myId = api.myId ? api.myId() : '';
+    battle.startedAt = state.started_at ? new Date(state.started_at).getTime() : Date.now();
+    battle.duration = Number(state.duration) || 180;
+    battle.over = false;
+    battle.finishSent = false;
+    battle.opponent = null;
+    battle.lastState = state;
+    if (battleStrip) battleStrip.classList.remove('hidden');
+    startingBattle = true;
+    startGame(battle.seed);
+    startingBattle = false;
+    updateBattleStrip(state);
+    toast('⚔️ 1v1 · 3 minutes');
+    stopBattleTimers();
+    battle.pollTimer = setInterval(battlePoll, 1000);
+    battle.reportTimer = setInterval(function () { battleReport(false); }, 3000);
+  }
+
+  async function battlePoll() {
+    if (!battle.active || battle.over || battle.polling) return;
+    const api = psb();
+    if (!api) return;
+    battle.polling = true;
+    const res = await api.state(battle.room);
+    battle.polling = false;
+    if (!battleApiOk(res)) return;
+    const state = res.data;
+    battle.lastState = state;
+    const players = state.players || [];
+    const me = players.find(function (p) { return p.user_id === battle.myId; });
+    const opp = players.find(function (p) { return p.user_id !== battle.myId; });
+    battle.opponent = opp || null;
+    if (me && Number(me.garbage_pending) > 0) {
+      pendingGarbage += Number(me.garbage_pending);
+      api.ackGarbage(battle.room, me.garbage_pending);
+    }
+    if (state.status === 'finished' && !battle.over) {
+      battle.over = true;
+      stopBattleTimers();
+      showBattleResult(state);
+      return;
+    }
+    if (state.status === 'playing' && state.ends_at) {
+      const endAt = new Date(state.ends_at).getTime();
+      if (Date.now() >= endAt && !battle.finishSent) {
+        battle.finishSent = true;
+        api.finish(battle.room);
+      }
+    }
+    updateBattleStrip(state);
+  }
+
+  function battleReport(dead) {
+    const api = psb();
+    if (!api || !battle.active || !battle.room) return;
+    api.report(battle.room, {
+      score: score,
+      lines: linesCleared,
+      correct: correctPieces,
+      wrong: wrongWords.length,
+      alive: !dead && !gameOver
+    });
+  }
+
+  function battleClock(ms) {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
+  }
+
+  function updateBattleStrip(state) {
+    if (!battle.active || !battleStrip) return;
+    const players = (state && state.players) || (battle.lastState && battle.lastState.players) || [];
+    const me = players.find(function (p) { return p.user_id === battle.myId; });
+    const opp = players.find(function (p) { return p.user_id !== battle.myId; });
+    const myScore = me ? me.score : score;
+    const oppScore = opp ? opp.score : 0;
+    const endAt = state && state.ends_at
+      ? new Date(state.ends_at).getTime()
+      : battle.startedAt + battle.duration * 1000;
+    const incoming = pendingGarbage > 0 ? ' · 🧱 ' + pendingGarbage : '';
+    battleStrip.innerHTML = '<span>You ' + myScore + '</span>'
+      + '<span class="bs-opp">Opp ' + oppScore + '</span>'
+      + '<span class="bs-time">⏱ ' + battleClock(endAt - Date.now()) + incoming + '</span>';
+  }
+
+  function showBattleResult(state) {
+    stopBattleTimers();
+    const api = psb();
+    const players = (state && state.players) || [];
+    const me = players.find(function (p) { return p.user_id === battle.myId; }) || {};
+    const opp = players.find(function (p) { return p.user_id !== battle.myId; }) || {};
+    const winner = state && state.winner_id;
+    const iWon = winner && winner === battle.myId;
+    const isDraw = !winner;
+    running = false;
+    gameOver = true;
+    current = null;
+    if (music) music.pause();
+    draw();
+    const title = isDraw ? '🤝 Draw' : (iWon ? '🏆 You win!' : 'You lost');
+    const body = '<div><b>You</b> ' + (me.score || 0) + ' pts · ' + (me.lines || 0) + ' lines<br>'
+      + '<b>Opponent</b> ' + (opp.score || 0) + ' pts · ' + (opp.lines || 0) + ' lines</div>'
+      + '<p style="margin-top:8px">' + (iWon ? 'Champion of this battle!' : (isDraw ? 'Same score — rematch?' : 'Good game!')) + '</p>';
+    const actions = [];
+    if (battle.hostId === battle.myId && state && state.guest_id) {
+      actions.push({ act: 'rematch', label: '↻ Rematch' });
+    }
+    actions.push({ act: 'hub', label: '← Back to Hub', ghost: true });
+    showBattleModal(title, body, actions);
+    stopResultPoll();
+    battleResultPoll = setInterval(async function () {
+      const client = psb();
+      if (!client || !battle.room) return;
+      const res = await client.state(battle.room);
+      if (!battleApiOk(res)) return;
+      if (res.data.status === 'playing' && Number(res.data.seed) !== battle.seed) {
+        stopResultPoll();
+        startBattle(res.data);
+      }
+    }, 1500);
+  }
+
+  async function battleRematch() {
+    const api = psb();
+    if (!api || !battle.room) return;
+    const res = await api.rematch(battle.room);
+    if (!battleApiOk(res)) {
+      toast(battleErrorText(res));
+      return;
+    }
+    stopResultPoll();
+    startBattle(res.data);
+  }
+
   /* ---------------- init ---------------- */
   bestEl.textContent = String(best);
   setOverlay('start');
@@ -3115,6 +3715,8 @@
     hold: hold,
     park: park,
     restart: restartGame,
+    battle: battle,
+    addGarbage: function (n) { pendingGarbage += Math.max(0, Number(n) || 0); },
     fullscreen: toggleFullscreen,
     state: function () {
       return {

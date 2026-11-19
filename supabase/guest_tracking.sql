@@ -18,6 +18,11 @@
 -- older rows; record_guest_login / record_guest_usage call it on every write
 -- and the dashboard calls it on every load/Refresh. The frontend filters with
 -- the same cutoff. Existing installs only need supabase/guest_tracking_prune.sql.
+--
+-- The admin dashboard's「清除全部」(Clear all) button calls
+-- clear_guest_records() below. It wipes BOTH tables and is teacher-only.
+-- Existing installs that already ran guest_tracking.sql /
+-- guest_tracking_prune.sql only need supabase/guest_tracking_clear.sql.
 -- ============================================================
 
 create table if not exists public.guest_logins (
@@ -78,6 +83,27 @@ begin
 end;
 $$;
 
+-- Teacher-only "Clear all" button on the admin card. Removes EVERY row from
+-- BOTH tables (the card lists logins and browsing records together, so
+-- clearing one without the other would leave stale records on screen).
+-- Not the 24-hour prune above: this is a deliberate full wipe and cannot be
+-- undone. Guests can never call it — execute is granted to authenticated
+-- only and the function itself refuses anyone who is not the teacher.
+create or replace function public.clear_guest_records()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $clear$
+begin
+    if (auth.jwt() ->> 'email') is distinct from 'tywong@lstyoungkhl.edu.hk' then
+        raise exception 'not authorized';
+    end if;
+    delete from public.guest_logins;
+    delete from public.guest_usage;
+end;
+$clear$;
+
 -- Called from the browser right after the guest password is accepted.
 -- One row per password entry.
 create or replace function public.record_guest_login(
@@ -127,6 +153,13 @@ revoke all on function public.prune_guest_records() from public;
 revoke all on function public.prune_guest_records() from anon;
 revoke all on function public.prune_guest_records() from authenticated;
 grant execute on function public.prune_guest_records() to anon, authenticated;
+
+-- Full wipe: authenticated only (deliberately NOT anon), and the function
+-- body re-checks the teacher email.
+revoke all on function public.clear_guest_records() from public;
+revoke all on function public.clear_guest_records() from anon;
+revoke all on function public.clear_guest_records() from authenticated;
+grant execute on function public.clear_guest_records() to authenticated;
 
 revoke all on function public.record_guest_login(text, text) from public;
 revoke all on function public.record_guest_login(text, text) from anon;

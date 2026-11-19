@@ -68,31 +68,67 @@ function absoluteCambridgeUrl(raw) {
     return url;
 }
 
-function parseAudio(html) {
-    const audio = { uk: '', us: '' };
-    const take = raw => {
-        const url = absoluteCambridgeUrl(raw);
-        if (!/^https:\/\/dictionary\.cambridge\.org\/media\//i.test(url)) return;
-        if (/\/uk_pron\//i.test(url) && !audio.uk) audio.uk = url;
-        else if (/\/us_pron\//i.test(url) && !audio.us) audio.us = url;
-    };
+// Cambridge entry pages also embed a "Word of the day" / feature widget
+// (class names such as wotd-hw and feature-w-big). Those widgets carry their
+// own mp3s, so scanning the whole page can play an unrelated word — most
+// visibly for entries that have no recording of their own. Entry audio lives
+// inside a pronunciation block (`uk dpron-i` / `us dpron-i`); the side
+// modules do not use dpron-i.
+const AUDIO_BLOCK_CHARS = 2400;
+const SIDE_MODULE_RE = /\bclass\s*=\s*"[^"]*\b(?:wotd|feature-w-big)\b/i;
+
+function entryAudioChunk(html, start, end) {
+    const limit = Math.min(end, start + AUDIO_BLOCK_CHARS);
+    const chunk = String(html || '').slice(start, limit);
+    const stop = chunk.search(SIDE_MODULE_RE);
+    return stop > -1 ? chunk.slice(0, stop) : chunk;
+}
+
+function audioInsideBlock(chunk) {
+    const found = [];
     let m;
     // Current markup: <source type="audio/mpeg" src="...">
     const sourceRe = /<source\b([^>]*)>/gi;
-    while ((m = sourceRe.exec(html || ''))) {
+    while ((m = sourceRe.exec(chunk))) {
         const attrs = m[1] || '';
         if (!/type\s*=\s*"audio\/mpeg"/i.test(attrs)) continue;
         const src = /src\s*=\s*"([^"]+)"/i.exec(attrs);
-        if (src) take(src[1]);
+        if (src) found.push(src[1]);
     }
     // Older markup: <span class="audio_play_button pron-uk" data-src-mp3="...">
-    const spanRe = /<span\b([^>]*data-src-mp3\s*=\s*"([^"]+)"[^>]*)>/gi;
-    while ((m = spanRe.exec(html || ''))) {
-        const attrs = m[1] || '';
-        const url = m[2] || '';
-        if (/\bpron-uk\b/i.test(attrs)) take(url);
-        else if (/\bpron-us\b/i.test(attrs)) take(url);
+    const spanRe = /<[a-z][a-z0-9]*\b([^>]*data-src-mp3\s*=\s*"([^"]+)"[^>]*)>/i.exec(chunk);
+    if (spanRe) found.push(spanRe[2]);
+    for (let i = 0; i < found.length; i++) {
+        const url = absoluteCambridgeUrl(found[i]);
+        if (/^https:\/\/dictionary\.cambridge\.org\/media\//i.test(url)) return url;
     }
+    return '';
+}
+
+function parseAudio(html) {
+    const source = String(html || '');
+    const audio = { uk: '', us: '' };
+    // Locate every entry pronunciation block first; only audio inside one of
+    // them is the headword's own recording.
+    const blocks = [];
+    const tagRe = /<([a-z][a-z0-9]*)\b([^>]*)>/gi;
+    let m;
+    while ((m = tagRe.exec(source))) {
+        const cls = classList(m[2] || '');
+        if (!cls.includes('dpron-i')) continue;
+        const region = cls.includes('uk') ? 'uk' : (cls.includes('us') ? 'us' : '');
+        if (!region) continue;
+        blocks.push({ region: region, start: m.index + m[0].length });
+    }
+    blocks.forEach((block, i) => {
+        if (audio[block.region]) return;
+        const end = i + 1 < blocks.length ? blocks[i + 1].start : source.length;
+        const url = audioInsideBlock(entryAudioChunk(source, block.start, end));
+        if (!url) return;
+        if (/\/uk_pron\//i.test(url)) audio.uk = audio.uk || url;
+        else if (/\/us_pron\//i.test(url)) audio.us = audio.us || url;
+        else audio[block.region] = audio[block.region] || url;
+    });
     return audio;
 }
 

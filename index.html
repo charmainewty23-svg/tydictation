@@ -4896,7 +4896,6 @@
                         <button onclick="loadLeaderboard('streaks')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🔥 Streaks</button>
                         <button onclick="loadLeaderboard('wordjump')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Word Jump</button>
                         <button onclick="loadLeaderboard('purrstack')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🐾 PurrStack</button>
-                        <button onclick="loadLeaderboard('purrstack1v1')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🐾 PurrStack 1v1</button>
                         <button onclick="loadLeaderboard('flap')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">🃏 Speak Flap</button>
                         <button onclick="loadLeaderboard('wjchallenge')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">WJ Challenge wins</button>
                         <button onclick="loadLeaderboard('dgsolo')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600 lb-mode-btn">Drive &amp; Go! Solo</button>
@@ -5038,7 +5037,10 @@
                             <h2 class="text-3xl font-bold text-cyan-600 mb-2 flex items-center gap-2 flex-wrap">🕵️ Guest logins <span id="guest-admin-toggles"></span></h2>
                             <p class="text-gray-400 mb-6">Password guest sign-ins and what they used (teacher only) · last 24 hours only</p>
                         </div>
-                        <button onclick="loadGuestAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-colors">↻ Refresh</button>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="clearGuestAdmin()" title="Delete every guest login and browsing record" class="px-4 py-2 rounded-full font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition-colors">清除全部</button>
+                            <button onclick="loadGuestAdmin(true)" class="px-4 py-2 rounded-full font-bold text-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-colors">↻ Refresh</button>
+                        </div>
                     </div>
                     <div id="guest-admin-body" class="admin-form-body hidden">
                         <div id="guest-admin-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>

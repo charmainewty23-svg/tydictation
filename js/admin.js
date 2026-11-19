@@ -966,6 +966,37 @@
             renderGuestAdmin();
         }
 
+        // 「清除全部」— wipes guest_logins AND guest_usage in one go. Teacher
+        // only (isAdmin), confirmed in Chinese first, then the security-definer
+        // RPC re-checks the teacher email server-side. On success the card is
+        // reloaded (prune + selects) so the stats and the list go empty; on
+        // failure the error stays on screen instead of pretending it worked.
+        async function clearGuestAdmin() {
+            if (!isAdmin()) return;
+            const confirmed = window.confirm('確定清除全部 guest login 同瀏覽記錄？此動作不能復原。');
+            if (!confirmed) return;
+            const listEl = document.getElementById('guest-admin-container');
+            let error = null;
+            try {
+                const res = await sb.rpc('clear_guest_records');
+                error = (res && res.error) ? res.error : null;
+            } catch (e) {
+                error = e || new Error('unknown error');
+            }
+            if (error) {
+                const msg = String(error.message || error);
+                const missing = /clear_guest_records|PGRST202|Could not find|does not exist/i.test(msg);
+                if (listEl) {
+                    listEl.innerHTML = missing
+                        ? '<p class="text-amber-500 text-center py-10 font-bold">Could not clear guest records.<br><span class="text-sm font-normal">Run <code>supabase/guest_tracking_clear.sql</code> in the Supabase SQL Editor, then press 清除全部 again.</span></p>'
+                        : '<p class="text-red-400 text-center py-10">Could not clear guest records: ' + escapeHtml(msg) + '</p>';
+                }
+                console.warn('Guest clear failed:', msg);
+                return;
+            }
+            await loadGuestAdmin();
+        }
+
         function renderGuestAdmin() {
             const statsEl = document.getElementById('guest-admin-stats');
             const listEl = document.getElementById('guest-admin-container');

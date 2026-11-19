@@ -17,6 +17,7 @@ const adminSource = fs.readFileSync(path.join(root, 'js/admin.js'), 'utf8');
 const htmlSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const pruneSql = fs.readFileSync(path.join(root, 'supabase/guest_tracking_prune.sql'), 'utf8');
 const guestSql = fs.readFileSync(path.join(root, 'supabase/guest_tracking.sql'), 'utf8');
+const clearSql = fs.readFileSync(path.join(root, 'supabase/guest_tracking_clear.sql'), 'utf8');
 
 const HOUR = 3600 * 1000;
 
@@ -141,10 +142,12 @@ function loadAdmin(opts) {
         rpcError: options.rpcError || null
     };
     const sb = options.sb || makeSb(state);
+    const confirmFn = typeof options.confirm === 'function' ? options.confirm : () => true;
     const context = vm.createContext({
         console: { log() {}, warn() {}, error() {} },
         window: {
             supabase: { createClient: () => sb },
+            confirm: confirmFn,
             addEventListener() {},
             removeEventListener() {},
             location: { origin: 'https://tydictation.vercel.app', search: '', href: 'https://tydictation.vercel.app/' }
@@ -164,7 +167,7 @@ function loadAdmin(opts) {
         location: { origin: 'https://tydictation.vercel.app', search: '', href: 'https://tydictation.vercel.app/' },
         requestAnimationFrame: (fn) => fn,
         alert() {},
-        confirm: () => true
+        confirm: confirmFn
     });
     context.document.defaultView = context.window;
     vm.runInContext(sharedSource, context);
@@ -352,6 +355,73 @@ test('rendered list and 24h stats never show a 25-hour-old record', () => {
     assert.ok(dom.stats.innerHTML.indexOf('Last 7 Days') === -1);
 });
 
+/* ---------------- 4b) 清除全部 (clear all guest records) ---------------- */
+
+test('the guest card has a 清除全部 button next to ↻ Refresh, outside the collapsed body', () => {
+    const refreshAt = htmlSource.indexOf('onclick="loadGuestAdmin(true)"');
+    const clearAt = htmlSource.indexOf('onclick="clearGuestAdmin()"');
+    const bodyAt = htmlSource.indexOf('id="guest-admin-body"');
+    assert.ok(clearAt !== -1, 'the card must expose the clear-all button');
+    assert.ok(refreshAt !== -1, 'Refresh is still there');
+    assert.ok(clearAt < bodyAt && refreshAt < bodyAt, 'both buttons sit in the header, visible when collapsed');
+    const end = htmlSource.indexOf('</button>', clearAt);
+    const clearTag = htmlSource.slice(clearAt, end === -1 ? clearAt + 260 : end + '</button>'.length);
+    assert.match(clearTag, /bg-rose-600/, 'clear-all uses a red/rose danger style');
+    assert.match(clearTag, />清除全部<\/button>/, 'the label is exactly 清除全部');
+});
+
+test('clearGuestAdmin is admin-only', async () => {
+    const { run, state } = loadAdmin({ admin: false });
+    await run('clearGuestAdmin()');
+    assert.equal(state.rpc.length, 0, 'a non-admin never reaches the RPC');
+    assert.equal(state.from.length, 0);
+});
+
+test('cancelling the confirm does nothing at all', async () => {
+    const { run, state } = loadAdmin({ confirm: () => false });
+    await run('clearGuestAdmin()');
+    assert.deepEqual(state.events, []);
+    assert.equal(state.rpc.length, 0);
+    assert.equal(state.from.length, 0);
+});
+
+test('confirming calls clear_guest_records, then reloads the card (prune + selects)', async () => {
+    const { run, state, dom } = loadAdmin({
+        confirm: () => true,
+        rows: { guest_logins: [], guest_usage: [] }
+    });
+    await run('clearGuestAdmin()');
+    assert.deepEqual(state.events.slice(0, 3),
+        ['rpc:clear_guest_records', 'rpc:prune_guest_records', 'from:guest_logins'],
+        'the wipe runs first, then the normal refresh');
+    assert.equal(state.rpc[0].name, 'clear_guest_records');
+    assert.equal(state.from.length, 2, 'both tables are re-read');
+    assert.ok(dom.list.innerHTML.indexOf('No guest usage in the last 24 hours.') !== -1,
+        'the list is empty after the wipe');
+    assert.match(dom.stats.innerHTML, /<div class="text-3xl font-bold text-cyan-600">0<\/div>/,
+        'the stats go back to zero');
+});
+
+test('a missing clear_guest_records shows the SQL file to run instead of pretending', async () => {
+    const { run, dom } = loadAdmin({
+        confirm: () => true,
+        rpcError: { message: 'function public.clear_guest_records() does not exist' }
+    });
+    await run('clearGuestAdmin()');
+    const html = dom.list.innerHTML;
+    assert.match(html, /guest_tracking_clear\.sql/, 'tells the teacher which incremental to run');
+    assert.ok(html.indexOf('No guest usage in the last 24 hours.') === -1, 'no fake empty state on failure');
+});
+
+test('clearGuestAdmin reports other RPC errors verbatim', async () => {
+    const { run, dom } = loadAdmin({
+        confirm: () => true,
+        rpcError: { message: 'not authorized' }
+    });
+    await run('clearGuestAdmin()');
+    assert.match(dom.list.innerHTML, /Could not clear guest records: not authorized/);
+});
+
 /* ---------------- 5) SQL deliverable ---------------- */
 
 test('guest_tracking_prune.sql prunes both tables on a rolling 24 hours', () => {
@@ -389,6 +459,42 @@ test('a brand-new install of guest_tracking.sql also ships the 24h prune', () =>
     const usageFn = guestSql.slice(guestSql.indexOf('create or replace function public.record_guest_usage'));
     assert.ok(usageFn.indexOf('perform public.prune_guest_records();') !== -1);
     assert.ok(guestSql.indexOf('drop table') === -1, 'tables are never dropped');
+});
+
+test('guest_tracking.sql and guest_tracking_clear.sql both ship a teacher-only clear_guest_records', () => {
+    [guestSql, clearSql].forEach((sql) => {
+        const at = sql.indexOf('create or replace function public.clear_guest_records()');
+        assert.ok(at !== -1, 'the full-wipe RPC is defined');
+        const fn = sql.slice(at, sql.indexOf('$clear$;', at) + '$clear$;'.length);
+        assert.match(fn, /security definer/);
+        assert.match(fn, /auth\.jwt\(\) ->> 'email'\) is distinct from 'tywong@lstyoungkhl\.edu\.hk'/,
+            'the function re-checks the teacher email');
+        assert.match(fn, /raise exception 'not authorized'/);
+        assert.match(fn, /delete from public\.guest_logins;/);
+        assert.match(fn, /delete from public\.guest_usage;/);
+        assert.ok(sql.indexOf('drop table') === -1, 'no tables are dropped');
+
+        const grants = sql.match(/grant execute on function public\.clear_guest_records\(\)[^;]*;/g) || [];
+        assert.deepEqual(grants, ['grant execute on function public.clear_guest_records() to authenticated;'],
+            'execute is granted to authenticated only');
+        assert.ok(grants.join(' ').indexOf('anon') === -1, 'never granted to anon');
+    });
+});
+
+test('guest_tracking_clear.sql is the paste-ready incremental and never mentions the 24h prune as its job', () => {
+    assert.match(clearSql, /mggnwzirjmibreimrwiq\/sql\/new/, 'header points at the live SQL editor');
+    assert.match(clearSql, /Safe to re-run/i);
+    assert.match(clearSql, /incremental/i);
+    assert.match(clearSql, /guest_tracking\.sql/);
+    assert.match(clearSql, /Do NOT paste/i);
+    assert.match(clearSql, /plugin\/CLI/i);
+});
+
+test('guest_tracking_prune.sql still only prunes the last 24 hours (no full wipe)', () => {
+    assert.ok(pruneSql.indexOf('clear_guest_records') === -1, 'the prune file is not the full-wipe path');
+    assert.ok(pruneSql.indexOf('delete from public.guest_logins;') === -1);
+    assert.ok(pruneSql.indexOf('delete from public.guest_usage;') === -1);
+    assert.match(pruneSql, /delete from public\.guest_logins\s+where logged_in_at < now\(\) - interval '24 hours'/);
 });
 
 /* ---------------- 6) nicknames drop a trailing email-domain label ---------------- */

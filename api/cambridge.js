@@ -48,6 +48,22 @@ function parseMeanings(html) {
     return meanings;
 }
 
+function parseExamples(html) {
+    const out = [];
+    const seen = new Set();
+    const re = /<span class="eg deg">([\s\S]*?)<\/span>/gi;
+    let match;
+    while ((match = re.exec(html))) {
+        const text = stripTags(match[1]);
+        if (text.length < 10 || text.length > 220) continue;
+        if (seen.has(text)) continue;
+        seen.add(text);
+        out.push(text);
+        if (out.length >= 6) break;
+    }
+    return out;
+}
+
 function parseHeadword(html) {
     const t = /<title>([^<]+)<\/title>/i.exec(html || '');
     if (!t) return '';
@@ -190,6 +206,7 @@ async function handler(req, res) {
         const meanings = result.html ? parseMeanings(result.html) : [];
         const headword = result.html ? parseHeadword(result.html) : '';
         const audio = result.html ? parseAudio(result.html) : { uk: '', us: '' };
+        const examples = result.html ? parseExamples(result.html) : [];
         // Cambridge's "did you mean…" search page also carries recordings of
         // other words, so only trust the audio when we landed on a real entry.
         if (!headword) {
@@ -203,6 +220,7 @@ async function handler(req, res) {
             found: found,
             headword: headword,
             meanings: meanings,
+            examples: examples,
             audio: audio,
             source: 'Cambridge Dictionary'
         }));
@@ -213,6 +231,7 @@ async function handler(req, res) {
             word: word,
             found: false,
             meanings: [],
+            examples: [],
             error: aborted ? 'Cambridge Dictionary timed out.' : 'Could not reach Cambridge Dictionary.'
         }));
     }

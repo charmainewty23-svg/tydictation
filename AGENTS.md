@@ -2054,9 +2054,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     用 `created_at` 同香港日界（`hkDayKey`／`hkDayOffset`）過濾；只有
     `nv:` topic 才顯示，Mixed／Sheet topic 會收埋。
   - **Question type 可以揀多過一種**（`settings.types` array）：
-    🔤 Multiple choice、✅ True / false、⌨️ Type the word。三個 pill 可以任意
-    組合，**最少要留一個**（撳走最後一個會提示）。舊版存落嘅 `type:'mixed'`
-    會遷移成三種全選。
+    🔤 Multiple choice、🧩 Fill the gap、✅ True / false、⌨️ Type the word。
+    四個 pill 可以任意組合，**最少要留一個**（撳走最後一個會提示）。舊版
+    存落嘅 `type:'mixed'` 會遷移成三種全選；舊 `types` 唔會自動加 gap，
+    老師要自己揀。
   - Questions：10／15／20／25／30。Seconds each：10／15／20／30（時間到自動 reveal）。
 - **題目來源**：Dictation tabs 經 gviz CSV（`parseCSV()` 同 app 一樣），
   結果連 20 個 tab 分開 cache 10 分鐘喺 `localStorage['learniTY_qk_bank_v1']`；
@@ -2075,6 +2076,14 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   「UK / US spellings both count — e.g. colour or color.」，老師 typing card
   亦有「UK / US spellings both count」。
 - MC：4 個選項，干擾項優先抽同一 topic（唔夠先用示範字），每次洗牌。
+- **🧩 Fill the gap**：用 Cambridge 例句做題。`api/cambridge.js` 會由
+  entry 的 `<span class="eg deg">` 抽最多 6 句 `examples`；demo 用
+  `decorateGapQuestions()` 揀一句含目標字（整字、大小楷唔計）嘅例句，
+  將該字換成 `________`，再出 4 個選項。只會用**原字**（唔會用
+  protects／protected 呢類變化，免得選項文法唔對）。Cambridge 冇例句、
+  未部署 `/api` 或網絡失敗 → 該題自動變返普通中文 MC，唔會卡住。
+  Start 時會顯示「Loading Cambridge sentences…」，例句有 in-memory
+  cache，API 本身 Cache-Control 24h。
 - True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
 - 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
 - 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；
@@ -2119,9 +2128,18 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   ≤620px 高會收起 class photo（Top 3 嘅貓仍然見到）。
   `#confetti` 有 30 粒 CSS 彩帶（6 秒後清除）；音樂用
   `/music/trophyMusic.mp3`（volume 0.45），關閉／New quiz 會停。
-  卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）同
+  卡有 ✕、底部 **🎉 New quiz**、**📊 Analysis** 同
   **🏠 Back to Hub**（`a.trophy-hub` → `/index.html`，48px）。設定畫面
   Start 下面亦有細字 **← Back to Hub**（`.setup-hub`）。
+  - **📊 Analysis（老師）**：`openAnalysis()` 開 `#analysis`，按正確率
+    **由低至高**排（最易錯先），每題顯示 `% correct · % missed`、
+    正確答案、進度條、`✅ / ❌ / ⏰ / total`，同最常揀錯嘅答案
+    （`Most chosen wrong: … ×N`）。數據喺每次 `renderReveal()` 儲入
+    `roundStats`；關閉返去頒獎禮。
+  - **📕 Student review（學生）**：撳頒獎禮 **✕** 關閉時，如果
+    `wrongBook` 有嘢，會彈 `#studentReview`，逐題列「You: … ⚠️ /
+    Correct: … ✅」同分數／名次；撳 Done 才返設定。**🎉 New quiz 會跳過
+    呢個 review**，直接返設定。錯題包括答錯同冇答，最多全部題目。
   短螢幕有 compact CSS：≤760px、≤620px、≤560px 橫向，320×568 同
   390×844 都免捲動見到頒獎禮同 New quiz。
 - **背景音樂（host 都有）**：老師一撳 Start 就會喺自己部機播；因為 host
@@ -2170,6 +2188,13 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   改現有字時要再查就撳 **Look up**。查唔到或 API 失敗都唔會阻擋 Confirm，老師可以自己打中文。
   呢個 API 只喺 Vercel 部署之後先用得（本地開 `index.html` 冇 `/api`）。
 - 學生同老師可以切 **Added today**（香港日期，睇 `created_at`）同 **All words**。
+- **老師專用 Added yesterday（2026-11）**：`#nv-scope-yesterday` 只喺
+  `isAdmin()` 時顯示（`nvPaintScope()` 會 toggle `hidden`；非 admin 揀唔到，
+  會自動 reset 返 today）。`nvAddedYesterday()` 用同一個香港日界（今日 −24h
+  再 `hkDayKey`），`nvPracticeRows()` 加 `yesterday` branch。字表／編輯器
+  會顯示 `yesterday` 黃色 badge；如果 yesterday 範圍冇字，會提示切去
+  All words。儲存新字時如果 scope 係 today／yesterday，會自動切 All words
+  令新字即刻見到。Teacher preview（`isAdmin()` false）都唔會見到。
   練習（Listening／Recitation）只用而家個範圍入面**有英文**嘅字。
   淨係中文嘅卡會喺字表同老師字庫出現，拼寫同 Word Battle 會跳過，等老師補英文。
 - 已分到年級嘅學生（顯示名稱例如 `4C 16 …` → F4，或老師下拉指定）只可以用**自己年級**嘅 New Vocab，包括 Listening／Recitation／Revision 同 Word Battle 字庫。**Unassigned** 學生（冇可用顯示名稱，或老師揀咗「—」）同**訪客**可以瀏覽／練習**全部年級**（F3＋F4＋F6）嘅新增生字，並可揀「All forms」或其中一個年級開 Word Battle。老師編輯字庫同開 battle 仍然可以揀 F3／F4／F6。Unassigned 學生喺老師 dashboard 仍然歸入 Unassigned 一組。呢個「讀全部年級」要跑 `supabase/new_vocab_unassigned_read.sql`（喺 `new_vocab.sql` 之後，可重複跑）。

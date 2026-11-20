@@ -21,12 +21,18 @@
             return hkDayKey(iso) === hkDayKey(new Date().toISOString());
         }
 
+        function nvAddedYesterday(iso) {
+            if (!iso || typeof hkDayKey !== 'function') return false;
+            return hkDayKey(iso) === hkDayKey(new Date(Date.now() - 86400000).toISOString());
+        }
+
         function nvHasEnglish(w) {
             return !!String(w && w.en || '').trim();
         }
 
         function nvPracticeRows() {
             if (nvScope === 'today') return nvRows.filter(w => nvAddedToday(w.created_at || w.updated_at));
+            if (nvScope === 'yesterday') return nvRows.filter(w => nvAddedYesterday(w.created_at || w.updated_at));
             return nvRows.slice();
         }
 
@@ -44,14 +50,23 @@
         function nvPaintScope() {
             const todayBtn = document.getElementById('nv-scope-today');
             const allBtn = document.getElementById('nv-scope-all');
+            const yesterdayBtn = document.getElementById('nv-scope-yesterday');
             if (!todayBtn || !allBtn) return;
-            const todayOn = nvScope === 'today';
-            todayBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (todayOn ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-600');
-            allBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (todayOn ? 'bg-orange-100 text-orange-600' : 'bg-orange-500 text-white');
+            if (yesterdayBtn) yesterdayBtn.classList.toggle('hidden', !isAdmin());
+            if (nvScope === 'yesterday' && !isAdmin()) nvScope = 'today';
+            const on = 'bg-orange-500 text-white';
+            const off = 'bg-orange-100 text-orange-600';
+            todayBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (nvScope === 'today' ? on : off);
+            allBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (nvScope === 'all' ? on : off);
+            if (yesterdayBtn) {
+                yesterdayBtn.className = 'px-4 py-2 rounded-full font-bold text-sm ' + (nvScope === 'yesterday' ? on : off)
+                    + (isAdmin() ? '' : ' hidden');
+            }
         }
 
         function nvSetScope(scope) {
-            nvScope = scope === 'all' ? 'all' : 'today';
+            if (scope === 'yesterday' && !isAdmin()) return;
+            nvScope = (scope === 'all' || scope === 'yesterday') ? scope : 'today';
             nvPaintScope();
             nvApplyPractice();
             nvRenderStatus();
@@ -295,7 +310,8 @@
             }
             const newest = nvRows.reduce((a, w) => !a || w.updated_at > a ? w.updated_at : a, '');
             const when = typeof hkDate === 'function' ? hkDate(newest) : '';
-            const scopeLabel = nvScope === 'today' ? (showing + ' added today') : (showing + ' in the bank');
+            const scopeLabel = nvScope === 'today' ? (showing + ' added today')
+                : (nvScope === 'yesterday' ? (showing + ' added yesterday') : (showing + ' in the bank'));
             const formLabelText = browsesAllVocab() ? 'All forms' : form;
             status.innerText = formLabelText + ' · ' + nvRows.length + ' saved · ' + todayCount + ' added today · practising ' + scopeLabel + (when ? ' · updated ' + when : '');
         }
@@ -305,9 +321,13 @@
             if (!list || !isAdmin()) return;
             const rows = nvPracticeRows();
             if (!rows.length) {
-                list.innerHTML = '<p class="text-gray-400 text-sm">' + (nvScope === 'today' && nvRows.length
-                    ? 'Nothing added today. Switch to All words to see the rest of the bank.'
-                    : 'No words in this form yet.') + '</p>';
+                list.innerHTML = '<p class="text-gray-400 text-sm">' + (
+                    nvScope === 'today' && nvRows.length
+                        ? 'Nothing added today. Switch to All words to see the rest of the bank.'
+                        : (nvScope === 'yesterday' && nvRows.length
+                            ? 'Nothing added yesterday. Switch to All words to see the rest of the bank.'
+                            : 'No words in this form yet.')
+                ) + '</p>';
                 return;
             }
             list.innerHTML = rows.map(w => `
@@ -315,7 +335,8 @@
                     <div class="min-w-0">
                         <span class="font-bold text-gray-800">${w.en ? escapeHtml(w.en) : '<span class="text-gray-300">English later</span>'}</span>
                         <span class="text-gray-400 ml-2">${w.zh ? escapeHtml(w.zh) : '<span class="text-gray-300">Chinese later</span>'}</span>
-                        ${nvAddedToday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">today</span>' : ''}
+                        ${nvAddedToday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">today</span>'
+                            : (nvAddedYesterday(w.created_at) ? '<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">yesterday</span>' : '')}
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                         <button type="button" onclick="nvBeginEdit(${Number(w.id)})" class="text-xs font-bold text-orange-600">Edit</button>
@@ -591,7 +612,7 @@
                 || nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh);
             if (!visible && data) {
                 // Saved, but the current "Added today" filter hid it — switch so the new word is on screen.
-                if (nvScope === 'today') nvSetScope('all');
+                if (nvScope === 'today' || nvScope === 'yesterday') nvSetScope('all');
             }
             if (nvRows.some(w => String(w.en || '').trim() === en && String(w.zh || '').trim() === zh) || data) {
                 if (data && !nvRows.some(w => Number(w.id) === Number(data.id))) nvUpsertLocal(data);

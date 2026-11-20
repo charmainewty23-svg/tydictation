@@ -120,6 +120,7 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 4px;
   }
+  .question.sentence { font-size: clamp(17px, 2.6vw, 28px); line-height: 1.35; }
   .question small {
     display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
     color: var(--muted); margin-top: 6px; font-weight: 800;
@@ -320,6 +321,7 @@
     55% { opacity: 1; transform: scale(1.2); }
     100% { opacity: 1; transform: scale(1); }
   }
+  .sq.sentence { font-size: 14px; line-height: 1.35; }
   .sq {
     min-height: 92px; margin: 8px 0; border-radius: 12px; background: var(--brand-soft);
     border: 2px solid var(--line); color: var(--ink);
@@ -486,6 +488,12 @@
     display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;
   }
   .trophy-actions .trophy-continue { flex: 1 1 190px; }
+  .trophy-analysis {
+    flex: 1 1 130px; min-height: 48px;
+    border-radius: 999px; border: 2px solid #c7d2fe; background: #eef2ff;
+    color: #4338ca; font: inherit; font-weight: 800; cursor: pointer;
+  }
+  .trophy-analysis:hover { background: #e0e7ff; }
   .trophy-hub {
     flex: 1 1 130px; min-height: 48px;
     display: flex; align-items: center; justify-content: center;
@@ -501,6 +509,84 @@
     box-shadow: 0 4px 0 #b45309;
   }
   .trophy-continue:active { transform: translateY(2px); box-shadow: 0 2px 0 #b45309; }
+  /* Student review + teacher analysis */
+  .review, .analysis {
+    position: fixed; inset: 0; z-index: 96;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px; background: rgba(8, 14, 50, .88);
+  }
+  .analysis { z-index: 97; }
+  .review-card, .analysis-card {
+    position: relative; width: min(460px, 100%);
+    max-height: calc(100dvh - 24px); overflow-y: auto;
+    background: #fffdf7; border: 4px solid #c4b5fd; border-radius: 26px;
+    padding: 16px 14px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+  }
+  .analysis-card { width: min(600px, 100%); border-color: #bfdbfe; }
+  .review-kicker {
+    margin: 0; font-size: 10px; letter-spacing: .2em;
+    text-transform: uppercase; color: #6d28d9; font-weight: 800;
+  }
+  .analysis-card .review-kicker { color: #1d4ed8; }
+  .review-title { margin: 2px 0 8px; font-size: clamp(19px, 3.5vw, 25px); color: var(--ink); }
+  .review-lead { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .review-list, .analysis-list { display: flex; flex-direction: column; gap: 8px; }
+  .review-item {
+    border: 2px solid var(--line); border-radius: 14px;
+    background: #fff; padding: 8px 10px;
+  }
+  .review-top {
+    font-size: 10px; font-weight: 900; letter-spacing: .1em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .review-q {
+    margin-top: 2px; font-size: 13px; font-weight: 800;
+    color: var(--ink); line-height: 1.35;
+  }
+  .review-line { margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .review-line b.wrong { color: #b91c1c; }
+  .review-line b.right { color: #0b8259; }
+  .review-done {
+    width: 100%; min-height: 48px; margin-top: 12px;
+    border: 0; border-radius: 999px;
+    background: var(--brand); color: var(--cream);
+    font: inherit; font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brand-dark);
+  }
+  .review-close {
+    position: absolute; top: 8px; right: 8px;
+    width: 44px; height: 44px; border: 0; border-radius: 999px;
+    background: #f3e8ff; color: #6d28d9;
+    font-size: 17px; font-weight: 800; cursor: pointer;
+  }
+  .analysis-card .review-close { background: #dbeafe; color: #1d4ed8; }
+  .analysis-row {
+    border: 2px solid var(--line); border-radius: 14px;
+    background: #fff; padding: 8px 10px;
+  }
+  .analysis-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 10px; font-weight: 900; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .analysis-pct.low { color: #b91c1c; }
+  .analysis-pct.mid { color: #b45309; }
+  .analysis-pct.high { color: #0b8259; }
+  .analysis-q {
+    margin-top: 3px; font-size: 13px; font-weight: 800; color: var(--ink); line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .analysis-ans { margin-top: 3px; font-size: 12px; font-weight: 800; color: #0b8259; }
+  .analysis-bar {
+    height: 8px; margin-top: 6px; border-radius: 999px;
+    background: #e5e7eb; overflow: hidden;
+  }
+  .analysis-bar span {
+    display: block; height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #1040d0, #17a673);
+  }
+  .analysis-meta { margin-top: 4px; font-size: 11px; font-weight: 800; color: var(--muted); }
+  .analysis-wrong { margin-top: 3px; font-size: 11px; font-weight: 700; color: #9a3412; }
   .confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
   .confetti i {
     position: absolute; top: -16px; width: 8px; height: 14px; border-radius: 2px;
@@ -537,7 +623,7 @@
     .trophy-place.champion .trophy-name { font-size: 1.08rem; }
     .trophy-label { font-size: .6rem; }
     .trophy-score { font-size: .8rem; }
-    .trophy-continue { min-height: 42px; margin-top: 2px; }
+    .trophy-continue { min-height: 44px; margin-top: 2px; }
     .trophy-photo { display: none; }
   }
   @media (max-height: 560px) and (orientation: landscape) {
@@ -677,8 +763,31 @@
     </div>
     <div class="trophy-actions">
       <button type="button" class="trophy-continue" id="againBtn">🎉 New quiz</button>
+      <button type="button" class="trophy-analysis" id="analysisBtn">📊 Analysis</button>
       <a class="trophy-hub" href="/index.html">🏠 Back to Hub</a>
     </div>
+  </div>
+</div>
+
+<div class="review hidden" id="studentReview">
+  <div class="review-card">
+    <button type="button" class="review-close" id="studentReviewClose" aria-label="Close review">✕</button>
+    <p class="review-kicker">Student review</p>
+    <h2 class="review-title">📕 Your mistakes</h2>
+    <p class="review-lead" id="studentReviewLead"></p>
+    <div class="review-list" id="studentReviewList"></div>
+    <button type="button" class="review-done" id="studentReviewDone">✅ Done</button>
+  </div>
+</div>
+
+<div class="analysis hidden" id="analysis">
+  <div class="analysis-card">
+    <button type="button" class="review-close" id="analysisClose" aria-label="Close analysis">✕</button>
+    <p class="review-kicker">Teacher analysis</p>
+    <h2 class="review-title">📊 Question analysis</h2>
+    <p class="review-lead" id="analysisLead"></p>
+    <div class="analysis-list" id="analysisList"></div>
+    <button type="button" class="review-done" id="analysisDone">← Back to ceremony</button>
   </div>
 </div>
 
@@ -805,12 +914,13 @@
   const SETTINGS_KEY = 'learniTY_qk_settings';
   const TYPE_OPTIONS = [
     { id: 'mc', label: '🔤 Multiple choice' },
+    { id: 'gap', label: '🧩 Fill the gap' },
     { id: 'tf', label: '✅ True / false' },
     { id: 'short', label: '⌨️ Type the word' }
   ];
   const COUNT_OPTIONS = [10, 15, 20, 25, 30];
   const SECOND_OPTIONS = [10, 15, 20, 30];
-  const TYPE_LABEL = { mc: 'Multiple choice', tf: 'True or false', short: 'Type the word' };
+  const TYPE_LABEL = { mc: 'Multiple choice', gap: 'Fill the gap', tf: 'True or false', short: 'Type the word' };
   const SHAPES = ['▲', '◆', '●', '■'];
   const COLORS = ['c0', 'c1', 'c2', 'c3'];
 
@@ -823,7 +933,7 @@
     { id: 'today', label: '🆕 Added today' },
     { id: 'yesterday', label: '📅 Added yesterday' }
   ];
-  const settings = { mode: 'class', topic: 'mixed', scope: 'all', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
+  const settings = { mode: 'class', topic: 'mixed', scope: 'all', types: ['mc', 'gap', 'tf', 'short'], count: 10, seconds: 15 };
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -1101,6 +1211,74 @@
     return Array.from({ length: n }, function (_v, i) { return cycle[i % cycle.length]; });
   }
 
+  const exampleCache = new Map();
+
+  function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function blankSentence(example, word) {
+    if (!example || !word) return '';
+    const re = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
+    if (!re.test(example)) return '';
+    return example.replace(re, '________');
+  }
+
+  function fetchCambridgeExample(word) {
+    const key = answerNormalize(word);
+    if (!key) return Promise.resolve('');
+    if (exampleCache.has(key)) return exampleCache.get(key);
+    const task = (async function () {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(function () { ctrl.abort(); }, 6000);
+        const res = await fetch('/api/cambridge?word=' + encodeURIComponent(word), { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) return '';
+        const data = await res.json();
+        const list = Array.isArray(data.examples) ? data.examples : [];
+        const re = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
+        for (let i = 0; i < list.length; i += 1) {
+          const ex = String(list[i] || '');
+          if (ex.length >= 10 && ex.length <= 180 && re.test(ex)) return ex;
+        }
+      } catch (e) { /* fall back to the Chinese prompt */ }
+      return '';
+    })();
+    exampleCache.set(key, task);
+    return task;
+  }
+
+  async function decorateGapQuestions(list) {
+    const gapQs = (list || []).filter(q => q.type === 'gap');
+    if (!gapQs.length) return;
+    const words = [];
+    gapQs.forEach(function (q) {
+      const word = primaryAnswer(q.en);
+      if (words.indexOf(word) === -1) words.push(word);
+    });
+    const found = new Map();
+    await Promise.all(words.map(async function (word) {
+      const example = await fetchCambridgeExample(word);
+      if (example) found.set(answerNormalize(word), example);
+    }));
+    gapQs.forEach(function (q) {
+      const word = primaryAnswer(q.en);
+      const example = found.get(answerNormalize(word));
+      const blanked = example ? blankSentence(example, word) : '';
+      if (blanked) {
+        q.prompt = blanked;
+        q.sub = 'Choose the best word for the sentence';
+        q.sentence = true;
+      } else {
+        q.type = 'mc';
+        q.prompt = q.zh;
+        q.sub = 'Choose the English word';
+        q.sentence = false;
+      }
+    });
+  }
+
   function mcOptions(word, pool) {
     const correct = primaryAnswer(word.en);
     const seen = new Set([answerNormalize(correct)]);
@@ -1151,6 +1329,18 @@
           zh: word.zh,
           seconds: cfg.seconds
         });
+      } else if (type === 'gap') {
+        const options = mcOptions(word, pool);
+        out.push({
+          type: 'gap',
+          prompt: word.zh,
+          sub: 'Choose the best word',
+          choices: options,
+          answer: options.indexOf(primaryAnswer(word.en)),
+          en: word.en,
+          zh: word.zh,
+          seconds: cfg.seconds
+        });
       } else if (type === 'tf') {
         const truth = Math.random() < 0.5;
         let shown = word.zh;
@@ -1183,15 +1373,21 @@
   }
 
   function isCorrectQuestion(q, value) {
-    if (q.type === 'mc') return value === q.answer;
+    if (q.type === 'mc' || q.type === 'gap') return value === q.answer;
     if (q.type === 'tf') return value === q.answer;
     return isAnswerCorrect(value, q.en);
   }
 
   function answerText(q) {
-    if (q.type === 'mc') return q.choices[q.answer];
+    if (q.type === 'mc' || q.type === 'gap') return q.choices[q.answer];
     if (q.type === 'tf') return q.answer ? 'True' : 'False';
     return primaryAnswer(q.en);
+  }
+
+  function answerLabel(q, value) {
+    if (q.type === 'mc' || q.type === 'gap') return q.choices[value] || '';
+    if (q.type === 'tf') return value ? 'True' : 'False';
+    return String(value || '');
   }
 
   /* ------------------------------------------------------------------ */
@@ -1213,6 +1409,8 @@
   let timerId = 0;
   let botTimers = [];
   let bank = DEMO_WORDS.slice();
+  let wrongBook = [];
+  let roundStats = [];
   let music = null;
   let musicOn = true;
 
@@ -1481,6 +1679,11 @@
       bank = words;
       questions = makeQuestions(bank, settings);
       if (!questions.length) throw new Error('no questions');
+      if (questions.some(q => q.type === 'gap')) {
+        btn.textContent = '⏳ Loading Cambridge sentences…';
+        note.textContent = 'Loading Cambridge example sentences…';
+        await decorateGapQuestions(questions);
+      }
       if (!message) {
         const scopeLabel = nvTopic && settings.scope !== 'all'
           ? ' · ' + (settings.scope === 'today' ? 'added today' : 'added yesterday')
@@ -1506,6 +1709,8 @@
     qIndex = -1;
     buildPlayers();
     resetPlayers();
+    wrongBook = [];
+    roundStats = [];
     updateRoomChip();
     lastRoundTops = new Map();
     renderStudentHead();
@@ -1616,6 +1821,7 @@
     $('qtype').textContent = TYPE_LABEL[q.type];
     $('timer').textContent = q.seconds + 's';
     $('qprompt').innerHTML = escapeHtml(q.prompt) + '<small>' + escapeHtml(q.sub) + '</small>';
+    $('qprompt').classList.toggle('sentence', !!q.sentence);
     $('revealBtn').hidden = false;
     $('revealBtn').disabled = false;
     $('nextBtn').hidden = true;
@@ -1633,7 +1839,7 @@
       updateTypingCount();
     } else {
       choicesEl.className = 'choices' + (q.type === 'tf' ? ' tf' : '');
-      choicesEl.innerHTML = q.type === 'mc'
+      choicesEl.innerHTML = (q.type === 'mc' || q.type === 'gap')
         ? q.choices.map(function (text, i) {
             return '<div class="choice ' + COLORS[i] + '" data-i="' + i + '">' +
               '<span class="shape">' + SHAPES[i] + '</span>' +
@@ -1645,6 +1851,7 @@
     }
 
     $('sprompt').textContent = q.prompt;
+    $('sprompt').classList.toggle('sentence', !!q.sentence);
     $('sfeedback').textContent = q.type === 'short'
       ? 'Type the English word, then press Submit.'
       : 'Choose your answer!';
@@ -1658,7 +1865,7 @@
   }
 
   function renderStudentAnswers(q) {
-    if (q.type === 'mc') {
+    if (q.type === 'mc' || q.type === 'gap') {
       sanswersEl.className = 'sanswers';
       sanswersEl.innerHTML = q.choices.map(function (text, i) {
         return '<button type="button" class="sanswer ' + COLORS[i] + '" data-i="' + i + '">' +
@@ -1744,15 +1951,37 @@
       counts[String(a.value)] = (counts[String(a.value)] || 0) + 1;
       if (isCorrectQuestion(q, a.value)) right += 1; else wrong += 1;
     });
+    const wrongPicks = {};
+    players.forEach(function (p) {
+      const a2 = answers[p.id];
+      if (!a2 || isCorrectQuestion(q, a2.value)) return;
+      const label2 = answerLabel(q, a2.value);
+      if (!label2) return;
+      wrongPicks[label2] = (wrongPicks[label2] || 0) + 1;
+    });
+    const topWrong = Object.keys(wrongPicks).map(function (label2) {
+      return { label: label2, n: wrongPicks[label2] };
+    }).sort(function (a2, b2) { return b2.n - a2.n; }).slice(0, 3);
+    roundStats.push({
+      index: qIndex + 1,
+      prompt: q.prompt,
+      answer: answerText(q),
+      right: right,
+      wrong: wrong,
+      none: none,
+      total: players.length,
+      topWrong: topWrong
+    });
+
     let dist = '';
-    if (q.type === 'mc') {
+    if (q.type === 'mc' || q.type === 'gap') {
       dist = q.choices.map(function (c, i) {
         return c + ' ' + (counts[String(i)] || 0);
       }).join(' · ');
     } else if (q.type === 'tf') {
       dist = 'True ' + (counts['true'] || 0) + ' · False ' + (counts['false'] || 0);
     }
-    const label = q.type === 'mc'
+    const label = (q.type === 'mc' || q.type === 'gap')
       ? q.choices[q.answer]
       : (q.type === 'tf' ? (q.answer ? 'True' : 'False') : primaryAnswer(q.en));
     choicesEl.className = 'choices';
@@ -1779,18 +2008,26 @@
     const correct = a ? isCorrectQuestion(q, a.value) : false;
     if (!a) {
       $('sfeedback').textContent = '⏰ No answer.\nCorrect: ' + answerText(q);
+      wrongBook.push({ index: qIndex + 1, prompt: q.prompt, correct: answerText(q), typed: '', none: true });
     } else if (correct) {
       $('sfeedback').textContent = '✅ Correct! +' + me.lastPoints + ' pts\n' + answerText(q);
     } else {
       const typed = q.type === 'short' ? 'You typed “' + a.value + '”.\n' : '';
       $('sfeedback').textContent = '❌ Not quite.\n' + typed + 'Correct: ' + answerText(q);
+      wrongBook.push({
+        index: qIndex + 1,
+        prompt: q.prompt,
+        correct: answerText(q),
+        typed: answerLabel(q, a.value),
+        none: false
+      });
     }
 
     if (q.type !== 'short') {
       Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
         btn.disabled = true;
         const i = Number(btn.getAttribute('data-i'));
-        const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
+        const isCorrect = (q.type === 'mc' || q.type === 'gap') ? i === q.answer : (i === 1) === q.answer;
         btn.classList.toggle('correct', isCorrect);
         if (a && Number(a.value) === i) btn.classList.add('picked');
       });
@@ -2240,11 +2477,76 @@
     trophyAudio = null;
   }
 
+  function finishToSetup() {
+    wrongBook = [];
+    $('studentReview').classList.add('hidden');
+    $('analysis').classList.add('hidden');
+    showSetup();
+    $('setupNote').textContent = 'Settings are kept — adjust anything, then press Start quiz.';
+  }
+
   function closeTrophy() {
     $('trophy').classList.add('hidden');
     stopTrophyMusic();
-    showSetup();
-    $('setupNote').textContent = 'Settings are kept — adjust anything, then press Start quiz.';
+    if (wrongBook.length) openStudentReview();
+    else finishToSetup();
+  }
+
+  function openStudentReview() {
+    const list = $('studentReviewList');
+    const lead = $('studentReviewLead');
+    if (!list || !lead) return;
+    const me = player('you');
+    const sorted = players.slice().sort((a, b) => b.score - a.score);
+    const rank = sorted.findIndex(p => p.id === 'you') + 1;
+    const unit = settings.mode === 'class' ? ' students' : ' players';
+    lead.textContent = wrongBook.length + ' question' + (wrongBook.length === 1 ? '' : 's') +
+      ' to review · ' + me.score.toLocaleString('en-US') + ' pts · #' + rank + ' of ' + players.length + unit;
+    list.innerHTML = wrongBook.map(function (w) {
+      return '<div class="review-item">' +
+        '<div class="review-top">Q' + w.index + '</div>' +
+        '<div class="review-q">' + escapeHtml(w.prompt) + '</div>' +
+        '<div class="review-line">You: <b class="wrong">' +
+          (w.none ? 'No answer' : escapeHtml(w.typed)) + '</b></div>' +
+        '<div class="review-line">Correct: <b class="right">' + escapeHtml(w.correct) + '</b></div>' +
+      '</div>';
+    }).join('');
+    $('studentReview').classList.remove('hidden');
+    const card = document.querySelector('.review-card');
+    if (card) card.scrollTop = 0;
+  }
+
+  function openAnalysis() {
+    const list = $('analysisList');
+    const lead = $('analysisLead');
+    if (!list || !lead) return;
+    const unit = settings.mode === 'class' ? ' students' : ' players';
+    lead.textContent = roundStats.length + ' questions · most missed first · ' + players.length + unit;
+    const rows = roundStats.slice().sort(function (a, b) {
+      const pa = a.total ? a.right / a.total : 0;
+      const pb = b.total ? b.right / b.total : 0;
+      return pa - pb;
+    });
+    list.innerHTML = rows.map(function (r) {
+      const pct = r.total ? Math.round((r.right / r.total) * 100) : 0;
+      const tone = pct < 50 ? 'low' : (pct < 75 ? 'mid' : 'high');
+      const wrongs = r.topWrong && r.topWrong.length
+        ? '<div class="analysis-wrong">Most chosen wrong: ' +
+          r.topWrong.map(function (w) { return escapeHtml(w.label) + ' ×' + w.n; }).join(' · ') + '</div>'
+        : '';
+      return '<div class="analysis-row">' +
+        '<div class="analysis-top"><span>Q' + r.index + '</span>' +
+          '<span class="analysis-pct ' + tone + '">' + pct + '% correct · ' + (100 - pct) + '% missed</span></div>' +
+        '<div class="analysis-q">' + escapeHtml(r.prompt) + '</div>' +
+        '<div class="analysis-ans">✅ ' + escapeHtml(r.answer) + '</div>' +
+        '<div class="analysis-bar"><span style="width:' + pct + '%"></span></div>' +
+        '<div class="analysis-meta">✅ ' + r.right + ' · ❌ ' + r.wrong + ' · ⏰ ' + r.none + ' / ' + r.total + '</div>' +
+        wrongs +
+      '</div>';
+    }).join('');
+    $('analysis').classList.remove('hidden');
+    const card = document.querySelector('.analysis-card');
+    if (card) card.scrollTop = 0;
   }
 
   let musicFallback = false;
@@ -2291,8 +2593,13 @@
   $('nextBtn').addEventListener('click', function () {
     if (phase === 'reveal') nextQuestion();
   });
-  $('againBtn').addEventListener('click', closeTrophy);
+  $('againBtn').addEventListener('click', finishToSetup);
   $('trophyClose').addEventListener('click', closeTrophy);
+  $('studentReviewClose').addEventListener('click', finishToSetup);
+  $('studentReviewDone').addEventListener('click', finishToSetup);
+  $('analysisBtn').addEventListener('click', openAnalysis);
+  $('analysisClose').addEventListener('click', function () { $('analysis').classList.add('hidden'); });
+  $('analysisDone').addEventListener('click', function () { $('analysis').classList.add('hidden'); });
   $('musicBtn').addEventListener('click', function () {
     musicOn = !musicOn;
     $('musicBtn').textContent = musicOn ? '🔊' : '🔇';

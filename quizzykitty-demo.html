@@ -340,6 +340,33 @@
     color: #4d5c94; font-size: 12px; font-weight: 700; text-align: center;
     display: flex; align-items: center; justify-content: center; white-space: pre-line;
   }
+  .srank {
+    display: none;
+    margin-top: 8px; padding: 8px 10px;
+    border-radius: 14px; border: 2px solid var(--line);
+    background: linear-gradient(135deg, #eef3ff 0%, #fff8c9 100%);
+    text-align: center;
+    animation: srankPop .45s cubic-bezier(.2, .9, .3, 1.3);
+  }
+  .srank.show { display: block; }
+  .srank-top { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+  .srank-pos {
+    font-size: 28px; font-weight: 900; line-height: 1;
+    color: var(--brand); font-variant-numeric: tabular-nums;
+  }
+  .srank-of { font-size: 11px; font-weight: 800; color: var(--muted); }
+  .srank-move { font-size: 12px; font-weight: 900; color: #0b8259; }
+  .srank-move.down { color: #b45309; }
+  .srank-msg { margin-top: 3px; font-size: 12px; font-weight: 800; color: #166534; }
+  .srank.leading {
+    background: linear-gradient(135deg, #fff3bf 0%, #ffe040 100%);
+    border-color: #f59e0b;
+  }
+  .srank.leading .srank-pos { color: #b45309; }
+  @keyframes srankPop {
+    0% { opacity: 0; transform: scale(.92) translateY(6px); }
+    100% { opacity: 1; transform: none; }
+  }
   /* Prize ceremony */
   .trophy {
     position: fixed; inset: 0; z-index: 90;
@@ -605,6 +632,7 @@
       <div class="sq" id="sprompt">Waiting for the teacher…</div>
       <div class="sanswers" id="sanswers"></div>
       <div class="sfeedback" id="sfeedback">Join in when the quiz starts.</div>
+      <div class="srank" id="srank" aria-live="polite"></div>
     </div>
   </aside>
 </main>
@@ -1295,6 +1323,8 @@
     $('quizBody').classList.add('hidden');
     sanswersEl.innerHTML = '';
     sanswersEl.className = 'sanswers';
+    const rankCard = $('srank');
+    if (rankCard) { rankCard.className = 'srank'; rankCard.innerHTML = ''; }
     $('sprompt').textContent = 'Waiting for the teacher…';
     $('sfeedback').textContent = 'Join in when the quiz starts.';
     renderSetup();
@@ -1543,6 +1573,8 @@
     updateYouRank();
     const chip = $('youDelta');
     if (chip) { chip.className = 'you-delta'; chip.textContent = ''; }
+    const rankCard = $('srank');
+    if (rankCard) { rankCard.className = 'srank'; rankCard.innerHTML = ''; }
   }
 
   function renderStudentAnswers(q) {
@@ -1700,6 +1732,38 @@
       chip.className = 'you-delta' + (chipBits.length ? ' show' : '');
     }
     if (youRankNow < youRankBefore) setTimeout(playRankUp, 420);
+    showStudentRank(youRankNow, youRankBefore, correct, !!a, q);
+  }
+
+  function showStudentRank(rank, beforeRank, correct, answered, q) {
+    const host = $('srank');
+    if (!host) return;
+    const total = players.length;
+    const move = beforeRank - rank;
+    let msg;
+    if (rank === 1 && correct) {
+      msg = '👑 Top of the class — keep it up!';
+    } else if (correct && move > 0) {
+      msg = '🚀 Correct — up ' + move + ' place' + (move === 1 ? '' : 's') + '!';
+    } else if (correct) {
+      msg = ['✅ Correct — keep the streak going!', '🔥 Nice one — stay sharp!', '⭐ Great answer — keep going!'][qIndex % 3];
+    } else if (!answered) {
+      msg = "⏱️ Time's up — jump back in, you've got this!";
+    } else if (move > 0) {
+      msg = '💪 Not quite, but you still moved up!';
+    } else {
+      msg = ['💪 Not quite — next one is yours!', '🌱 Every try counts — go again!', '🎯 Keep going, you are getting there!'][qIndex % 3];
+    }
+    host.className = 'srank show' + (rank === 1 ? ' leading' : '');
+    host.innerHTML =
+      '<div class="srank-top">' +
+        '<span class="srank-pos">#' + rank + '</span>' +
+        '<span class="srank-of">of ' + total + '</span>' +
+        (move !== 0
+          ? '<span class="srank-move' + (move < 0 ? ' down' : '') + '">' + (move > 0 ? '▲' + move : '▼' + (-move)) + '</span>'
+          : '') +
+      '</div>' +
+      '<div class="srank-msg">' + escapeHtml(msg) + '</div>';
   }
 
   function animateNumber(el, from, to, dur, onTick, suffix) {
@@ -1981,6 +2045,16 @@
     $('sfeedback').textContent = 'Check the prize ceremony →';
     renderStudentHead();
     updateYouRank();
+    const finalSorted = players.slice().sort((a, b) => b.score - a.score);
+    const finalRank = finalSorted.findIndex(p => p.id === 'you') + 1;
+    const finalCard = $('srank');
+    if (finalCard) {
+      finalCard.className = 'srank show' + (finalRank === 1 ? ' leading' : '');
+      finalCard.innerHTML =
+        '<div class="srank-top"><span class="srank-pos">#' + finalRank + '</span>' +
+        '<span class="srank-of">of ' + players.length + '</span></div>' +
+        '<div class="srank-msg">' + (finalRank === 1 ? '👑 You won the class quiz!' : '🏁 Final rank — great fight!') + '</div>';
+    }
     showTrophy();
   }
 

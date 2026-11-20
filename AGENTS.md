@@ -2078,6 +2078,18 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
     全部跟 `musicOn`（🔊 掣）一齊開關。音效 context 喺 Start 手勢建立，
     唔會被 autoplay 封鎖。
   - 學生電話 header 分數都會 count-up，隔籬 `#youDelta` 會彈 `+分數`／`▲N`。
+  - Reveal 之後學生電話多一個 **`#srank`** panel：大字 `#N`＋`of 30`、
+    名次移動 `▲N`／`▼N`，下面一句鼓勵字（按情況）：
+    - 第 1 名而且答對：`👑 Top of the class — keep it up!`
+    - 答對而升名次：`🚀 Correct — up N place(s)!`
+    - 答對但名次不變：`✅ Correct — keep the streak going!`／
+      `🔥 Nice one — stay sharp!`／`⭐ Great answer — keep going!`（輪換）
+    - 冇答：`⏱️ Time's up — jump back in, you've got this!`
+    - 答錯但升名次：`💪 Not quite, but you still moved up!`
+    - 答錯：`💪 Not quite — next one is yours!`／`🌱 Every try counts…`／
+      `🎯 Keep going…`（輪換）
+    每題 Next 會收埋，完場會變 `#N of 30 · 🏁 Final rank — great fight!`
+    （第 1 名寫 `👑 You won the class quiz!`）。320／390 都冇橫向爆版。
 - **Prize ceremony（完場）**：`finish()` 開 `#trophy` 全螢幕頒獎禮（唔再係舊
   podium modal）。DOM 次序係 CHAMPION → 1ST RUNNER UP → 2ND RUNNER UP，
   但彈出次序係 **3rd → 2nd → 1st（CHAMPION 最後）**，每 1.1 秒一張

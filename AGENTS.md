@@ -2085,10 +2085,16 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   Cambridge 冇例句、
   未部署 `/api` 或網絡失敗 → 該題自動變返普通中文 MC，唔會卡住。
   Start 時會顯示「Loading Cambridge sentences…」，例句有 in-memory
-  cache，API 本身 Cache-Control 24h。`api/cambridge.js` 同 demo 都會
+  cache。Demo 用 `&v=v2` call API（避開舊 URL 嘅 24h 瀏覽器/CDN cache）；
+  客戶端 timeout 12s，失敗會刪 cache entry 等下次再試。API **成功**才
+  回 `Cache-Control: public, max-age=86400`，400／502 一律 `no-store`
+  （唔會將 timeout 的空結果 cache 24 小時）。`api/cambridge.js` 同 demo 都會
   丟走**截斷**例句（冇 `.?!` 結尾）同以 of／the／to… 等虚詞結尾嘅句子，
   避免出「The ________ of」呢類爛題；呢類情況會 fallback 中文 MC，qtype
-  會顯示 **`MC · no sentence`**。設定畫面 Question type 下面有
+  會顯示 **`MC · no sentence`**。Cambridge 有啲詞條（例：flea／hamster／
+  woodpecker／orca）本身真係 0 句 example，呢啲一定 fallback；reluctant
+  呢類有例句嘅字就會用（曾經因為 timeout／舊 cache 而 miss，已用 v2 URL
+  ＋ no-store 修好）。設定畫面 Question type 下面有
   `#typeSummary`（例如 `Only Fill gap · tap another to mix` 或
   `Mix: MC · Fill gap`），Start 後嘅 note 會寫
   `Fill the gap N/M from Cambridge (others fall back to MC)`，老師一眼知

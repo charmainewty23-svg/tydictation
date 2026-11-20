@@ -198,7 +198,7 @@ async function fetchEntry(word) {
 }
 
 async function handler(req, res) {
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
@@ -229,6 +229,7 @@ async function handler(req, res) {
             audio.us = '';
         }
         const found = meanings.length > 0 || !!(audio.uk || audio.us);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
         res.statusCode = 200;
         res.end(JSON.stringify({
             word: word,

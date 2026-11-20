@@ -1217,6 +1217,7 @@
   }
 
   const exampleCache = new Map();
+  const CAMBRIDGE_API_VERSION = 'v2';
 
   function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1257,8 +1258,9 @@
     const task = (async function () {
       try {
         const ctrl = new AbortController();
-        const timer = setTimeout(function () { ctrl.abort(); }, 6000);
-        const res = await fetch('/api/cambridge?word=' + encodeURIComponent(word), { signal: ctrl.signal });
+        const timer = setTimeout(function () { ctrl.abort(); }, 12000);
+        const res = await fetch('/api/cambridge?word=' + encodeURIComponent(word) +
+          '&v=' + CAMBRIDGE_API_VERSION, { signal: ctrl.signal });
         clearTimeout(timer);
         if (!res.ok) return '';
         const data = await res.json();
@@ -1276,7 +1278,9 @@
           if (stop.indexOf(last) !== -1) continue;
           return ex;
         }
-      } catch (e) { /* fall back to the Chinese prompt */ }
+      } catch (e) {
+        exampleCache.delete(key);
+      }
       return '';
     })();
     exampleCache.set(key, task);

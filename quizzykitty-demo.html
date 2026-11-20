@@ -204,6 +204,12 @@
     margin: 12px 2px 0; font-size: 12px; font-weight: 700;
     color: var(--muted); text-align: center; min-height: 16px;
   }
+  .setup-hub {
+    display: block; width: max-content; margin: 8px auto 0;
+    font-size: 12px; font-weight: 800; color: var(--brand);
+    text-decoration: none;
+  }
+  .setup-hub:hover { text-decoration: underline; }
   .typing-card {
     grid-column: 1 / -1;
     border-radius: 14px; border: 2px dashed var(--line); background: var(--brand-soft);
@@ -476,8 +482,20 @@
   .trophy-place.champion .trophy-name { font-size: 1.5rem; }
   .trophy-score { font-size: .9rem; font-weight: 800; color: var(--brand); }
   .trophy-place.champion .trophy-score { font-size: 1.05rem; }
+  .trophy-actions {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;
+  }
+  .trophy-actions .trophy-continue { flex: 1 1 190px; }
+  .trophy-hub {
+    flex: 1 1 130px; min-height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 999px; border: 2px solid #fcd34d;
+    background: #fff; color: #b45309; font-weight: 800;
+    text-decoration: none;
+  }
+  .trophy-hub:hover { background: #fffbeb; }
   .trophy-continue {
-    width: 100%; min-height: 48px; margin-top: 4px;
+    min-height: 48px;
     border: 0; border-radius: 999px; background: #f59e0b; color: #fff;
     font: inherit; font-weight: 800; cursor: pointer;
     box-shadow: 0 4px 0 #b45309;
@@ -591,6 +609,10 @@
             <span class="setup-label">Topic</span>
             <select id="setTopic" class="setup-select"></select>
           </label>
+          <div class="setup-row wide hidden" id="nvScopeRow">
+            <span class="setup-label">New Vocab words</span>
+            <div class="pills" id="setScope"></div>
+          </div>
           <div class="setup-row wide">
             <span class="setup-label">Question type · pick one or more</span>
             <div class="pills" id="setType"></div>
@@ -608,6 +630,7 @@
         <div class="controls">
           <button type="button" id="startBtn">▶ Start quiz</button>
         </div>
+        <a class="setup-hub" href="/index.html">← Back to Hub</a>
       </div>
 
       <div id="quizBody" class="hidden">
@@ -652,7 +675,10 @@
       <div id="trophyPlaces"></div>
       <div id="trophyPhoto"></div>
     </div>
-    <button type="button" class="trophy-continue" id="againBtn">🎉 New quiz</button>
+    <div class="trophy-actions">
+      <button type="button" class="trophy-continue" id="againBtn">🎉 New quiz</button>
+      <a class="trophy-hub" href="/index.html">🏠 Back to Hub</a>
+    </div>
   </div>
 </div>
 
@@ -792,7 +818,12 @@
     { id: 'class', label: '👥 Class battle · 30 students' },
     { id: 'quick', label: '🤖 Quick demo · 5 players' }
   ];
-  const settings = { mode: 'class', topic: 'mixed', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
+  const SCOPE_OPTIONS = [
+    { id: 'all', label: '📚 All words' },
+    { id: 'today', label: '🆕 Added today' },
+    { id: 'yesterday', label: '📅 Added yesterday' }
+  ];
+  const settings = { mode: 'class', topic: 'mixed', scope: 'all', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -999,8 +1030,20 @@
     return SUPABASE_KEY;
   }
 
-  async function loadNewVocab(form) {
-    const query = 'select=en,zh,form&limit=1000' + (form ? '&form=eq.' + encodeURIComponent(form) : '');
+  function hkDayKey(value) {
+    const date = value ? new Date(value) : new Date();
+    if (isNaN(date.getTime())) return '';
+    const hk = new Date(date.getTime() + 8 * 3600 * 1000);
+    return hk.toISOString().slice(0, 10);
+  }
+
+  function hkDayOffset(days) {
+    const hk = new Date(Date.now() + 8 * 3600 * 1000 + days * 86400000);
+    return hk.toISOString().slice(0, 10);
+  }
+
+  async function loadNewVocab(form, scope) {
+    const query = 'select=en,zh,form,created_at&limit=1000' + (form ? '&form=eq.' + encodeURIComponent(form) : '');
     const res = await fetch(SUPABASE_URL + '/rest/v1/new_vocab_words?' + query, {
       headers: {
         apikey: SUPABASE_KEY,
@@ -1009,34 +1052,43 @@
     });
     if (!res.ok) return [];
     const rows = await res.json();
+    const today = hkDayOffset(0);
+    const yesterday = hkDayOffset(-1);
     return (rows || [])
-      .filter(r => r.en && r.zh)
+      .filter(function (r) {
+        if (!r.en || !r.zh) return false;
+        if (scope === 'today') return hkDayKey(r.created_at) === today;
+        if (scope === 'yesterday') return hkDayKey(r.created_at) === yesterday;
+        return true;
+      })
       .map(r => ({ en: r.en, zh: r.zh, topic: 'New Vocab ' + r.form }));
   }
 
-  function loadBank(id) {
-    if (bankCache.has(id)) return bankCache.get(id);
-    const cached = readBankCache(id);
+  function loadBank(id, scope) {
+    const useScope = scope || 'all';
+    const cacheId = id + (useScope === 'all' ? '' : '|' + useScope);
+    if (bankCache.has(cacheId)) return bankCache.get(cacheId);
+    const cached = readBankCache(cacheId);
     if (cached) {
       const hit = Promise.resolve(cached);
-      bankCache.set(id, hit);
+      bankCache.set(cacheId, hit);
       return hit;
     }
     let task;
     if (id === 'mixed') {
       task = Promise.all(SHEET_NAMES.map(n => loadSheet(n).catch(() => [])))
         .then(groups => [].concat.apply([], groups))
-        .then(sheetWords => loadNewVocab('').catch(() => []).then(nv => sheetWords.concat(nv)));
+        .then(sheetWords => loadNewVocab('', 'all').catch(() => []).then(nv => sheetWords.concat(nv)));
     } else if (id.indexOf('sheet:') === 0) {
       task = loadSheet(id.slice(6));
     } else if (id.indexOf('nv:') === 0) {
-      task = loadNewVocab(id.slice(3));
+      task = loadNewVocab(id.slice(3), useScope);
     } else {
       task = Promise.resolve([]);
     }
-    bankCache.set(id, task);
-    task.then(words => { if (words && words.length) writeBankCache(id, words); })
-      .catch(() => bankCache.delete(id));
+    bankCache.set(cacheId, task);
+    task.then(words => { if (words && words.length) writeBankCache(cacheId, words); })
+      .catch(() => bankCache.delete(cacheId));
     return task;
   }
 
@@ -1227,6 +1279,7 @@
       const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
       if (!raw) return;
       if (raw.mode === 'class' || raw.mode === 'quick') settings.mode = raw.mode;
+      if (raw.scope === 'today' || raw.scope === 'yesterday' || raw.scope === 'all') settings.scope = raw.scope;
       const valid = TYPE_OPTIONS.map(o => o.id);
       if (Array.isArray(raw.types)) settings.types = raw.types.filter(id => valid.indexOf(id) !== -1);
       else if (raw.type === 'mixed') settings.types = valid.slice();
@@ -1308,6 +1361,14 @@
       settings.mode = id;
       saveSettings();
       updateRoomChip();
+      renderSetup();
+    });
+    const isNewVocab = settings.topic.indexOf('nv:') === 0;
+    const scopeRow = $('nvScopeRow');
+    if (scopeRow) scopeRow.classList.toggle('hidden', !isNewVocab);
+    renderPills($('setScope'), SCOPE_OPTIONS, settings.scope, function (id) {
+      settings.scope = id;
+      saveSettings();
       renderSetup();
     });
     renderTypePills();
@@ -1400,8 +1461,18 @@
     note.textContent = 'Loading “' + topicTitle(settings.topic) + '”…';
 
     let message = '';
+    const nvTopic = settings.topic.indexOf('nv:') === 0;
     try {
-      let words = await loadBank(settings.topic);
+      let words = await loadBank(settings.topic, nvTopic ? settings.scope : 'all');
+      if (!words.length && nvTopic && settings.scope !== 'all') {
+        const allWords = await loadBank(settings.topic, 'all');
+        if (allWords.length) {
+          words = allWords;
+          message = 'No words added ' + (settings.scope === 'today' ? 'today' : 'yesterday') +
+            ' for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
+            ' — using all ' + allWords.length + ' words instead.';
+        }
+      }
       if (!words.length) throw new Error('empty');
       if (words.length < 6) {
         message = 'That topic only had ' + words.length + ' words, so this round uses demo words.';
@@ -1411,13 +1482,15 @@
       questions = makeQuestions(bank, settings);
       if (!questions.length) throw new Error('no questions');
       if (!message) {
-        message = 'Loaded ' + bank.length + ' words from ' + topicTitle(settings.topic) +
+        const scopeLabel = nvTopic && settings.scope !== 'all'
+          ? ' · ' + (settings.scope === 'today' ? 'added today' : 'added yesterday')
+          : '';
+        message = 'Loaded ' + bank.length + ' words from ' + topicTitle(settings.topic) + scopeLabel +
           ' · ' + questions.length + ' questions · ' + settings.seconds + 's each.';
       }
     } catch (e) {
       bank = DEMO_WORDS.slice();
       questions = makeQuestions(bank, settings);
-      const nvTopic = settings.topic.indexOf('nv:') === 0;
       message = nvTopic
         ? 'No New Vocab words came back for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
           ' — sign in with a school account (or that form may still be empty). Using 33 demo words this round.'
@@ -2206,7 +2279,10 @@
   $('setTopic').addEventListener('change', function (event) {
     settings.topic = event.target.value;
     saveSettings();
-    $('setupNote').textContent = 'Words for “' + topicTitle(settings.topic) + '” load when you press Start.';
+    renderSetup();
+    $('setupNote').textContent = settings.topic.indexOf('nv:') === 0
+      ? 'Pick All words, Added today or Added yesterday, then press Start.'
+      : 'Words for “' + topicTitle(settings.topic) + '” load when you press Start.';
   });
   $('startBtn').addEventListener('click', startQuiz);
   $('revealBtn').addEventListener('click', function () {

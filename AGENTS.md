@@ -2049,6 +2049,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   設定存 `localStorage['learniTY_qk_settings']`，重新整理同「🎉 New quiz」都會保留。
   - Topic：**Mixed**（20 個 Dictation Sheet tabs ＋ 全部 New Vocab）、逐個
     Dictation topic、**New Vocab · F3／F4／F6**。`#setTopic` 用 optgroup 分組。
+  - 揀 New Vocab 時多一行 **New Vocab words**（`#nvScopeRow`／`#setScope`）：
+    📚 All words／🆕 Added today／📅 Added yesterday（`settings.scope`）。
+    用 `created_at` 同香港日界（`hkDayKey`／`hkDayOffset`）過濾；只有
+    `nv:` topic 才顯示，Mixed／Sheet topic 會收埋。
   - **Question type 可以揀多過一種**（`settings.types` array）：
     🔤 Multiple choice、✅ True / false、⌨️ Type the word。三個 pill 可以任意
     組合，**最少要留一個**（撳走最後一個會提示）。舊版存落嘅 `type:'mixed'`
@@ -2056,9 +2060,11 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - Questions：10／15／20／25／30。Seconds each：10／15／20／30（時間到自動 reveal）。
 - **題目來源**：Dictation tabs 經 gviz CSV（`parseCSV()` 同 app 一樣），
   結果連 20 個 tab 分開 cache 10 分鐘喺 `localStorage['learniTY_qk_bank_v1']`；
-  New Vocab 用 Supabase REST（`new_vocab_words`），token 由同 origin 嘅
-  `sb-*-auth-token` 讀（老師喺 tydictation 已登入就讀到全部年級），
-  未登入／該年級冇字就 fallback 33 個內建示範字，並喺 `#setupNote` 講明。
+  New Vocab 用 Supabase REST（`new_vocab_words?select=en,zh,form,created_at`），
+  token 由同 origin 嘅 `sb-*-auth-token` 讀（老師喺 tydictation 已登入就讀到
+  全部年級）。Cache key 會包 scope（`nv:F4|today`），All words 就係 `nv:F4`。
+  如果揀 today／yesterday 但係 0 字，會 fallback 該年級 **All words**，並喺
+  `#setupNote` 寫明；All words 都冇（未登入／空）才用 33 個示範字。
   Sheet 或網絡失敗都一樣用示範字，唔會開唔到局。
 - **短答（type 串字）**：學生電話有 64px 輸入框＋Submit（Enter 都交），
   交完鎖定；老師畫面係「⌨️ Students are typing…」加即時答案數。
@@ -2113,7 +2119,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   ≤620px 高會收起 class photo（Top 3 嘅貓仍然見到）。
   `#confetti` 有 30 粒 CSS 彩帶（6 秒後清除）；音樂用
   `/music/trophyMusic.mp3`（volume 0.45），關閉／New quiz 會停。
-  卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）。
+  卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）同
+  **🏠 Back to Hub**（`a.trophy-hub` → `/index.html`，48px）。設定畫面
+  Start 下面亦有細字 **← Back to Hub**（`.setup-hub`）。
   短螢幕有 compact CSS：≤760px、≤620px、≤560px 橫向，320×568 同
   390×844 都免捲動見到頒獎禮同 New quiz。
 - **背景音樂（host 都有）**：老師一撳 Start 就會喺自己部機播；因為 host

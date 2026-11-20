@@ -234,6 +234,11 @@
   }
   .short-submit:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brand-dark); }
   .short-submit:disabled { opacity: .5; }
+  .short-hint {
+    margin: 2px 0 0; font-size: 10px; font-weight: 700;
+    color: var(--muted); text-align: center; line-height: 1.3;
+  }
+  .typing-card .typing-hint { color: #166534; }
   .reveal-stack { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
   .answer-strip {
     display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
@@ -579,7 +584,7 @@
         </div>
         <div class="setup-grid">
           <div class="setup-row wide">
-            <span class="setup-label">Players</span>
+            <span class="setup-label">Players · teacher not counted</span>
             <div class="pills" id="setMode"></div>
           </div>
           <label class="setup-row wide">
@@ -784,8 +789,8 @@
   const COLORS = ['c0', 'c1', 'c2', 'c3'];
 
   const MODE_OPTIONS = [
-    { id: 'class', label: '👥 Class battle · 30' },
-    { id: 'quick', label: '🤖 Quick demo · 5' }
+    { id: 'class', label: '👥 Class battle · 30 students' },
+    { id: 'quick', label: '🤖 Quick demo · 5 players' }
   ];
   const settings = { mode: 'class', topic: 'mixed', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
 
@@ -1370,7 +1375,8 @@
     const n = (phase === 'setup' || phase === 'loading')
       ? (settings.mode === 'class' ? 30 : 5)
       : players.length;
-    el.textContent = 'Room QK-2048 · ' + n + ' players';
+    const unit = settings.mode === 'class' ? ' students' : ' players';
+    el.textContent = 'Room QK-2048 · ' + n + unit;
   }
 
   function resetPlayers() {
@@ -1549,6 +1555,7 @@
           '<div class="typing-emoji">⌨️</div>' +
           '<div class="hintline">Students are typing the English word…</div>' +
           '<small id="typingCount">0 answers in</small>' +
+          '<small class="typing-hint">UK / US spellings both count</small>' +
         '</div>';
       updateTypingCount();
     } else {
@@ -1603,7 +1610,8 @@
       sanswersEl.className = 'sanswers short';
       sanswersEl.innerHTML =
         '<input id="shortInput" class="short-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Type the English word">' +
-        '<button type="button" class="short-submit" id="shortSubmit">Submit</button>';
+        '<button type="button" class="short-submit" id="shortSubmit">Submit</button>' +
+        '<p class="short-hint">UK / US spellings both count — e.g. colour or color.</p>';
       const input = $('shortInput');
       const submit = $('shortSubmit');
       const send = function () {
@@ -1758,7 +1766,7 @@
     host.innerHTML =
       '<div class="srank-top">' +
         '<span class="srank-pos">#' + rank + '</span>' +
-        '<span class="srank-of">of ' + total + '</span>' +
+        '<span class="srank-of">of ' + total + (settings.mode === 'class' ? ' students' : ' players') + '</span>' +
         (move !== 0
           ? '<span class="srank-move' + (move < 0 ? ' down' : '') + '">' + (move > 0 ? '▲' + move : '▼' + (-move)) + '</span>'
           : '') +
@@ -1817,7 +1825,8 @@
         '<span class="rb-score">0</span></div>';
     }
 
-    const subtitle = limited ? 'Top 7 of ' + sorted.length : sorted.length + ' players';
+    const unit = settings.mode === 'class' ? ' students' : ' players';
+    const subtitle = limited ? 'Top 7 of ' + sorted.length + unit : sorted.length + unit;
     const hiddenCount = sorted.length - shown.length - extra.length;
     host.innerHTML =
       '<div class="rb-head"><b>After question ' + (qIndex + 1) + '</b><span>' + subtitle + '</span></div>' +
@@ -2052,7 +2061,7 @@
       finalCard.className = 'srank show' + (finalRank === 1 ? ' leading' : '');
       finalCard.innerHTML =
         '<div class="srank-top"><span class="srank-pos">#' + finalRank + '</span>' +
-        '<span class="srank-of">of ' + players.length + '</span></div>' +
+        '<span class="srank-of">of ' + players.length + (settings.mode === 'class' ? ' students' : ' players') + '</span></div>' +
         '<div class="srank-msg">' + (finalRank === 1 ? '👑 You won the class quiz!' : '🏁 Final rank — great fight!') + '</div>';
     }
     showTrophy();

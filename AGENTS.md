@@ -2035,7 +2035,8 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   開班際房嘅位置下面就直接見到；學生（class 卡隱藏時）都會見到呢張卡。
   想改成 in-app iframe 就要另加 view＋nav 規則。
 - **兩種規模**（`settings.mode`，設定畫面「Players」）：
-  - **👥 Class battle · 30**（預設）：You ＋ 29 個 mock 同學（3A／3B／4C／4D／6D，
+  - **👥 Class battle · 30 students**（預設）：30 個學生＝You ＋ 29 個 mock 同學，
+    **老師唔計在內**（老師只係 host／projector，唔會出現喺榜）；3A／3B／4C／4D／6D，
     例如 `3A 01 Chan`…`6D 29 Pang`），每人有自己嘅貓（Ginger／Ragdoll／
     British Shorthair／Garfield），部分戴 Crown／Party Hat／Lo-Fi Headphones／
     Glasses／Sunglasses；`CLASS_ROSTER` 有齊名字、貓、飾物同 acc。
@@ -2064,7 +2065,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   批改直接抄 `shared.js` 的 `answerNormalize`／`answerVariants`／UK-US
   `UK_US_PAIRS`（約 130 對＋自動 `+s`／`-ise/-ize`／`-our` 變化）入 demo，
   所以大小楷、標點、`a / b` 多答案、`color/colour`、`center/centre`、
-  `travelled/traveled` 全部當對；答錯唔扣分。
+  `travelled/traveled` 全部當對；答錯唔扣分。學生輸入框下面會寫
+  「UK / US spellings both count — e.g. colour or color.」，老師 typing card
+  亦有「UK / US spellings both count」。
 - MC：4 個選項，干擾項優先抽同一 topic（唔夠先用示範字），每次洗牌。
 - True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
 - 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
@@ -2113,7 +2116,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）。
   短螢幕有 compact CSS：≤760px、≤620px、≤560px 橫向，320×568 同
   390×844 都免捲動見到頒獎禮同 New quiz。
-- **背景音樂**：`/music/quizzymusic.mp3`（2.7MB，唔入 `sw.js` CORE_ASSETS；
+- **背景音樂（host 都有）**：老師一撳 Start 就會喺自己部機播；因為 host
+  頁面就係控制台，所以 host-only（唔落場答題）一樣有音樂，🔊 可靜音。
+  `/music/quizzymusic.mp3`（2.7MB，唔入 `sw.js` CORE_ASSETS；
   第一次由 network-first SW cache）。`ensureMusic()` loop、volume **0.32**，
   喺 `startQuiz()` 手勢內即刻 `startMusic()`（避免 autoplay 被封）；
   `finish()`／`closeTrophy()` 會停。檔案缺失時 `error` listener 會 fallback

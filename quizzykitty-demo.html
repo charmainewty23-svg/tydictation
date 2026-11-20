@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>QuizzyKitty — Class Quiz Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --cream: #fff9f2;
@@ -20,12 +23,9 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; }
   body {
-    background:
-      radial-gradient(circle at 8% 4%, rgba(255,214,102,.45), transparent 30%),
-      radial-gradient(circle at 94% 8%, rgba(196,181,253,.4), transparent 28%),
-      linear-gradient(150deg, #dff6ff 0%, #f0e6ff 40%, #ffe9f2 68%, #e6fff4 100%);
+    background: #cfefff url("assets/QuizzyBG.png") center top / cover no-repeat;
     color: var(--ink);
-    font-family: ui-rounded, "Fredoka", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "Balsamiq Sans", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-tap-highlight-color: transparent;
     min-height: 100dvh;
   }
@@ -39,9 +39,27 @@
     max-width: 1180px;
     margin: 0 auto;
   }
-  .brand { font-size: 22px; font-weight: 900; letter-spacing: -.02em; }
-  .brand span { color: var(--brown); }
-  .brand small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #8a7f9e; font-weight: 700; }
+  .brand { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .brand-logo-crop {
+    width: 190px;
+    height: 64px;
+    overflow: hidden;
+  }
+  #quizzyLogo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 60%;
+  }
+  .brand small {
+    padding-left: 3px;
+    font-size: 9px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #2557d6;
+    font-weight: 700;
+  }
   .top-right { display: flex; align-items: center; gap: 8px; }
   .code {
     padding: 5px 10px;
@@ -93,7 +111,8 @@
     color: #5b3a1e;
     text-align: center;
     min-height: 76px;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
   }
   .question small {
     display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
@@ -233,7 +252,7 @@
   }
   @media (max-width: 420px) {
     .top { padding: 8px 10px; }
-    .brand { font-size: 19px; }
+    .brand-logo-crop { width: 158px; height: 54px; }
     .code { display: none; }
     main { padding: 0 10px 14px; }
     .choice { padding-left: 40px; font-size: 14px; }
@@ -244,7 +263,10 @@
 </head>
 <body data-pane="teacher">
 <header class="top">
-  <div class="brand">🐱 Quizzy<span>Kitty</span><small>Class quiz demo</small></div>
+  <div class="brand">
+    <div class="brand-logo-crop"><img id="quizzyLogo" src="assets/Quizzylogo.png" alt="QuizzyKitty"></div>
+    <small>Class quiz demo</small>
+  </div>
   <div class="top-right">
     <span class="code">Room QK-2048 · 5 players</span>
     <button type="button" class="icon-btn" id="musicBtn" aria-label="Music">🔊</button>
@@ -301,6 +323,32 @@
 </div>
 
 <script>
+/* Remove the logo's white background so it sits on the QuizzyBG scene. */
+(function () {
+  const img = new Image();
+  img.onload = function () {
+    try {
+      const size = 900;
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0, size, size);
+      const frame = g.getImageData(0, 0, size, size);
+      const d = frame.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const m = Math.min(d[i], d[i + 1], d[i + 2]);
+        if (m >= 248) d[i + 3] = 0;
+        else if (m > 228) d[i + 3] = Math.round(((248 - m) / 20) * 255);
+      }
+      g.putImageData(frame, 0, 0);
+      const url = c.toDataURL('image/png');
+      const el = document.getElementById('quizzyLogo');
+      if (el) el.src = url;
+    } catch (e) { /* keep the original */ }
+  };
+  img.src = 'assets/Quizzylogo.png';
+})();
+
 (function () {
   'use strict';
 

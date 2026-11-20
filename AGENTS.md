@@ -2037,6 +2037,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   可直接重用）。
 - 老師／projector 面板同學生手機面板喺 ≥900px 並排；手機用 Teacher／Student
   tab 切換。音樂用 `/music/battlemusic.mp3`，可 mute。
+- 視覺：背景 `assets/QuizzyBG.png`（pixel 場景，cover）、logo
+  `assets/Quizzylogo.png`（runtime canvas 去白底，crop 190×64）、字體
+  **Balsamiq Sans**（Google Fonts）。`stickers/` 係 gitignore，所以用 `assets/` 副本。
 - 目前只係 demo；真正 class quiz 要 Supabase 房間／question JSON／answer RPC。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）

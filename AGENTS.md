@@ -2083,7 +2083,9 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   protects／protected 呢類變化，免得選項文法唔對）。Cambridge 冇例句、
   未部署 `/api` 或網絡失敗 → 該題自動變返普通中文 MC，唔會卡住。
   Start 時會顯示「Loading Cambridge sentences…」，例句有 in-memory
-  cache，API 本身 Cache-Control 24h。
+  cache，API 本身 Cache-Control 24h。`api/cambridge.js` 同 demo 都會
+  丟走**截斷**例句（冇 `.?!` 結尾）同以 of／the／to… 等虚詞結尾嘅句子，
+  避免出「The ________ of」呢類爛題；呢類情況會 fallback 中文 MC。
 - True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
 - 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
 - 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；

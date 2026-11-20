@@ -1238,9 +1238,17 @@
         const data = await res.json();
         const list = Array.isArray(data.examples) ? data.examples : [];
         const re = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
+        const stop = ['of', 'the', 'a', 'an', 'to', 'in', 'on', 'at', 'for', 'with',
+          'and', 'or', 'but', 'that', 'which', 'when', 'while', 'as', 'by', 'from',
+          'into', 'about', 'over', 'under', 'than', 'is', 'are', 'was', 'were'];
         for (let i = 0; i < list.length; i += 1) {
-          const ex = String(list[i] || '');
-          if (ex.length >= 10 && ex.length <= 180 && re.test(ex)) return ex;
+          const ex = String(list[i] || '').replace(/\s+([.,!?;:])/g, '$1').trim();
+          if (ex.length < 10 || ex.length > 180 || !re.test(ex)) continue;
+          if (!/[.!?]"$/.test(ex) && !/[.!?]$/.test(ex)) continue;
+          const tail = ex.replace(/[.!?]"$/, '').replace(/[.!?]$/, '');
+          const last = tail.split(/\s+/).pop().toLowerCase();
+          if (stop.indexOf(last) !== -1) continue;
+          return ex;
         }
       } catch (e) { /* fall back to the Chinese prompt */ }
       return '';

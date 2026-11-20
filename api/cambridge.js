@@ -48,14 +48,29 @@ function parseMeanings(html) {
     return meanings;
 }
 
+const EXAMPLE_STOP_WORDS = new Set([
+    'of', 'the', 'a', 'an', 'to', 'in', 'on', 'at', 'for', 'with', 'and', 'or',
+    'but', 'that', 'which', 'when', 'while', 'as', 'by', 'from', 'into',
+    'about', 'over', 'under', 'than', 'is', 'are', 'was', 'were'
+]);
+
+function isCompleteExample(text) {
+    const clean = String(text || '').replace(/\s+([.,!?;:])/g, '$1').trim();
+    if (clean.length < 10 || clean.length > 220) return false;
+    if (!/[.!?]"?$/.test(clean)) return false;
+    const last = clean.replace(/[.!?]"?$/, '').split(/\s+/).pop().toLowerCase();
+    if (EXAMPLE_STOP_WORDS.has(last)) return false;
+    return true;
+}
+
 function parseExamples(html) {
     const out = [];
     const seen = new Set();
     const re = /<span class="eg deg">([\s\S]*?)<\/span>/gi;
     let match;
     while ((match = re.exec(html))) {
-        const text = stripTags(match[1]);
-        if (text.length < 10 || text.length > 220) continue;
+        const text = stripTags(match[1]).replace(/\s+([.,!?;:])/g, '$1');
+        if (!isCompleteExample(text)) continue;
         if (seen.has(text)) continue;
         seen.add(text);
         out.push(text);

@@ -3270,7 +3270,7 @@
         dist = 'True ' + (counts['true'] || 0) + ' · False ' + (counts['false'] || 0);
       } else {
         dist = q.choices.map(function (c, i) {
-          return escapeHtml(c) + ' ' + (counts[String(i)] || 0);
+          return c + ' ' + (counts[String(i)] || 0);
         }).join(' · ');
       }
     }

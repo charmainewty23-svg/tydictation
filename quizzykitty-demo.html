@@ -201,6 +201,8 @@
   }
   .pill.on { background: var(--brand); border-color: var(--brand); color: var(--cream); }
   .pill:active { transform: translateY(1px); }
+  .type-summary { margin-top: 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+  .type-summary b { color: var(--brand); }
   .setup-note {
     margin: 12px 2px 0; font-size: 12px; font-weight: 700;
     color: var(--muted); text-align: center; min-height: 16px;
@@ -702,6 +704,7 @@
           <div class="setup-row wide">
             <span class="setup-label">Question type · pick one or more</span>
             <div class="pills" id="setType"></div>
+            <div class="type-summary" id="typeSummary"></div>
           </div>
           <div class="setup-row">
             <span class="setup-label">Questions</span>
@@ -1217,11 +1220,32 @@
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function blankSentence(example, word) {
+  function wordForms(word) {
+    const w = String(word || '').toLowerCase();
+    if (!w) return [];
+    const out = [w];
+    const add = function (v) { if (v && out.indexOf(v) === -1) out.push(v); };
+    if (/y$/.test(w)) {
+      const stem = w.slice(0, -1);
+      add(stem + 'ies'); add(stem + 'ied'); add(stem + 'ier'); add(stem + 'iest');
+    }
+    if (/e$/.test(w)) add(w.slice(0, -1) + 'ing');
+    add(w + 's'); add(w + 'es'); add(w + 'ed'); add(w + 'd'); add(w + 'ing');
+    add(w + 'er'); add(w + 'est');
+    if (/[bcdfghjklmnpqrstvwxz]$/.test(w)) {
+      const doubled = w + w.slice(-1);
+      add(doubled + 'ed'); add(doubled + 'ing'); add(doubled + 'er'); add(doubled + 'est');
+    }
+    return out.sort((a, b) => b.length - a.length);
+  }
+
+  function findWordForm(example, word) {
     if (!example || !word) return '';
-    const re = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
-    if (!re.test(example)) return '';
-    return example.replace(re, '________');
+    const forms = wordForms(word);
+    if (!forms.length) return '';
+    const re = new RegExp('\\b(' + forms.map(escapeRegex).join('|') + ')\\b', 'i');
+    const match = re.exec(example);
+    return match ? match[1] : '';
   }
 
   function fetchCambridgeExample(word) {
@@ -1237,15 +1261,15 @@
         if (!res.ok) return '';
         const data = await res.json();
         const list = Array.isArray(data.examples) ? data.examples : [];
-        const re = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
         const stop = ['of', 'the', 'a', 'an', 'to', 'in', 'on', 'at', 'for', 'with',
           'and', 'or', 'but', 'that', 'which', 'when', 'while', 'as', 'by', 'from',
           'into', 'about', 'over', 'under', 'than', 'is', 'are', 'was', 'were'];
         for (let i = 0; i < list.length; i += 1) {
           const ex = String(list[i] || '').replace(/\s+([.,!?;:])/g, '$1').trim();
-          if (ex.length < 10 || ex.length > 180 || !re.test(ex)) continue;
-          if (!/[.!?]"$/.test(ex) && !/[.!?]$/.test(ex)) continue;
-          const tail = ex.replace(/[.!?]"$/, '').replace(/[.!?]$/, '');
+          if (ex.length < 10 || ex.length > 180) continue;
+          if (!findWordForm(ex, word)) continue;
+          if (!/[.!?]$/.test(ex)) continue;
+          const tail = ex.replace(/[.!?]$/, '');
           const last = tail.split(/\s+/).pop().toLowerCase();
           if (stop.indexOf(last) !== -1) continue;
           return ex;
@@ -1273,16 +1297,24 @@
     gapQs.forEach(function (q) {
       const word = primaryAnswer(q.en);
       const example = found.get(answerNormalize(word));
-      const blanked = example ? blankSentence(example, word) : '';
-      if (blanked) {
-        q.prompt = blanked;
+      const form = example ? findWordForm(example, word) : '';
+      if (form) {
+        const re = new RegExp('\\b' + escapeRegex(form) + '\\b', 'i');
+        q.prompt = example.replace(re, '________');
         q.sub = 'Choose the best word for the sentence';
         q.sentence = true;
+        if (answerNormalize(form) !== answerNormalize(word)) {
+          const at = q.choices.findIndex(function (c) {
+            return answerNormalize(c) === answerNormalize(word);
+          });
+          if (at !== -1) q.choices[at] = form;
+        }
       } else {
         q.type = 'mc';
         q.prompt = q.zh;
         q.sub = 'Choose the English word';
         q.sentence = false;
+        q.fallback = true;
       }
     });
   }
@@ -1578,6 +1610,14 @@
       renderSetup();
     });
     renderTypePills();
+    const shortNames = { mc: 'MC', gap: 'Fill gap', tf: 'T/F', short: 'Type' };
+    const picked = settings.types.map(function (id) { return shortNames[id] || id; });
+    const summary = $('typeSummary');
+    if (summary) {
+      summary.innerHTML = picked.length === 1
+        ? 'Only <b>' + escapeHtml(picked[0]) + '</b> · tap another to mix'
+        : 'Mix: <b>' + escapeHtml(picked.join(' · ')) + '</b>';
+    }
     renderPills($('setCount'), COUNT_OPTIONS.map(n => ({ id: n, label: String(n) })), settings.count, function (id) {
       settings.count = Number(id); saveSettings(); renderSetup();
     });
@@ -1687,17 +1727,24 @@
       bank = words;
       questions = makeQuestions(bank, settings);
       if (!questions.length) throw new Error('no questions');
+      let gapRequested = 0;
       if (questions.some(q => q.type === 'gap')) {
+        gapRequested = questions.filter(q => q.type === 'gap').length;
         btn.textContent = '⏳ Loading Cambridge sentences…';
         note.textContent = 'Loading Cambridge example sentences…';
         await decorateGapQuestions(questions);
       }
+      const gapUsed = questions.filter(q => q.type === 'gap').length;
       if (!message) {
         const scopeLabel = nvTopic && settings.scope !== 'all'
           ? ' · ' + (settings.scope === 'today' ? 'added today' : 'added yesterday')
           : '';
         message = 'Loaded ' + bank.length + ' words from ' + topicTitle(settings.topic) + scopeLabel +
           ' · ' + questions.length + ' questions · ' + settings.seconds + 's each.';
+        if (gapRequested) {
+          message += ' · Fill the gap ' + gapUsed + '/' + gapRequested + ' from Cambridge';
+          if (gapUsed < gapRequested) message += ' (others fall back to MC)';
+        }
       }
     } catch (e) {
       bank = DEMO_WORDS.slice();
@@ -1826,7 +1873,7 @@
   function renderQuestion() {
     const q = currentQ();
     $('qnum').textContent = 'Question ' + (qIndex + 1) + ' / ' + questions.length;
-    $('qtype').textContent = TYPE_LABEL[q.type];
+    $('qtype').textContent = q.fallback ? 'MC · no sentence' : TYPE_LABEL[q.type];
     $('timer').textContent = q.seconds + 's';
     $('qprompt').innerHTML = escapeHtml(q.prompt) + '<small>' + escapeHtml(q.sub) + '</small>';
     $('qprompt').classList.toggle('sentence', !!q.sentence);

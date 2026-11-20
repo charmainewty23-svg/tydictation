@@ -2079,13 +2079,20 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - **🧩 Fill the gap**：用 Cambridge 例句做題。`api/cambridge.js` 會由
   entry 的 `<span class="eg deg">` 抽最多 6 句 `examples`；demo 用
   `decorateGapQuestions()` 揀一句含目標字（整字、大小楷唔計）嘅例句，
-  將該字換成 `________`，再出 4 個選項。只會用**原字**（唔會用
-  protects／protected 呢類變化，免得選項文法唔對）。Cambridge 冇例句、
+  將該字換成 `________`，再出 4 個選項。會接受**同一字嘅屈折變化**
+  （protect→protects／protected／protecting、happy→happier、make→making、
+  study→studying 等），並將該變化做正確選項，所以句子文法啱。
+  Cambridge 冇例句、
   未部署 `/api` 或網絡失敗 → 該題自動變返普通中文 MC，唔會卡住。
   Start 時會顯示「Loading Cambridge sentences…」，例句有 in-memory
   cache，API 本身 Cache-Control 24h。`api/cambridge.js` 同 demo 都會
   丟走**截斷**例句（冇 `.?!` 結尾）同以 of／the／to… 等虚詞結尾嘅句子，
-  避免出「The ________ of」呢類爛題；呢類情況會 fallback 中文 MC。
+  避免出「The ________ of」呢類爛題；呢類情況會 fallback 中文 MC，qtype
+  會顯示 **`MC · no sentence`**。設定畫面 Question type 下面有
+  `#typeSummary`（例如 `Only Fill gap · tap another to mix` 或
+  `Mix: MC · Fill gap`），Start 後嘅 note 會寫
+  `Fill the gap N/M from Cambridge (others fall back to MC)`，老師一眼知
+  點解有 MC 題。
 - True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
 - 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
 - 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；

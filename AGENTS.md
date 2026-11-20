@@ -2028,6 +2028,12 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 - 獨立 demo：`/quizzykitty-demo.html`，唔影響正式 app。基本 MC／T/F 唔需要
   登入；只有 New Vocab topic 會借用同 origin 的 Supabase session（見下）。
+- **入口**：Battle tab（`battle-view`）嘅 teacher class room 卡
+  （`#battle-class-entry`）下面有 **`#quizzykitty-entry`**（紫色卡，
+  badge `CLASS QUIZ · DEMO`），撳 **Open QuizzyKitty →** 會喺新 tab 開
+  `/quizzykitty-demo.html`（`target="_blank" rel="noopener"`）。所以老師
+  開班際房嘅位置下面就直接見到；學生（class 卡隱藏時）都會見到呢張卡。
+  想改成 in-app iframe 就要另加 view＋nav 規則。
 - **兩種規模**（`settings.mode`，設定畫面「Players」）：
   - **👥 Class battle · 30**（預設）：You ＋ 29 個 mock 同學（3A／3B／4C／4D／6D，
     例如 `3A 01 Chan`…`6D 29 Pang`），每人有自己嘅貓（Ginger／Ragdoll／

@@ -1718,6 +1718,8 @@
     note.textContent = 'Loading “' + topicTitle(settings.topic) + '”…';
 
     let message = '';
+    let gapRequested = 0;
+    let gapUsed = 0;
     const nvTopic = settings.topic.indexOf('nv:') === 0;
     try {
       let words = await loadBank(settings.topic, nvTopic ? settings.scope : 'all');
@@ -1738,14 +1740,13 @@
       bank = words;
       questions = makeQuestions(bank, settings);
       if (!questions.length) throw new Error('no questions');
-      let gapRequested = 0;
       if (questions.some(q => q.type === 'gap')) {
         gapRequested = questions.filter(q => q.type === 'gap').length;
         btn.textContent = '⏳ Loading Cambridge sentences…';
         note.textContent = 'Loading Cambridge example sentences…';
         await decorateGapQuestions(questions);
       }
-      const gapUsed = questions.filter(q => q.type === 'gap').length;
+      gapUsed = questions.filter(q => q.type === 'gap').length;
       if (!message) {
         const scopeLabel = nvTopic && settings.scope !== 'all'
           ? ' · ' + (settings.scope === 'today' ? 'added today' : 'added yesterday')
@@ -1761,9 +1762,11 @@
       bank = DEMO_WORDS.slice();
       questions = makeQuestions(bank, settings);
       if (questions.some(q => q.type === 'gap')) {
+        gapRequested = questions.filter(q => q.type === 'gap').length;
         btn.textContent = '⏳ Loading Cambridge sentences…';
         note.textContent = 'Loading Cambridge example sentences…';
         await decorateGapQuestions(questions);
+        gapUsed = questions.filter(q => q.type === 'gap').length;
       }
       message = nvTopic
         ? 'No New Vocab words came back for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
@@ -1771,6 +1774,10 @@
         : 'Could not load “' + topicTitle(settings.topic) + '”. Using 33 demo words this round.';
     }
 
+    if (gapRequested && gapUsed === 0 &&
+        (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      message += ' · Cambridge sentences need the deployed site (localhost has no /api).';
+    }
     note.textContent = message;
     btn.disabled = false;
     btn.textContent = '▶ Start quiz';

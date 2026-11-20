@@ -1760,6 +1760,11 @@
     } catch (e) {
       bank = DEMO_WORDS.slice();
       questions = makeQuestions(bank, settings);
+      if (questions.some(q => q.type === 'gap')) {
+        btn.textContent = '⏳ Loading Cambridge sentences…';
+        note.textContent = 'Loading Cambridge example sentences…';
+        await decorateGapQuestions(questions);
+      }
       message = nvTopic
         ? 'No New Vocab words came back for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
           ' — sign in with a school account (or that form may still be empty). Using 33 demo words this round.'

@@ -172,6 +172,68 @@
   #startBtn { background: var(--yellow); color: #2a2000; box-shadow: 0 4px 0 var(--yellow-deep); }
   #startBtn:active { box-shadow: 0 2px 0 var(--yellow-deep); }
   .controls button:disabled { opacity: .45; cursor: default; }
+  .hidden { display: none !important; }
+  #setup { padding: 2px 2px 0; }
+  .setup-head { text-align: center; margin: 2px 0 12px; }
+  .setup-head h1 { margin: 0; font-size: clamp(22px, 3vw, 32px); color: var(--ink); }
+  .setup-head p {
+    margin: 6px 0 0; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 700;
+  }
+  .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .setup-row { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .setup-row.wide { grid-column: 1 / -1; }
+  .setup-label {
+    font-size: 10px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); font-weight: 800;
+  }
+  .setup-select {
+    min-height: 44px; width: 100%; border-radius: 12px; border: 2px solid var(--line);
+    background: #fff; color: var(--ink); font-weight: 700; padding: 0 10px;
+    font-family: inherit;
+  }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    min-height: 44px; border-radius: 999px; border: 2px solid var(--line);
+    background: #fff; color: var(--brand); font-weight: 800; font-size: 13px;
+    padding: 0 14px; cursor: pointer;
+  }
+  .pill.on { background: var(--brand); border-color: var(--brand); color: var(--cream); }
+  .pill:active { transform: translateY(1px); }
+  .setup-note {
+    margin: 12px 2px 0; font-size: 12px; font-weight: 700;
+    color: var(--muted); text-align: center; min-height: 16px;
+  }
+  .typing-card {
+    grid-column: 1 / -1;
+    border-radius: 14px; border: 2px dashed var(--line); background: var(--brand-soft);
+    min-height: 132px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    text-align: center; padding: 14px; color: var(--ink);
+  }
+  .typing-card .typing-emoji { font-size: 26px; }
+  .typing-card .hintline { font-size: 14px; font-weight: 800; }
+  .typing-card .big {
+    font-size: clamp(24px, 4vw, 38px); font-weight: 800;
+    color: var(--brand); letter-spacing: .02em; line-height: 1.1;
+  }
+  .typing-card small { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .typing-card.reveal { background: #e8f7ee; border-style: solid; border-color: #9fd8bb; }
+  .typing-card.reveal .big { color: var(--green); }
+  .sanswers.short { grid-template-columns: 1fr; }
+  .short-input {
+    width: 100%; min-height: 64px; border-radius: 12px; border: 2px solid var(--line);
+    background: #fff; color: var(--ink); font-family: inherit;
+    font-size: 20px; font-weight: 800; padding: 0 12px;
+  }
+  .short-input:focus { outline: 3px solid var(--yellow); outline-offset: 1px; }
+  .short-submit {
+    min-height: 52px; border-radius: 12px; border: 0; background: var(--brand);
+    color: var(--cream); font-weight: 800; font-size: 16px; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brand-dark);
+  }
+  .short-submit:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brand-dark); }
+  .short-submit:disabled { opacity: .5; }
   .board {
     margin-top: 12px; background: var(--cream); border: 2.5px solid var(--line);
     border-radius: 16px; padding: 10px 12px;
@@ -260,6 +322,10 @@
     .board { margin-top: 8px; }
     .student .phone { border-radius: 18px; }
   }
+  @media (max-width: 620px) {
+    .setup-grid { grid-template-columns: 1fr; }
+    .setup-head h1 { font-size: 24px; }
+  }
   @media (max-width: 420px) {
     .top { padding: 8px 10px; }
     .brand-logo-crop { width: 100px; height: 80px; }
@@ -291,17 +357,47 @@
 <main>
   <section class="teacher">
     <div class="screen">
-      <div class="qtop">
-        <span id="qnum">Lobby</span>
-        <span class="qtype" id="qtype">Ready</span>
-        <span class="timer" id="timer">--</span>
+      <div id="setup">
+        <div class="setup-head">
+          <h1>Set up your quiz</h1>
+          <p>Teacher controls every question</p>
+        </div>
+        <div class="setup-grid">
+          <label class="setup-row wide">
+            <span class="setup-label">Topic</span>
+            <select id="setTopic" class="setup-select"></select>
+          </label>
+          <div class="setup-row wide">
+            <span class="setup-label">Question type</span>
+            <div class="pills" id="setType"></div>
+          </div>
+          <div class="setup-row">
+            <span class="setup-label">Questions</span>
+            <div class="pills" id="setCount"></div>
+          </div>
+          <div class="setup-row">
+            <span class="setup-label">Seconds each</span>
+            <div class="pills" id="setSeconds"></div>
+          </div>
+        </div>
+        <div class="setup-note" id="setupNote">Dictation topics load from the class Sheet. New Vocab needs a school sign-in on this site.</div>
+        <div class="controls">
+          <button type="button" id="startBtn">▶ Start quiz</button>
+        </div>
       </div>
-      <h1 class="question" id="qprompt">Ready to quiz?<small>5 players · teacher controls each question</small></h1>
-      <div class="choices" id="choices"></div>
-      <div class="controls">
-        <button type="button" id="startBtn">▶ Start quiz</button>
-        <button type="button" id="revealBtn" class="ghost" disabled>👀 Reveal</button>
-        <button type="button" id="nextBtn" class="ghost" disabled>Next →</button>
+
+      <div id="quizBody" class="hidden">
+        <div class="qtop">
+          <span id="qnum">Lobby</span>
+          <span class="qtype" id="qtype">Ready</span>
+          <span class="timer" id="timer">--</span>
+        </div>
+        <h1 class="question" id="qprompt">Ready to quiz?</h1>
+        <div class="choices" id="choices"></div>
+        <div class="controls">
+          <button type="button" id="revealBtn" class="ghost" disabled>👀 Reveal</button>
+          <button type="button" id="nextBtn" class="ghost" disabled>Next →</button>
+        </div>
       </div>
     </div>
     <div class="board">
@@ -328,7 +424,7 @@
   <div class="podium-card">
     <h2>🏆 Quiz complete</h2>
     <div id="podiumRows"></div>
-    <button type="button" id="againBtn">↻ Play again</button>
+    <button type="button" id="againBtn">↻ New quiz</button>
   </div>
 </div>
 
@@ -383,45 +479,395 @@
 (function () {
   'use strict';
 
-  const WORDS = [
-    { en: 'cat', zh: '貓', pos: 'noun' },
-    { en: 'dog', zh: '狗', pos: 'noun' },
-    { en: 'tiger', zh: '老虎', pos: 'noun' },
-    { en: 'penguin', zh: '企鵝', pos: 'noun' },
-    { en: 'dolphin', zh: '海豚', pos: 'noun' },
-    { en: 'giraffe', zh: '長頸鹿', pos: 'noun' },
-    { en: 'rabbit', zh: '兔', pos: 'noun' },
-    { en: 'elephant', zh: '大象', pos: 'noun' },
-    { en: 'apple', zh: '蘋果', pos: 'noun' },
-    { en: 'banana', zh: '香蕉', pos: 'noun' },
-    { en: 'pizza', zh: '薄餅', pos: 'noun' },
-    { en: 'sushi', zh: '壽司', pos: 'noun' },
-    { en: 'tomato', zh: '番茄', pos: 'noun' },
-    { en: 'bread', zh: '麵包', pos: 'noun' },
-    { en: 'library', zh: '圖書館', pos: 'noun' },
-    { en: 'teacher', zh: '老師', pos: 'noun' },
-    { en: 'homework', zh: '功課', pos: 'noun' },
-    { en: 'exam', zh: '考試', pos: 'noun' },
-    { en: 'pollution', zh: '污染', pos: 'noun' },
-    { en: 'plastic', zh: '塑膠', pos: 'noun' },
-    { en: 'climate', zh: '氣候', pos: 'noun' },
-    { en: 'borrow', zh: '借', pos: 'verb' },
-    { en: 'celebrate', zh: '慶祝', pos: 'verb' },
-    { en: 'compare', zh: '比較', pos: 'verb' },
-    { en: 'protect', zh: '保護', pos: 'verb' },
-    { en: 'improve', zh: '改善', pos: 'verb' },
-    { en: 'recycle', zh: '回收', pos: 'verb' },
-    { en: 'crispy', zh: '脆', pos: 'adjective' },
-    { en: 'generous', zh: '慷慨', pos: 'adjective' },
-    { en: 'crowded', zh: '擁擠', pos: 'adjective' },
-    { en: 'spicy', zh: '辣', pos: 'adjective' },
-    { en: 'quiet', zh: '安靜', pos: 'adjective' },
-    { en: 'ancient', zh: '古老', pos: 'adjective' }
+  /* ------------------------------------------------------------------ */
+  /* Word sources                                                        */
+  /* ------------------------------------------------------------------ */
+  const SHEET_ID = '1HY-fkzE7K6cYY5ZHgFVIubhzhSyMWpofjKLnEvjllwU';
+  const SHEET_NAMES = ["charity", "entertainment", "environmental issues", "family", "fashion", "festivals", "food and restaurants", "health", "housing", "law and order", "modern communication", "people", "animals and pets", "school", "Shopping", "social affairs", "MTR stations", "sports", "exam focus", "basics"];
+  const TOPIC_LABELS = { basics: 'Basics' };
+  const SUPABASE_URL = 'https://mggnwzirjmibreimrwiq.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZ253emlyam1pYnJlaW1yd2lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0NTg5MDUsImV4cCI6MjEwNTAzNDkwNX0.sxCPETSvMivX0L5ILBlIH07kJ6Ebz0OloHTSgD9I8l4';
+
+  const DEMO_WORDS = [
+    { en: 'cat', zh: '貓' }, { en: 'dog', zh: '狗' }, { en: 'tiger', zh: '老虎' },
+    { en: 'penguin', zh: '企鵝' }, { en: 'dolphin', zh: '海豚' }, { en: 'giraffe', zh: '長頸鹿' },
+    { en: 'rabbit', zh: '兔' }, { en: 'elephant', zh: '大象' }, { en: 'apple', zh: '蘋果' },
+    { en: 'banana', zh: '香蕉' }, { en: 'pizza', zh: '薄餅' }, { en: 'sushi', zh: '壽司' },
+    { en: 'tomato', zh: '番茄' }, { en: 'bread', zh: '麵包' }, { en: 'library', zh: '圖書館' },
+    { en: 'teacher', zh: '老師' }, { en: 'homework', zh: '功課' }, { en: 'exam', zh: '考試' },
+    { en: 'pollution', zh: '污染' }, { en: 'plastic', zh: '塑膠' }, { en: 'climate', zh: '氣候' },
+    { en: 'borrow', zh: '借' }, { en: 'celebrate', zh: '慶祝' }, { en: 'compare', zh: '比較' },
+    { en: 'protect', zh: '保護' }, { en: 'improve', zh: '改善' }, { en: 'recycle', zh: '回收' },
+    { en: 'crispy', zh: '脆' }, { en: 'generous', zh: '慷慨' }, { en: 'crowded', zh: '擁擠' },
+    { en: 'spicy', zh: '辣' }, { en: 'quiet', zh: '安靜' }, { en: 'ancient', zh: '古老' }
   ];
-  const SECONDS = 15;
+
+  const SETTINGS_KEY = 'learniTY_qk_settings';
+  const TYPE_OPTIONS = [
+    { id: 'mixed', label: '🎲 Mixed' },
+    { id: 'mc', label: '🔤 Multiple choice' },
+    { id: 'tf', label: '✅ True / false' },
+    { id: 'short', label: '⌨️ Type the word' }
+  ];
+  const COUNT_OPTIONS = [10, 15, 20, 25, 30];
+  const SECOND_OPTIONS = [10, 15, 20, 30];
+  const TYPE_LABEL = { mc: 'Multiple choice', tf: 'True or false', short: 'Type the word' };
   const SHAPES = ['▲', '◆', '●', '■'];
   const COLORS = ['c0', 'c1', 'c2', 'c3'];
 
+  const settings = { topic: 'mixed', type: 'mixed', count: 10, seconds: 15 };
+
+  /* ------------------------------------------------------------------ */
+  /* Small helpers                                                       */
+  /* ------------------------------------------------------------------ */
+  function shuffle(list) {
+    const a = list.slice();
+    for (let i = a.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Same answer rules as Dictation / Word Battle: case, punctuation and
+     spaces never decide, and UK/US spellings both count. */
+  function answerNormalize(s) {
+    return String(s || '').toLowerCase().trim()
+      .replace(/[.,!?;:"'“”‘’()]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+  function answerVariants(en) {
+    const out = String(en || '').split('/').map(s => s.trim()).filter(Boolean);
+    return out.length ? out : [String(en || '').trim()];
+  }
+  function primaryAnswer(en) { return answerVariants(en)[0]; }
+
+  const UK_US_PAIRS = [
+    ['colour', 'color'], ['favourite', 'favorite'], ['flavour', 'flavor'],
+    ['behaviour', 'behavior'], ['neighbour', 'neighbor'], ['honour', 'honor'],
+    ['labour', 'labor'], ['humour', 'humor'], ['rumour', 'rumor'],
+    ['harbour', 'harbor'], ['armour', 'armor'], ['endeavour', 'endeavor'],
+    ['odour', 'odor'], ['vapour', 'vapor'], ['savour', 'savor'],
+    ['valour', 'valor'], ['vigour', 'vigor'], ['tumour', 'tumor'],
+    ['parlour', 'parlor'], ['candour', 'candor'], ['fervour', 'fervor'],
+    ['rancour', 'rancor'], ['splendour', 'splendor'], ['succour', 'succor'],
+    ['centre', 'center'], ['theatre', 'theater'], ['metre', 'meter'],
+    ['litre', 'liter'], ['fibre', 'fiber'], ['calibre', 'caliber'],
+    ['sombre', 'somber'], ['spectre', 'specter'], ['lustre', 'luster'],
+    ['meagre', 'meager'], ['ochre', 'ocher'], ['sceptre', 'scepter'],
+    ['manoeuvre', 'maneuver'],
+    ['organise', 'organize'], ['realise', 'realize'], ['recognise', 'recognize'],
+    ['apologise', 'apologize'], ['criticise', 'criticize'], ['memorise', 'memorize'],
+    ['summarise', 'summarize'], ['specialise', 'specialize'], ['emphasise', 'emphasize'],
+    ['socialise', 'socialize'], ['categorise', 'categorize'], ['modernise', 'modernize'],
+    ['prioritise', 'prioritize'], ['visualise', 'visualize'], ['stabilise', 'stabilize'],
+    ['characterise', 'characterize'], ['dramatise', 'dramatize'], ['fantasise', 'fantasize'],
+    ['legalise', 'legalize'], ['mobilise', 'mobilize'], ['normalise', 'normalize'],
+    ['penalise', 'penalize'], ['polarise', 'polarize'], ['publicise', 'publicize'],
+    ['sensitise', 'sensitize'], ['symbolise', 'symbolize'], ['vandalise', 'vandalize'],
+    ['authorise', 'authorize'], ['civilise', 'civilize'], ['globalise', 'globalize'],
+    ['idolise', 'idolize'], ['industrialise', 'industrialize'], ['initialise', 'initialize'],
+    ['optimise', 'optimize'], ['sterilise', 'sterilize'], ['terrorise', 'terrorize'],
+    ['utilise', 'utilize'], ['fertilise', 'fertilize'], ['hypnotise', 'hypnotize'],
+    ['privatise', 'privatize'], ['rationalise', 'rationalize'], ['standardise', 'standardize'],
+    ['capitalise', 'capitalize'],
+    ['analyse', 'analyze'], ['paralyse', 'paralyze'], ['catalyse', 'catalyze'],
+    ['hydrolyse', 'hydrolyze'], ['dialyse', 'dialyze'],
+    ['defence', 'defense'], ['offence', 'offense'], ['licence', 'license'],
+    ['pretence', 'pretense'],
+    ['catalogue', 'catalog'], ['dialogue', 'dialog'], ['analogue', 'analog'],
+    ['grey', 'gray'], ['programme', 'program'], ['tyre', 'tire'],
+    ['kerb', 'curb'], ['aluminium', 'aluminum'], ['mum', 'mom'],
+    ['pyjamas', 'pajamas'], ['aeroplane', 'airplane'], ['maths', 'math'],
+    ['sceptical', 'skeptical'], ['sceptic', 'skeptic'], ['plough', 'plow'],
+    ['mould', 'mold'], ['smoulder', 'smolder'], ['draught', 'draft'],
+    ['sulphur', 'sulfur'], ['cosy', 'cozy'], ['enrol', 'enroll'],
+    ['fulfil', 'fulfill'], ['skilful', 'skillful'], ['instal', 'install'],
+    ['wilful', 'willful'], ['jewellery', 'jewelry'], ['marvellous', 'marvelous'],
+    ['counselling', 'counseling'], ['travelled', 'traveled'], ['travelling', 'traveling'],
+    ['cancelled', 'canceled'], ['cancelling', 'canceling'],
+    ['labelled', 'labeled'], ['labelling', 'labeling'],
+    ['modelled', 'modeled'], ['modelling', 'modeling'],
+    ['fuelled', 'fueled'], ['fuelling', 'fueling'],
+    ['quarrelled', 'quarreled'], ['quarrelling', 'quarreling'],
+    ['signalled', 'signaled'], ['signalling', 'signaling'],
+    ['totalled', 'totaled'], ['totalling', 'totaling'],
+    ['levelled', 'leveled'], ['levelling', 'leveling'],
+    ['marvelled', 'marveled'], ['panelled', 'paneled'],
+    ['tunnelled', 'tunneled'], ['dialled', 'dialed'], ['dialling', 'dialing'],
+    ['jewelled', 'jeweled'], ['woollen', 'woolen']
+  ];
+
+  const SPELLING_ALTERNATES = (function () {
+    const map = Object.create(null);
+    const add = function (a, b) {
+      if (!a || !b || a === b) return;
+      if (!map[a]) map[a] = [];
+      if (map[a].indexOf(b) === -1) map[a].push(b);
+      if (!map[b]) map[b] = [];
+      if (map[b].indexOf(a) === -1) map[b].push(a);
+    };
+    UK_US_PAIRS.forEach(function (pair) {
+      const uk = pair[0], us = pair[1];
+      add(uk, us);
+      if (/(ed|ing)$/.test(uk)) return;
+      add(uk + 's', us + 's');
+      if (/ise$/.test(uk) && /ize$/.test(us)) {
+        add(uk + 'd', us + 'd');
+        add(uk.slice(0, -1) + 'ing', us.slice(0, -1) + 'ing');
+      }
+      if (/our$/.test(uk) && /or$/.test(us)) {
+        add(uk + 'ed', us + 'ed');
+        add(uk + 'able', us + 'able');
+      }
+    });
+    return map;
+  })();
+
+  function spellingAlternates(word) { return SPELLING_ALTERNATES[word] || []; }
+
+  function isAnswerCorrect(input, en) {
+    const typed = answerNormalize(input);
+    if (!typed) return false;
+    return answerVariants(en).some(function (v) {
+      const want = answerNormalize(v);
+      if (want === typed) return true;
+      return spellingAlternates(want).indexOf(typed) !== -1;
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Sheet + New Vocab loading                                           */
+  /* ------------------------------------------------------------------ */
+  function parseCSV(text) {
+    const lines = text.split(/\r?\n/);
+    const data = [];
+    const seen = new Set();
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
+      if (i === 0 && (parts.length < 3 || !parts[1] || !/^\d+$/.test(parts[0]))) continue;
+      let row;
+      if (parts.length >= 3) row = { cat: parts[0], en: parts[1], zh: parts[2] };
+      else if (parts.length === 2) row = { cat: '', en: parts[0], zh: parts[1] };
+      else continue;
+      if (!row.en) continue;
+      const key = row.en.toLowerCase() + '|' + row.zh.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      data.push(row);
+    }
+    return data;
+  }
+
+  const bankCache = new Map();
+  const BANK_CACHE_KEY = 'learniTY_qk_bank_v1';
+  const BANK_TTL = 10 * 60 * 1000;
+
+  function readBankCache(id) {
+    try {
+      const all = JSON.parse(localStorage.getItem(BANK_CACHE_KEY) || '{}');
+      const entry = all[id];
+      if (entry && Date.now() - entry.at < BANK_TTL && Array.isArray(entry.words) && entry.words.length) {
+        return entry.words;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function writeBankCache(id, words) {
+    try {
+      const all = JSON.parse(localStorage.getItem(BANK_CACHE_KEY) || '{}');
+      all[id] = { at: Date.now(), words: words };
+      Object.keys(all).forEach(function (key) {
+        if (!all[key] || Date.now() - all[key].at > BANK_TTL) delete all[key];
+      });
+      localStorage.setItem(BANK_CACHE_KEY, JSON.stringify(all));
+    } catch (e) { /* quota or private mode */ }
+  }
+
+  async function loadSheet(name) {
+    const key = 'sheet:' + name;
+    const cached = readBankCache(key);
+    if (cached) return cached;
+    const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+      '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(name);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('sheet ' + name);
+    const text = await res.text();
+    const words = parseCSV(text)
+      .filter(r => r.en && r.zh)
+      .map(r => ({ en: r.en, zh: r.zh, topic: name }));
+    if (words.length) writeBankCache(key, words);
+    return words;
+  }
+
+  function storedAccessToken() {
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i) || '';
+        if (key.indexOf('sb-') !== 0 || key.indexOf('-auth-token') === -1) continue;
+        const raw = JSON.parse(localStorage.getItem(key) || 'null');
+        const token = raw && (raw.access_token || (raw.currentSession && raw.currentSession.access_token));
+        if (token) return token;
+      }
+    } catch (e) { /* fall through */ }
+    return SUPABASE_KEY;
+  }
+
+  async function loadNewVocab(form) {
+    const query = 'select=en,zh,form&limit=1000' + (form ? '&form=eq.' + encodeURIComponent(form) : '');
+    const res = await fetch(SUPABASE_URL + '/rest/v1/new_vocab_words?' + query, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + storedAccessToken()
+      }
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return (rows || [])
+      .filter(r => r.en && r.zh)
+      .map(r => ({ en: r.en, zh: r.zh, topic: 'New Vocab ' + r.form }));
+  }
+
+  function loadBank(id) {
+    if (bankCache.has(id)) return bankCache.get(id);
+    const cached = readBankCache(id);
+    if (cached) {
+      const hit = Promise.resolve(cached);
+      bankCache.set(id, hit);
+      return hit;
+    }
+    let task;
+    if (id === 'mixed') {
+      task = Promise.all(SHEET_NAMES.map(n => loadSheet(n).catch(() => [])))
+        .then(groups => [].concat.apply([], groups))
+        .then(sheetWords => loadNewVocab('').catch(() => []).then(nv => sheetWords.concat(nv)));
+    } else if (id.indexOf('sheet:') === 0) {
+      task = loadSheet(id.slice(6));
+    } else if (id.indexOf('nv:') === 0) {
+      task = loadNewVocab(id.slice(3));
+    } else {
+      task = Promise.resolve([]);
+    }
+    bankCache.set(id, task);
+    task.then(words => { if (words && words.length) writeBankCache(id, words); })
+      .catch(() => bankCache.delete(id));
+    return task;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Question building                                                   */
+  /* ------------------------------------------------------------------ */
+  function pickTypes(mode, n) {
+    if (mode !== 'mixed') return Array(n).fill(mode);
+    const cycle = shuffle(['mc', 'tf', 'short']);
+    return Array.from({ length: n }, function (_v, i) { return cycle[i % cycle.length]; });
+  }
+
+  function mcOptions(word, pool) {
+    const correct = primaryAnswer(word.en);
+    const seen = new Set([answerNormalize(correct)]);
+    const others = [];
+    const candidates = shuffle(pool.concat(DEMO_WORDS));
+    for (let i = 0; i < candidates.length && others.length < 3; i += 1) {
+      const value = primaryAnswer(candidates[i].en);
+      const key = answerNormalize(value);
+      if (!value || seen.has(key)) continue;
+      seen.add(key);
+      others.push(value);
+    }
+    return shuffle([correct].concat(others));
+  }
+
+  function makeQuestions(words, cfg) {
+    const pool = words.filter(w => w.en && w.zh);
+    const singles = pool.filter(function (w) {
+      return /^[A-Za-z][A-Za-z'-]{1,13}$/.test(primaryAnswer(w.en));
+    });
+    const shortPool = singles.length >= 5 ? singles : pool;
+    const types = pickTypes(cfg.type, cfg.count);
+    const used = new Set();
+    const out = [];
+
+    function take(list) {
+      const source = list.length ? list : pool;
+      for (let tries = 0; tries < 24; tries += 1) {
+        const word = source[Math.floor(Math.random() * source.length)];
+        if (word && !used.has(word.en)) { used.add(word.en); return word; }
+      }
+      return source[Math.floor(Math.random() * source.length)];
+    }
+
+    for (let i = 0; i < cfg.count; i += 1) {
+      const type = types[i];
+      const word = take(type === 'short' ? shortPool : pool);
+      if (!word) break;
+      if (type === 'mc') {
+        const options = mcOptions(word, pool);
+        out.push({
+          type: 'mc',
+          prompt: word.zh,
+          sub: 'Choose the English word',
+          choices: options,
+          answer: options.indexOf(primaryAnswer(word.en)),
+          en: word.en,
+          zh: word.zh,
+          seconds: cfg.seconds
+        });
+      } else if (type === 'tf') {
+        const truth = Math.random() < 0.5;
+        let shown = word.zh;
+        if (!truth) {
+          const others = pool.filter(o => o.zh && o.zh !== word.zh);
+          const other = others.length ? pick(others) : pick(DEMO_WORDS);
+          shown = other.zh;
+        }
+        out.push({
+          type: 'tf',
+          prompt: '“' + primaryAnswer(word.en) + '” means “' + shown + '”.',
+          sub: 'True or false?',
+          answer: truth,
+          en: word.en,
+          zh: word.zh,
+          seconds: cfg.seconds
+        });
+      } else {
+        out.push({
+          type: 'short',
+          prompt: word.zh,
+          sub: 'Type the English word',
+          en: word.en,
+          zh: word.zh,
+          seconds: cfg.seconds
+        });
+      }
+    }
+    return out;
+  }
+
+  function isCorrectQuestion(q, value) {
+    if (q.type === 'mc') return value === q.answer;
+    if (q.type === 'tf') return value === q.answer;
+    return isAnswerCorrect(value, q.en);
+  }
+
+  function answerText(q) {
+    if (q.type === 'mc') return q.choices[q.answer];
+    if (q.type === 'tf') return q.answer ? 'True' : 'False';
+    return primaryAnswer(q.en);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Game state                                                          */
+  /* ------------------------------------------------------------------ */
   const players = [
     { id: 'you', name: 'You', score: 0, streak: 0, correct: 0, bot: false },
     { id: 'amy', name: '3A Amy', score: 0, streak: 0, correct: 0, bot: true, acc: 0.86 },
@@ -432,89 +878,159 @@
 
   let questions = [];
   let qIndex = -1;
-  let phase = 'lobby';
+  let phase = 'setup';
   let answers = {};
   let questionStarted = 0;
-  let timeLeft = SECONDS;
   let timerId = 0;
   let botTimers = [];
+  let bank = DEMO_WORDS.slice();
   let music = null;
   let musicOn = true;
 
   const $ = (id) => document.getElementById(id);
   const choicesEl = $('choices');
   const sanswersEl = $('sanswers');
-  const boardEl = $('board');
 
-  function shuffle(list) {
-    const a = list.slice();
-    for (let i = a.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = a[i]; a[i] = a[j]; a[j] = t;
-    }
-    return a;
+  /* ------------------------------------------------------------------ */
+  /* Setup screen                                                        */
+  /* ------------------------------------------------------------------ */
+  function topicTitle(id) {
+    if (id === 'mixed') return 'Mixed';
+    if (id.indexOf('sheet:') === 0) return TOPIC_LABELS[id.slice(6)] || id.slice(6);
+    if (id.indexOf('nv:') === 0) return 'New Vocab · ' + id.slice(3);
+    return id;
   }
 
-  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-  function makeQuestions(n) {
-    const pool = shuffle(WORDS);
-    const out = [];
-    for (let i = 0; i < n; i += 1) {
-      const word = pool[i % pool.length];
-      if (i % 2 === 0) {
-        const same = WORDS.filter(w => w.en !== word.en && w.pos === word.pos);
-        const others = shuffle((same.length >= 3 ? same : WORDS.filter(w => w.en !== word.en))).slice(0, 3);
-        const options = shuffle([word.en].concat(others.map(w => w.en)));
-        out.push({
-          type: 'mc',
-          prompt: word.zh,
-          sub: 'Choose the English word',
-          choices: options,
-          answer: options.indexOf(word.en)
-        });
-      } else {
-        const usePos = Math.random() < 0.5;
-        const truth = Math.random() < 0.5;
-        if (usePos) {
-          const pos = ['noun', 'verb', 'adjective'];
-          const shown = truth ? word.pos : pick(pos.filter(p => p !== word.pos));
-          out.push({
-            type: 'tf',
-            prompt: '“' + word.en + '” is a ' + shown + '.',
-            sub: 'True or false?',
-            answer: shown === word.pos
-          });
-        } else {
-          const other = pick(WORDS.filter(w => w.zh !== word.zh));
-          const zh = truth ? word.zh : other.zh;
-          out.push({
-            type: 'tf',
-            prompt: '“' + word.en + '” means “' + zh + '”.',
-            sub: 'True or false?',
-            answer: zh === word.zh
-          });
-        }
-      }
-    }
-    return out;
+  function readSettings() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      if (!raw) return;
+      if (raw.type && TYPE_OPTIONS.some(o => o.id === raw.type)) settings.type = raw.type;
+      if (COUNT_OPTIONS.indexOf(Number(raw.count)) !== -1) settings.count = Number(raw.count);
+      if (SECOND_OPTIONS.indexOf(Number(raw.seconds)) !== -1) settings.seconds = Number(raw.seconds);
+      if (typeof raw.topic === 'string' && raw.topic) settings.topic = raw.topic;
+    } catch (e) { /* keep defaults */ }
   }
 
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+  }
+
+  function renderTopicSelect() {
+    const host = $('setTopic');
+    if (!host) return;
+    const sheetOptions = SHEET_NAMES.map(function (name) {
+      return '<option value="sheet:' + escapeHtml(name) + '">' + escapeHtml(TOPIC_LABELS[name] || name) + '</option>';
+    }).join('');
+    const nvOptions = ['F3', 'F4', 'F6'].map(function (form) {
+      return '<option value="nv:' + form + '">✨ New Vocab · ' + form + '</option>';
+    }).join('');
+    host.innerHTML =
+      '<option value="mixed">🎲 Mixed — all topics + New Vocab</option>' +
+      '<optgroup label="Dictation topics">' + sheetOptions + '</optgroup>' +
+      '<optgroup label="New Vocab">' + nvOptions + '</optgroup>';
+    host.value = settings.topic;
+    if (host.value !== settings.topic) {
+      settings.topic = 'mixed';
+      host.value = 'mixed';
+    }
+  }
+
+  function renderPills(host, options, current, onPick) {
+    if (!host) return;
+    host.innerHTML = options.map(function (option) {
+      const on = String(option.id) === String(current) ? ' on' : '';
+      return '<button type="button" class="pill' + on + '" data-id="' + escapeHtml(option.id) + '">' +
+        escapeHtml(option.label) + '</button>';
+    }).join('');
+    Array.from(host.querySelectorAll('.pill')).forEach(function (btn) {
+      btn.addEventListener('click', function () { onPick(btn.getAttribute('data-id')); });
+    });
+  }
+
+  function renderSetup() {
+    renderTopicSelect();
+    renderPills($('setType'), TYPE_OPTIONS, settings.type, function (id) {
+      settings.type = id; saveSettings(); renderSetup();
+    });
+    renderPills($('setCount'), COUNT_OPTIONS.map(n => ({ id: n, label: String(n) })), settings.count, function (id) {
+      settings.count = Number(id); saveSettings(); renderSetup();
+    });
+    renderPills($('setSeconds'), SECOND_OPTIONS.map(n => ({ id: n, label: n + 's' })), settings.seconds, function (id) {
+      settings.seconds = Number(id); saveSettings(); renderSetup();
+    });
+  }
+
+  function showSetup() {
+    phase = 'setup';
+    clearTimers();
+    $('podium').classList.add('hidden');
+    $('setup').classList.remove('hidden');
+    $('quizBody').classList.add('hidden');
+    sanswersEl.innerHTML = '';
+    sanswersEl.className = 'sanswers';
+    $('sprompt').textContent = 'Waiting for the teacher…';
+    $('sfeedback').textContent = 'Join in when the quiz starts.';
+    renderSetup();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Quiz flow                                                           */
+  /* ------------------------------------------------------------------ */
   function resetPlayers() {
-    players.forEach(p => {
-      p.score = 0; p.streak = 0; p.correct = 0; p.lastPoints = 0;
-      p.lastCorrect = null; p.answered = false;
+    players.forEach(function (p) {
+      p.score = 0; p.streak = 0; p.correct = 0;
+      p.lastPoints = 0; p.lastCorrect = null; p.answered = false;
     });
   }
 
   function currentQ() { return questions[qIndex] || null; }
 
-  function startQuiz() {
-    questions = makeQuestions(10);
+  async function startQuiz() {
+    if (phase === 'loading' || phase === 'question') return;
+    phase = 'loading';
+    const btn = $('startBtn');
+    const note = $('setupNote');
+    btn.disabled = true;
+    btn.textContent = '⏳ Loading words…';
+    note.textContent = 'Loading “' + topicTitle(settings.topic) + '”…';
+
+    let message = '';
+    try {
+      let words = await loadBank(settings.topic);
+      if (!words.length) throw new Error('empty');
+      if (words.length < 6) {
+        message = 'That topic only had ' + words.length + ' words, so this round uses demo words.';
+        words = DEMO_WORDS.slice();
+      }
+      bank = words;
+      questions = makeQuestions(bank, settings);
+      if (!questions.length) throw new Error('no questions');
+      if (!message) {
+        message = 'Loaded ' + bank.length + ' words from ' + topicTitle(settings.topic) +
+          ' · ' + questions.length + ' questions · ' + settings.seconds + 's each.';
+      }
+    } catch (e) {
+      bank = DEMO_WORDS.slice();
+      questions = makeQuestions(bank, settings);
+      const nvTopic = settings.topic.indexOf('nv:') === 0;
+      message = nvTopic
+        ? 'No New Vocab words came back for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
+          ' — sign in with a school account (or that form may still be empty). Using 33 demo words this round.'
+        : 'Could not load “' + topicTitle(settings.topic) + '”. Using 33 demo words this round.';
+    }
+
+    note.textContent = message;
+    btn.disabled = false;
+    btn.textContent = '▶ Start quiz';
+
+    $('setup').classList.add('hidden');
+    $('quizBody').classList.remove('hidden');
     qIndex = -1;
     resetPlayers();
-    phase = 'lobby';
-    $('podium').classList.add('hidden');
+    renderBoard();
+    renderStudentHead();
+    updateYouRank();
     startMusic();
     nextQuestion();
   }
@@ -532,37 +1048,53 @@
     phase = 'question';
     answers = {};
     questionStarted = Date.now();
-    timeLeft = SECONDS;
     renderQuestion();
     scheduleBots();
     timerId = setInterval(function () {
-      timeLeft = Math.max(0, SECONDS - (Date.now() - questionStarted) / 1000);
-      $('timer').textContent = Math.ceil(timeLeft) + 's';
-      if (timeLeft <= 0) reveal();
+      const q = currentQ();
+      if (!q) return;
+      const left = Math.max(0, q.seconds - (Date.now() - questionStarted) / 1000);
+      $('timer').textContent = Math.ceil(left) + 's';
+      if (left <= 0) reveal();
     }, 100);
   }
 
   function scheduleBots() {
     const q = currentQ();
     players.filter(p => p.bot).forEach(function (bot) {
-      const delay = 1600 + Math.random() * (SECONDS * 820);
+      const delay = 1300 + Math.random() * (q.seconds * 640);
       const t = setTimeout(function () {
         if (phase !== 'question' || answers[bot.id]) return;
         let value;
         if (q.type === 'mc') {
           if (Math.random() < bot.acc) value = q.answer;
           else {
-            const wrong = [0, 1, 2, 3].filter(i => i !== q.answer);
-            value = pick(wrong);
+            const wrong = [];
+            for (let i = 0; i < q.choices.length; i += 1) if (i !== q.answer) wrong.push(i);
+            value = wrong.length ? pick(wrong) : q.answer;
           }
-        } else {
+        } else if (q.type === 'tf') {
           value = Math.random() < bot.acc ? q.answer : !q.answer;
+        } else if (Math.random() < bot.acc) {
+          value = primaryAnswer(q.en);
+        } else {
+          const wrongs = bank.filter(o => !isAnswerCorrect(primaryAnswer(o.en), q.en));
+          value = wrongs.length ? primaryAnswer(pick(wrongs).en) : 'zzz';
         }
-        answers[bot.id] = { value: value, ms: Math.min(delay, SECONDS * 1000) };
-        bot.answered = true;
+        answers[bot.id] = { value: value, ms: Math.min(Math.round(delay), q.seconds * 1000) };
+        updateTypingCount();
       }, delay);
       botTimers.push(t);
     });
+  }
+
+  function updateTypingCount() {
+    const q = currentQ();
+    if (!q || q.type !== 'short') return;
+    const el = $('typingCount');
+    if (!el) return;
+    const n = Object.keys(answers).length;
+    el.textContent = n + (n === 1 ? ' answer in' : ' answers in');
   }
 
   function reveal() {
@@ -570,11 +1102,11 @@
     phase = 'reveal';
     clearTimers();
     const q = currentQ();
-    const total = SECONDS * 1000;
+    const total = q.seconds * 1000;
     players.forEach(function (p) {
       const a = answers[p.id];
       if (!a) { p.streak = 0; p.lastPoints = 0; p.lastCorrect = false; p.answered = false; return; }
-      const correct = a.value === q.answer;
+      const correct = isCorrectQuestion(q, a.value);
       let pts = 0;
       if (correct) {
         p.streak += 1;
@@ -595,73 +1127,161 @@
   function renderQuestion() {
     const q = currentQ();
     $('qnum').textContent = 'Question ' + (qIndex + 1) + ' / ' + questions.length;
-    $('qtype').textContent = q.type === 'mc' ? 'Multiple choice' : 'True or false';
-    $('timer').textContent = SECONDS + 's';
+    $('qtype').textContent = TYPE_LABEL[q.type];
+    $('timer').textContent = q.seconds + 's';
     $('qprompt').innerHTML = escapeHtml(q.prompt) + '<small>' + escapeHtml(q.sub) + '</small>';
-    $('startBtn').hidden = true;
     $('revealBtn').hidden = false;
     $('revealBtn').disabled = false;
     $('nextBtn').hidden = true;
     $('nextBtn').disabled = true;
 
-    choicesEl.className = 'choices' + (q.type === 'tf' ? ' tf' : '');
-    choicesEl.innerHTML = q.type === 'mc'
-      ? q.choices.map(function (text, i) {
-          return '<div class="choice ' + COLORS[i] + '" data-i="' + i + '">'
-            + '<span class="shape">' + SHAPES[i] + '</span>'
-            + '<span>' + escapeHtml(text) + '</span>'
-            + '<span class="count">0</span></div>';
-        }).join('')
-      : '<div class="choice true" data-i="1"><span class="shape">✓</span><span>True</span><span class="count">0</span></div>'
-        + '<div class="choice false" data-i="0"><span class="shape">✕</span><span>False</span><span class="count">0</span></div>';
-
-    sanswersEl.className = 'sanswers' + (q.type === 'tf' ? ' tf' : '');
-    sanswersEl.innerHTML = q.type === 'mc'
-      ? q.choices.map(function (text, i) {
-          return '<button type="button" class="sanswer ' + COLORS[i] + '" data-i="' + i + '">'
-            + SHAPES[i] + ' ' + escapeHtml(text) + '</button>';
-        }).join('')
-      : '<button type="button" class="sanswer true" data-i="1">✓ True</button>'
-        + '<button type="button" class="sanswer false" data-i="0">✕ False</button>';
-    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
-      btn.addEventListener('click', function () { studentAnswer(Number(btn.getAttribute('data-i'))); });
-    });
+    if (q.type === 'short') {
+      choicesEl.className = 'choices';
+      choicesEl.innerHTML =
+        '<div class="typing-card">' +
+          '<div class="typing-emoji">⌨️</div>' +
+          '<div class="hintline">Students are typing the English word…</div>' +
+          '<small id="typingCount">0 answers in</small>' +
+        '</div>';
+      updateTypingCount();
+    } else {
+      choicesEl.className = 'choices' + (q.type === 'tf' ? ' tf' : '');
+      choicesEl.innerHTML = q.type === 'mc'
+        ? q.choices.map(function (text, i) {
+            return '<div class="choice ' + COLORS[i] + '" data-i="' + i + '">' +
+              '<span class="shape">' + SHAPES[i] + '</span>' +
+              '<span>' + escapeHtml(text) + '</span>' +
+              '<span class="count">0</span></div>';
+          }).join('')
+        : '<div class="choice true" data-i="1"><span class="shape">✓</span><span>True</span><span class="count">0</span></div>' +
+          '<div class="choice false" data-i="0"><span class="shape">✕</span><span>False</span><span class="count">0</span></div>';
+    }
 
     $('sprompt').textContent = q.prompt;
-    $('sfeedback').textContent = 'Choose your answer!';
+    $('sfeedback').textContent = q.type === 'short'
+      ? 'Type the English word, then press Submit.'
+      : 'Choose your answer!';
+    renderStudentAnswers(q);
     renderBoard();
     renderStudentHead();
     updateYouRank();
   }
 
-  function studentAnswer(value) {
+  function renderStudentAnswers(q) {
+    if (q.type === 'mc') {
+      sanswersEl.className = 'sanswers';
+      sanswersEl.innerHTML = q.choices.map(function (text, i) {
+        return '<button type="button" class="sanswer ' + COLORS[i] + '" data-i="' + i + '">' +
+          SHAPES[i] + ' ' + escapeHtml(text) + '</button>';
+      }).join('');
+      Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          studentAnswer(Number(btn.getAttribute('data-i')));
+        });
+      });
+    } else if (q.type === 'tf') {
+      sanswersEl.className = 'sanswers tf';
+      sanswersEl.innerHTML =
+        '<button type="button" class="sanswer true" data-i="1">✓ True</button>' +
+        '<button type="button" class="sanswer false" data-i="0">✕ False</button>';
+      Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          studentAnswer(Number(btn.getAttribute('data-i')));
+        });
+      });
+    } else {
+      sanswersEl.className = 'sanswers short';
+      sanswersEl.innerHTML =
+        '<input id="shortInput" class="short-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Type the English word">' +
+        '<button type="button" class="short-submit" id="shortSubmit">Submit</button>';
+      const input = $('shortInput');
+      const submit = $('shortSubmit');
+      const send = function () {
+        if (!input || input.disabled) return;
+        studentAnswer(input.value);
+      };
+      submit.addEventListener('click', send);
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') { event.preventDefault(); send(); }
+      });
+      setTimeout(function () {
+        if (input && input.getClientRects().length) {
+          try { input.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        }
+      }, 80);
+    }
+  }
+
+  function studentAnswer(rawValue) {
     if (phase !== 'question' || answers.you) return;
+    const q = currentQ();
+    if (!q) return;
+    let value = rawValue;
+    if (q.type === 'tf') value = rawValue === true || Number(rawValue) === 1;
+    if (q.type === 'short') {
+      value = String(rawValue || '').trim();
+      if (!value) {
+        $('sfeedback').textContent = 'Type your answer first.';
+        return;
+      }
+    }
     answers.you = { value: value, ms: Date.now() - questionStarted };
-    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
-      btn.disabled = true;
-      btn.classList.toggle('picked', Number(btn.getAttribute('data-i')) === value);
-    });
-    $('sfeedback').textContent = '✅ Locked in — waiting for the reveal.';
+
+    if (q.type === 'short') {
+      const input = $('shortInput');
+      const submit = $('shortSubmit');
+      if (input) { input.value = value; input.disabled = true; }
+      if (submit) submit.disabled = true;
+      $('sfeedback').textContent = '✅ Locked in — waiting for the reveal.';
+    } else {
+      Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+        btn.disabled = true;
+        btn.classList.toggle('picked', Number(btn.getAttribute('data-i')) === Number(value));
+      });
+      $('sfeedback').textContent = '✅ Locked in — waiting for the reveal.';
+    }
+    updateTypingCount();
   }
 
   function renderReveal() {
     const q = currentQ();
     const counts = {};
-    const total = SECONDS * 1000;
+    const total = q.seconds * 1000;
     players.forEach(function (p) {
       const a = answers[p.id];
       if (!a) return;
-      counts[a.value] = (counts[a.value] || 0) + 1;
+      const key = String(a.value);
+      counts[key] = (counts[key] || 0) + 1;
     });
-    Array.from(choicesEl.querySelectorAll('.choice')).forEach(function (el) {
-      const i = Number(el.getAttribute('data-i'));
-      const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
-      el.classList.add('show-count');
-      el.classList.toggle('correct', isCorrect);
-      el.classList.toggle('dim', !isCorrect);
-      const c = el.querySelector('.count');
-      if (c) c.textContent = counts[i] || 0;
-    });
+
+    if (q.type === 'short') {
+      let right = 0, wrong = 0, none = 0;
+      players.forEach(function (p) {
+        const a = answers[p.id];
+        if (!a) { none += 1; return; }
+        if (isCorrectQuestion(q, a.value)) right += 1; else wrong += 1;
+      });
+      choicesEl.className = 'choices';
+      choicesEl.innerHTML =
+        '<div class="typing-card reveal">' +
+          '<small>Correct answer</small>' +
+          '<div class="big">' + escapeHtml(primaryAnswer(q.en)) + '</div>' +
+          '<small>✅ ' + right + ' correct · ❌ ' + wrong + ' wrong' +
+            (none ? ' · ⏰ ' + none + ' no answer' : '') + '</small>' +
+        '</div>';
+    } else {
+      Array.from(choicesEl.querySelectorAll('.choice')).forEach(function (el) {
+        const i = Number(el.getAttribute('data-i'));
+        const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
+        const key = q.type === 'mc' ? String(i) : String(i === 1);
+        el.classList.add('show-count');
+        el.classList.toggle('correct', isCorrect);
+        el.classList.toggle('dim', !isCorrect);
+        const c = el.querySelector('.count');
+        if (c) c.textContent = counts[key] || 0;
+      });
+    }
+
     $('timer').textContent = 'Answer';
     $('revealBtn').hidden = true;
     $('nextBtn').hidden = false;
@@ -670,47 +1290,45 @@
 
     const me = player('you');
     const a = answers.you;
-    const correct = a ? a.value === q.answer : false;
+    const correct = a ? isCorrectQuestion(q, a.value) : false;
     if (!a) {
       $('sfeedback').textContent = '⏰ No answer.\nCorrect: ' + answerText(q);
     } else if (correct) {
       $('sfeedback').textContent = '✅ Correct! +' + me.lastPoints + ' pts\n' + answerText(q);
     } else {
-      $('sfeedback').textContent = '❌ Not quite.\nCorrect: ' + answerText(q);
+      const typed = q.type === 'short' ? 'You typed “' + a.value + '”.\n' : '';
+      $('sfeedback').textContent = '❌ Not quite.\n' + typed + 'Correct: ' + answerText(q);
     }
-    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
-      btn.disabled = true;
-      const i = Number(btn.getAttribute('data-i'));
-      const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
-      btn.classList.toggle('correct', isCorrect);
-      if (a && i === a.value) btn.classList.add('picked');
-    });
+
+    if (q.type !== 'short') {
+      Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+        btn.disabled = true;
+        const i = Number(btn.getAttribute('data-i'));
+        const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
+        btn.classList.toggle('correct', isCorrect);
+        if (a && Number(a.value) === i) btn.classList.add('picked');
+      });
+    }
     renderBoard();
     renderStudentHead();
     updateYouRank();
-  }
-
-  function answerText(q) {
-    if (q.type === 'mc') return q.choices[q.answer];
-    return q.answer ? 'True' : 'False';
   }
 
   function player(id) { return players.find(p => p.id === id); }
 
   function renderBoard() {
     const sorted = players.slice().sort((a, b) => b.score - a.score);
-    boardEl.innerHTML = sorted.slice(0, 5).map(function (p, i) {
+    $('board').innerHTML = sorted.slice(0, 5).map(function (p, i) {
       const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
-      return '<div class="board-row' + (p.id === 'you' ? ' you' : '') + '">'
-        + '<span class="rank">' + medal + '</span>'
-        + '<span class="name">' + escapeHtml(p.name) + '</span>'
-        + '<span class="pts">' + p.score + ' pts</span></div>';
+      return '<div class="board-row' + (p.id === 'you' ? ' you' : '') + '">' +
+        '<span class="rank">' + medal + '</span>' +
+        '<span class="name">' + escapeHtml(p.name) + '</span>' +
+        '<span class="pts">' + p.score + ' pts</span></div>';
     }).join('');
   }
 
   function renderStudentHead() {
-    const me = player('you');
-    $('youScore').textContent = me.score + ' pts';
+    $('youScore').textContent = player('you').score + ' pts';
   }
 
   function updateYouRank() {
@@ -722,35 +1340,19 @@
   function finish() {
     phase = 'finished';
     clearTimers();
-    $('qnum').textContent = 'Finished';
-    $('qtype').textContent = 'Results';
-    $('timer').textContent = '🏁';
-    $('qprompt').innerHTML = 'Quiz complete!<small>Top 3 on the podium</small>';
-    choicesEl.innerHTML = '';
-    $('startBtn').hidden = false;
-    $('startBtn').textContent = '↻ Play again';
-    $('revealBtn').hidden = true;
-    $('nextBtn').hidden = true;
-    $('sanswers').innerHTML = '';
-    $('sprompt').textContent = 'Final results';
-    $('sfeedback').textContent = 'Check the podium →';
+    stopMusic();
     const sorted = players.slice().sort((a, b) => b.score - a.score);
     $('podiumRows').innerHTML = sorted.slice(0, 3).map(function (p, i) {
-      return '<div class="podium-row"><span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>'
-        + '<span class="name">' + escapeHtml(p.name) + '</span>'
-        + '<span class="pts">' + p.score + ' pts</span></div>';
+      return '<div class="podium-row"><span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>' +
+        '<span class="name">' + escapeHtml(p.name) + '</span>' +
+        '<span class="pts">' + p.score + ' pts</span></div>';
     }).join('');
     $('podium').classList.remove('hidden');
+    $('sprompt').textContent = 'Final results';
+    $('sfeedback').textContent = 'Check the podium →';
     renderBoard();
     renderStudentHead();
     updateYouRank();
-    stopMusic();
-  }
-
-  function escapeHtml(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function ensureMusic() {
@@ -770,10 +1372,15 @@
     try { music.pause(); music.currentTime = 0; } catch (e) {}
   }
 
-  /* --- buttons --- */
-  $('startBtn').addEventListener('click', function () {
-    if (phase === 'lobby' || phase === 'finished') startQuiz();
+  /* ------------------------------------------------------------------ */
+  /* Wiring                                                              */
+  /* ------------------------------------------------------------------ */
+  $('setTopic').addEventListener('change', function (event) {
+    settings.topic = event.target.value;
+    saveSettings();
+    $('setupNote').textContent = 'Words for “' + topicTitle(settings.topic) + '” load when you press Start.';
   });
+  $('startBtn').addEventListener('click', startQuiz);
   $('revealBtn').addEventListener('click', function () {
     if (phase === 'question') reveal();
   });
@@ -781,13 +1388,13 @@
     if (phase === 'reveal') nextQuestion();
   });
   $('againBtn').addEventListener('click', function () {
-    $('podium').classList.add('hidden');
-    startQuiz();
+    showSetup();
+    $('setupNote').textContent = 'Settings are kept — adjust anything, then press Start quiz.';
   });
   $('musicBtn').addEventListener('click', function () {
     musicOn = !musicOn;
     $('musicBtn').textContent = musicOn ? '🔊' : '🔇';
-    if (musicOn) startMusic();
+    if (musicOn) { if (phase === 'question' || phase === 'reveal') startMusic(); }
     else stopMusic();
   });
 
@@ -798,6 +1405,8 @@
     });
   });
 
+  readSettings();
+  showSetup();
   renderBoard();
   renderStudentHead();
   updateYouRank();

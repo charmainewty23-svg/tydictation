@@ -2026,15 +2026,36 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 ## 10.17 QuizzyKitty（Class Quiz demo，2026-11）
 
-- 獨立 demo：`/quizzykitty-demo.html`，唔需要 Supabase／登入，唔影響正式 app。
+- 獨立 demo：`/quizzykitty-demo.html`，唔影響正式 app。基本 MC／T/F 唔需要
+  登入；只有 New Vocab topic 會借用同 origin 的 Supabase session（見下）。
 - 5 位玩家：You + 4 個 bot（3A Amy／4C Ben／6D Chloe／3B Daniel）。
-- 10 題，MC（中文→英文）＋ True/False（POS 或中文配對），每題 15 秒；
-  老師按 **Start → Reveal → Next** 逐題控制，完成後 Top 3 頒獎台。
+- 老師按 **Start → Reveal → Next** 逐題控制，完成後 Top 3 頒獎台。
+- **開賽前設定畫面**（`#setup`）：Topic／Question type／Questions／Seconds each，
+  設定存 `localStorage['learniTY_qk_settings']`，重新整理同「↻ New quiz」都會保留。
+  - Topic：**Mixed**（20 個 Dictation Sheet tabs ＋ 全部 New Vocab）、逐個
+    Dictation topic、**New Vocab · F3／F4／F6**。`#setTopic` 用 optgroup 分組。
+  - Question type：**🎲 Mixed**（MC／T/F／短答輪流）、🔤 Multiple choice、
+    ✅ True / false、⌨️ Type the word。
+  - Questions：10／15／20／25／30。Seconds each：10／15／20／30（時間到自動 reveal）。
+- **題目來源**：Dictation tabs 經 gviz CSV（`parseCSV()` 同 app 一樣），
+  結果連 20 個 tab 分開 cache 10 分鐘喺 `localStorage['learniTY_qk_bank_v1']`；
+  New Vocab 用 Supabase REST（`new_vocab_words`），token 由同 origin 嘅
+  `sb-*-auth-token` 讀（老師喺 tydictation 已登入就讀到全部年級），
+  未登入／該年級冇字就 fallback 33 個內建示範字，並喺 `#setupNote` 講明。
+  Sheet 或網絡失敗都一樣用示範字，唔會開唔到局。
+- **短答（type 串字）**：學生電話有 64px 輸入框＋Submit（Enter 都交），
+  交完鎖定；老師畫面係「⌨️ Students are typing…」加即時答案數，Reveal 後
+  顯示正確串法＋`✅ N correct · ❌ N wrong · ⏰ N no answer`。
+  批改直接抄 `shared.js` 的 `answerNormalize`／`answerVariants`／UK-US
+  `UK_US_PAIRS`（約 130 對＋自動 `+s`／`-ise/-ize`／`-our` 變化）入 demo，
+  所以大小楷、標點、`a / b` 多答案、`color/colour`、`center/centre`、
+  `travelled/traveled` 全部當對；答錯唔扣分。
+- MC：4 個選項，干擾項優先抽同一 topic（唔夠先用示範字），每次洗牌。
+- True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
+- 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
 - 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；
-  答錯／冇答 0 分，streak 清零。
-- 內嵌 33 個 Dictation／New Vocab 示範字；短答暫時未做（UK/US 串法由
-  `shared.js` 的 `answerNormalize`／`answerVariants` 支援，日後加 short answer
-  可直接重用）。
+  答錯／冇答 0 分，streak 清零。Bot 喺約 1.3–9.7 秒內交答案（短答會打字），
+  所以 Reveal 之前通常已有幾個人答咗。
 - 老師／projector 面板同學生手機面板喺 ≥900px 並排；手機用 Teacher／Student
   tab 切換。音樂用 `/music/battlemusic.mp3`，可 mute。
 - 視覺：背景 `assets/QuizzyBG.png`（pixel 場景，cover）、logo

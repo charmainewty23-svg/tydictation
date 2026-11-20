@@ -2024,6 +2024,21 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   stale `purrstack1v1` 會 fallback 去單人 PurrStack 榜。
   未跑 `purrstack_battle_results.sql` 唔影響公開榜。
 
+## 10.17 QuizzyKitty（Class Quiz demo，2026-11）
+
+- 獨立 demo：`/quizzykitty-demo.html`，唔需要 Supabase／登入，唔影響正式 app。
+- 5 位玩家：You + 4 個 bot（3A Amy／4C Ben／6D Chloe／3B Daniel）。
+- 10 題，MC（中文→英文）＋ True/False（POS 或中文配對），每題 15 秒；
+  老師按 **Start → Reveal → Next** 逐題控制，完成後 Top 3 頒獎台。
+- 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；
+  答錯／冇答 0 分，streak 清零。
+- 內嵌 33 個 Dictation／New Vocab 示範字；短答暫時未做（UK/US 串法由
+  `shared.js` 的 `answerNormalize`／`answerVariants` 支援，日後加 short answer
+  可直接重用）。
+- 老師／projector 面板同學生手機面板喺 ≥900px 並排；手機用 Teacher／Student
+  tab 切換。音樂用 `/music/battlemusic.mp3`，可 mute。
+- 目前只係 demo；真正 class quiz 要 Supabase 房間／question JSON／answer RPC。
+
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 
 - **重複字提示（2026-11）**：老師按 Confirm 新增／修改字之前，`nvFindDuplicates()`

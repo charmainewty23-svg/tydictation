@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuizzyKitty — Class Quiz Demo</title>
+<style>
+  :root {
+    --cream: #fff9f2;
+    --ink: #2f2440;
+    --brown: #a9743f;
+    --brown-dark: #7a4d24;
+    --line: #e7cfae;
+    --red: #e5484d;
+    --blue: #3b82f6;
+    --yellow: #f0b429;
+    --green: #17a673;
+    --violet: #7c3aed;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(circle at 8% 4%, rgba(255,214,102,.45), transparent 30%),
+      radial-gradient(circle at 94% 8%, rgba(196,181,253,.4), transparent 28%),
+      linear-gradient(150deg, #dff6ff 0%, #f0e6ff 40%, #ffe9f2 68%, #e6fff4 100%);
+    color: var(--ink);
+    font-family: ui-rounded, "Fredoka", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 100dvh;
+  }
+  button { font: inherit; }
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .brand { font-size: 22px; font-weight: 900; letter-spacing: -.02em; }
+  .brand span { color: var(--brown); }
+  .brand small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #8a7f9e; font-weight: 700; }
+  .top-right { display: flex; align-items: center; gap: 8px; }
+  .code {
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    background: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--brown);
+  }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 999px;
+    border: 2px solid var(--line); background: #fff; cursor: pointer;
+    color: var(--brown); font-size: 17px;
+  }
+  .tabs { display: none; gap: 8px; padding: 0 14px 10px; max-width: 1180px; margin: 0 auto; }
+  .tabs button {
+    flex: 1; min-height: 42px; border-radius: 12px; border: 2px solid var(--line);
+    background: #fff; color: var(--brown); font-weight: 800; cursor: pointer;
+  }
+  .tabs button.on { background: var(--brown); color: #fff8ec; border-color: var(--brown); }
+  main {
+    max-width: 1180px; margin: 0 auto; padding: 0 14px 18px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px;
+    align-items: start;
+  }
+  .teacher { min-width: 0; }
+  .screen {
+    background: #fffdf8;
+    border: 3px solid var(--line);
+    border-radius: 20px;
+    padding: 14px;
+    box-shadow: 0 10px 0 rgba(122,77,36,.12);
+  }
+  .qtop {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    color: #a08262;
+  }
+  .qtop .timer { color: var(--brown); font-size: 15px; }
+  .qtype {
+    padding: 3px 8px; border-radius: 999px; background: #fdf1dd; color: var(--brown);
+    border: 1.5px solid var(--line); letter-spacing: .04em;
+  }
+  .question {
+    margin: 12px 0 14px;
+    font-size: clamp(24px, 4vw, 40px);
+    line-height: 1.15;
+    color: #5b3a1e;
+    text-align: center;
+    min-height: 76px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .question small {
+    display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: #a08262; margin-top: 6px; font-weight: 800;
+  }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .choices.tf { grid-template-columns: 1fr 1fr; }
+  .choice {
+    position: relative;
+    min-height: 76px;
+    border-radius: 14px;
+    border: 3px solid #fff;
+    color: #fff;
+    padding: 10px 12px 10px 48px;
+    text-align: left;
+    font-size: clamp(14px, 2vw, 20px);
+    font-weight: 800;
+    cursor: default;
+    box-shadow: 0 4px 0 rgba(0,0,0,.15);
+    display: flex; align-items: center;
+  }
+  .choice .shape {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 22px; opacity: .95;
+  }
+  .choice .count {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,.9); color: #2f2440;
+    border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 900;
+    display: none;
+  }
+  .choice.c0 { background: var(--red); }
+  .choice.c1 { background: var(--blue); }
+  .choice.c2 { background: var(--yellow); color: #4a2c00; }
+  .choice.c3 { background: var(--green); }
+  .choice.true { background: var(--green); }
+  .choice.false { background: var(--red); }
+  .choice.dim { opacity: .42; }
+  .choice.correct { outline: 4px solid #111; outline-offset: 2px; }
+  .choice.correct .count { display: inline-block; }
+  .choice.show-count .count { display: inline-block; }
+  .controls { display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .controls button {
+    min-height: 46px; min-width: 140px;
+    border: 0; border-radius: 13px; padding: 0 18px;
+    background: var(--brown); color: #fff8ec; font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brown-dark);
+  }
+  .controls button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brown-dark); }
+  .controls button.ghost { background: #fff; color: var(--brown); border: 2px solid var(--line); box-shadow: 0 3px 0 rgba(122,77,36,.12); }
+  .controls button:disabled { opacity: .45; cursor: default; }
+  .board {
+    margin-top: 12px; background: #fffdf8; border: 2.5px solid var(--line);
+    border-radius: 16px; padding: 10px 12px;
+  }
+  .board h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #a08262; }
+  .board-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; font-weight: 700; color: #5b3a1e; border-bottom: 1px dashed #eadfce; }
+  .board-row:last-child { border-bottom: 0; }
+  .board-row .rank { width: 22px; text-align: center; }
+  .board-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-row .pts { color: var(--brown); font-weight: 900; }
+  .board-row.you { color: var(--violet); }
+  .board-row.you .pts { color: var(--violet); }
+
+  .student { display: flex; justify-content: center; }
+  .phone {
+    width: 100%; max-width: 360px;
+    background: #fffdf8; border: 3px solid #2f2440; border-radius: 24px;
+    padding: 10px; box-shadow: 0 12px 24px rgba(20,16,36,.18);
+  }
+  .shead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: #5b3a1e; }
+  .shead .you { flex: 1; }
+  .shead .score { color: var(--violet); font-size: 15px; }
+  .shead .rank { color: #a08262; }
+  .sq {
+    min-height: 92px; margin: 8px 0; border-radius: 12px; background: #fdf1dd;
+    border: 2px solid var(--line); color: #5b3a1e;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 18px; font-weight: 800; padding: 8px;
+  }
+  .sanswers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .sanswers.tf { grid-template-columns: 1fr 1fr; }
+  .sanswer {
+    min-height: 76px; border-radius: 12px; border: 0; color: #fff;
+    font-size: 15px; font-weight: 900; cursor: pointer; padding: 8px;
+    box-shadow: 0 4px 0 rgba(0,0,0,.18);
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .sanswer.c0 { background: var(--red); }
+  .sanswer.c1 { background: var(--blue); }
+  .sanswer.c2 { background: var(--yellow); color: #4a2c00; }
+  .sanswer.c3 { background: var(--green); }
+  .sanswer.true { background: var(--green); }
+  .sanswer.false { background: var(--red); }
+  .sanswer.picked { outline: 4px solid #2f2440; outline-offset: 2px; }
+  .sanswer.correct { outline: 4px solid #f0b429; outline-offset: 2px; }
+  .sanswer:disabled { opacity: .55; cursor: default; }
+  .sfeedback {
+    min-height: 52px; margin-top: 8px; padding: 7px 9px;
+    border-radius: 10px; background: #fff; border: 1.5px solid var(--line);
+    color: #7a5c3f; font-size: 12px; font-weight: 700; text-align: center;
+    display: flex; align-items: center; justify-content: center; white-space: pre-line;
+  }
+  .podium {
+    position: fixed; inset: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,16,36,.7); padding: 20px;
+  }
+  .podium.hidden { display: none; }
+  .podium-card {
+    width: 100%; max-width: 420px; background: #fff9f2;
+    border: 3px solid var(--line); border-radius: 22px; padding: 18px;
+    text-align: center; box-shadow: 0 12px 0 rgba(122,77,36,.2);
+  }
+  .podium-card h2 { margin: 0 0 10px; color: var(--brown); }
+  .podium-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 15px; font-weight: 800; color: #5b3a1e; border-bottom: 1px dashed #eadfce; }
+  .podium-row:last-of-type { border-bottom: 0; }
+  .podium-row .medal { font-size: 22px; width: 32px; }
+  .podium-row .name { flex: 1; text-align: left; }
+  .podium-row .pts { color: var(--brown); }
+  .podium-card button {
+    margin-top: 14px; width: 100%; min-height: 44px; border: 0; border-radius: 12px;
+    background: var(--brown); color: #fff8ec; font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brown-dark);
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .tabs { display: flex; }
+    .teacher, .student { display: none; }
+    body[data-pane="teacher"] .teacher { display: block; }
+    body[data-pane="student"] .student { display: flex; }
+    .screen { padding: 10px; }
+    .question { min-height: 60px; margin: 8px 0 10px; }
+    .choice { min-height: 64px; }
+    .board { margin-top: 8px; }
+    .student .phone { border-radius: 18px; }
+  }
+  @media (max-width: 420px) {
+    .top { padding: 8px 10px; }
+    .brand { font-size: 19px; }
+    .code { display: none; }
+    main { padding: 0 10px 14px; }
+    .choice { padding-left: 40px; font-size: 14px; }
+    .choice .shape { left: 9px; font-size: 18px; }
+    .controls button { min-width: 120px; }
+  }
+</style>
+</head>
+<body data-pane="teacher">
+<header class="top">
+  <div class="brand">🐱 Quizzy<span>Kitty</span><small>Class quiz demo</small></div>
+  <div class="top-right">
+    <span class="code">Room QK-2048 · 5 players</span>
+    <button type="button" class="icon-btn" id="musicBtn" aria-label="Music">🔊</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button type="button" data-pane="teacher" class="on">Teacher / Projector</button>
+  <button type="button" data-pane="student">Student</button>
+</div>
+
+<main>
+  <section class="teacher">
+    <div class="screen">
+      <div class="qtop">
+        <span id="qnum">Lobby</span>
+        <span class="qtype" id="qtype">Ready</span>
+        <span class="timer" id="timer">--</span>
+      </div>
+      <h1 class="question" id="qprompt">Ready to quiz?<small>5 players · teacher controls each question</small></h1>
+      <div class="choices" id="choices"></div>
+      <div class="controls">
+        <button type="button" id="startBtn">▶ Start quiz</button>
+        <button type="button" id="revealBtn" class="ghost" disabled>👀 Reveal</button>
+        <button type="button" id="nextBtn" class="ghost" disabled>Next →</button>
+      </div>
+    </div>
+    <div class="board">
+      <h3>Live leaderboard</h3>
+      <div id="board"></div>
+    </div>
+  </section>
+
+  <aside class="student">
+    <div class="phone">
+      <div class="shead">
+        <span class="you">You</span>
+        <span class="score" id="youScore">0 pts</span>
+        <span class="rank" id="youRank">#–</span>
+      </div>
+      <div class="sq" id="sprompt">Waiting for the teacher…</div>
+      <div class="sanswers" id="sanswers"></div>
+      <div class="sfeedback" id="sfeedback">Join in when the quiz starts.</div>
+    </div>
+  </aside>
+</main>
+
+<div class="podium hidden" id="podium">
+  <div class="podium-card">
+    <h2>🏆 Quiz complete</h2>
+    <div id="podiumRows"></div>
+    <button type="button" id="againBtn">↻ Play again</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const WORDS = [
+    { en: 'cat', zh: '貓', pos: 'noun' },
+    { en: 'dog', zh: '狗', pos: 'noun' },
+    { en: 'tiger', zh: '老虎', pos: 'noun' },
+    { en: 'penguin', zh: '企鵝', pos: 'noun' },
+    { en: 'dolphin', zh: '海豚', pos: 'noun' },
+    { en: 'giraffe', zh: '長頸鹿', pos: 'noun' },
+    { en: 'rabbit', zh: '兔', pos: 'noun' },
+    { en: 'elephant', zh: '大象', pos: 'noun' },
+    { en: 'apple', zh: '蘋果', pos: 'noun' },
+    { en: 'banana', zh: '香蕉', pos: 'noun' },
+    { en: 'pizza', zh: '薄餅', pos: 'noun' },
+    { en: 'sushi', zh: '壽司', pos: 'noun' },
+    { en: 'tomato', zh: '番茄', pos: 'noun' },
+    { en: 'bread', zh: '麵包', pos: 'noun' },
+    { en: 'library', zh: '圖書館', pos: 'noun' },
+    { en: 'teacher', zh: '老師', pos: 'noun' },
+    { en: 'homework', zh: '功課', pos: 'noun' },
+    { en: 'exam', zh: '考試', pos: 'noun' },
+    { en: 'pollution', zh: '污染', pos: 'noun' },
+    { en: 'plastic', zh: '塑膠', pos: 'noun' },
+    { en: 'climate', zh: '氣候', pos: 'noun' },
+    { en: 'borrow', zh: '借', pos: 'verb' },
+    { en: 'celebrate', zh: '慶祝', pos: 'verb' },
+    { en: 'compare', zh: '比較', pos: 'verb' },
+    { en: 'protect', zh: '保護', pos: 'verb' },
+    { en: 'improve', zh: '改善', pos: 'verb' },
+    { en: 'recycle', zh: '回收', pos: 'verb' },
+    { en: 'crispy', zh: '脆', pos: 'adjective' },
+    { en: 'generous', zh: '慷慨', pos: 'adjective' },
+    { en: 'crowded', zh: '擁擠', pos: 'adjective' },
+    { en: 'spicy', zh: '辣', pos: 'adjective' },
+    { en: 'quiet', zh: '安靜', pos: 'adjective' },
+    { en: 'ancient', zh: '古老', pos: 'adjective' }
+  ];
+  const SECONDS = 15;
+  const SHAPES = ['▲', '◆', '●', '■'];
+  const COLORS = ['c0', 'c1', 'c2', 'c3'];
+
+  const players = [
+    { id: 'you', name: 'You', score: 0, streak: 0, correct: 0, bot: false },
+    { id: 'amy', name: '3A Amy', score: 0, streak: 0, correct: 0, bot: true, acc: 0.86 },
+    { id: 'ben', name: '4C Ben', score: 0, streak: 0, correct: 0, bot: true, acc: 0.72 },
+    { id: 'chloe', name: '6D Chloe', score: 0, streak: 0, correct: 0, bot: true, acc: 0.63 },
+    { id: 'daniel', name: '3B Daniel', score: 0, streak: 0, correct: 0, bot: true, acc: 0.78 }
+  ];
+
+  let questions = [];
+  let qIndex = -1;
+  let phase = 'lobby';
+  let answers = {};
+  let questionStarted = 0;
+  let timeLeft = SECONDS;
+  let timerId = 0;
+  let botTimers = [];
+  let music = null;
+  let musicOn = true;
+
+  const $ = (id) => document.getElementById(id);
+  const choicesEl = $('choices');
+  const sanswersEl = $('sanswers');
+  const boardEl = $('board');
+
+  function shuffle(list) {
+    const a = list.slice();
+    for (let i = a.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function makeQuestions(n) {
+    const pool = shuffle(WORDS);
+    const out = [];
+    for (let i = 0; i < n; i += 1) {
+      const word = pool[i % pool.length];
+      if (i % 2 === 0) {
+        const same = WORDS.filter(w => w.en !== word.en && w.pos === word.pos);
+        const others = shuffle((same.length >= 3 ? same : WORDS.filter(w => w.en !== word.en))).slice(0, 3);
+        const options = shuffle([word.en].concat(others.map(w => w.en)));
+        out.push({
+          type: 'mc',
+          prompt: word.zh,
+          sub: 'Choose the English word',
+          choices: options,
+          answer: options.indexOf(word.en)
+        });
+      } else {
+        const usePos = Math.random() < 0.5;
+        const truth = Math.random() < 0.5;
+        if (usePos) {
+          const pos = ['noun', 'verb', 'adjective'];
+          const shown = truth ? word.pos : pick(pos.filter(p => p !== word.pos));
+          out.push({
+            type: 'tf',
+            prompt: '“' + word.en + '” is a ' + shown + '.',
+            sub: 'True or false?',
+            answer: shown === word.pos
+          });
+        } else {
+          const other = pick(WORDS.filter(w => w.zh !== word.zh));
+          const zh = truth ? word.zh : other.zh;
+          out.push({
+            type: 'tf',
+            prompt: '“' + word.en + '” means “' + zh + '”.',
+            sub: 'True or false?',
+            answer: zh === word.zh
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  function resetPlayers() {
+    players.forEach(p => {
+      p.score = 0; p.streak = 0; p.correct = 0; p.lastPoints = 0;
+      p.lastCorrect = null; p.answered = false;
+    });
+  }
+
+  function currentQ() { return questions[qIndex] || null; }
+
+  function startQuiz() {
+    questions = makeQuestions(10);
+    qIndex = -1;
+    resetPlayers();
+    phase = 'lobby';
+    $('podium').classList.add('hidden');
+    startMusic();
+    nextQuestion();
+  }
+
+  function clearTimers() {
+    if (timerId) { clearInterval(timerId); timerId = 0; }
+    botTimers.forEach(t => clearTimeout(t));
+    botTimers = [];
+  }
+
+  function nextQuestion() {
+    clearTimers();
+    qIndex += 1;
+    if (qIndex >= questions.length) { finish(); return; }
+    phase = 'question';
+    answers = {};
+    questionStarted = Date.now();
+    timeLeft = SECONDS;
+    renderQuestion();
+    scheduleBots();
+    timerId = setInterval(function () {
+      timeLeft = Math.max(0, SECONDS - (Date.now() - questionStarted) / 1000);
+      $('timer').textContent = Math.ceil(timeLeft) + 's';
+      if (timeLeft <= 0) reveal();
+    }, 100);
+  }
+
+  function scheduleBots() {
+    const q = currentQ();
+    players.filter(p => p.bot).forEach(function (bot) {
+      const delay = 1600 + Math.random() * (SECONDS * 820);
+      const t = setTimeout(function () {
+        if (phase !== 'question' || answers[bot.id]) return;
+        let value;
+        if (q.type === 'mc') {
+          if (Math.random() < bot.acc) value = q.answer;
+          else {
+            const wrong = [0, 1, 2, 3].filter(i => i !== q.answer);
+            value = pick(wrong);
+          }
+        } else {
+          value = Math.random() < bot.acc ? q.answer : !q.answer;
+        }
+        answers[bot.id] = { value: value, ms: Math.min(delay, SECONDS * 1000) };
+        bot.answered = true;
+      }, delay);
+      botTimers.push(t);
+    });
+  }
+
+  function reveal() {
+    if (phase !== 'question') return;
+    phase = 'reveal';
+    clearTimers();
+    const q = currentQ();
+    const total = SECONDS * 1000;
+    players.forEach(function (p) {
+      const a = answers[p.id];
+      if (!a) { p.streak = 0; p.lastPoints = 0; p.lastCorrect = false; p.answered = false; return; }
+      const correct = a.value === q.answer;
+      let pts = 0;
+      if (correct) {
+        p.streak += 1;
+        p.correct += 1;
+        const ratio = Math.max(0, 1 - a.ms / total);
+        pts = 500 + Math.round(500 * ratio) + Math.min(200, (p.streak - 1) * 50);
+      } else {
+        p.streak = 0;
+      }
+      p.lastPoints = pts;
+      p.lastCorrect = correct;
+      p.score += pts;
+      p.answered = true;
+    });
+    renderReveal();
+  }
+
+  function renderQuestion() {
+    const q = currentQ();
+    $('qnum').textContent = 'Question ' + (qIndex + 1) + ' / ' + questions.length;
+    $('qtype').textContent = q.type === 'mc' ? 'Multiple choice' : 'True or false';
+    $('timer').textContent = SECONDS + 's';
+    $('qprompt').innerHTML = escapeHtml(q.prompt) + '<small>' + escapeHtml(q.sub) + '</small>';
+    $('startBtn').hidden = true;
+    $('revealBtn').hidden = false;
+    $('revealBtn').disabled = false;
+    $('nextBtn').hidden = true;
+    $('nextBtn').disabled = true;
+
+    choicesEl.className = 'choices' + (q.type === 'tf' ? ' tf' : '');
+    choicesEl.innerHTML = q.type === 'mc'
+      ? q.choices.map(function (text, i) {
+          return '<div class="choice ' + COLORS[i] + '" data-i="' + i + '">'
+            + '<span class="shape">' + SHAPES[i] + '</span>'
+            + '<span>' + escapeHtml(text) + '</span>'
+            + '<span class="count">0</span></div>';
+        }).join('')
+      : '<div class="choice true" data-i="1"><span class="shape">✓</span><span>True</span><span class="count">0</span></div>'
+        + '<div class="choice false" data-i="0"><span class="shape">✕</span><span>False</span><span class="count">0</span></div>';
+
+    sanswersEl.className = 'sanswers' + (q.type === 'tf' ? ' tf' : '');
+    sanswersEl.innerHTML = q.type === 'mc'
+      ? q.choices.map(function (text, i) {
+          return '<button type="button" class="sanswer ' + COLORS[i] + '" data-i="' + i + '">'
+            + SHAPES[i] + ' ' + escapeHtml(text) + '</button>';
+        }).join('')
+      : '<button type="button" class="sanswer true" data-i="1">✓ True</button>'
+        + '<button type="button" class="sanswer false" data-i="0">✕ False</button>';
+    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+      btn.addEventListener('click', function () { studentAnswer(Number(btn.getAttribute('data-i'))); });
+    });
+
+    $('sprompt').textContent = q.prompt;
+    $('sfeedback').textContent = 'Choose your answer!';
+    renderBoard();
+    renderStudentHead();
+    updateYouRank();
+  }
+
+  function studentAnswer(value) {
+    if (phase !== 'question' || answers.you) return;
+    answers.you = { value: value, ms: Date.now() - questionStarted };
+    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+      btn.disabled = true;
+      btn.classList.toggle('picked', Number(btn.getAttribute('data-i')) === value);
+    });
+    $('sfeedback').textContent = '✅ Locked in — waiting for the reveal.';
+  }
+
+  function renderReveal() {
+    const q = currentQ();
+    const counts = {};
+    const total = SECONDS * 1000;
+    players.forEach(function (p) {
+      const a = answers[p.id];
+      if (!a) return;
+      counts[a.value] = (counts[a.value] || 0) + 1;
+    });
+    Array.from(choicesEl.querySelectorAll('.choice')).forEach(function (el) {
+      const i = Number(el.getAttribute('data-i'));
+      const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
+      el.classList.add('show-count');
+      el.classList.toggle('correct', isCorrect);
+      el.classList.toggle('dim', !isCorrect);
+      const c = el.querySelector('.count');
+      if (c) c.textContent = counts[i] || 0;
+    });
+    $('timer').textContent = 'Reveal';
+    $('revealBtn').hidden = true;
+    $('nextBtn').hidden = false;
+    $('nextBtn').disabled = false;
+    $('nextBtn').textContent = qIndex + 1 >= questions.length ? '🏁 Finish' : 'Next →';
+
+    const me = player('you');
+    const a = answers.you;
+    const correct = a ? a.value === q.answer : false;
+    if (!a) {
+      $('sfeedback').textContent = '⏰ No answer.\nCorrect: ' + answerText(q);
+    } else if (correct) {
+      $('sfeedback').textContent = '✅ Correct! +' + me.lastPoints + ' pts\n' + answerText(q);
+    } else {
+      $('sfeedback').textContent = '❌ Not quite.\nCorrect: ' + answerText(q);
+    }
+    Array.from(sanswersEl.querySelectorAll('button')).forEach(function (btn) {
+      btn.disabled = true;
+      const i = Number(btn.getAttribute('data-i'));
+      const isCorrect = q.type === 'mc' ? i === q.answer : (i === 1) === q.answer;
+      btn.classList.toggle('correct', isCorrect);
+      if (a && i === a.value) btn.classList.add('picked');
+    });
+    renderBoard();
+    renderStudentHead();
+    updateYouRank();
+  }
+
+  function answerText(q) {
+    if (q.type === 'mc') return q.choices[q.answer];
+    return q.answer ? 'True' : 'False';
+  }
+
+  function player(id) { return players.find(p => p.id === id); }
+
+  function renderBoard() {
+    const sorted = players.slice().sort((a, b) => b.score - a.score);
+    boardEl.innerHTML = sorted.slice(0, 5).map(function (p, i) {
+      const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+      return '<div class="board-row' + (p.id === 'you' ? ' you' : '') + '">'
+        + '<span class="rank">' + medal + '</span>'
+        + '<span class="name">' + escapeHtml(p.name) + '</span>'
+        + '<span class="pts">' + p.score + ' pts</span></div>';
+    }).join('');
+  }
+
+  function renderStudentHead() {
+    const me = player('you');
+    $('youScore').textContent = me.score + ' pts';
+  }
+
+  function updateYouRank() {
+    const sorted = players.slice().sort((a, b) => b.score - a.score);
+    const rank = sorted.findIndex(p => p.id === 'you') + 1;
+    $('youRank').textContent = '#' + rank;
+  }
+
+  function finish() {
+    phase = 'finished';
+    clearTimers();
+    $('qnum').textContent = 'Finished';
+    $('qtype').textContent = 'Results';
+    $('timer').textContent = '🏁';
+    $('qprompt').innerHTML = 'Quiz complete!<small>Top 3 on the podium</small>';
+    choicesEl.innerHTML = '';
+    $('startBtn').hidden = false;
+    $('startBtn').textContent = '↻ Play again';
+    $('revealBtn').hidden = true;
+    $('nextBtn').hidden = true;
+    $('sanswers').innerHTML = '';
+    $('sprompt').textContent = 'Final results';
+    $('sfeedback').textContent = 'Check the podium →';
+    const sorted = players.slice().sort((a, b) => b.score - a.score);
+    $('podiumRows').innerHTML = sorted.slice(0, 3).map(function (p, i) {
+      return '<div class="podium-row"><span class="medal">' + ['🥇', '🥈', '🥉'][i] + '</span>'
+        + '<span class="name">' + escapeHtml(p.name) + '</span>'
+        + '<span class="pts">' + p.score + ' pts</span></div>';
+    }).join('');
+    $('podium').classList.remove('hidden');
+    renderBoard();
+    renderStudentHead();
+    updateYouRank();
+    stopMusic();
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function ensureMusic() {
+    if (music) return;
+    music = new Audio('music/battlemusic.mp3');
+    music.loop = true;
+    music.volume = 0.25;
+    music.preload = 'none';
+  }
+  function startMusic() {
+    if (!musicOn) return;
+    ensureMusic();
+    try { music.play().catch(function () {}); } catch (e) {}
+  }
+  function stopMusic() {
+    if (!music) return;
+    try { music.pause(); music.currentTime = 0; } catch (e) {}
+  }
+
+  /* --- buttons --- */
+  $('startBtn').addEventListener('click', function () {
+    if (phase === 'lobby' || phase === 'finished') startQuiz();
+  });
+  $('revealBtn').addEventListener('click', function () {
+    if (phase === 'question') reveal();
+  });
+  $('nextBtn').addEventListener('click', function () {
+    if (phase === 'reveal') nextQuestion();
+  });
+  $('againBtn').addEventListener('click', function () {
+    $('podium').classList.add('hidden');
+    startQuiz();
+  });
+  $('musicBtn').addEventListener('click', function () {
+    musicOn = !musicOn;
+    $('musicBtn').textContent = musicOn ? '🔊' : '🔇';
+    if (musicOn) startMusic();
+    else stopMusic();
+  });
+
+  Array.from(document.querySelectorAll('.tabs button')).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.body.dataset.pane = btn.getAttribute('data-pane');
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b === btn));
+    });
+  });
+
+  renderBoard();
+  renderStudentHead();
+  updateYouRank();
+})();
+</script>
+</body>
+</html>

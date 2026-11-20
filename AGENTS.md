@@ -2028,7 +2028,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 
 - 獨立 demo：`/quizzykitty-demo.html`，唔影響正式 app。基本 MC／T/F 唔需要
   登入；只有 New Vocab topic 會借用同 origin 的 Supabase session（見下）。
-- 5 位玩家：You + 4 個 bot（3A Amy／4C Ben／6D Chloe／3B Daniel）。
+- **兩種規模**（`settings.mode`，設定畫面「Players」）：
+  - **👥 Class battle · 30**（預設）：You ＋ 29 個 mock 同學（3A／3B／4C／4D／6D，
+    例如 `3A 01 Chan`…`6D 29 Pang`），每人有自己嘅貓（Ginger／Ragdoll／
+    British Shorthair／Garfield），部分戴 Crown／Party Hat／Lo-Fi Headphones／
+    Glasses／Sunglasses；`CLASS_ROSTER` 有齊名字、貓、飾物同 acc。
+  - **🤖 Quick demo · 5**：You ＋ 4 個 bot（3A Amy／4C Ben／6D Chloe／3B Daniel）。
+  - 呢個仍然係**本機示範**：29 個同學係 bot，唔係真學生連線。真 30 人手機
+    入房（房碼／Supabase RPC）仍未做；`look` 欄位已經預留，之後可以直接
+    塞 `profile_looks`。
 - 老師按 **Start → Reveal → Next** 逐題控制；完場有 **Prize ceremony**。
 - **開賽前設定畫面**（`#setup`）：Topic／Question type／Questions／Seconds each，
   設定存 `localStorage['learniTY_qk_settings']`，重新整理同「🎉 New quiz」都會保留。
@@ -2060,8 +2068,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   彈出 **`#roundBoard`**：
   - 頂部係綠色 answer strip：正確答案＋`✅ N · ❌ M · ⏰ K`；MC／T/F 另外
     有一行每個選項嘅人數（`.ans-dist`），例如 `apple 3 · banana 1 · …`。
-  - 5 位玩家按分數即時重排，**分數由舊分數 count-up 到新分數**（約 720ms），
+  - 按分數即時重排，**分數由舊分數 count-up 到新分數**（約 720ms），
     每行有 `▲N`／`▼N`／`–` 名次箭咀；「You」行黃底。
+  - 30 人時只顯示 **Top 7**，如果「You」跌出 Top 7 會喺虛線下面再補
+    自己嗰行，footer 寫 `+N more players`；5 人 demo 就顯示全部。
   - 名次有變會用 **FLIP**：render 前記住 `row.offsetTop`（`lastRoundTops`），
     render 後 `translateY(舊-新)` 再 transition 返 0，所以係即刻滑去新位。
   - 動畫有 WebAudio 音效：逐行 tick、自己行升名次有上升 chime，
@@ -2072,7 +2082,14 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   podium modal）。DOM 次序係 CHAMPION → 1ST RUNNER UP → 2ND RUNNER UP，
   但彈出次序係 **3rd → 2nd → 1st（CHAMPION 最後）**，每 1.1 秒一張
   （第一張 0.7 秒後），CHAMPION 卡最後出現時會 `scrollTop = 0`。
-  每張卡有獎牌、名、分數、🐱 avatar（暫時冇 per-student look）。
+  每張卡有獎牌、名、分數，同用 canvas 畫嘅**該位同學隻貓**
+  （`drawCat()`：4 款貓 palette、虎斑紋、耳仔、眼、鬚；支援 Crown／
+  Party Hat／Lo-Fi Headphones 同 Glasses／Sunglasses／Cyber Visor）。
+  30 人模式另外有 **🎓 Class photo · 30 cats**：`#trophyPhoto` 用 30 個細
+  canvas 排 6 欄（窄螢幕 5 欄、可 scroll），逐隻畫返各人嘅貓。
+  闊螢幕（≥760px）trophy card 變 **760px 兩欄**（左邊 Top 3、右邊全班相），
+  所以 1024×768 投影機一次過睇晒；≤820px 高有 compact 貓／卡尺寸，
+  ≤620px 高會收起 class photo（Top 3 嘅貓仍然見到）。
   `#confetti` 有 30 粒 CSS 彩帶（6 秒後清除）；音樂用
   `/music/trophyMusic.mp3`（volume 0.45），關閉／New quiz 會停。
   卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）。

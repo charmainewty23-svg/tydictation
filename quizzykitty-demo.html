@@ -282,6 +282,11 @@
     min-width: 80px; text-align: right; font-size: 13px; color: var(--brand);
     font-variant-numeric: tabular-nums;
   }
+  .rb-gap { margin: 4px 0 2px; border-top: 1px dashed var(--line); }
+  .rb-more {
+    margin-top: 5px; text-align: center; font-size: 10px; font-weight: 800;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  }
 
   .student { display: flex; justify-content: center; }
   .phone {
@@ -342,7 +347,7 @@
     padding: 12px; background: rgba(8, 14, 50, .86);
   }
   .trophy-card {
-    position: relative; width: min(430px, 100%);
+    position: relative; width: min(760px, 100%);
     max-height: calc(100dvh - 24px); overflow-y: auto;
     padding: 16px 14px 18px; border-radius: 26px;
     border: 4px solid #fbbf24;
@@ -397,6 +402,41 @@
     width: 92px; height: 92px; font-size: 50px;
     background: var(--yellow); border-color: #fbbf24;
   }
+  .trophy-cat { display: block; width: 122px; height: 94px; margin: 2px auto 0; }
+  .trophy-place.champion .trophy-cat { width: 152px; height: 114px; }
+  .trophy-body { display: block; }
+  .trophy-photo {
+    margin: 8px 0 6px; padding-top: 8px;
+    border-top: 2px dashed #fde68a;
+  }
+  @media (min-width: 760px) {
+    .trophy-body {
+      display: grid; grid-template-columns: 336px minmax(0, 1fr);
+      gap: 14px; align-items: start;
+    }
+    .trophy-photo {
+      margin: 2px 0 0; padding-top: 0; border-top: 0;
+      max-height: 620px;
+    }
+    .trophy-photo h3 { margin-top: 6px; }
+    .trophy-photo-grid { max-height: 540px; }
+  }
+  .trophy-photo h3 {
+    margin: 0 0 6px; font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: #9a3412;
+  }
+  .trophy-photo-grid {
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px; max-height: 176px; overflow-y: auto; padding-right: 2px;
+  }
+  .tp-item { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .tp-item canvas { width: 52px; height: 40px; display: block; }
+  .tp-item span {
+    max-width: 100%; font-size: 8px; font-weight: 800; color: #7c2d12;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tp-item.me span { color: var(--brand); }
+  .tp-item.me canvas { filter: drop-shadow(0 0 3px rgba(16, 64, 208, .45)); }
   .trophy-name {
     font-size: 1.15rem; font-weight: 800; color: #1f2937;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -419,13 +459,16 @@
   @keyframes confettiFall {
     to { transform: translateY(110vh) rotate(720deg); }
   }
-  @media (max-height: 760px) {
+  @media (max-height: 820px) {
     .trophy-card { padding: 12px 12px 14px; }
     .trophy-kicker { display: none; }
     .trophy-title { font-size: 20px; margin-bottom: 6px; }
     .trophy-place { padding: 5px 8px 7px; margin-bottom: 6px; }
     .trophy-avatar { width: 52px; height: 52px; font-size: 28px; margin: 3px auto 1px; }
     .trophy-place.champion .trophy-avatar { width: 66px; height: 66px; font-size: 34px; }
+    .trophy-cat { width: 88px; height: 68px; }
+    .trophy-place.champion .trophy-cat { width: 108px; height: 81px; }
+    .trophy-photo-grid { max-height: 140px; }
     .trophy-medal { font-size: 24px; }
     .trophy-place.champion .trophy-medal { font-size: 32px; }
     .trophy-name { font-size: 1rem; }
@@ -445,6 +488,7 @@
     .trophy-label { font-size: .6rem; }
     .trophy-score { font-size: .8rem; }
     .trophy-continue { min-height: 42px; margin-top: 2px; }
+    .trophy-photo { display: none; }
   }
   @media (max-height: 560px) and (orientation: landscape) {
     .trophy-place { padding: 4px 8px 6px; margin-bottom: 6px; }
@@ -468,6 +512,7 @@
   @media (max-width: 620px) {
     .setup-grid { grid-template-columns: 1fr; }
     .setup-head h1 { font-size: 24px; }
+    .trophy-photo-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   }
   @media (max-width: 420px) {
     .top { padding: 8px 10px; }
@@ -487,7 +532,7 @@
     <small>Class quiz demo</small>
   </div>
   <div class="top-right">
-    <span class="code">Room QK-2048 · 5 players</span>
+    <span class="code" id="roomChip">Room QK-2048 · 30 players</span>
     <button type="button" class="icon-btn" id="musicBtn" aria-label="Music">🔊</button>
   </div>
 </header>
@@ -506,6 +551,10 @@
           <p>Teacher controls every question</p>
         </div>
         <div class="setup-grid">
+          <div class="setup-row wide">
+            <span class="setup-label">Players</span>
+            <div class="pills" id="setMode"></div>
+          </div>
           <label class="setup-row wide">
             <span class="setup-label">Topic</span>
             <select id="setTopic" class="setup-select"></select>
@@ -566,7 +615,10 @@
     <button type="button" class="trophy-close" id="trophyClose" aria-label="Close ceremony">✕</button>
     <p class="trophy-kicker">QuizzyKitty</p>
     <h2 class="trophy-title">🏆 Prize ceremony</h2>
-    <div id="trophyPlaces"></div>
+    <div class="trophy-body">
+      <div id="trophyPlaces"></div>
+      <div id="trophyPhoto"></div>
+    </div>
     <button type="button" class="trophy-continue" id="againBtn">🎉 New quiz</button>
   </div>
 </div>
@@ -645,6 +697,52 @@
     { en: 'spicy', zh: '辣' }, { en: 'quiet', zh: '安靜' }, { en: 'ancient', zh: '古老' }
   ];
 
+  const CAT_PALETTES = {
+    Ginger: { body: '#d98645', shade: '#b96a2e', light: '#f3c18d', stripe: '#a95823', points: '#8b4a20', eye: '#c9a227', nose: '#d98b98', inner: '#e8a6ad' },
+    Ragdoll: { body: '#f7f0e6', shade: '#e6d8c8', light: '#fffaf2', stripe: null, points: '#6b5148', eye: '#4dabf7', nose: '#e7a0ae', inner: '#e8b6c0' },
+    'British Shorthair': { body: '#9aa8b5', shade: '#7a8794', light: '#c6d0d9', stripe: null, points: '#68747f', eye: '#d98b3a', nose: '#c88b96', inner: '#bda8b2' },
+    Garfield: { body: '#f0a13c', shade: '#d47c1d', light: '#ffd08a', stripe: '#b3600f', points: '#9c5510', eye: '#e9c24a', nose: '#d98b98', inner: '#efa9b3' }
+  };
+
+  const CLASS_ROSTER = [
+    { name: '3A 01 Chan', cat: 'Ginger', hat: '', glasses: '', acc: 0.88 },
+    { name: '3A 02 Wong', cat: 'Ragdoll', hat: '', glasses: '', acc: 0.74 },
+    { name: '3A 03 Lee', cat: 'British Shorthair', hat: 'Crown', glasses: '', acc: 0.81 },
+    { name: '3A 04 Lam', cat: 'Garfield', hat: '', glasses: 'Sunglasses', acc: 0.66 },
+    { name: '3A 05 Ho', cat: 'Ginger', hat: 'Party Hat', glasses: '', acc: 0.79 },
+    { name: '3A 06 Cheung', cat: 'Ragdoll', hat: '', glasses: 'Glasses', acc: 0.90 },
+    { name: '3B 07 Ng', cat: 'British Shorthair', hat: '', glasses: '', acc: 0.62 },
+    { name: '3B 08 Lau', cat: 'Garfield', hat: 'Lo-Fi Headphones', glasses: '', acc: 0.71 },
+    { name: '3B 09 Tsang', cat: 'Ginger', hat: '', glasses: '', acc: 0.58 },
+    { name: '3B 10 Kwok', cat: 'Ragdoll', hat: '', glasses: '', acc: 0.83 },
+    { name: '4C 11 Yip', cat: 'British Shorthair', hat: 'Crown', glasses: '', acc: 0.77 },
+    { name: '4C 12 Chow', cat: 'Ginger', hat: '', glasses: 'Glasses', acc: 0.85 },
+    { name: '4C 13 Mak', cat: 'Garfield', hat: '', glasses: '', acc: 0.69 },
+    { name: '4C 14 Fung', cat: 'Ragdoll', hat: 'Party Hat', glasses: '', acc: 0.80 },
+    { name: '4C 15 Poon', cat: 'British Shorthair', hat: '', glasses: '', acc: 0.63 },
+    { name: '4C 16 Lai', cat: 'Ginger', hat: '', glasses: 'Sunglasses', acc: 0.91 },
+    { name: '4D 17 Tam', cat: 'Garfield', hat: '', glasses: '', acc: 0.72 },
+    { name: '4D 18 Yuen', cat: 'Ragdoll', hat: '', glasses: '', acc: 0.55 },
+    { name: '4D 19 So', cat: 'British Shorthair', hat: '', glasses: 'Glasses', acc: 0.86 },
+    { name: '4D 20 Hui', cat: 'Ginger', hat: 'Lo-Fi Headphones', glasses: '', acc: 0.67 },
+    { name: '6D 21 Tse', cat: 'Garfield', hat: 'Crown', glasses: '', acc: 0.84 },
+    { name: '6D 22 Ma', cat: 'Ragdoll', hat: '', glasses: '', acc: 0.76 },
+    { name: '6D 23 Kong', cat: 'British Shorthair', hat: '', glasses: '', acc: 0.60 },
+    { name: '6D 24 Sit', cat: 'Ginger', hat: '', glasses: '', acc: 0.89 },
+    { name: '6D 25 Luk', cat: 'Garfield', hat: 'Party Hat', glasses: '', acc: 0.64 },
+    { name: '6D 26 Yau', cat: 'Ragdoll', hat: '', glasses: 'Sunglasses', acc: 0.78 },
+    { name: '6D 27 Sung', cat: 'British Shorthair', hat: '', glasses: '', acc: 0.70 },
+    { name: '6D 28 Chiu', cat: 'Ginger', hat: '', glasses: '', acc: 0.82 },
+    { name: '6D 29 Pang', cat: 'Garfield', hat: '', glasses: 'Glasses', acc: 0.61 }
+  ];
+
+  const QUICK_ROSTER = [
+    { id: 'amy', name: '3A Amy', cat: 'Ragdoll', acc: 0.86 },
+    { id: 'ben', name: '4C Ben', cat: 'British Shorthair', acc: 0.72 },
+    { id: 'chloe', name: '6D Chloe', cat: 'Garfield', acc: 0.63 },
+    { id: 'daniel', name: '3B Daniel', cat: 'Ginger', acc: 0.78 }
+  ];
+
   const SETTINGS_KEY = 'learniTY_qk_settings';
   const TYPE_OPTIONS = [
     { id: 'mc', label: '🔤 Multiple choice' },
@@ -657,7 +755,11 @@
   const SHAPES = ['▲', '◆', '●', '■'];
   const COLORS = ['c0', 'c1', 'c2', 'c3'];
 
-  const settings = { topic: 'mixed', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
+  const MODE_OPTIONS = [
+    { id: 'class', label: '👥 Class battle · 30' },
+    { id: 'quick', label: '🤖 Quick demo · 5' }
+  ];
+  const settings = { mode: 'class', topic: 'mixed', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -1091,6 +1193,7 @@
     try {
       const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
       if (!raw) return;
+      if (raw.mode === 'class' || raw.mode === 'quick') settings.mode = raw.mode;
       const valid = TYPE_OPTIONS.map(o => o.id);
       if (Array.isArray(raw.types)) settings.types = raw.types.filter(id => valid.indexOf(id) !== -1);
       else if (raw.type === 'mixed') settings.types = valid.slice();
@@ -1168,6 +1271,12 @@
 
   function renderSetup() {
     renderTopicSelect();
+    renderPills($('setMode'), MODE_OPTIONS, settings.mode, function (id) {
+      settings.mode = id;
+      saveSettings();
+      updateRoomChip();
+      renderSetup();
+    });
     renderTypePills();
     renderPills($('setCount'), COUNT_OPTIONS.map(n => ({ id: n, label: String(n) })), settings.count, function (id) {
       settings.count = Number(id); saveSettings(); renderSetup();
@@ -1194,6 +1303,46 @@
   /* ------------------------------------------------------------------ */
   /* Quiz flow                                                           */
   /* ------------------------------------------------------------------ */
+  function buildPlayers() {
+    players.length = 0;
+    if (settings.mode === 'class') {
+      CLASS_ROSTER.forEach(function (r, i) {
+        players.push({
+          id: 's' + (i + 1), name: r.name, bot: true, acc: r.acc,
+          look: { cat: r.cat, hat: r.hat || '', glasses: r.glasses || '' },
+          score: 0, streak: 0, correct: 0
+        });
+      });
+      players.push({
+        id: 'you', name: 'You', bot: false, acc: 0.8,
+        look: { cat: 'Ginger', hat: '', glasses: '' },
+        score: 0, streak: 0, correct: 0
+      });
+    } else {
+      QUICK_ROSTER.forEach(function (r) {
+        players.push({
+          id: r.id, name: r.name, bot: true, acc: r.acc,
+          look: { cat: r.cat, hat: '', glasses: '' },
+          score: 0, streak: 0, correct: 0
+        });
+      });
+      players.push({
+        id: 'you', name: 'You', bot: false, acc: 0.8,
+        look: { cat: 'Ragdoll', hat: '', glasses: '' },
+        score: 0, streak: 0, correct: 0
+      });
+    }
+  }
+
+  function updateRoomChip() {
+    const el = $('roomChip');
+    if (!el) return;
+    const n = (phase === 'setup' || phase === 'loading')
+      ? (settings.mode === 'class' ? 30 : 5)
+      : players.length;
+    el.textContent = 'Room QK-2048 · ' + n + ' players';
+  }
+
   function resetPlayers() {
     players.forEach(function (p) {
       p.score = 0; p.streak = 0; p.correct = 0;
@@ -1246,7 +1395,9 @@
     $('setup').classList.add('hidden');
     $('quizBody').classList.remove('hidden');
     qIndex = -1;
+    buildPlayers();
     resetPlayers();
+    updateRoomChip();
     lastRoundTops = new Map();
     renderStudentHead();
     updateYouRank();
@@ -1575,27 +1726,47 @@
       if (b.score !== a.score) return b.score - a.score;
       return a.name.localeCompare(b.name);
     });
+    const rankOf = new Map();
+    sorted.forEach(function (p, i) { rankOf.set(p.id, i + 1); });
+
+    const limited = sorted.length > 7;
+    const shown = limited ? sorted.slice(0, 7) : sorted.slice();
+    const extra = [];
+    if (limited) {
+      const you = sorted.find(p => p.id === 'you');
+      if (you && shown.indexOf(you) === -1) extra.push(you);
+    }
+
+    function rowHTML(p) {
+      const rank = rankOf.get(p.id);
+      const old = before.find(x => x.id === p.id) || { score: p.score, rank: rank };
+      const move = old.rank - rank;
+      const delta = move > 0
+        ? '<span class="rb-delta up">▲' + move + '</span>'
+        : (move < 0
+          ? '<span class="rb-delta down">▼' + (-move) + '</span>'
+          : '<span class="rb-delta">–</span>');
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '.';
+      return '<div class="rb-row' + (p.id === 'you' ? ' you' : '') + '" data-id="' + p.id + '">' +
+        '<span class="rb-rank">' + medal + '</span>' +
+        '<span class="rb-name">' + escapeHtml(p.name) + '</span>' + delta +
+        '<span class="rb-score">0</span></div>';
+    }
+
+    const subtitle = limited ? 'Top 7 of ' + sorted.length : sorted.length + ' players';
+    const hiddenCount = sorted.length - shown.length - extra.length;
     host.innerHTML =
-      '<div class="rb-head"><b>After question ' + (qIndex + 1) + '</b><span>⬆ scores rising</span></div>' +
-      sorted.map(function (p, i) {
-        const old = before.find(x => x.id === p.id) || { score: p.score, rank: i + 1 };
-        const move = old.rank - (i + 1);
-        const delta = move > 0
-          ? '<span class="rb-delta up">▲' + move + '</span>'
-          : (move < 0
-            ? '<span class="rb-delta down">▼' + (-move) + '</span>'
-            : '<span class="rb-delta">–</span>');
-        return '<div class="rb-row' + (p.id === 'you' ? ' you' : '') + '" data-id="' + p.id + '">' +
-          '<span class="rb-rank">' + (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + '</span>' +
-          '<span class="rb-name">' + escapeHtml(p.name) + '</span>' + delta +
-          '<span class="rb-score">0</span></div>';
-      }).join('');
+      '<div class="rb-head"><b>After question ' + (qIndex + 1) + '</b><span>' + subtitle + '</span></div>' +
+      shown.map(rowHTML).join('') +
+      (extra.length ? '<div class="rb-gap"></div>' + extra.map(rowHTML).join('') : '') +
+      (hiddenCount > 0 ? '<div class="rb-more">+' + hiddenCount + ' more players</div>' : '');
 
     const rows = Array.from(host.querySelectorAll('.rb-row'));
     rows.forEach(function (row, i) {
       const id = row.getAttribute('data-id');
       const p = player(id);
-      const old = before.find(x => x.id === id) || { score: p.score, rank: i + 1 };
+      const rank = rankOf.get(id);
+      const old = before.find(x => x.id === id) || { score: p.score, rank: rank };
       const oldTop = prev.get(id);
       if (oldTop != null) {
         const dy = oldTop - row.offsetTop;
@@ -1619,6 +1790,168 @@
     lastRoundTops = new Map(rows.map(function (row) {
       return [row.getAttribute('data-id'), row.offsetTop];
     }));
+  }
+
+  function drawCat(canvas, look) {
+    if (!canvas) return;
+    const lk = look || {};
+    const cat = CAT_PALETTES[lk.cat] ? lk.cat : 'Ginger';
+    const p = CAT_PALETTES[cat];
+    const box = canvas.getBoundingClientRect();
+    const w = Math.max(36, Math.round(box.width || 120));
+    const h = Math.max(30, Math.round(box.height || 96));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const s = Math.min(w / 122, h / 100);
+    ctx.save();
+    ctx.translate(w / 2, h - 4 * s);
+    ctx.scale(s, s);
+
+    // shadow
+    ctx.fillStyle = 'rgba(60,40,30,.16)';
+    ctx.beginPath(); ctx.ellipse(0, 1, 40, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+    // tail
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = p.points; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(21, -18); ctx.quadraticCurveTo(54, -24, 46, -60); ctx.stroke();
+    ctx.strokeStyle = p.body; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(23, -20); ctx.quadraticCurveTo(50, -27, 44, -58); ctx.stroke();
+
+    // paws
+    ctx.fillStyle = p.light;
+    [-12, 12].forEach(function (dx) {
+      ctx.beginPath(); ctx.ellipse(dx, -4, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // body
+    ctx.fillStyle = p.body;
+    ctx.beginPath(); ctx.ellipse(0, -27, 26, 29, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff8ee';
+    ctx.beginPath(); ctx.ellipse(0, -27, 14, 21, 0, 0, Math.PI * 2); ctx.fill();
+
+    // ears
+    [-1, 1].forEach(function (side) {
+      const dx = side * 15;
+      ctx.fillStyle = p.body;
+      ctx.beginPath();
+      ctx.moveTo(dx - 11, -78);
+      ctx.lineTo(dx + side * 4, -103);
+      ctx.lineTo(dx + 13, -80);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = p.inner;
+      ctx.beginPath();
+      ctx.moveTo(dx - 6, -80);
+      ctx.lineTo(dx + side * 3, -96);
+      ctx.lineTo(dx + 9, -81);
+      ctx.closePath(); ctx.fill();
+    });
+
+    // head
+    ctx.fillStyle = p.body;
+    ctx.beginPath(); ctx.arc(0, -64, 27, 0, Math.PI * 2); ctx.fill();
+
+    // tabby stripes
+    if (p.stripe) {
+      ctx.strokeStyle = p.stripe;
+      ctx.lineWidth = 2.4;
+      [[-13, -84, -8, -74], [-5, -87, -2, -76], [4, -87, 7, -76], [11, -84, 15, -75]].forEach(function (l) {
+        ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); ctx.stroke();
+      });
+      ctx.lineWidth = 2;
+      [[-20, -38, -10, -38], [-22, -28, -12, -28], [20, -38, 10, -38], [22, -28, 12, -28]].forEach(function (l) {
+        ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); ctx.stroke();
+      });
+    }
+
+    // muzzle
+    ctx.fillStyle = p.light;
+    ctx.beginPath(); ctx.ellipse(0, -54, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
+
+    // eyes
+    [-10, 10].forEach(function (dx) {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(dx, -67, 6, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = p.eye;
+      ctx.beginPath(); ctx.ellipse(dx, -67, 3.4, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1f2937';
+      ctx.beginPath(); ctx.ellipse(dx, -67, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // nose + mouth
+    ctx.fillStyle = p.nose;
+    ctx.beginPath(); ctx.moveTo(0, -57); ctx.lineTo(-3.6, -53); ctx.lineTo(3.6, -53); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,60,50,.55)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0, -53); ctx.lineTo(0, -50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -50); ctx.quadraticCurveTo(-3, -47, -6, -50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -50); ctx.quadraticCurveTo(3, -47, 6, -50); ctx.stroke();
+
+    // whiskers
+    ctx.strokeStyle = 'rgba(90,70,60,.4)'; ctx.lineWidth = 1;
+    [-1, 1].forEach(function (side) {
+      [-5, 0, 5].forEach(function (dy) {
+        ctx.beginPath();
+        ctx.moveTo(side * 12, -54 + dy);
+        ctx.lineTo(side * 30, -57 + dy * 1.4);
+        ctx.stroke();
+      });
+    });
+
+    // glasses
+    const glasses = lk.glasses || lk.face || '';
+    if (glasses === 'Cyber Visor') {
+      ctx.fillStyle = 'rgba(16,64,208,.82)';
+      ctx.fillRect(-22, -75, 44, 13);
+      ctx.fillStyle = 'rgba(255,224,64,.75)';
+      ctx.fillRect(-20, -72, 12, 2);
+    } else if (glasses === 'Glasses' || glasses === 'Sunglasses') {
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = 2;
+      [-10, 10].forEach(function (dx) {
+        ctx.beginPath(); ctx.arc(dx, -67, 8, 0, Math.PI * 2);
+        if (glasses === 'Sunglasses') { ctx.fillStyle = '#111827'; ctx.fill(); }
+        else { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fill(); ctx.stroke(); }
+      });
+      ctx.beginPath(); ctx.moveTo(-2, -67); ctx.lineTo(2, -67); ctx.stroke();
+    }
+
+    // hats
+    const hat = lk.hat || '';
+    if (hat === 'Crown') {
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.moveTo(-15, -86); ctx.lineTo(-15, -104); ctx.lineTo(-6, -94);
+      ctx.lineTo(0, -109); ctx.lineTo(6, -94); ctx.lineTo(15, -104);
+      ctx.lineTo(15, -86); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#b45309'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(0, -93, 2.2, 0, Math.PI * 2); ctx.fill();
+    } else if (hat === 'Party Hat') {
+      ctx.fillStyle = '#7c3aed';
+      ctx.beginPath(); ctx.moveTo(-13, -86); ctx.lineTo(0, -122); ctx.lineTo(13, -86); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffe040';
+      ctx.beginPath(); ctx.arc(0, -123, 3.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-8, -96, 16, 3);
+    } else if (hat === 'Lo-Fi Headphones') {
+      ctx.strokeStyle = '#374151'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, -66, 33, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+      ctx.fillStyle = '#4b5563';
+      [-33, 33].forEach(function (dx) {
+        ctx.beginPath(); ctx.rect(dx - 7, -72, 14, 18); ctx.fill();
+      });
+      ctx.fillStyle = '#9ca3af';
+      [-33, 33].forEach(function (dx) {
+        ctx.beginPath(); ctx.rect(dx - 4, -68, 8, 10); ctx.fill();
+      });
+    }
+
+    ctx.restore();
   }
 
   function player(id) { return players.find(p => p.id === id); }
@@ -1661,16 +1994,31 @@
     });
     const cards = sorted.slice(0, 3);
     const labels = ['CHAMPION', '1ST RUNNER UP', '2ND RUNNER UP'];
-    $('trophyPlaces').innerHTML = cards.map(function (p, i) {
+    const placesHtml = cards.map(function (p, i) {
       return '<div class="trophy-place' + (i === 0 ? ' champion' : '') + '" data-place="' + (i + 1) + '">' +
         '<div class="trophy-medal">' + ['🥇', '🥈', '🥉'][i] + '</div>' +
         '<div class="trophy-label">' + labels[i] + '</div>' +
-        '<div class="trophy-avatar">🐱</div>' +
+        '<canvas class="trophy-cat" data-pid="' + escapeHtml(p.id) + '"></canvas>' +
         '<div class="trophy-name">' + escapeHtml(p.name) + '</div>' +
         '<div class="trophy-score">' + p.score.toLocaleString('en-US') + ' pts</div>' +
       '</div>';
     }).join('');
+
+    $('trophyPlaces').innerHTML = placesHtml;
+    $('trophyPhoto').innerHTML = sorted.length > 7
+      ? '<div class="trophy-photo">' +
+          '<h3>🎓 Class photo · ' + sorted.length + ' cats</h3>' +
+          '<div class="trophy-photo-grid">' +
+          sorted.map(function (p) {
+            return '<div class="tp-item' + (p.id === 'you' ? ' me' : '') + '">' +
+              '<canvas data-pid="' + escapeHtml(p.id) + '"></canvas>' +
+              '<span>' + escapeHtml(p.name) + '</span></div>';
+          }).join('') +
+          '</div></div>'
+      : '';
     $('trophy').classList.remove('hidden');
+    drawTrophyCats();
+    requestAnimationFrame(drawTrophyCats);
     spawnConfetti();
     startTrophyMusic();
     playFanfare();
@@ -1679,7 +2027,14 @@
     seq.forEach(function (place, idx) {
       setTimeout(function () {
         const card = document.querySelector('.trophy-place[data-place="' + place + '"]');
-        if (card) card.classList.add('show');
+        if (card) {
+          card.classList.add('show');
+          const cv = card.querySelector('canvas[data-pid]');
+          if (cv) {
+            const winner = player(cv.getAttribute('data-pid'));
+            drawCat(cv, winner ? winner.look : null);
+          }
+        }
         playTick(idx + 2);
         if (place === 1) {
           const cardHost = document.querySelector('.trophy-card');
@@ -1687,6 +2042,13 @@
           setTimeout(playFanfare, 220);
         }
       }, 700 + idx * 1100);
+    });
+  }
+
+  function drawTrophyCats() {
+    Array.from(document.querySelectorAll('#trophy canvas[data-pid]')).forEach(function (cv) {
+      const p = player(cv.getAttribute('data-pid'));
+      drawCat(cv, p ? p.look : null);
     });
   }
 
@@ -1788,6 +2150,7 @@
 
   readSettings();
   showSetup();
+  updateRoomChip();
   renderStudentHead();
   updateYouRank();
 })();

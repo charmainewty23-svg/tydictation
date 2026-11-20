@@ -2221,7 +2221,17 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   submit→next→finish→trophy／student podium），**未用真 Supabase 房測試**；
   老師跑完 SQL 後用兩個 browser 帳戶試最穩陣。
 - 入口：Battle tab → class room 下面 QuizzyKitty 卡（badge 已改
-  `CLASS QUIZ`，文案寫 Host a room／30-player demo）。
+  `CLASS QUIZ`，文案寫 Host a room／30-player demo）。卡上嘅
+  **Open QuizzyKitty** 而家 call `openQuizzyKitty(event)`（`js/shared.js`）：
+  - 老師 preview（`previewStudentForm()` 有 F3／F4／F6）→
+    `?as=student&preview=F4`
+  - 老師本人 → `?as=teacher`
+  - 學生／訪客 → `?as=student`
+  Demo 讀 `?as=student` 會加 `body.student-entry`、收埋老師 setup／tabs，
+  顯示 `#studentEntry`（Join a class＋Back to Hub）並自動彈 join modal；
+  `?preview=F4` 會用「F4 Student」做預設名、**唔會**讀老師嘅
+  `profile_looks`（因為 session 仍然係老師）。所以老師 preview 撳
+  QuizzyKitty 會直接見到學生 Join 畫面，唔會再出老師 setup。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

@@ -1011,6 +1011,18 @@
         const PREVIEW_FORM_KEY = 'learniTY_preview_form';
         let previewStudentFormValue = '';
         function isAdmin() { return isTeacherAccount() && !previewStudentForm(); }
+
+        // Open QuizzyKitty in the right mode: teacher preview / students get
+        // the join screen, the teacher gets the host setup.
+        function openQuizzyKitty(event) {
+            if (event && event.preventDefault) event.preventDefault();
+            const preview = previewStudentForm();
+            let query = '';
+            if (preview) query = '?as=student&preview=' + encodeURIComponent(preview);
+            else if (isAdmin()) query = '?as=teacher';
+            else query = '?as=student';
+            window.open('/quizzykitty-demo.html' + query, '_blank', 'noopener');
+        }
         function isSignedIn() { return isGuestUser() || !!currentUser; }
         function canUseCloud() { return !isGuestUser() && !!currentUser; }
 

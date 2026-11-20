@@ -675,6 +675,34 @@
   body.room-mode .student, body.room-mode .tabs, body.room-mode #joinBtn { display: none !important; }
   body.room-mode main { grid-template-columns: 1fr; }
 
+  .student-entry-panel {
+    position: fixed; inset: 0; z-index: 80;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+    background: linear-gradient(160deg, #0b1b4d 0%, #1040d0 70%);
+  }
+  body.student-entry .teacher,
+  body.student-entry .tabs,
+  body.student-entry .student { display: none !important; }
+  body.student-entry main { display: block; }
+  body.student-entry #studentEntry { display: flex; }
+  .entry-card {
+    width: min(420px, 100%); background: var(--cream);
+    border: 3px solid var(--ink); border-radius: 26px;
+    padding: 20px 16px; text-align: center;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .35);
+  }
+  .entry-card h1 { margin: 2px 0 6px; color: var(--ink); font-size: clamp(22px, 5vw, 30px); }
+  .entry-card p { margin: 0 0 14px; color: var(--muted); font-size: 13px; font-weight: 700; }
+  .entry-card button {
+    width: 100%; min-height: 48px; border: 0; border-radius: 999px;
+    background: var(--brand); color: var(--cream);
+    font: inherit; font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brand-dark);
+  }
+  .entry-card a {
+    display: inline-block; margin-top: 12px;
+    color: var(--brand); font-size: 12px; font-weight: 800; text-decoration: none;
+  }
   .join-modal {
     position: fixed; inset: 0; z-index: 100; display: flex;
     align-items: center; justify-content: center; padding: 12px;
@@ -957,6 +985,16 @@
     <p class="review-lead" id="analysisLead"></p>
     <div class="analysis-list" id="analysisList"></div>
     <button type="button" class="review-done" id="analysisDone">← Back to ceremony</button>
+  </div>
+</div>
+
+<div class="student-entry-panel" id="studentEntry">
+  <div class="entry-card">
+    <p class="review-kicker">QuizzyKitty</p>
+    <h1>Join a class</h1>
+    <p>Enter the 4-digit room code from your teacher.</p>
+    <button type="button" id="studentEntryJoin">🙋 Join a class</button>
+    <a href="/index.html">← Back to Hub</a>
   </div>
 </div>
 
@@ -2881,7 +2919,7 @@
   const joining = {
     clientId: '', name: '', cat: 'Ginger', look: null, profile: null,
     roomId: '', code: '', pollTimer: 0, timerId: 0, state: null,
-    lastKey: '', mine: null, submitting: false
+    lastKey: '', mine: null, submitting: false, preview: ''
   };
 
   function qkClientId() {
@@ -3402,7 +3440,7 @@
   async function openJoin() {
     $('joinError').textContent = '';
     $('joinModal').classList.remove('hidden');
-    joining.profile = qkSessionProfile();
+    joining.profile = joining.preview ? null : qkSessionProfile();
     joining.clientId = qkClientId();
 
     let lastCode = '';
@@ -3415,15 +3453,19 @@
     } catch (e) { /* ignore */ }
 
     $('joinCode').value = lastCode;
-    $('joinName').value = (joining.profile && joining.profile.name) || lastName || '';
+    $('joinName').value = joining.preview
+      ? (joining.preview + ' Student')
+      : ((joining.profile && joining.profile.name) || lastName || '');
     joining.cat = CAT_PALETTES[lastCat] ? lastCat : 'Ginger';
 
     renderJoinCats();
-    const look = await qkProfileLook(joining.profile);
-    if (look && CAT_PALETTES[look.cat]) {
-      joining.look = look;
-      joining.cat = look.cat;
-      renderJoinCats();
+    if (!joining.preview) {
+      const look = await qkProfileLook(joining.profile);
+      if (look && CAT_PALETTES[look.cat]) {
+        joining.look = look;
+        joining.cat = look.cat;
+        renderJoinCats();
+      }
     }
     setTimeout(function () {
       const input = $('joinCode');
@@ -3875,6 +3917,7 @@
     } catch (e) { /* ignore */ }
   });
   $('joinBtn').addEventListener('click', openJoin);
+  $('studentEntryJoin').addEventListener('click', openJoin);
   $('joinClose').addEventListener('click', function () {
     $('joinModal').classList.add('hidden');
   });
@@ -3895,6 +3938,17 @@
   updateRoomChip();
   renderStudentHead();
   updateYouRank();
+
+  const entryParams = new URLSearchParams(location.search);
+  const entryAs = entryParams.get('as') || '';
+  const entryPreview = entryParams.get('preview') || '';
+  if (entryAs === 'student') {
+    joining.preview = entryPreview;
+    document.body.classList.add('student-entry');
+    const entryPanel = $('studentEntry');
+    if (entryPanel) entryPanel.classList.remove('hidden');
+    setTimeout(openJoin, 250);
+  }
 })();
 </script>
 </body>

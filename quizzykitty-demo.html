@@ -4,21 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>QuizzyKitty — Class Quiz Demo</title>
+<meta name="description" content="QuizzyKitty class quiz demo — teacher-hosted multiple choice and true/false questions with a live leaderboard and podium.">
+<meta name="theme-color" content="#1040d0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --cream: #fff9f2;
-    --ink: #2f2440;
-    --brown: #a9743f;
-    --brown-dark: #7a4d24;
-    --line: #e7cfae;
-    --red: #e5484d;
-    --blue: #3b82f6;
-    --yellow: #f0b429;
-    --green: #17a673;
-    --violet: #7c3aed;
+    /* Palette sampled from Quizzylogo.png */
+    --cream: #fffff0;
+    --ink: #14225c;
+    --brand: #1040d0;
+    --brand-dark: #0b2a94;
+    --brand-soft: #e8edff;
+    --yellow: #ffe040;
+    --yellow-deep: #d9ae00;
+    --yellow-soft: #fff8c9;
+    --line: #c9d6f7;
+    --muted: #5b6aa6;
+    --red: #d63b3f;
+    --answer-blue: #1368ce;
+    --green: #0b8259;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; }
@@ -41,23 +47,22 @@
   }
   .brand { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .brand-logo-crop {
-    width: 190px;
-    height: 64px;
+    width: 128px;
+    height: 102px;
     overflow: hidden;
   }
   #quizzyLogo {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    object-position: 50% 60%;
+    object-fit: contain;
   }
   .brand small {
     padding-left: 3px;
     font-size: 9px;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: #2557d6;
+    color: var(--brand);
     font-weight: 700;
   }
   .top-right { display: flex; align-items: center; gap: 8px; }
@@ -68,19 +73,19 @@
     background: #fff;
     font-size: 11px;
     font-weight: 800;
-    color: var(--brown);
+    color: var(--brand);
   }
   .icon-btn {
     width: 38px; height: 38px; border-radius: 999px;
     border: 2px solid var(--line); background: #fff; cursor: pointer;
-    color: var(--brown); font-size: 17px;
+    color: var(--brand); font-size: 17px;
   }
   .tabs { display: none; gap: 8px; padding: 0 14px 10px; max-width: 1180px; margin: 0 auto; }
   .tabs button {
-    flex: 1; min-height: 42px; border-radius: 12px; border: 2px solid var(--line);
-    background: #fff; color: var(--brown); font-weight: 800; cursor: pointer;
+    flex: 1; min-height: 44px; border-radius: 12px; border: 2px solid var(--line);
+    background: #fff; color: var(--brand); font-weight: 800; cursor: pointer;
   }
-  .tabs button.on { background: var(--brown); color: #fff8ec; border-color: var(--brown); }
+  .tabs button.on { background: var(--brand); color: var(--cream); border-color: var(--brand); }
   main {
     max-width: 1180px; margin: 0 auto; padding: 0 14px 18px;
     display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px;
@@ -88,27 +93,28 @@
   }
   .teacher { min-width: 0; }
   .screen {
-    background: #fffdf8;
+    background: var(--cream);
     border: 3px solid var(--line);
+    border-top: 6px solid var(--yellow);
     border-radius: 20px;
     padding: 14px;
-    box-shadow: 0 10px 0 rgba(122,77,36,.12);
+    box-shadow: 0 10px 0 rgba(16,64,208,.14);
   }
   .qtop {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-    color: #a08262;
+    color: var(--muted);
   }
-  .qtop .timer { color: var(--brown); font-size: 15px; }
+  .qtop .timer { color: var(--brand); font-size: 15px; }
   .qtype {
-    padding: 3px 8px; border-radius: 999px; background: #fdf1dd; color: var(--brown);
-    border: 1.5px solid var(--line); letter-spacing: .04em;
+    padding: 3px 8px; border-radius: 999px; background: var(--yellow); color: #2a2000;
+    border: 1.5px solid var(--yellow-deep); letter-spacing: .04em;
   }
   .question {
     margin: 12px 0 14px;
     font-size: clamp(24px, 4vw, 40px);
     line-height: 1.15;
-    color: #5b3a1e;
+    color: var(--ink);
     text-align: center;
     min-height: 76px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -116,7 +122,7 @@
   }
   .question small {
     display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
-    color: #a08262; margin-top: 6px; font-weight: 800;
+    color: var(--muted); margin-top: 6px; font-weight: 800;
   }
   .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
   .choices.tf { grid-template-columns: 1fr 1fr; }
@@ -145,8 +151,8 @@
     display: none;
   }
   .choice.c0 { background: var(--red); }
-  .choice.c1 { background: var(--blue); }
-  .choice.c2 { background: var(--yellow); color: #4a2c00; }
+  .choice.c1 { background: var(--answer-blue); }
+  .choice.c2 { background: var(--yellow); color: #2a2000; }
   .choice.c3 { background: var(--green); }
   .choice.true { background: var(--green); }
   .choice.false { background: var(--red); }
@@ -158,38 +164,40 @@
   .controls button {
     min-height: 46px; min-width: 140px;
     border: 0; border-radius: 13px; padding: 0 18px;
-    background: var(--brown); color: #fff8ec; font-weight: 800; cursor: pointer;
-    box-shadow: 0 4px 0 var(--brown-dark);
+    background: var(--brand); color: var(--cream); font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brand-dark);
   }
-  .controls button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brown-dark); }
-  .controls button.ghost { background: #fff; color: var(--brown); border: 2px solid var(--line); box-shadow: 0 3px 0 rgba(122,77,36,.12); }
+  .controls button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brand-dark); }
+  .controls button.ghost { background: #fff; color: var(--brand); border: 2px solid var(--line); box-shadow: 0 3px 0 rgba(16,64,208,.14); }
+  #startBtn { background: var(--yellow); color: #2a2000; box-shadow: 0 4px 0 var(--yellow-deep); }
+  #startBtn:active { box-shadow: 0 2px 0 var(--yellow-deep); }
   .controls button:disabled { opacity: .45; cursor: default; }
   .board {
-    margin-top: 12px; background: #fffdf8; border: 2.5px solid var(--line);
+    margin-top: 12px; background: var(--cream); border: 2.5px solid var(--line);
     border-radius: 16px; padding: 10px 12px;
   }
-  .board h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #a08262; }
-  .board-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; font-weight: 700; color: #5b3a1e; border-bottom: 1px dashed #eadfce; }
+  .board h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .board-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; font-weight: 700; color: var(--ink); border-bottom: 1px dashed var(--line); }
   .board-row:last-child { border-bottom: 0; }
   .board-row .rank { width: 22px; text-align: center; }
   .board-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .board-row .pts { color: var(--brown); font-weight: 900; }
-  .board-row.you { color: var(--violet); }
-  .board-row.you .pts { color: var(--violet); }
+  .board-row .pts { color: var(--brand); font-weight: 900; }
+  .board-row.you { color: var(--brand); background: var(--yellow-soft); border-radius: 8px; padding-left: 6px; padding-right: 6px; }
+  .board-row.you .pts { color: var(--brand); }
 
   .student { display: flex; justify-content: center; }
   .phone {
     width: 100%; max-width: 360px;
-    background: #fffdf8; border: 3px solid #2f2440; border-radius: 24px;
-    padding: 10px; box-shadow: 0 12px 24px rgba(20,16,36,.18);
+    background: var(--cream); border: 3px solid var(--ink); border-radius: 24px;
+    padding: 10px; box-shadow: 0 12px 24px rgba(20,34,92,.22);
   }
-  .shead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: #5b3a1e; }
+  .shead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: var(--ink); }
   .shead .you { flex: 1; }
-  .shead .score { color: var(--violet); font-size: 15px; }
-  .shead .rank { color: #a08262; }
+  .shead .score { color: var(--brand); font-size: 15px; }
+  .shead .rank { color: var(--muted); }
   .sq {
-    min-height: 92px; margin: 8px 0; border-radius: 12px; background: #fdf1dd;
-    border: 2px solid var(--line); color: #5b3a1e;
+    min-height: 92px; margin: 8px 0; border-radius: 12px; background: var(--brand-soft);
+    border: 2px solid var(--line); color: var(--ink);
     display: flex; align-items: center; justify-content: center; text-align: center;
     font-size: 18px; font-weight: 800; padding: 8px;
   }
@@ -202,41 +210,43 @@
     display: flex; align-items: center; justify-content: center; gap: 6px;
   }
   .sanswer.c0 { background: var(--red); }
-  .sanswer.c1 { background: var(--blue); }
-  .sanswer.c2 { background: var(--yellow); color: #4a2c00; }
+  .sanswer.c1 { background: var(--answer-blue); }
+  .sanswer.c2 { background: var(--yellow); color: #2a2000; }
   .sanswer.c3 { background: var(--green); }
   .sanswer.true { background: var(--green); }
   .sanswer.false { background: var(--red); }
-  .sanswer.picked { outline: 4px solid #2f2440; outline-offset: 2px; }
-  .sanswer.correct { outline: 4px solid #f0b429; outline-offset: 2px; }
-  .sanswer:disabled { opacity: .55; cursor: default; }
+  .sanswer.picked { outline: 4px solid var(--ink); outline-offset: 2px; }
+  .sanswer.correct { outline: 4px solid var(--yellow-deep); outline-offset: 2px; }
+  .sanswer:disabled { opacity: .5; cursor: default; }
+  .sanswer.picked:disabled,
+  .sanswer.correct:disabled { opacity: 1; }
   .sfeedback {
     min-height: 52px; margin-top: 8px; padding: 7px 9px;
     border-radius: 10px; background: #fff; border: 1.5px solid var(--line);
-    color: #7a5c3f; font-size: 12px; font-weight: 700; text-align: center;
+    color: #4d5c94; font-size: 12px; font-weight: 700; text-align: center;
     display: flex; align-items: center; justify-content: center; white-space: pre-line;
   }
   .podium {
     position: fixed; inset: 0; z-index: 80;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(20,16,36,.7); padding: 20px;
+    background: rgba(10,18,64,.72); padding: 20px;
   }
   .podium.hidden { display: none; }
   .podium-card {
-    width: 100%; max-width: 420px; background: #fff9f2;
-    border: 3px solid var(--line); border-radius: 22px; padding: 18px;
-    text-align: center; box-shadow: 0 12px 0 rgba(122,77,36,.2);
+    width: 100%; max-width: 420px; background: var(--cream);
+    border: 3px solid var(--line); border-top: 6px solid var(--yellow); border-radius: 22px; padding: 18px;
+    text-align: center; box-shadow: 0 12px 0 rgba(16,64,208,.22);
   }
-  .podium-card h2 { margin: 0 0 10px; color: var(--brown); }
-  .podium-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 15px; font-weight: 800; color: #5b3a1e; border-bottom: 1px dashed #eadfce; }
+  .podium-card h2 { margin: 0 0 10px; color: var(--brand); }
+  .podium-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 15px; font-weight: 800; color: var(--ink); border-bottom: 1px dashed var(--line); }
   .podium-row:last-of-type { border-bottom: 0; }
   .podium-row .medal { font-size: 22px; width: 32px; }
   .podium-row .name { flex: 1; text-align: left; }
-  .podium-row .pts { color: var(--brown); }
+  .podium-row .pts { color: var(--brand); }
   .podium-card button {
     margin-top: 14px; width: 100%; min-height: 44px; border: 0; border-radius: 12px;
-    background: var(--brown); color: #fff8ec; font-weight: 800; cursor: pointer;
-    box-shadow: 0 4px 0 var(--brown-dark);
+    background: var(--brand); color: var(--cream); font-weight: 800; cursor: pointer;
+    box-shadow: 0 4px 0 var(--brand-dark);
   }
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
@@ -252,7 +262,7 @@
   }
   @media (max-width: 420px) {
     .top { padding: 8px 10px; }
-    .brand-logo-crop { width: 158px; height: 54px; }
+    .brand-logo-crop { width: 100px; height: 80px; }
     .code { display: none; }
     main { padding: 0 10px 14px; }
     .choice { padding-left: 40px; font-size: 14px; }
@@ -328,17 +338,38 @@
   const img = new Image();
   img.onload = function () {
     try {
-      const size = 900;
+      const w = 900;
+      const h = Math.max(1, Math.round(w * (img.naturalHeight / img.naturalWidth)));
       const c = document.createElement('canvas');
-      c.width = size; c.height = size;
+      c.width = w; c.height = h;
       const g = c.getContext('2d');
-      g.drawImage(img, 0, 0, size, size);
-      const frame = g.getImageData(0, 0, size, size);
+      g.drawImage(img, 0, 0, w, h);
+      const frame = g.getImageData(0, 0, w, h);
       const d = frame.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const m = Math.min(d[i], d[i + 1], d[i + 2]);
-        if (m >= 248) d[i + 3] = 0;
-        else if (m > 228) d[i + 3] = Math.round(((248 - m) / 20) * 255);
+      /* Flood fill the off-white backdrop from the edges only, so the
+         cream/yellow highlights inside the letters stay intact. */
+      const isBackdrop = function (i) {
+        const r = d[i], gg = d[i + 1], b = d[i + 2];
+        const hi = Math.max(r, gg, b);
+        const lo = Math.min(r, gg, b);
+        return r > 222 && gg > 222 && b > 205 && (hi - lo) < 30;
+      };
+      const seen = new Uint8Array(w * h);
+      const stack = [];
+      for (let x = 0; x < w; x += 1) { stack.push(x, 0); stack.push(x, h - 1); }
+      for (let y = 0; y < h; y += 1) { stack.push(0, y); stack.push(w - 1, y); }
+      while (stack.length) {
+        const y = stack.pop();
+        const x = stack.pop();
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const p = y * w + x;
+        if (seen[p]) continue;
+        seen[p] = 1;
+        const i = p * 4;
+        if (!isBackdrop(i)) continue;
+        d[i + 3] = 0;
+        stack.push(x + 1, y); stack.push(x - 1, y);
+        stack.push(x, y + 1); stack.push(x, y - 1);
       }
       g.putImageData(frame, 0, 0);
       const url = c.toDataURL('image/png');
@@ -631,7 +662,7 @@
       const c = el.querySelector('.count');
       if (c) c.textContent = counts[i] || 0;
     });
-    $('timer').textContent = 'Reveal';
+    $('timer').textContent = 'Answer';
     $('revealBtn').hidden = true;
     $('nextBtn').hidden = false;
     $('nextBtn').disabled = false;

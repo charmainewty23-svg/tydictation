@@ -2038,8 +2038,17 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 老師／projector 面板同學生手機面板喺 ≥900px 並排；手機用 Teacher／Student
   tab 切換。音樂用 `/music/battlemusic.mp3`，可 mute。
 - 視覺：背景 `assets/QuizzyBG.png`（pixel 場景，cover）、logo
-  `assets/Quizzylogo.png`（runtime canvas 去白底，crop 190×64）、字體
-  **Balsamiq Sans**（Google Fonts）。`stickers/` 係 gitignore，所以用 `assets/` 副本。
+  `assets/Quizzylogo.png`（已 crop 到圖案範圍 1360×1080，runtime canvas 由邊緣
+  flood-fill 去走 off-white 底，保留字內奶白高光；header 128×102／≤420px 100×80）、
+  字體 **Balsamiq Sans**（Google Fonts）。`stickers/` 係 gitignore，所以用
+  `assets/` 副本。
+- **主題色 echo logo**（CSS `:root`）：`--brand #1040d0`／`--brand-dark #0b2a94`
+  （主掣、tabs、分數、榜分）、`--yellow #ffe040`／`--yellow-deep #d9ae00`
+  （Start 掣、question type 徽章、卡片頂邊、你的榜行底色）、`--cream #fffff0`
+  （卡片）、`--ink #14225c`（正文）、`--line #c9d6f7`（淡藍邊）。
+  `.choice.c1`／`.sanswer.c1` 仍然用 Kahoot 藍 `--answer-blue #1368ce`；
+  答題色 red `#d63b3f`、green `#0b8259` 稍為加深，令 15px 白字過 4.5:1。
+  Reveal 時學生揀錯嘅選項同正確答案都會 `opacity: 1`，其餘 0.5。
 - 目前只係 demo；真正 class quiz 要 Supabase 房間／question JSON／answer RPC。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）

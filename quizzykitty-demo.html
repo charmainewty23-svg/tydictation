@@ -637,6 +637,150 @@
     .trophy-place.champion .trophy-medal { font-size: 32px; }
     .trophy-title { margin-bottom: 6px; }
   }
+  .controls button.room-btn {
+    background: #4338ca; color: #fff;
+    box-shadow: 0 4px 0 #312e81;
+  }
+  .controls button.room-btn:active { box-shadow: 0 2px 0 #312e81; }
+  .room-code {
+    margin: 6px auto 8px; padding: 8px 16px; width: max-content;
+    font-size: clamp(38px, 8vw, 64px); font-weight: 900; letter-spacing: .25em;
+    color: var(--brand); background: #fff; border: 3px solid var(--line);
+    border-radius: 18px; font-variant-numeric: tabular-nums;
+  }
+  .room-code-row {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .room-count { font-size: 12px; font-weight: 800; color: var(--muted); }
+  .room-count b { color: var(--brand); font-size: 16px; }
+  .room-players {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px; margin-bottom: 14px;
+  }
+  .room-player {
+    display: flex; align-items: center; gap: 7px; padding: 6px 8px;
+    border-radius: 12px; border: 2px solid var(--line); background: #fff;
+    font-size: 12px; font-weight: 800; color: var(--ink); min-width: 0;
+  }
+  .room-player span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-dot {
+    width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line);
+  }
+  .room-empty {
+    grid-column: 1 / -1; text-align: center; padding: 12px;
+    font-size: 12px; font-weight: 700; color: var(--muted);
+  }
+  body.room-mode .student, body.room-mode .tabs, body.room-mode #joinBtn { display: none !important; }
+  body.room-mode main { grid-template-columns: 1fr; }
+
+  .join-modal {
+    position: fixed; inset: 0; z-index: 100; display: flex;
+    align-items: center; justify-content: center; padding: 12px;
+    background: rgba(8, 14, 50, .9);
+  }
+  .join-card {
+    position: relative; width: min(420px, 100%);
+    max-height: calc(100dvh - 24px); overflow-y: auto;
+    background: #fffdf7; border: 4px solid #c7d2fe; border-radius: 26px;
+    padding: 16px 14px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+  }
+  .join-label {
+    display: block; margin: 8px 0 4px;
+    font-size: 11px; font-weight: 800; color: var(--muted);
+  }
+  .join-input {
+    width: 100%; min-height: 44px; margin-top: 3px;
+    border-radius: 12px; border: 2px solid var(--line);
+    background: #fff; color: var(--ink); font: inherit;
+    font-weight: 800; font-size: 15px; padding: 0 10px;
+  }
+  #joinCode { text-align: center; font-size: 26px; letter-spacing: .25em; }
+  .join-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .join-cat {
+    display: flex; align-items: center; gap: 8px; min-height: 48px;
+    border-radius: 12px; border: 2px solid var(--line); background: #fff;
+    color: var(--ink); font: inherit; font-weight: 800; font-size: 12px;
+    padding: 0 8px; cursor: pointer; text-align: left;
+  }
+  .join-cat.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+  .join-cat i { width: 18px; height: 18px; border-radius: 50%; flex: 0 0 auto; display: block; }
+  .join-error {
+    min-height: 16px; margin: 8px 0 0; text-align: center;
+    font-size: 12px; font-weight: 800; color: #b91c1c;
+  }
+  .join-note {
+    margin: 4px 0 0; text-align: center;
+    font-size: 10px; font-weight: 700; color: var(--muted);
+  }
+
+  .student-room {
+    position: fixed; inset: 0; z-index: 95; display: flex;
+    align-items: center; justify-content: center; padding: 10px;
+    background: linear-gradient(160deg, #0b1b4d 0%, #1040d0 70%);
+    overflow-y: auto;
+  }
+  .sr-wrap { width: 100%; max-width: 440px; }
+  .sr-card {
+    background: var(--cream); border: 3px solid var(--ink);
+    border-radius: 24px; padding: 12px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .35);
+  }
+  .sr-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; color: var(--ink); }
+  .sr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sr-score { color: var(--brand); font-variant-numeric: tabular-nums; }
+  .sr-rank { color: var(--muted); }
+  .sr-status {
+    margin: 8px 0 0; padding: 6px 8px; border-radius: 10px;
+    background: var(--brand-soft); color: var(--brand);
+    font-size: 12px; font-weight: 800; text-align: center;
+  }
+  .sr-prompt {
+    min-height: 80px; margin: 8px 0; border-radius: 12px;
+    border: 2px solid var(--line); background: #fff; color: var(--ink);
+    font-size: 18px; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; text-align: center; padding: 10px;
+  }
+  .sr-prompt.sentence { font-size: 14px; line-height: 1.35; }
+  .sr-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .sr-answers.short { grid-template-columns: 1fr; }
+  .sr-feedback {
+    min-height: 44px; margin-top: 8px; padding: 7px 9px;
+    border-radius: 10px; background: #fff; border: 1.5px solid var(--line);
+    color: #4d5c94; font-size: 12px; font-weight: 700; text-align: center;
+    display: flex; align-items: center; justify-content: center; white-space: pre-line;
+  }
+  .sr-rankcard {
+    margin-top: 8px; padding: 8px 10px; border-radius: 14px;
+    border: 2px solid var(--line);
+    background: linear-gradient(135deg, #eef3ff, #fff8c9); text-align: center;
+  }
+  .sr-rankcard.leading {
+    background: linear-gradient(135deg, #fff3bf, #ffe040);
+    border-color: #f59e0b;
+  }
+  .sr-pos { font-size: 26px; font-weight: 900; color: var(--brand); }
+  .sr-of { font-size: 11px; font-weight: 800; color: var(--muted); }
+  .sr-msg { margin-top: 2px; font-size: 12px; font-weight: 800; color: #166534; }
+  .sr-podium { margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .sr-podium .p {
+    border: 2px solid var(--line); border-radius: 12px;
+    background: #fff; padding: 4px; text-align: center; min-width: 0;
+  }
+  .sr-podium .p canvas { width: 100%; height: 56px; display: block; }
+  .sr-podium .p b {
+    display: block; font-size: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sr-podium .p span { font-size: 9px; color: var(--muted); font-weight: 800; }
+  .sr-hub { margin-top: 8px; }
+  @media (max-width: 430px) {
+    .sr-card { padding: 10px; }
+    .sr-prompt { min-height: 68px; font-size: 16px; }
+    .sr-prompt.sentence { font-size: 13px; }
+    .room-players { grid-template-columns: 1fr; }
+  }
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
     .tabs { display: flex; }
@@ -672,6 +816,7 @@
   </div>
   <div class="top-right">
     <span class="code" id="roomChip">Room QK-2048 · 30 players</span>
+    <button type="button" class="icon-btn" id="joinBtn" aria-label="Join a class" title="Join a class">🙋</button>
     <button type="button" class="icon-btn" id="musicBtn" aria-label="Music">🔊</button>
   </div>
 </header>
@@ -719,7 +864,9 @@
         <div class="setup-note" id="setupNote">Dictation topics load from the class Sheet. New Vocab needs a school sign-in on this site.</div>
         <div class="controls">
           <button type="button" id="startBtn">▶ Start quiz</button>
+          <button type="button" id="createRoomBtn" class="room-btn">🏫 Create Room</button>
         </div>
+        <a class="setup-hub" href="#" onclick="openJoin(); return false;">🙋 Student? Join a class</a>
         <a class="setup-hub" href="/index.html">← Back to Hub</a>
       </div>
 
@@ -735,6 +882,24 @@
           <button type="button" id="revealBtn" class="ghost" disabled>👀 Reveal</button>
           <button type="button" id="nextBtn" class="ghost" disabled>Next →</button>
         </div>
+      </div>
+
+      <div id="roomLobby" class="hidden">
+        <div class="setup-head">
+          <h1>Class room</h1>
+          <p>Students join with the code</p>
+        </div>
+        <div class="room-code" id="roomCode">----</div>
+        <div class="room-code-row">
+          <button type="button" id="roomCopyBtn" class="pill">📋 Copy code</button>
+          <span class="room-count"><b id="roomCount">0</b> / 30 students</span>
+        </div>
+        <div class="room-players" id="roomPlayers"></div>
+        <div class="controls">
+          <button type="button" id="roomStartBtn">▶ Start class battle</button>
+          <button type="button" id="roomCancelBtn" class="ghost">✕ Close room</button>
+        </div>
+        <p class="setup-note" id="roomNote">Students: open this page → 🙋 Join a class → enter the code.</p>
       </div>
     </div>
   </section>
@@ -792,6 +957,44 @@
     <p class="review-lead" id="analysisLead"></p>
     <div class="analysis-list" id="analysisList"></div>
     <button type="button" class="review-done" id="analysisDone">← Back to ceremony</button>
+  </div>
+</div>
+
+<div class="join-modal hidden" id="joinModal">
+  <div class="join-card">
+    <button type="button" class="review-close" id="joinClose" aria-label="Close">✕</button>
+    <p class="review-kicker">Student</p>
+    <h2 class="review-title">Join a class</h2>
+    <label class="join-label">Room code
+      <input id="joinCode" class="join-input" maxlength="4" inputmode="numeric" placeholder="1234" autocomplete="off">
+    </label>
+    <label class="join-label">Your name
+      <input id="joinName" class="join-input" maxlength="24" placeholder="Your name" autocomplete="off">
+    </label>
+    <p class="join-label">Pick your cat</p>
+    <div class="join-cats" id="joinCats"></div>
+    <button type="button" class="review-done" id="joinGo">Join class →</button>
+    <p class="join-error" id="joinError"></p>
+    <p class="join-note">Signed in? Your profile cat is used automatically.</p>
+  </div>
+</div>
+
+<div class="student-room hidden" id="studentRoom">
+  <div class="sr-wrap">
+    <div class="sr-card">
+      <div class="sr-head">
+        <span class="sr-name" id="srName">Student</span>
+        <span class="sr-score" id="srScore">0 pts</span>
+        <span class="sr-rank" id="srRank">#–</span>
+      </div>
+      <div class="sr-status" id="srStatus">Waiting for the teacher…</div>
+      <div class="sr-prompt" id="srPrompt"></div>
+      <div class="sr-answers" id="srAnswers"></div>
+      <div class="sr-feedback" id="srFeedback"></div>
+      <div class="sr-rankcard hidden" id="srRankCard"></div>
+      <div class="sr-podium hidden" id="srPodium"></div>
+      <button type="button" class="review-done hidden" id="srHubBtn">🏠 Back to Hub</button>
+    </div>
   </div>
 </div>
 
@@ -1642,6 +1845,7 @@
     clearTimers();
     $('trophy').classList.add('hidden');
     stopTrophyMusic();
+    $('roomLobby').classList.add('hidden');
     $('setup').classList.remove('hidden');
     $('quizBody').classList.add('hidden');
     sanswersEl.innerHTML = '';
@@ -2178,11 +2382,12 @@
     requestAnimationFrame(frame);
   }
 
-  function renderRoundBoard(before) {
+  function renderRoundBoard(before, list, unitLabel, questionNumber) {
     const host = $('roundBoard');
     if (!host) return;
+    const source = list || players;
     const prev = new Map(lastRoundTops);
-    const sorted = players.slice().sort(function (a, b) {
+    const sorted = source.slice().sort(function (a, b) {
       if (b.score !== a.score) return b.score - a.score;
       return a.name.localeCompare(b.name);
     });
@@ -2213,11 +2418,11 @@
         '<span class="rb-score">0</span></div>';
     }
 
-    const unit = settings.mode === 'class' ? ' students' : ' players';
+    const unit = unitLabel || (settings.mode === 'class' ? ' students' : ' players');
     const subtitle = limited ? 'Top 7 of ' + sorted.length + unit : sorted.length + unit;
     const hiddenCount = sorted.length - shown.length - extra.length;
     host.innerHTML =
-      '<div class="rb-head"><b>After question ' + (qIndex + 1) + '</b><span>' + subtitle + '</span></div>' +
+      '<div class="rb-head"><b>After question ' + (questionNumber || (qIndex + 1)) + '</b><span>' + subtitle + '</span></div>' +
       shown.map(rowHTML).join('') +
       (extra.length ? '<div class="rb-gap"></div>' + extra.map(rowHTML).join('') : '') +
       (hiddenCount > 0 ? '<div class="rb-more">+' + hiddenCount + ' more players</div>' : '');
@@ -2225,7 +2430,8 @@
     const rows = Array.from(host.querySelectorAll('.rb-row'));
     rows.forEach(function (row, i) {
       const id = row.getAttribute('data-id');
-      const p = player(id);
+      const p = source.find(x => x.id === id);
+      if (!p) return;
       const rank = rankOf.get(id);
       const old = before.find(x => x.id === id) || { score: p.score, rank: rank };
       const oldTop = prev.get(id);
@@ -2458,8 +2664,9 @@
   let trophyAudio = null;
   let confettiTimer = 0;
 
-  function showTrophy() {
-    const sorted = players.slice().sort(function (a, b) {
+  function showTrophy(list) {
+    const source = list || players;
+    const sorted = source.slice().sort(function (a, b) {
       if (b.score !== a.score) return b.score - a.score;
       return a.name.localeCompare(b.name);
     });
@@ -2488,8 +2695,8 @@
           '</div></div>'
       : '';
     $('trophy').classList.remove('hidden');
-    drawTrophyCats();
-    requestAnimationFrame(drawTrophyCats);
+    drawTrophyCats(source);
+    requestAnimationFrame(function () { drawTrophyCats(source); });
     spawnConfetti();
     startTrophyMusic();
     playFanfare();
@@ -2502,7 +2709,7 @@
           card.classList.add('show');
           const cv = card.querySelector('canvas[data-pid]');
           if (cv) {
-            const winner = player(cv.getAttribute('data-pid'));
+            const winner = source.find(x => x.id === cv.getAttribute('data-pid'));
             drawCat(cv, winner ? winner.look : null);
           }
         }
@@ -2516,9 +2723,10 @@
     });
   }
 
-  function drawTrophyCats() {
+  function drawTrophyCats(list) {
+    const source = list || players;
     Array.from(document.querySelectorAll('#trophy canvas[data-pid]')).forEach(function (cv) {
-      const p = player(cv.getAttribute('data-pid'));
+      const p = source.find(x => x.id === cv.getAttribute('data-pid'));
       drawCat(cv, p ? p.look : null);
     });
   }
@@ -2559,6 +2767,11 @@
     wrongBook = [];
     $('studentReview').classList.add('hidden');
     $('analysis').classList.add('hidden');
+    if (room.id) {
+      leaveRoomHost();
+      $('setupNote').textContent = 'Room closed. Create a new room when ready.';
+      return;
+    }
     showSetup();
     $('setupNote').textContent = 'Settings are kept — adjust anything, then press Start quiz.';
   }
@@ -2566,6 +2779,7 @@
   function closeTrophy() {
     $('trophy').classList.add('hidden');
     stopTrophyMusic();
+    if (roomCeremony) { finishToSetup(); return; }
     if (wrongBook.length) openStudentReview();
     else finishToSetup();
   }
@@ -2599,7 +2813,8 @@
     const lead = $('analysisLead');
     if (!list || !lead) return;
     const unit = settings.mode === 'class' ? ' students' : ' players';
-    lead.textContent = roundStats.length + ' questions · most missed first · ' + players.length + unit;
+    const totalPlayers = roundStats.length && roundStats[0].total ? roundStats[0].total : players.length;
+    lead.textContent = roundStats.length + ' questions · most missed first · ' + totalPlayers + unit;
     const rows = roundStats.slice().sort(function (a, b) {
       const pa = a.total ? a.right / a.total : 0;
       const pb = b.total ? b.right / b.total : 0;
@@ -2654,6 +2869,955 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Real class rooms (Supabase RPC)                                     */
+  /* ------------------------------------------------------------------ */
+  const room = {
+    id: '', code: '', hostKey: '', questions: [], qIndex: 0, phase: '',
+    seconds: 15, status: '', before: [], pollTimer: 0, timerId: 0
+  };
+  let roomPlayers = [];
+  let roomCeremony = false;
+
+  const joining = {
+    clientId: '', name: '', cat: 'Ginger', look: null, profile: null,
+    roomId: '', code: '', pollTimer: 0, timerId: 0, state: null,
+    lastKey: '', mine: null, submitting: false
+  };
+
+  function qkClientId() {
+    try {
+      let id = sessionStorage.getItem('learniTY_qk_client');
+      if (!id) {
+        id = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        sessionStorage.setItem('learniTY_qk_client', id);
+      }
+      return id;
+    } catch (e) {
+      return 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+  }
+
+  async function qkRpc(fn, args) {
+    if (typeof window.__QK_MOCK_RPC === 'function') return window.__QK_MOCK_RPC(fn, args || {});
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + storedAccessToken(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(args || {})
+    });
+    if (!res.ok) {
+      let message = '';
+      try {
+        const data = await res.json();
+        message = data.message || data.error_description || data.error || '';
+      } catch (e) { /* ignore */ }
+      throw new Error(message || ('RPC ' + fn + ' failed (' + res.status + ')'));
+    }
+    return res.json();
+  }
+
+  function qkSessionProfile() {
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i) || '';
+        if (key.indexOf('sb-') !== 0 || key.indexOf('-auth-token') === -1) continue;
+        const raw = JSON.parse(localStorage.getItem(key) || 'null');
+        const user = raw && (raw.user || (raw.currentSession && raw.currentSession.user));
+        const token = raw && (raw.access_token || (raw.currentSession && raw.currentSession.access_token));
+        if (!user || !token) continue;
+        const meta = user.user_metadata || {};
+        return {
+          id: user.id,
+          token: token,
+          name: meta.full_name || meta.name || (user.email ? String(user.email).split('@')[0] : 'Student')
+        };
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  async function qkProfileLook(profile) {
+    if (!profile || !profile.id) return null;
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/profile_looks?select=cat,hat,face,outfit,ears,cheeks,neck&user_id=eq.' + encodeURIComponent(profile.id), {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + profile.token }
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      if (!rows || !rows.length) return null;
+      const r = rows[0];
+      return {
+        cat: r.cat || 'Ginger',
+        hat: r.hat || '',
+        glasses: r.face || '',
+        outfit: r.outfit || '',
+        ears: r.ears || '',
+        cheeks: r.cheeks || '',
+        neck: r.neck || ''
+      };
+    } catch (e) { return null; }
+  }
+
+  function qkAcceptList(en) {
+    const out = [];
+    answerVariants(en).forEach(function (v) {
+      const norm = answerNormalize(v);
+      out.push(v);
+      spellingAlternates(norm).forEach(function (alt) { out.push(alt); });
+    });
+    const seen = [];
+    return out.filter(function (v) {
+      const k = answerNormalize(v);
+      if (!k || seen.indexOf(k) !== -1) return false;
+      seen.push(k);
+      return true;
+    });
+  }
+
+  function qkServerQuestion(q) {
+    const out = {
+      type: q.type,
+      prompt: q.prompt,
+      sub: q.sub,
+      en: q.en,
+      zh: q.zh
+    };
+    if (q.sentence) out.sentence = true;
+    if (q.fallback) out.fallback = true;
+    if (q.type === 'mc' || q.type === 'gap') {
+      out.choices = q.choices;
+      out.answer = q.answer;
+    } else if (q.type === 'tf') {
+      out.answer = q.answer;
+    } else {
+      out.accept = qkAcceptList(q.en);
+    }
+    return out;
+  }
+
+  function qkSqlHint() {
+    return 'Class rooms need supabase/quizzykitty.sql. Run it in the Supabase SQL editor, then refresh.';
+  }
+
+  function roomPlayerList(st) {
+    return (st.players || []).map(function (p) {
+      return {
+        id: p.client_id,
+        name: p.nickname,
+        cat: p.cat || 'Ginger',
+        look: p.look || { cat: p.cat || 'Ginger' },
+        score: p.score || 0,
+        correct: p.correct || 0
+      };
+    });
+  }
+
+  function updateRoomChipRoom() {
+    const el = $('roomChip');
+    if (el && room.code) el.textContent = 'Room ' + room.code + ' · ' + roomPlayers.length + ' students';
+  }
+
+  /* ---------------- Host ---------------- */
+  async function createClassRoom() {
+    if (phase === 'loading' || room.id) return;
+    ensureAudio();
+    startMusic();
+    phase = 'loading';
+    const btn = $('createRoomBtn');
+    const note = $('setupNote');
+    btn.disabled = true;
+    btn.textContent = '⏳ Creating room…';
+    note.textContent = 'Loading words and building questions…';
+
+    let questions = [];
+    const nvTopic = settings.topic.indexOf('nv:') === 0;
+    try {
+      let words = await loadBank(settings.topic, nvTopic ? settings.scope : 'all');
+      if (!words.length && nvTopic && settings.scope !== 'all') {
+        const allWords = await loadBank(settings.topic, 'all');
+        if (allWords.length) words = allWords;
+      }
+      if (words.length < 6) words = DEMO_WORDS.slice();
+      questions = makeQuestions(words, settings);
+      if (questions.some(q => q.type === 'gap')) {
+        note.textContent = 'Loading Cambridge example sentences…';
+        await decorateGapQuestions(questions);
+      }
+    } catch (e) {
+      questions = makeQuestions(DEMO_WORDS.slice(), settings);
+      if (questions.some(q => q.type === 'gap')) await decorateGapQuestions(questions);
+    }
+
+    const hostKey = (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'k_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+    try {
+      const created = await qkRpc('quizzykitty_create', {
+        p_questions: questions.map(qkServerQuestion),
+        p_seconds: settings.seconds,
+        p_host_key: hostKey
+      });
+      room.id = created.room_id;
+      room.code = created.code;
+      room.hostKey = hostKey;
+      room.questions = questions;
+      room.seconds = settings.seconds;
+      room.qIndex = 0;
+      room.phase = 'question';
+      room.status = 'waiting';
+      room.before = [];
+      roomPlayers = [];
+      roomCeremony = false;
+      document.body.classList.add('room-mode');
+      $('setup').classList.add('hidden');
+      $('quizBody').classList.add('hidden');
+      $('roomLobby').classList.remove('hidden');
+      $('roomCode').textContent = room.code;
+      $('roomNote').textContent = 'Students: open this page → 🙋 Join a class → enter the code.';
+      renderRoomLobby();
+      updateRoomChipRoom();
+      startHostPoll();
+      note.textContent = 'Room created. Waiting for students to join…';
+      startMusic();
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      note.textContent = /does not exist|Could not find|PGRST|schema/i.test(msg)
+        ? qkSqlHint()
+        : ('Could not create the room: ' + msg);
+    } finally {
+      phase = 'setup';
+      btn.disabled = false;
+      btn.textContent = '🏫 Create Room';
+    }
+  }
+
+  function startHostPoll() {
+    stopHostPoll();
+    room.pollTimer = setInterval(hostPoll, 1500);
+    hostPoll();
+  }
+
+  function stopHostPoll() {
+    if (room.pollTimer) { clearInterval(room.pollTimer); room.pollTimer = 0; }
+  }
+
+  async function hostPoll() {
+    if (!room.id) return;
+    try {
+      const st = await qkRpc('quizzykitty_state', {
+        p_room: room.id, p_client_id: '', p_host_key: room.hostKey
+      });
+      if (!st || !st.room) return;
+      room.status = st.room.status;
+      roomPlayers = roomPlayerList(st);
+      updateRoomChipRoom();
+      if (st.room.status === 'waiting') {
+        renderRoomLobby();
+      } else if (st.room.status === 'playing' && room.phase === 'question') {
+        updateRoomAnswered(st);
+      } else if (st.room.status === 'finished' && room.phase !== 'finished') {
+        room.phase = 'finished';
+        roomFinish(st);
+      }
+    } catch (e) { /* ignore transient errors */ }
+  }
+
+  function renderRoomLobby() {
+    const count = roomPlayers.length;
+    $('roomCount').textContent = String(count);
+    $('roomPlayers').innerHTML = count
+      ? roomPlayers.map(function (p) {
+          const cat = CAT_PALETTES[p.look && p.look.cat] ? p.look.cat : 'Ginger';
+          return '<div class="room-player">' +
+            '<i class="room-dot" style="background:' + CAT_PALETTES[cat].body + '"></i>' +
+            '<span>' + escapeHtml(p.name) + '</span></div>';
+        }).join('')
+      : '<div class="room-empty">Waiting for students…</div>';
+    $('roomStartBtn').disabled = count === 0;
+  }
+
+  function updateRoomAnswered(st) {
+    const total = (st.players || []).length;
+    const answered = (st.players || []).filter(p => p.answered).length;
+    $('qnum').textContent = 'Question ' + (room.qIndex + 1) + ' / ' + room.questions.length +
+      ' · ' + answered + '/' + total + ' answered';
+  }
+
+  async function startRoom() {
+    if (!room.id || room.status !== 'waiting') return;
+    if (!roomPlayers.length) {
+      $('roomNote').textContent = 'At least one student has to join before you start.';
+      return;
+    }
+    try {
+      await qkRpc('quizzykitty_start', { p_room: room.id, p_host_key: room.hostKey });
+    } catch (e) {
+      $('roomNote').textContent = /does not exist|PGRST/i.test(String(e.message))
+        ? qkSqlHint() : String(e.message || e);
+      return;
+    }
+    room.status = 'playing';
+    room.phase = 'question';
+    room.qIndex = 0;
+    roundStats = [];
+    const sorted = roomPlayers.slice().sort((a, b) => b.score - a.score);
+    room.before = sorted.map((p, i) => ({ id: p.id, score: p.score, rank: i + 1 }));
+    $('roomLobby').classList.add('hidden');
+    $('setup').classList.add('hidden');
+    $('quizBody').classList.remove('hidden');
+    startMusic();
+    renderRoomQuestion();
+    startRoomTimer();
+    hostPoll();
+  }
+
+  function renderRoomQuestion() {
+    const q = room.questions[room.qIndex];
+    if (!q) return;
+    $('qnum').textContent = 'Question ' + (room.qIndex + 1) + ' / ' + room.questions.length +
+      ' · 0/' + roomPlayers.length + ' answered';
+    $('qtype').textContent = q.fallback ? 'MC · no sentence' : TYPE_LABEL[q.type];
+    $('qprompt').innerHTML = escapeHtml(q.prompt) + '<small>' + escapeHtml(q.sub) + '</small>';
+    $('qprompt').classList.toggle('sentence', !!q.sentence);
+    $('timer').textContent = room.seconds + 's';
+    $('revealBtn').hidden = false;
+    $('revealBtn').disabled = false;
+    $('nextBtn').hidden = true;
+    $('nextBtn').disabled = true;
+
+    if (q.type === 'short') {
+      choicesEl.className = 'choices';
+      choicesEl.innerHTML =
+        '<div class="typing-card">' +
+          '<div class="typing-emoji">⌨️</div>' +
+          '<div class="hintline">Students are typing the English word…</div>' +
+          '<small>UK / US spellings both count</small>' +
+        '</div>';
+    } else {
+      choicesEl.className = 'choices' + (q.type === 'tf' ? ' tf' : '');
+      choicesEl.innerHTML = q.type === 'tf'
+        ? '<div class="choice true"><span class="shape">✓</span><span>True</span></div>' +
+          '<div class="choice false"><span class="shape">✕</span><span>False</span></div>'
+        : q.choices.map(function (text, i) {
+            return '<div class="choice ' + COLORS[i] + '">' +
+              '<span class="shape">' + SHAPES[i] + '</span>' +
+              '<span>' + escapeHtml(text) + '</span></div>';
+          }).join('');
+    }
+  }
+
+  function startRoomTimer() {
+    stopRoomTimer();
+    const end = Date.now() + room.seconds * 1000;
+    room.timerId = setInterval(function () {
+      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      $('timer').textContent = left + 's';
+      if (left <= 0) {
+        stopRoomTimer();
+        roomReveal();
+      }
+    }, 120);
+  }
+
+  function stopRoomTimer() {
+    if (room.timerId) { clearInterval(room.timerId); room.timerId = 0; }
+  }
+
+  async function roomReveal() {
+    if (!room.id || room.phase !== 'question') return;
+    stopRoomTimer();
+    try {
+      await qkRpc('quizzykitty_reveal', { p_room: room.id, p_host_key: room.hostKey });
+    } catch (e) { /* ignore */ }
+    room.phase = 'reveal';
+    let st = null;
+    try {
+      st = await qkRpc('quizzykitty_state', {
+        p_room: room.id, p_client_id: '', p_host_key: room.hostKey
+      });
+    } catch (e) { /* ignore */ }
+    if (st) {
+      roomPlayers = roomPlayerList(st);
+      renderRoomReveal(st);
+    }
+  }
+
+  function renderRoomReveal(st) {
+    const q = room.questions[room.qIndex];
+    if (!q) return;
+    const counts = st.counts || {};
+    const total = roomPlayers.length;
+    let right = 0;
+    let wrong = 0;
+    let dist = '';
+    const correctKey = q.type === 'tf' ? String(q.answer) : String(q.answer);
+
+    if (q.type === 'short') {
+      Object.keys(counts).forEach(function (k) {
+        const n = Number(counts[k]) || 0;
+        if (isAnswerCorrect(k, q.en)) right += n; else wrong += n;
+      });
+    } else {
+      right = Number(counts[correctKey] || 0);
+      Object.keys(counts).forEach(function (k) {
+        if (k !== correctKey) wrong += Number(counts[k] || 0);
+      });
+      if (q.type === 'tf') {
+        dist = 'True ' + (counts['true'] || 0) + ' · False ' + (counts['false'] || 0);
+      } else {
+        dist = q.choices.map(function (c, i) {
+          return escapeHtml(c) + ' ' + (counts[String(i)] || 0);
+        }).join(' · ');
+      }
+    }
+    const none = Math.max(0, total - right - wrong);
+    const label = q.type === 'short'
+      ? primaryAnswer(q.en)
+      : (q.type === 'tf' ? (q.answer ? 'True' : 'False') : q.choices[q.answer]);
+
+    choicesEl.className = 'choices';
+    choicesEl.innerHTML =
+      '<div class="reveal-stack">' +
+        '<div class="answer-strip">' +
+          '<span class="ans-label">Answer</span>' +
+          '<span class="ans-word">' + escapeHtml(label) + '</span>' +
+          '<span class="ans-counts">✅ ' + right + ' · ❌ ' + wrong +
+            (none ? ' · ⏰ ' + none : '') + '</span>' +
+          (dist ? '<span class="ans-dist">' + escapeHtml(dist) + '</span>' : '') +
+        '</div>' +
+        '<div class="round-board" id="roundBoard"></div>' +
+      '</div>';
+
+    $('qnum').textContent = 'Question ' + (room.qIndex + 1) + ' / ' + room.questions.length +
+      ' · ' + (right + wrong) + '/' + total + ' answered';
+    $('timer').textContent = 'Answer';
+    $('revealBtn').hidden = true;
+    $('nextBtn').hidden = false;
+    $('nextBtn').disabled = false;
+    $('nextBtn').textContent = room.qIndex + 1 >= room.questions.length ? '🏁 Finish' : 'Next →';
+
+    renderRoundBoard(room.before, roomPlayers, ' students', room.qIndex + 1);
+
+    const topWrong = [];
+    Object.keys(counts).forEach(function (k) {
+      if (q.type === 'short') {
+        if (!k || isAnswerCorrect(k, q.en)) return;
+      } else if (k === correctKey) {
+        return;
+      }
+      const n = Number(counts[k]) || 0;
+      if (!n) return;
+      let text = k;
+      if (q.type === 'mc' || q.type === 'gap') text = q.choices[Number(k)] || k;
+      if (q.type === 'tf') text = k === 'true' ? 'True' : 'False';
+      topWrong.push({ label: text, n: n });
+    });
+    topWrong.sort((a, b) => b.n - a.n);
+    roundStats.push({
+      index: room.qIndex + 1,
+      prompt: q.prompt,
+      answer: answerText(q),
+      right: right,
+      wrong: wrong,
+      none: none,
+      total: total,
+      topWrong: topWrong.slice(0, 3)
+    });
+  }
+
+  async function roomNext() {
+    if (!room.id || room.phase !== 'reveal') return;
+    try {
+      const res = await qkRpc('quizzykitty_next', { p_room: room.id, p_host_key: room.hostKey });
+      if (res.finished) {
+        room.phase = 'finished';
+        let st = null;
+        try {
+          st = await qkRpc('quizzykitty_state', {
+            p_room: room.id, p_client_id: '', p_host_key: room.hostKey
+          });
+        } catch (e) { /* ignore */ }
+        roomFinish(st);
+        return;
+      }
+      room.qIndex = res.q_index;
+      room.phase = 'question';
+      const sorted = roomPlayers.slice().sort((a, b) => b.score - a.score);
+      room.before = sorted.map((p, i) => ({ id: p.id, score: p.score, rank: i + 1 }));
+      renderRoomQuestion();
+      startRoomTimer();
+    } catch (e) { /* ignore */ }
+  }
+
+  function roomFinish(st) {
+    stopRoomTimer();
+    stopHostPoll();
+    if (st && st.players) roomPlayers = roomPlayerList(st);
+    room.status = 'finished';
+    room.phase = 'finished';
+    roomCeremony = true;
+    stopMusic();
+    $('qnum').textContent = 'Finished';
+    $('qtype').textContent = 'Results';
+    $('timer').textContent = '🏁';
+    $('revealBtn').hidden = true;
+    $('nextBtn').hidden = true;
+    updateRoomChipRoom();
+    showTrophy(roomPlayers);
+  }
+
+  function leaveRoomHost() {
+    stopHostPoll();
+    stopRoomTimer();
+    stopMusic();
+    stopTrophyMusic();
+    if (room.id && room.status !== 'finished') {
+      try {
+        qkRpc('quizzykitty_finish', { p_room: room.id, p_host_key: room.hostKey });
+      } catch (e) { /* ignore */ }
+    }
+    room.id = '';
+    room.code = '';
+    room.hostKey = '';
+    room.questions = [];
+    room.qIndex = 0;
+    room.phase = '';
+    room.status = '';
+    room.before = [];
+    roomPlayers = [];
+    roomCeremony = false;
+    document.body.classList.remove('room-mode');
+    $('roomLobby').classList.add('hidden');
+    $('quizBody').classList.add('hidden');
+    $('setup').classList.remove('hidden');
+    updateRoomChip();
+    showSetup();
+  }
+
+  /* ---------------- Student ---------------- */
+  async function openJoin() {
+    $('joinError').textContent = '';
+    $('joinModal').classList.remove('hidden');
+    joining.profile = qkSessionProfile();
+    joining.clientId = qkClientId();
+
+    let lastCode = '';
+    let lastName = '';
+    let lastCat = '';
+    try {
+      lastCode = localStorage.getItem('learniTY_qk_last_code') || '';
+      lastName = localStorage.getItem('learniTY_qk_last_name') || '';
+      lastCat = localStorage.getItem('learniTY_qk_last_cat') || '';
+    } catch (e) { /* ignore */ }
+
+    $('joinCode').value = lastCode;
+    $('joinName').value = (joining.profile && joining.profile.name) || lastName || '';
+    joining.cat = CAT_PALETTES[lastCat] ? lastCat : 'Ginger';
+
+    renderJoinCats();
+    const look = await qkProfileLook(joining.profile);
+    if (look && CAT_PALETTES[look.cat]) {
+      joining.look = look;
+      joining.cat = look.cat;
+      renderJoinCats();
+    }
+    setTimeout(function () {
+      const input = $('joinCode');
+      if (input && input.getClientRects().length) input.focus({ preventScroll: true });
+    }, 80);
+  }
+
+  function renderJoinCats() {
+    const names = ['Ginger', 'Ragdoll', 'British Shorthair', 'Garfield'];
+    $('joinCats').innerHTML = names.map(function (name) {
+      const p = CAT_PALETTES[name];
+      return '<button type="button" class="join-cat' + (joining.cat === name ? ' on' : '') +
+        '" data-cat="' + name + '">' +
+        '<i style="background:' + p.body + '"></i>' + name + '</button>';
+    }).join('');
+    Array.from(document.querySelectorAll('.join-cat')).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        joining.cat = btn.getAttribute('data-cat');
+        renderJoinCats();
+      });
+    });
+  }
+
+  async function joinClass() {
+    const code = String($('joinCode').value || '').trim();
+    const name = String($('joinName').value || '').trim();
+    const err = $('joinError');
+    $('joinError').textContent = '';
+    if (!/^\d{4}$/.test(code)) { err.textContent = 'Enter the 4-digit room code.'; return; }
+    if (!name) { err.textContent = 'Enter your name.'; return; }
+    const btn = $('joinGo');
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    try {
+      const profile = joining.profile || qkSessionProfile();
+      let look = await qkProfileLook(profile);
+      if (!look) look = { cat: joining.cat };
+      look.cat = joining.cat;
+      const res = await qkRpc('quizzykitty_join', {
+        p_code: code,
+        p_client_id: joining.clientId,
+        p_nickname: name,
+        p_cat: joining.cat,
+        p_look: look
+      });
+      joining.roomId = res.room_id;
+      joining.code = res.code;
+      joining.lastKey = '';
+      joining.mine = null;
+      try {
+        localStorage.setItem('learniTY_qk_last_code', res.code);
+        localStorage.setItem('learniTY_qk_last_name', name);
+        localStorage.setItem('learniTY_qk_last_cat', joining.cat);
+      } catch (e) { /* ignore */ }
+      $('joinModal').classList.add('hidden');
+      $('srHubBtn').classList.add('hidden');
+      $('studentRoom').classList.remove('hidden');
+      $('srName').textContent = name;
+      $('srScore').textContent = '0 pts';
+      $('srRank').textContent = '#–';
+      $('srStatus').textContent = 'Joining…';
+      $('srPrompt').textContent = '';
+      $('srAnswers').innerHTML = '';
+      $('srFeedback').textContent = '';
+      $('srRankCard').classList.add('hidden');
+      $('srPodium').classList.add('hidden');
+      startStudentPoll();
+    } catch (e) {
+      const msg = String(e.message || e);
+      err.textContent = /ROOM_FULL/.test(msg) ? 'That room is full (30 students).'
+        : /ROOM_FINISHED/.test(msg) ? 'That quiz has already finished.'
+        : /ROOM_NOT_FOUND/.test(msg) ? 'No room with that code.'
+        : /does not exist|PGRST|schema/i.test(msg) ? qkSqlHint()
+        : msg;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Join class →';
+    }
+  }
+
+  function startStudentPoll() {
+    stopStudentPoll();
+    joining.pollTimer = setInterval(studentPoll, 1000);
+    studentPoll();
+  }
+
+  function stopStudentPoll() {
+    if (joining.pollTimer) { clearInterval(joining.pollTimer); joining.pollTimer = 0; }
+  }
+
+  async function studentPoll() {
+    if (!joining.roomId) return;
+    try {
+      const st = await qkRpc('quizzykitty_state', {
+        p_room: joining.roomId, p_client_id: joining.clientId, p_host_key: ''
+      });
+      if (st && st.room) studentRender(st);
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (/NOT_IN_ROOM|ROOM_NOT_FOUND/.test(msg)) {
+        $('srStatus').textContent = 'The room has closed.';
+      }
+    }
+  }
+
+  function studentRankInfo(st) {
+    const list = (st.players || []).slice().sort(function (a, b) {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.nickname).localeCompare(String(b.nickname));
+    });
+    const me = list.find(p => p.client_id === joining.clientId) || null;
+    return { list: list, me: me, rank: me ? list.indexOf(me) + 1 : 0, total: list.length };
+  }
+
+  function studentRender(st) {
+    joining.state = st;
+    const info = studentRankInfo(st);
+    $('srScore').textContent = (info.me ? info.me.score : 0).toLocaleString('en-US') + ' pts';
+    $('srRank').textContent = info.rank ? '#' + info.rank : '#–';
+
+    if (st.room.status === 'waiting') {
+      studentStopTimer();
+      $('srStatus').textContent = 'Waiting for the teacher… · ' + info.total + ' students in the room';
+      $('srPrompt').textContent = '';
+      $('srAnswers').innerHTML = '';
+      $('srFeedback').textContent = 'You are in! The teacher will start soon.';
+      $('srRankCard').classList.add('hidden');
+      return;
+    }
+
+    if (st.room.status === 'playing' && st.room.phase === 'question' && st.question) {
+      const key = 'q:' + st.room.q_index;
+      if (joining.lastKey !== key) {
+        joining.lastKey = key;
+        joining.mine = null;
+        studentRenderQuestion(st);
+      }
+      if (st.my_answer && !joining.mine) {
+        joining.mine = st.my_answer;
+        studentLock(st.my_answer);
+      }
+      studentTimer(st);
+      return;
+    }
+
+    if (st.room.status === 'playing' && st.room.phase === 'reveal' && st.question) {
+      const key = 'r:' + st.room.q_index;
+      if (joining.lastKey !== key) {
+        joining.lastKey = key;
+        studentStopTimer();
+        studentShowReveal(st);
+      }
+      return;
+    }
+
+    if (st.room.status === 'finished') {
+      if (joining.lastKey !== 'finished') {
+        joining.lastKey = 'finished';
+        studentStopTimer();
+        studentFinish(st);
+      }
+    }
+  }
+
+  function studentRenderQuestion(st) {
+    const q = st.question;
+    $('srPrompt').classList.remove('hidden');
+    $('srPrompt').textContent = q.prompt || '';
+    $('srPrompt').classList.toggle('sentence', !!q.sentence);
+    $('srFeedback').textContent = 'Choose your answer!';
+    $('srRankCard').classList.add('hidden');
+    $('srPodium').classList.add('hidden');
+    $('srHubBtn').classList.add('hidden');
+
+    const host = $('srAnswers');
+    if (q.type === 'short') {
+      host.className = 'sr-answers short';
+      host.innerHTML =
+        '<input id="srShort" class="short-input" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Type the English word">' +
+        '<button type="button" class="short-submit" id="srShortGo">Submit</button>' +
+        '<p class="short-hint">UK / US spellings both count — e.g. colour or color.</p>';
+      const input = $('srShort');
+      const go = $('srShortGo');
+      const send = function () {
+        if (!input || input.disabled) return;
+        const value = String(input.value || '').trim();
+        if (!value) { $('srFeedback').textContent = 'Type your answer first.'; return; }
+        studentSubmit(value);
+      };
+      go.addEventListener('click', send);
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') { event.preventDefault(); send(); }
+      });
+    } else if (q.type === 'tf') {
+      host.className = 'sr-answers';
+      host.innerHTML =
+        '<button type="button" class="sanswer true" data-v="1">✓ True</button>' +
+        '<button type="button" class="sanswer false" data-v="0">✕ False</button>';
+      Array.from(host.querySelectorAll('button')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          studentSubmit(Number(btn.getAttribute('data-v')) === 1);
+        });
+      });
+    } else {
+      host.className = 'sr-answers';
+      host.innerHTML = (q.choices || []).map(function (text, i) {
+        return '<button type="button" class="sanswer ' + COLORS[i] + '" data-v="' + i + '">' +
+          SHAPES[i] + ' ' + escapeHtml(text) + '</button>';
+      }).join('');
+      Array.from(host.querySelectorAll('button')).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          studentSubmit(Number(btn.getAttribute('data-v')));
+        });
+      });
+    }
+  }
+
+  function studentAnswerLabel(q, value) {
+    if (!q) return String(value == null ? '' : value);
+    if (q.type === 'mc' || q.type === 'gap') return (q.choices || [])[value] || '';
+    if (q.type === 'tf') return value === true || value === 'true' || value === 1 ? 'True' : 'False';
+    return String(value == null ? '' : value);
+  }
+
+  function studentLock(mine) {
+    const q = joining.state && joining.state.question;
+    const host = $('srAnswers');
+    if (!host) return;
+    if (q && q.type === 'short') {
+      const input = $('srShort');
+      const go = $('srShortGo');
+      if (input) { input.value = (mine.answer && mine.answer.v) || input.value; input.disabled = true; }
+      if (go) go.disabled = true;
+    } else {
+      Array.from(host.querySelectorAll('button')).forEach(function (btn) {
+        btn.disabled = true;
+        const v = btn.getAttribute('data-v');
+        const picked = q && q.type === 'tf'
+          ? (String(mine.answer && mine.answer.v) === (v === '1' ? 'true' : 'false'))
+          : String(mine.answer && mine.answer.v) === String(v);
+        if (picked) btn.classList.add('picked');
+      });
+    }
+    $('srFeedback').textContent = '✅ Locked in — waiting for the reveal.';
+  }
+
+  async function studentSubmit(value) {
+    if (!joining.roomId || joining.submitting) return;
+    const st = joining.state;
+    if (!st || st.room.phase !== 'question') return;
+    if (joining.mine) return;
+    joining.submitting = true;
+    try {
+      const res = await qkRpc('quizzykitty_submit', {
+        p_room: joining.roomId,
+        p_client_id: joining.clientId,
+        p_index: st.room.q_index,
+        p_answer: { v: value }
+      });
+      joining.mine = {
+        answer: { v: value },
+        correct: res.correct,
+        points: res.points,
+        score: res.score
+      };
+      studentLock(joining.mine);
+    } catch (e) {
+      const msg = String(e.message || e);
+      $('srFeedback').textContent = /NOT_ACCEPTING/.test(msg)
+        ? 'Time is up — waiting for the teacher.'
+        : 'Could not submit. Try again.';
+    } finally {
+      joining.submitting = false;
+    }
+  }
+
+  function studentShowReveal(st) {
+    const q = st.question;
+    const mine = st.my_answer || joining.mine;
+    const correctText = q.correct_text || '';
+    const host = $('srAnswers');
+
+    if (host) {
+      Array.from(host.querySelectorAll('button')).forEach(function (btn) {
+        btn.disabled = true;
+        if (q.type === 'tf') {
+          if ((btn.getAttribute('data-v') === '1') === (correctText === 'True')) btn.classList.add('correct');
+        } else if (btn.textContent.replace(/^\S+\s*/, '').trim() === correctText) {
+          btn.classList.add('correct');
+        }
+      });
+      const input = $('srShort');
+      const go = $('srShortGo');
+      if (input) input.disabled = true;
+      if (go) go.disabled = true;
+    }
+
+    if (!mine) {
+      $('srFeedback').textContent = '⏰ No answer.\nCorrect: ' + correctText;
+    } else if (mine.correct) {
+      $('srFeedback').textContent = '✅ Correct! +' + (mine.points || 0) + ' pts\n' + correctText;
+    } else {
+      $('srFeedback').textContent = '❌ Not quite.\nYou: ' +
+        (studentAnswerLabel(q, mine.answer && mine.answer.v) || '—') +
+        '\nCorrect: ' + correctText;
+    }
+
+    const info = studentRankInfo(st);
+    const card = $('srRankCard');
+    if (card && info.rank) {
+      const move = 0;
+      const msg = (info.rank === 1 && mine && mine.correct)
+        ? '👑 Top of the class — keep it up!'
+        : (mine && mine.correct ? '✅ Correct — keep going!'
+          : (info.rank === info.total && info.total > 1 ? '💪 Keep going — every point counts!'
+            : '💪 Not quite — next one is yours!'));
+      card.className = 'sr-rankcard' + (info.rank === 1 ? ' leading' : '');
+      card.innerHTML = '<span class="sr-pos">#' + info.rank + '</span> ' +
+        '<span class="sr-of">of ' + info.total + ' students</span>' +
+        '<div class="sr-msg">' + escapeHtml(msg) + '</div>';
+      card.classList.remove('hidden');
+    }
+    $('srStatus').textContent = 'Answer revealed';
+  }
+
+  function studentTimer(st) {
+    studentStopTimer();
+    const now = Number(st.room.now_ms) || Date.now();
+    const ended = Number(st.room.started_ms) + Number(st.room.seconds) * 1000;
+    const offset = Date.now() - now;
+    const endAt = ended + offset;
+    const answered = (st.players || []).filter(p => p.answered).length;
+    const tick = function () {
+      const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      $('srStatus').textContent = left > 0
+        ? '⏱ ' + left + 's · ' + answered + ' answered'
+        : "⏱ Time's up — waiting for the teacher";
+    };
+    tick();
+    joining.timerId = setInterval(tick, 250);
+  }
+
+  function studentStopTimer() {
+    if (joining.timerId) { clearInterval(joining.timerId); joining.timerId = 0; }
+  }
+
+  function studentFinish(st) {
+    const info = studentRankInfo(st);
+    $('srPrompt').textContent = 'Final results';
+    $('srPrompt').classList.remove('sentence');
+    $('srAnswers').innerHTML = '';
+    $('srStatus').textContent = '🏆 Class finished';
+    $('srFeedback').textContent = 'Check the podium — well played!';
+    const card = $('srRankCard');
+    if (card && info.rank) {
+      card.className = 'sr-rankcard' + (info.rank === 1 ? ' leading' : '');
+      card.innerHTML = '<span class="sr-pos">#' + info.rank + '</span> ' +
+        '<span class="sr-of">of ' + info.total + ' students</span>' +
+        '<div class="sr-msg">' +
+          (info.rank === 1 ? '👑 You won the class quiz!' : '🏁 Final rank — great fight!') +
+        '</div>';
+      card.classList.remove('hidden');
+    }
+    const podium = $('srPodium');
+    const top = info.list.slice(0, 3);
+    if (podium && top.length) {
+      podium.innerHTML = top.map(function (p, i) {
+        return '<div class="p"><canvas data-pid="' + escapeHtml(p.client_id) + '"></canvas>' +
+          '<b>' + escapeHtml(p.nickname) + '</b>' +
+          '<span>' + (p.score || 0).toLocaleString('en-US') + ' pts</span></div>';
+      }).join('');
+      podium.classList.remove('hidden');
+      requestAnimationFrame(function () {
+        Array.from(podium.querySelectorAll('canvas[data-pid]')).forEach(function (cv) {
+          const p = top.find(x => x.client_id === cv.getAttribute('data-pid'));
+          drawCat(cv, p ? (p.look || { cat: p.cat }) : null);
+        });
+      });
+    }
+    $('srHubBtn').classList.remove('hidden');
+  }
+
+  function closeStudentRoom() {
+    stopStudentPoll();
+    studentStopTimer();
+    joining.roomId = '';
+    joining.code = '';
+    joining.state = null;
+    joining.lastKey = '';
+    joining.mine = null;
+    $('studentRoom').classList.add('hidden');
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Wiring                                                              */
   /* ------------------------------------------------------------------ */
   $('setTopic').addEventListener('change', function (event) {
@@ -2666,9 +3830,11 @@
   });
   $('startBtn').addEventListener('click', startQuiz);
   $('revealBtn').addEventListener('click', function () {
+    if (room.id) { if (room.phase === 'question') roomReveal(); return; }
     if (phase === 'question') reveal();
   });
   $('nextBtn').addEventListener('click', function () {
+    if (room.id) { if (room.phase === 'reveal') roomNext(); return; }
     if (phase === 'reveal') nextQuestion();
   });
   $('againBtn').addEventListener('click', finishToSetup);
@@ -2690,6 +3856,38 @@
       document.body.dataset.pane = btn.getAttribute('data-pane');
       document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b === btn));
     });
+  });
+
+  $('createRoomBtn').addEventListener('click', createClassRoom);
+  $('roomStartBtn').addEventListener('click', startRoom);
+  $('roomCancelBtn').addEventListener('click', function () {
+    if (!room.id) return;
+    if (!window.confirm('Close this room for everyone?')) return;
+    leaveRoomHost();
+    $('setupNote').textContent = 'Room closed. Create a new room when ready.';
+  });
+  $('roomCopyBtn').addEventListener('click', function () {
+    const code = room.code || $('roomCode').textContent;
+    try {
+      navigator.clipboard.writeText(code);
+      $('roomCopyBtn').textContent = '✅ Copied';
+      setTimeout(function () { $('roomCopyBtn').textContent = '📋 Copy code'; }, 1200);
+    } catch (e) { /* ignore */ }
+  });
+  $('joinBtn').addEventListener('click', openJoin);
+  $('joinClose').addEventListener('click', function () {
+    $('joinModal').classList.add('hidden');
+  });
+  $('joinGo').addEventListener('click', joinClass);
+  $('joinCode').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') joinClass();
+  });
+  $('joinName').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') joinClass();
+  });
+  $('srHubBtn').addEventListener('click', function () {
+    closeStudentRoom();
+    window.location.href = '/index.html';
   });
 
   readSettings();

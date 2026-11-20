@@ -2178,7 +2178,50 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `.choice.c1`／`.sanswer.c1` 仍然用 Kahoot 藍 `--answer-blue #1368ce`；
   答題色 red `#d63b3f`、green `#0b8259` 稍為加深，令 15px 白字過 4.5:1。
   Reveal 時學生揀錯嘅選項同正確答案都會 `opacity: 1`，其餘 0.5。
-- 目前只係 demo；真正 class quiz 要 Supabase 房間／question JSON／answer RPC。
+- **真班際房間（2026-11 加）**：設定畫面有 **🏫 Create Room**；學生可以撳
+  右上角 **🙋** 或設定下面「Student? Join a class」入房。詳見 §10.17a。
+- 其餘「Class battle · 30 students」「Quick demo · 5」仍然係本機 bot 示範，
+  方便冇 Supabase 時試玩法。
+
+### 10.17a 真班際房間（Create Room／Join，2026-11）
+
+- **SQL**：`supabase/quizzykitty.sql`（老師自己喺 Supabase SQL editor 跑，
+  可重跑）。Tables：`quizzykitty_rooms`／`quizzykitty_players`／
+  `quizzykitty_answers`（RLS enabled、冇 client policy、revoke table access）。
+  RPC：`quizzykitty_create/join/start/reveal/next/finish/state/submit`。
+  全部 security definer；`anon` 同 `authenticated` 可以 execute，因為房間
+  靠 4 位房碼＋host key。**唔好**用 plugin／agent 跑呢份 SQL。
+- **Create Room（老師）**：設定畫面（Players／Topic／Question type／題數／秒數）
+  下面撳 **🏫 Create Room**：
+  - 用同一套出題（包括 Cambridge gap），將 questions snapshot（連 answer／
+    short accept）寫入房間；host key 只留喺老師 browser memory。
+  - Lobby 顯示 4 位房碼、Copy、`n / 30 students`、學生名＋貓色點、
+    **Start class battle**、**Close room**。
+  - 30 個位**唔計老師**；host 唔會插入 players。
+  - Start 後 host 用 `quizzykitty_state` poll 1.5 秒更新答題人數；
+    Reveal／Next 行 RPC，答案由 server 計分。最後一題後 status finished，
+    host 出 trophy（真學生貓）。
+  - Room code 2 日後由 create 自動清走（cascade 清 players／answers）。
+- **Join（學生）**：header **🙋** 或 setup 下面 link → modal：
+  房碼、名、4 款貓（有登入會自動用 `profile_looks` 嘅貓／帽／眼鏡／衫）。
+  `learniTY_qk_client` 存喺 sessionStorage；refresh 後用同一個 code 再 join
+  會保留分數（同 client_id）。房滿 30 會 `ROOM_FULL`，已完結 `ROOM_FINISHED`。
+- **學生畫面**：`#studentRoom` 全螢幕 overlay（唔影響老師 projector）：
+  waiting（n students）→ question（timer／MC／T/F／短答）→ reveal
+  （正確答案、自己分數、`#N of M students`＋鼓勵）→ finished（Top 3 貓＋
+  final rank＋Back to Hub）。Poll 1 秒；submit 後鎖定。
+- **老師畫面**：`body.room-mode` 會收埋 demo 學生電話同 tabs；host 用
+  `#quizBody` 顯示題目／Reveal／Next。Reveal 用 server counts 出 answer strip
+  同 `#roundBoard`（Top 7＋`+N more`），分數／名次動畫照舊；Analysis 用
+  `roundStats`（每題 correct／wrong／none／top wrong）。
+- **貓**：join 時傳 `p_look`（cat／hat／glasses／outfit…），host trophy
+  用 `showTrophy(roomPlayers)` 畫；30 人會有 class photo。
+- **未跑 SQL**：Create Room 會顯示 `Run supabase/quizzykitty.sql` 提示，
+  唔會整壞 demo。UI 流程用 mock RPC 測過（create→join→start→reveal→
+  submit→next→finish→trophy／student podium），**未用真 Supabase 房測試**；
+  老師跑完 SQL 後用兩個 browser 帳戶試最穩陣。
+- 入口：Battle tab → class room 下面 QuizzyKitty 卡（badge 已改
+  `CLASS QUIZ`，文案寫 Host a room／30-player demo）。
 
 ## 11. New Vocab 字庫＋錯題簿（`supabase/new_vocab.sql`）
 

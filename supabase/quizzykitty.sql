@@ -484,8 +484,8 @@ begin
     else
         v_ok := exists (
             select 1
-            from jsonb_array_elements_text(coalesce(v_question -> 'accept', '[]'::jsonb)) t
-            where public.qz_norm(t) = public.qz_norm(coalesce(p_answer ->> 'v', ''))
+            from jsonb_array_elements_text(coalesce(v_question -> 'accept', '[]'::jsonb)) as t(value)
+            where public.qz_norm(t.value) = public.qz_norm(coalesce(p_answer ->> 'v', ''))
         );
     end if;
 

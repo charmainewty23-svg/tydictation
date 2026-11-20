@@ -2029,13 +2029,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - 獨立 demo：`/quizzykitty-demo.html`，唔影響正式 app。基本 MC／T/F 唔需要
   登入；只有 New Vocab topic 會借用同 origin 的 Supabase session（見下）。
 - 5 位玩家：You + 4 個 bot（3A Amy／4C Ben／6D Chloe／3B Daniel）。
-- 老師按 **Start → Reveal → Next** 逐題控制，完成後 Top 3 頒獎台。
+- 老師按 **Start → Reveal → Next** 逐題控制；完場有 **Prize ceremony**。
 - **開賽前設定畫面**（`#setup`）：Topic／Question type／Questions／Seconds each，
-  設定存 `localStorage['learniTY_qk_settings']`，重新整理同「↻ New quiz」都會保留。
+  設定存 `localStorage['learniTY_qk_settings']`，重新整理同「🎉 New quiz」都會保留。
   - Topic：**Mixed**（20 個 Dictation Sheet tabs ＋ 全部 New Vocab）、逐個
     Dictation topic、**New Vocab · F3／F4／F6**。`#setTopic` 用 optgroup 分組。
-  - Question type：**🎲 Mixed**（MC／T/F／短答輪流）、🔤 Multiple choice、
-    ✅ True / false、⌨️ Type the word。
+  - **Question type 可以揀多過一種**（`settings.types` array）：
+    🔤 Multiple choice、✅ True / false、⌨️ Type the word。三個 pill 可以任意
+    組合，**最少要留一個**（撳走最後一個會提示）。舊版存落嘅 `type:'mixed'`
+    會遷移成三種全選。
   - Questions：10／15／20／25／30。Seconds each：10／15／20／30（時間到自動 reveal）。
 - **題目來源**：Dictation tabs 經 gviz CSV（`parseCSV()` 同 app 一樣），
   結果連 20 個 tab 分開 cache 10 分鐘喺 `localStorage['learniTY_qk_bank_v1']`；
@@ -2044,8 +2046,7 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   未登入／該年級冇字就 fallback 33 個內建示範字，並喺 `#setupNote` 講明。
   Sheet 或網絡失敗都一樣用示範字，唔會開唔到局。
 - **短答（type 串字）**：學生電話有 64px 輸入框＋Submit（Enter 都交），
-  交完鎖定；老師畫面係「⌨️ Students are typing…」加即時答案數，Reveal 後
-  顯示正確串法＋`✅ N correct · ❌ N wrong · ⏰ N no answer`。
+  交完鎖定；老師畫面係「⌨️ Students are typing…」加即時答案數。
   批改直接抄 `shared.js` 的 `answerNormalize`／`answerVariants`／UK-US
   `UK_US_PAIRS`（約 130 對＋自動 `+s`／`-ise/-ize`／`-our` 變化）入 demo，
   所以大小楷、標點、`a / b` 多答案、`color/colour`、`center/centre`、
@@ -2054,10 +2055,36 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
 - True/False：`“word” means “中文”.`，50% 機會換成另一個字嘅中文做錯句。
 - 每局用過嘅英文字唔會重複，pool 用盡才會再抽。
 - 計分：答對 500 + 速度最多 500 + 連續答對每題 +50（上限 +200）；
-  答錯／冇答 0 分，streak 清零。Bot 喺約 1.3–9.7 秒內交答案（短答會打字），
-  所以 Reveal 之前通常已有幾個人答咗。
+  答錯／冇答 0 分，streak 清零。Bot 喺約 1.3–9.7 秒內交答案（短答會打字）。
+- **冇常駐 live leaderboard**（舊 `#board` 已刪）。每題 Reveal 會喺題目下面
+  彈出 **`#roundBoard`**：
+  - 頂部係綠色 answer strip：正確答案＋`✅ N · ❌ M · ⏰ K`；MC／T/F 另外
+    有一行每個選項嘅人數（`.ans-dist`），例如 `apple 3 · banana 1 · …`。
+  - 5 位玩家按分數即時重排，**分數由舊分數 count-up 到新分數**（約 720ms），
+    每行有 `▲N`／`▼N`／`–` 名次箭咀；「You」行黃底。
+  - 名次有變會用 **FLIP**：render 前記住 `row.offsetTop`（`lastRoundTops`），
+    render 後 `translateY(舊-新)` 再 transition 返 0，所以係即刻滑去新位。
+  - 動畫有 WebAudio 音效：逐行 tick、自己行升名次有上升 chime，
+    全部跟 `musicOn`（🔊 掣）一齊開關。音效 context 喺 Start 手勢建立，
+    唔會被 autoplay 封鎖。
+  - 學生電話 header 分數都會 count-up，隔籬 `#youDelta` 會彈 `+分數`／`▲N`。
+- **Prize ceremony（完場）**：`finish()` 開 `#trophy` 全螢幕頒獎禮（唔再係舊
+  podium modal）。DOM 次序係 CHAMPION → 1ST RUNNER UP → 2ND RUNNER UP，
+  但彈出次序係 **3rd → 2nd → 1st（CHAMPION 最後）**，每 1.1 秒一張
+  （第一張 0.7 秒後），CHAMPION 卡最後出現時會 `scrollTop = 0`。
+  每張卡有獎牌、名、分數、🐱 avatar（暫時冇 per-student look）。
+  `#confetti` 有 30 粒 CSS 彩帶（6 秒後清除）；音樂用
+  `/music/trophyMusic.mp3`（volume 0.45），關閉／New quiz 會停。
+  卡有 ✕、底部 **🎉 New quiz**（`closeTrophy()` → `showSetup()`）。
+  短螢幕有 compact CSS：≤760px、≤620px、≤560px 橫向，320×568 同
+  390×844 都免捲動見到頒獎禮同 New quiz。
+- **背景音樂**：`/music/quizzymusic.mp3`（2.7MB，唔入 `sw.js` CORE_ASSETS；
+  第一次由 network-first SW cache）。`ensureMusic()` loop、volume **0.32**，
+  喺 `startQuiz()` 手勢內即刻 `startMusic()`（避免 autoplay 被封）；
+  `finish()`／`closeTrophy()` 會停。檔案缺失時 `error` listener 會 fallback
+  去 `/music/battlemusic.mp3`。🔊 掣同時開關音樂同 scoring 音效。
 - 老師／projector 面板同學生手機面板喺 ≥900px 並排；手機用 Teacher／Student
-  tab 切換。音樂用 `/music/battlemusic.mp3`，可 mute。
+  tab 切換。設定畫面、round board、trophy 喺 320–1180 都 `overflowX = 0`。
 - 視覺：背景 `assets/QuizzyBG.png`（pixel 場景，cover）、logo
   `assets/Quizzylogo.png`（已 crop 到圖案範圍 1360×1080，runtime canvas 由邊緣
   flood-fill 去走 off-white 底，保留字內奶白高光；header 128×102／≤420px 100×80）、

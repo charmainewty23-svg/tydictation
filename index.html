@@ -470,6 +470,12 @@
         img.store-card-emoji { width: 62px; height: 62px; }
         img.store-market-emoji { width: 40px; height: 40px; }
         img.store-gacha-emoji { width: 62px; height: 62px; }
+        /* Omamori PNGs have a long cord + transparent padding, so their bag
+           reads tiny inside the normal thumb box. Draw just these 1.5× bigger
+           (62→93, 40→60) while keeping object-fit: contain so nothing crops. */
+        img.store-card-emoji.store-thumb-omamori { width: 93px; height: 93px; }
+        img.store-market-emoji.store-thumb-omamori { width: 60px; height: 60px; }
+        img.store-gacha-emoji.store-thumb-omamori { width: 93px; height: 93px; }
         .store-card-bg {
             width: 100%;
             height: 74px;

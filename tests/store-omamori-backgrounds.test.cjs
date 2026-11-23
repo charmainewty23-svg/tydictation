@@ -234,8 +234,53 @@ test('DG.drawCatProps forwards the catalog item and any img prop uses drawImage'
     assert.ok(corgi.includes('DG.corgiArtImage()'), 'Mini Corgi preloader untouched');
     assert.ok(corgi.includes('ctx.drawImage(img'), 'Mini Corgi still draws its PNG');
 
-    assert.match(raceSource, /'Pass the Exam \/ 逢考必過': 1\.06,/);
-    assert.match(raceSource, /'Academic Success \/ 學業成就': 1\.06,/);
+    assert.match(raceSource, /'Pass the Exam \/ 逢考必過': 1\.59,/);
+    assert.match(raceSource, /'Academic Success \/ 學業成就': 1\.59,/);
+
+    // The generic img branch is unchanged: the 1.5× enlargement lives in
+    // PROP_SCALE only, never as a second multiplier on the drawn height.
+    assert.ok(generic.includes('const ch = 78 * S;'), 'generic img height stays 78 * S');
+    assert.ok(!generic.includes('78 * S * 1.5'), 'no double 1.5× on the height');
+});
+
+test('omamori thumbs get the 1.5× class; other items keep their normal classes', () => {
+    const store = loadStore();
+    const byId = id => store.window.STORE_ITEMS.find(it => it.id === id);
+
+    for (const id of ['prop_omamori_exam', 'prop_omamori_study']) {
+        const item = byId(id);
+        for (const kind of ['card', 'market', 'gacha']) {
+            const thumb = store.storeItemThumbHTML(item, kind);
+            assert.match(thumb, /^<img /, id + ' ' + kind + ' is an img');
+            assert.ok(thumb.includes('store-thumb-omamori'), id + ' ' + kind + ' gets the bigger class');
+            assert.ok(thumb.includes('store-thumb-img'), id + ' ' + kind + ' keeps contain-fit');
+            assert.ok(thumb.includes('src="' + item.img + '"'), id + ' ' + kind + ' keeps its PNG');
+        }
+        // Rows from Supabase often only carry item_id.
+        const rowThumb = store.storeItemThumbHTML({ item_id: id }, 'market');
+        assert.ok(rowThumb.includes('store-thumb-omamori'), id + ' item_id row gets the class');
+    }
+
+    for (const id of ['prop_corgi', 'prop_boombox', 'prop_cozy_desk']) {
+        const item = byId(id);
+        const thumb = store.storeItemThumbHTML(item, 'card');
+        assert.ok(!thumb.includes('store-thumb-omamori'), id + ' must not be enlarged');
+    }
+
+    // A no-image vector prop renders as a div and keeps its emoji class.
+    const boomboxDiv = store.storeItemThumbHTML(byId('prop_boombox'), 'card');
+    assert.match(boomboxDiv, /^<div class="store-card-emoji"/);
+});
+
+test('index.html enlarges only the omamori thumbs and leaves the base sizes', () => {
+    assert.match(htmlSource, /img\.store-card-emoji\.store-thumb-omamori \{ width: 93px; height: 93px; \}/);
+    assert.match(htmlSource, /img\.store-market-emoji\.store-thumb-omamori \{ width: 60px; height: 60px; \}/);
+    assert.match(htmlSource, /img\.store-gacha-emoji\.store-thumb-omamori \{ width: 93px; height: 93px; \}/);
+
+    assert.match(htmlSource, /img\.store-card-emoji \{ width: 62px; height: 62px; \}/);
+    assert.match(htmlSource, /img\.store-market-emoji \{ width: 40px; height: 40px; \}/);
+    assert.match(htmlSource, /img\.store-gacha-emoji \{ width: 62px; height: 62px; \}/);
+    assert.ok(htmlSource.includes('object-fit: contain'), 'thumbs stay contain-fit');
 });
 
 test('index.html has the Omamori tab and the New group is retitled', () => {

@@ -183,7 +183,8 @@ function storeItemThumbHTML(itemOrRow, kind) {
     const img = (item && item.img) || row.img || '';
     if (img) {
         const alt = (item && item.name) || row.name || row.name_en || 'Item';
-        return '<img class="' + cls + ' store-thumb-img" src="' + escapeHtml(img) + '" alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async">';
+        const extra = (id === 'prop_omamori_exam' || id === 'prop_omamori_study') ? ' store-thumb-omamori' : '';
+        return '<img class="' + cls + ' store-thumb-img' + extra + '" src="' + escapeHtml(img) + '" alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async">';
     }
     const emoji = (item && item.emoji) || row.emoji || '🎁';
     return '<div class="' + cls + '" aria-hidden="true">' + escapeHtml(emoji) + '</div>';

@@ -3812,6 +3812,44 @@
         'Rubber Duck': 0.9
     };
 
+    /* Mini Corgi is the only prop drawn from a pre-cut transparent PNG
+       (818×905, real alpha) instead of a vector illustration. Preload it once
+       and repaint the open previews when it arrives, otherwise the very first
+       paint would show only the ground shadow. */
+    DG.CORGI_ART_SRC = '/assets/props/mini-corgi.png';
+    DG.CORGI_ART_W = 818;
+    DG.CORGI_ART_H = 905;
+
+    DG.corgiArtImage = function () {
+        if (DG.corgiArtImg) return DG.corgiArtImg;
+        if (typeof Image === 'undefined') return null;
+        try {
+            const img = new Image();
+            img.decoding = 'async';
+            img.onload = function () {
+                try { DG.redrawCatPreviews(); } catch (e) { /* preview only */ }
+            };
+            img.onerror = function () { DG.corgiArtImg = null; };
+            img.src = DG.CORGI_ART_SRC;
+            DG.corgiArtImg = img;
+            return img;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    DG.redrawCatPreviews = function () {
+        const safe = function (fn) { try { if (typeof fn === 'function') fn(); } catch (e) { /* ignore */ } };
+        if (typeof storeRenderProfileLook === 'function') safe(storeRenderProfileLook);
+        if (typeof storeRepaintFitting === 'function') safe(storeRepaintFitting);
+        if (typeof DG.renderCatPreview === 'function') safe(DG.renderCatPreview);
+        if (typeof battleDrawCatPreview === 'function') safe(battleDrawCatPreview);
+    };
+
+    if (typeof Image !== 'undefined') {
+        try { DG.corgiArtImage(); } catch (e) { /* ignore */ }
+    }
+
     DG.drawCatProps = function (ctx, props, w, h) {
         const list = (Array.isArray(props) ? props : (props ? [props] : [])).filter(Boolean);
         if (!list.length) return;
@@ -4268,48 +4306,15 @@
             ctx.beginPath(); ctx.ellipse(x + 34 * S, y - 22 * S, 6 * S, 4 * S, -0.4, 0, Math.PI * 2); ctx.fill();
         } else if (name === 'Mini Corgi') {
             ground(0, 30);
-            // legs
-            ctx.fillStyle = '#d97706';
-            [[-16, 0], [-4, 0], [10, 0]].forEach(pt => {
-                rr(x + pt[0] * S, y - 14 * S, 7 * S, 14 * S, 3 * S); ctx.fill();
-            });
-            // body
-            ctx.fillStyle = '#f59e0b';
-            ctx.beginPath(); ctx.ellipse(x - 2 * S, y - 24 * S, 26 * S, 16 * S, 0, 0, Math.PI * 2); ctx.fill();
-            // chest
-            ctx.fillStyle = '#fff7ed';
-            ctx.beginPath(); ctx.ellipse(x + 10 * S, y - 20 * S, 12 * S, 10 * S, 0, 0, Math.PI * 2); ctx.fill();
-            // collar
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 3 * S;
-            ctx.beginPath(); ctx.arc(x + 16 * S, y - 28 * S, 8 * S, -0.6, 1.4); ctx.stroke();
-            // head
-            ctx.fillStyle = '#f59e0b';
-            ctx.beginPath(); ctx.arc(x + 20 * S, y - 44 * S, 15 * S, 0, Math.PI * 2); ctx.fill();
-            // ears
-            ctx.beginPath();
-            ctx.moveTo(x + 10 * S, y - 54 * S); ctx.lineTo(x + 8 * S, y - 70 * S); ctx.lineTo(x + 22 * S, y - 58 * S);
-            ctx.closePath(); ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(x + 28 * S, y - 57 * S); ctx.lineTo(x + 36 * S, y - 70 * S); ctx.lineTo(x + 37 * S, y - 50 * S);
-            ctx.closePath(); ctx.fill();
-            // muzzle
-            ctx.fillStyle = '#fff7ed';
-            ctx.beginPath(); ctx.ellipse(x + 24 * S, y - 40 * S, 10 * S, 8 * S, 0, 0, Math.PI * 2); ctx.fill();
-            // eyes + nose
-            ctx.fillStyle = '#111827';
-            ctx.beginPath(); ctx.arc(x + 16 * S, y - 48 * S, 2.4 * S, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(x + 25 * S, y - 48 * S, 2.4 * S, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(x + 30 * S, y - 42 * S, 3.4 * S, 2.4 * S, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#fb7185';
-            ctx.beginPath(); ctx.ellipse(x + 22 * S, y - 35 * S, 3.6 * S, 2 * S, 0, 0, Math.PI * 2); ctx.fill();
-            // tail
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 6 * S;
-            ctx.beginPath();
-            ctx.moveTo(x - 26 * S, y - 26 * S);
-            ctx.quadraticCurveTo(x - 36 * S, y - 34 * S, x - 32 * S, y - 44 * S);
-            ctx.stroke();
+            // Pre-cut transparent PNG (818×905). Feet sit on y, centred on x.
+            // While it is still loading we deliberately draw only the shadow —
+            // never the old vector — so the corgi never flashes twice.
+            const img = DG.corgiArtImage();
+            if (img && img.complete && img.naturalWidth) {
+                const ch = 70 * S;
+                const cw = ch * (DG.CORGI_ART_W / DG.CORGI_ART_H);
+                ctx.drawImage(img, x - cw / 2, y - ch, cw, ch);
+            }
         } else if (name === 'Boombox') {
             ground(0, 46);
             // handle

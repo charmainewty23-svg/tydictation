@@ -100,7 +100,10 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('prop_omamori_exam','prop','Pass the Exam / 逢考必過','逢考必過',240,'Epic','🧧',67),
     ('prop_omamori_study','prop','Academic Success / 學業成就','學業成就',240,'Epic','🎓',68),
     ('bg_shrine','background','Shrine / 神社','神社',519,'Epic','⛩️',69),
-    ('bg_fuji','background','Mount Fuji / 富士山','富士山',528,'Epic','🗻',70)
+    ('bg_fuji','background','Mount Fuji / 富士山','富士山',528,'Epic','🗻',70),
+    ('prop_omamori_love','prop','Love Charm / 戀愛御守','戀愛御守',328,'Epic','💗',71),
+    ('prop_omamori_singles','prop','Find Love / 脫單御守','脫單御守',355,'Epic','💕',72),
+    ('prop_omamori_health','prop','Health Charm / 健康御守','健康御守',182,'Rare','🌿',73)
 on conflict (id) do update set
     slot = excluded.slot,
     name_en = excluded.name_en,

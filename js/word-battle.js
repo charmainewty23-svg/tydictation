@@ -374,17 +374,22 @@
             canvas.height = Math.round(cssH * dpr);
             const ctx = canvas.getContext('2d');
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            const grd = ctx.createLinearGradient(0, 0, 0, cssH);
             const bgItem = (typeof storeEquippedItem === 'function') ? storeEquippedItem('background') : null;
-            if (bgItem) {
-                grd.addColorStop(0, bgItem.color);
-                grd.addColorStop(1, '#fff7ed');
+            if (typeof storeFillBackgroundBase === 'function' && typeof storePaintBackground === 'function') {
+                storeFillBackgroundBase(ctx, bgItem, cssW, cssH);
+                storePaintBackground(ctx, bgItem, cssW, cssH);
             } else {
-                grd.addColorStop(0, '#dbeafe');
-                grd.addColorStop(1, '#fef3c7');
+                const grd = ctx.createLinearGradient(0, 0, 0, cssH);
+                if (bgItem) {
+                    grd.addColorStop(0, bgItem.color);
+                    grd.addColorStop(1, '#fff7ed');
+                } else {
+                    grd.addColorStop(0, '#dbeafe');
+                    grd.addColorStop(1, '#fef3c7');
+                }
+                ctx.fillStyle = grd;
+                ctx.fillRect(0, 0, cssW, cssH);
             }
-            ctx.fillStyle = grd;
-            ctx.fillRect(0, 0, cssW, cssH);
             ctx.fillStyle = 'rgba(120,113,108,.22)';
             ctx.beginPath();
             ctx.ellipse(cssW / 2, cssH * 0.86, cssW * 0.2, cssH * 0.07, 0, 0, Math.PI * 2);

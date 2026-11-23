@@ -3802,6 +3802,8 @@
         'Tea & Scone': 1.08,
         'Floating Dictionary': 1.05,
         'Mini Corgi': 1.02,
+        'Pass the Exam / 逢考必過': 1.06,
+        'Academic Success / 學業成就': 1.06,
         'Quill & Scroll': 1.0,
         'Red Pen': 1.0,
         'White Flag': 1.0,
@@ -3859,15 +3861,18 @@
         const base = Math.min(w, h) / (300 + Math.max(0, n - 1) * 54);
         list.forEach((p, i) => {
             const name = (p && p.name) || p;
+            const item = (p && typeof p === 'object') ? p
+                : ((typeof storeItemByName === 'function') ? storeItemByName(name) : null);
             const t = n === 1 ? 0.5 : i / (n - 1);
             const x = w * (0.62 + t * 0.3);
             const S = base * (DG.PROP_SCALE[name] || 1);
-            DG.drawCatProp(ctx, name, x, h * 0.86, S);
+            DG.drawCatProp(ctx, name, x, h * 0.86, S, item);
         });
     };
 
-    DG.drawCatProp = function (ctx, name, x, y, S) {
+    DG.drawCatProp = function (ctx, name, x, y, S, item) {
         if (!name || name === 'None') return;
+        const catalog = item || ((typeof storeItemByName === 'function') ? storeItemByName(name) : null);
         const rr = (px, py, w, h, r) => { ctx.beginPath(); ctx.roundRect(px, py, w, h, r); };
         const ground = (rx, rw) => {
             ctx.fillStyle = 'rgba(88,64,42,.16)';
@@ -3879,7 +3884,17 @@
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
-        if (name === 'Cozy Desk') {
+        /* Generic pre-cut PNG prop (the two omamori). Mini Corgi keeps its own
+           branch below so its dedicated preloader and tests stay untouched. */
+        if (catalog && catalog.img && name !== 'Mini Corgi') {
+            ground(0, 30);
+            const img = (typeof storeCatalogImage === 'function') ? storeCatalogImage(catalog.img) : null;
+            if (img && img.complete && img.naturalWidth) {
+                const ch = 78 * S;
+                const cw = ch * (img.naturalWidth / img.naturalHeight);
+                ctx.drawImage(img, x - cw / 2, y - ch, cw, ch);
+            }
+        } else if (name === 'Cozy Desk') {
             ground(0, 66);
             // back legs + modesty panel
             ctx.fillStyle = '#8a5a2f';

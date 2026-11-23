@@ -126,15 +126,15 @@ test('storeLayerGroup: omamori get their own group, other props stay props', () 
     assert.equal(store.storeLayerGroup('background'), 'background');
 });
 
-test('STORE_NEW_IDS lists all four new ids first, existing ids still present', () => {
+test('STORE_NEW_IDS contains exactly the four new ids', () => {
     const store = loadStore();
-    const newIds = vm.runInContext('STORE_NEW_IDS', store);
+    const newIds = Array.from(vm.runInContext('STORE_NEW_IDS', store));
     assert.deepEqual(
-        Array.from(newIds.slice(0, 4)),
+        newIds,
         ['prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji']
     );
     for (const id of ['prop_white_flag', 'prop_rubber_duck', 'prop_red_pen', 'prop_tea_scone', 'prop_corgi', 'prop_boombox', 'prop_cozy_desk']) {
-        assert.ok(newIds.indexOf(id) !== -1, id + ' is still in STORE_NEW_IDS');
+        assert.equal(newIds.indexOf(id), -1, id + ' is no longer in STORE_NEW_IDS');
     }
 });
 

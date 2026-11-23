@@ -682,9 +682,7 @@ function storeBalanceLabel() {
 
 const STORE_GACHA_COST = 200;
 const STORE_NEW_IDS = [
-    'prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji',
-    'prop_white_flag', 'prop_rubber_duck', 'prop_red_pen',
-    'prop_tea_scone', 'prop_corgi', 'prop_boombox', 'prop_cozy_desk'
+    'prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji'
 ];
 
 function storeShowGachaResult(html) {

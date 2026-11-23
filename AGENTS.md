@@ -62,7 +62,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 |---|---|---|
 | 1 | `js/shared.js` | 常數（`SPREADSHEET_ID`／`SHEET_NAMES`／`SCHOOL_DOMAIN`…）、`sb`、guest／老師／Google 登入登出、`updateAuthUI`／`showApp`／`showLogin`、年級 form 幫手（`normalizeForm`／`formLabel`／`formOfEmail`／`assignStudentForm`…）、preview、`changeView`、`updateMascot`、`loadCloudRecords`、`parseCSV`／`answerVariants`／`primaryAnswer`／`quizNormalize`／`isAnswerCorrect`、`escapeHtml`／`timeAgo`／`hkDate`／`hkDayKey`／`deviceLabel`／`displayName`／`topicLabel`、`window.onload` |
 | 1a | `js/victory.js` | 班際冠軍 Victory effects（`VICTORY`）：清單／試播／租借／頒獎禮合照同互動；喺 `js/shared.js` 之後、`js/store.js` 之前 |
-| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（74 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
+| 1b | `js/store.js` | Store／Paws：`STORE_ITEMS`（78 件）、`loadStoreState`、`renderStore`、`storeBuyItem`／`storeEquipItem`、`storeLookOptions`、`storeRenderProfileLook`；喺 `js/shared.js` 之後、其他功能之前載入 |
 | 2 | `js/dictation.js` | Dictation Master：topics／categories／`loadAllCategoriesFromSheet`（10 分鐘 session cache，過期用 stale-while-revalidate）、error book、word list、`startQuiz`／`checkAnswer`／`finishQuiz`／`openActivity`／`selectTopic` 同 quiz Enter 鍵 |
 | 3 | `js/new-vocab.js` | 全部 `nv*`（New Vocab 字庫＋Cambridge 查字） |
 | 4 | `js/grammar-quest.js` | `tenseData`／`structureData`（包括 Articles／Indefinite Pronouns explanation + examples）、`renderTenseGrid`／`showTenseDetail`、`showStructureDetail`、conditionals 同 participle clauses quiz、grammar admin、`loadIfClauseData`／`loadPCData`、`saveGrammarToCloud` |
@@ -115,7 +115,7 @@ markup／CSS／SVG，邏輯按功能拆去 `js/`。`index.html` 底部（`</body
 | `word-list-view` | Revision 單字表（`showWordList`） |
 | `battle-view` | Word Battle（1v1／班際）＋ Word Jump 入口卡 |
 | `wordjump-view` | Word Jump 遊戲（`#wj-canvas`，見 §10） |
-| `store-view` | 🛍️ Store：74 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
+| `store-view` | 🛍️ Store：78 件商品、Paws 餘額、分類、Buy／Equip／Unequip（見 §12.9） |
 | `profile-view` | 「Me」個人頁：連勝／補救卡、Dictation 次數同平均正確率、Word Jump 最佳、首次練習日期（見 §12.6） |
 
 ### Grammar Quest tenses
@@ -3011,11 +3011,12 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   HTML button `data-nav-view="store-view"`。320px 時 6 格、label 9px
   （`@media (max-width:360px)`），實測 `overflowX = 0`。
 - **`js/store.js`**：喺 `js/shared.js` 之後、`js/dictation.js` 之前載入。
-  有 `STORE_ITEMS`（74 件，id／slot／name／zh／price／rarity／emoji／color）、
+  有 `STORE_ITEMS`（78 件，id／slot／name／zh／price／rarity／emoji／color／img）、
   `storeItemByName`、`STORE_OWNED`／`STORE_EQUIPPED`／`STORE_BALANCE`、
   `loadStoreState()`、`renderStore()`、`storeBuyItem()`／`storeEquipItem()`、
   `storeLookOptions()`、`storeRenderProfileLook()`。
-- **商品**：Hats 11、Face 7、Outfits 9、Cars 5、Props 13、Backgrounds 13 = **58**。
+- **商品**：Hats 11、Face 7、Outfits 9、Cars 5、Props 13、Omamori 2、Backgrounds 15 = **62**
+  （加埋 7 個 Victory effects 同其餘項目，`STORE_ITEMS` 總數 78）。
   價錢 60–450 Paws；全部一次過上。**未買任何 item 嘅用戶 default look = 全部 None**（光身貓，Store 亦冇免費 item）；Red Scarf 而家都係 80 Paws。Backgrounds 除咗原有 7 個，2026-11 再加
   **Pink（400）／Blue（420）／Floral（520）**；`storePaintBackground()` 會畫
   心心、雲朵同花瓣圖案，唔止純色漸變。另外加三個**淨色**背景：
@@ -3109,9 +3110,12 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   係 array，`storeEquippedItems('prop')` 回全部，`storeUnequip(slot,itemId)`
   逐件移除。`DG.drawCatProps()` 會將多件 props 排喺貓旁邊，件數越多畫得
   越細；`DG.drawCatProp()` 逐件畫（白旗「Too Hard!」、黃鴨、紅筆、
-  茶＋鬆餅、80 年代 boombox）。**Mini Corgi 係唯一例外**：唔畫 vector，
-  直接用 `/assets/props/mini-corgi.png`（818×905 透明 PNG）`drawImage`，
-  PNG 未載入前只畫地面陰影，`DG.corgiArtImage()` 預載完成會
+  茶＋鬆餅、80 年代 boombox）。**用 PNG 嘅 props 有 Mini Corgi 同兩個 omamori**：
+  Mini Corgi keep 自己嘅 `DG.corgiArtImage()` 分支（818×905 透明 PNG），
+  兩個 omamori（`prop_omamori_exam`／`prop_omamori_study`）就用通用
+  `catalog.img` 分支經 `DG.drawCatProp(..., item)` `drawImage`，同樣係
+  PNG 未載入前只畫地面陰影、保持 aspect ratio。`storeCatalogImage()` 預載
+  所有 catalogue `img`，載入完成會 `storePaintCardBackgrounds()` 同
   `DG.redrawCatPreviews()`。Me profile、Drive & Go preview、
   Word Battle 貓 preview 都用同一 helper。Props 唔會入 3D 賽道。
 - **🎁 Mystery Gacha（2026-11 加）**：Store 頂部卡片，**每次 200 Paws**，
@@ -3187,8 +3191,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `(1 + bonus)`，基礎速度乘 `(1 + bonus × 0.5)`；nitro／蘑菇上限亦改讀
   `DG.raceSpeedCap()`。**改動提示**：呢個係刻意嘅「付費有少少優勢」，
   幅度保持細（最多 +7%），唔好加大到蓋過答題表現。
-- **🪑 Props 實物化（2026-11）**：`DG.drawCatProp()` 除 **Mini Corgi** 外
-  全部重畫成**實體物件**
+- **🪑 Props 實物化（2026-11）**：`DG.drawCatProp()` 除 **Mini Corgi** 同
+  兩個 **omamori PNG** 外全部重畫成**實體物件**
   （中學生向，唔再係浮動 emoji）：巨型鉛筆／珍珠奶茶／放大鏡／羽毛筆＋羊皮紙
   ＋墨水瓶／開箱紙皮箱（FRAGILE 貼紙）／懸浮字典／鸚鵡／投降旗／黃鴨／
   紅筆／英式茶＋鬆餅／Boombox；每個有 `DG.PROP_SCALE` 獨立大小
@@ -3200,8 +3204,29 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   示範：`/props-demo.html`（14 件 props + 貓，逐件放大睇）。
   Shop 卡／Market 買賣列／Gacha 結果一律經 `storeItemThumbHTML(itemOrRow, kind)`
   （`js/store.js`）：catalog item（或 server row 的 `item_id`）有 `img` 就出
-  `<img class="… store-thumb-img" src="/assets/props/mini-corgi.png">`，否則照舊
-  emoji。暫時只有 `prop_corgi` 有 `img`；`prop_corgi.emoji = '🐕'` 留作 fallback。
+  `<img class="… store-thumb-img" src="…">`，否則照舊 emoji。
+  `prop_corgi`、`prop_omamori_exam`、`prop_omamori_study` 用 `/assets/props/*.png`；
+  兩個新背景 `bg_shrine`、`bg_fuji` 用 `/assets/backgrounds/*.png`，經
+  `storeCoverFitRect()`／`storeDrawImageCover()` 以 cover-fit 畫落 canvas
+  （唔會 letterbox）。emoji 仍然留作 fallback。
+- **⛩️ Omamori & Japanese backgrounds（2026-11 加）**：
+  - 兩個 `slot:'prop'` PNG 御守：**Pass the Exam / 逢考必過**（`prop_omamori_exam`，240，
+    Epic，🧧）同 **Academic Success / 學業成就**（`prop_omamori_study`，240，Epic，🎓）。
+    佢哋仍然戴喺 prop layer、可以同其他 props 一齊 equip，但 Store 用新
+    **🎌 Omamori** 分頁／`storeLayerGroup(item) === 'omamori'` 分組，
+    `renderStore()` 嘅 All tab 次序係 `prop` → `omamori` → `background`，
+    Props 分頁唔會再列出佢哋。`storeLayerGroup('prop')`（純 slot 字串）照舊回
+    `'prop'`，所以舊 caller 唔受影響。
+  - 兩個背景：**Shrine / 神社**（`bg_shrine`，220，Epic，⛩️）同
+    **Mount Fuji / 富士山**（`bg_fuji`，240，Epic，🗻）。背景圖用 cover-fit
+    填滿 shop card、try-on／fitting、My Look、Drive & Go lobby 同 Word Battle
+    lobby；**唔會**取代 Drive & Go 賽道內嘅 Desert Hills／Peach Stadium／Dino
+    Dino Jungle，亦唔會加落 Word Jump／PurrStack。
+  - 四個 ID 放喺 `STORE_NEW_IDS` 最前面，New 分頁 group 標題由
+    「✨ New in Props」改為 **「✨ New」**。
+  - SQL：新短檔 `supabase/store_omamori_and_backgrounds.sql`（老師喺 Supabase
+    SQL editor 貼一次，可重跑；未跑之前買唔到，卡片照顯示）；`store.sql` 嘅
+    main insert 亦已加 sort 67–70。價錢係加價前 base（240／240／220／240）。
 - **🏆 Victory Animations（2026-11）**：新 store 分頁 **🏆 Victory**（slot
   `victory`，一次只可以 equip 一款），7 件特效分 3 個價位：
   1. 入門：Confetti Cannon 250／Spotlight 300／Emoji Rain 350
@@ -3312,7 +3337,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     唔夠錢試金冠、試 Golden GT 跑車）。
 - **買／著**：Store card 顯示 Buy／Equip／Equipped／Unequip；買完自動 equip。
   Equip hat／face／outfit 會更新 profile look 並寫入 `DG.readSettings()`。
-- **👔 校服套裝（2026-11）**：Neck & Outfit 新增 8 件（`STORE_ITEMS` 現時 74 件）：
+- **👔 校服套裝（2026-11）**：Neck & Outfit 新增 8 件（`STORE_ITEMS` 現時 78 件）：
   - Prefect：`House Tie`（neck，110，Common）＋`School Blazer`（body，240，Rare）
   - Sports：`Team Scarf`（neck，130）＋`Football Kit`（body，270，Epic，背號 9）
   - Sailor：`Sailor Collar`（neck，140）＋`Sailor Top`（body，250）
@@ -3421,7 +3446,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   答案、你揀咗乜）；Solo／Multi 早完賽／Multi 最終結果都會用
   `DG.wrongQuestionsHTML()` 顯示「❌ Review these questions」，最多 12 題，
   可 scroll；start／restart 會清空。Landscape 有 compact CSS。
-- **測試**：74 items、13 個 props（包括 White Flag／Rubber Duck／Red Pen／Tea & Scone／Mini Corgi／Boombox）、13 個 backgrounds（Pink／Blue／Floral 圖案＋Yellow／Black／Grey 淨色）、Paws 200→120（買 hat_sprout）、自動 equip、
+- **測試**：78 items、15 個 slot-prop（13 個一般 props＋2 個 omamori；包括 White Flag／Rubber Duck／Red Pen／Tea & Scone／Mini Corgi／Boombox）、15 個 backgrounds（Pink／Blue／Floral 圖案＋Yellow／Black／Grey 淨色＋Shrine／Mount Fuji PNG）、Paws 200→120（買 hat_sprout）、自動 equip、
   `DG.readSettings().hat='Sprout Clip'`、`DG.lookOptions` 只包含已買、
   profile look label、320／390／844 `overflowX=0`、6 tabs、2D／3D
   store item 冇 throw。SQL 未喺本機實際執行（只做 code review）。

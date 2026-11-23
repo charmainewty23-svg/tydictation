@@ -60,6 +60,10 @@ const STORE_ITEMS = [
     { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', img:'/assets/props/mini-corgi.png', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
     { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:520, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
     { id:'prop_cozy_desk', slot:'prop', name:'Cozy Desk', zh:'溫暖書桌', price:560, rarity:'Legendary', emoji:'🪵', color:'#a9763f', desc:'A real wooden desk with a lamp, books and a hot mug — right beside your cat.' },
+    // Omamori charms (2026-11): pre-cut PNG props on the normal prop layer,
+    // grouped separately in the Store as 🎌 Omamori.
+    { id:'prop_omamori_exam', slot:'prop', name:'Pass the Exam / 逢考必過', zh:'逢考必過', price:240, rarity:'Epic', emoji:'🧧', img:'/assets/props/omamori-pass-exam.png', color:'#fb7185', desc:'A lucky charm for exam success.' },
+    { id:'prop_omamori_study', slot:'prop', name:'Academic Success / 學業成就', zh:'學業成就', price:240, rarity:'Epic', emoji:'🎓', img:'/assets/props/omamori-academic.png', color:'#fbbf24', desc:'A lucky charm for study and achievement.' },
     // Drive & Go! car skins
     { id:'car_sunset', slot:'car', name:'Sunset Racer', zh:'日落賽車', price:600, rarity:'Rare', emoji:'🏎️', color:'#ef4444', speed:2, desc:'A red-orange racer with gold trim. Top speed +2%.' },
     { id:'car_ocean', slot:'car', name:'Ocean Bolt', zh:'海洋閃電', price:650, rarity:'Rare', emoji:'🏎️', color:'#38bdf8', speed:3, desc:'A sky-blue kart with a white stripe. Top speed +3%.' },
@@ -89,10 +93,68 @@ const STORE_ITEMS = [
     { id:'bg_floral', slot:'background', name:'Floral', zh:'碎花', price:520, rarity:'Legendary', emoji:'🌷', color:'#fda4af', desc:'A floral pattern with soft petals.' },
     { id:'bg_yellow', slot:'background', name:'Yellow', zh:'黃色', price:160, rarity:'Common', emoji:'💛', color:'#fde047', desc:'A bright plain yellow background.' },
     { id:'bg_black', slot:'background', name:'Black', zh:'黑色', price:220, rarity:'Rare', emoji:'🖤', color:'#1f2937', desc:'A plain black background.' },
-    { id:'bg_gray', slot:'background', name:'Grey', zh:'灰色', price:220, rarity:'Rare', emoji:'🩶', color:'#9ca3af', desc:'A plain grey background.' }
+    { id:'bg_gray', slot:'background', name:'Grey', zh:'灰色', price:220, rarity:'Rare', emoji:'🩶', color:'#9ca3af', desc:'A plain grey background.' },
+    { id:'bg_shrine', slot:'background', name:'Shrine / 神社', zh:'神社', price:220, rarity:'Epic', emoji:'⛩️', img:'/assets/backgrounds/bg-shrine.png', color:'#7dd3fc', desc:'A shrine gate with lanterns and a fox spirit.' },
+    { id:'bg_fuji', slot:'background', name:'Mount Fuji / 富士山', zh:'富士山', price:240, rarity:'Epic', emoji:'🗻', img:'/assets/backgrounds/bg-fuji.png', color:'#60a5fa', desc:'Mount Fuji under a bright sky.' }
 ];
 
 window.STORE_ITEMS = STORE_ITEMS;
+
+/* Cover-fit helpers for the PNG catalogue art. Backgrounds and props that
+   ship a real image are drawn edge-to-edge (object-fit: cover), never
+   letterboxed or left as a raw unscaled image. Exported so the Node tests can
+   check the maths without a browser. */
+function storeCoverFitRect(iw, ih, w, h) {
+    const scale = Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    return { scale: scale, dx: (w - dw) / 2, dy: (h - dh) / 2, dw: dw, dh: dh };
+}
+
+function storeDrawImageCover(ctx, img, w, h) {
+    if (!ctx || !img || !img.naturalWidth || !img.naturalHeight || !w || !h) return false;
+    const r = storeCoverFitRect(img.naturalWidth, img.naturalHeight, w, h);
+    ctx.drawImage(img, r.dx, r.dy, r.dw, r.dh);
+    return true;
+}
+
+window.storeCoverFitRect = storeCoverFitRect;
+window.storeDrawImageCover = storeDrawImageCover;
+
+/* One Image object per catalogue src, shared by shop cards, try-on and the
+   Me / lobby previews. On load we repaint every surface that may already be
+   showing a fallback colour. Safe in Node: Image is simply absent. */
+const STORE_IMAGE_CACHE = {};
+
+function storeCatalogImage(src) {
+    if (!src) return null;
+    if (STORE_IMAGE_CACHE[src]) return STORE_IMAGE_CACHE[src];
+    if (typeof Image === 'undefined') return null;
+    try {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = function () {
+            try { if (typeof storePaintCardBackgrounds === 'function') storePaintCardBackgrounds(document); } catch (e) {}
+            try { if (typeof DG !== 'undefined' && DG.redrawCatPreviews) DG.redrawCatPreviews(); } catch (e) {}
+        };
+        img.onerror = function () { STORE_IMAGE_CACHE[src] = null; };
+        img.src = src;
+        STORE_IMAGE_CACHE[src] = img;
+        return img;
+    } catch (e) {
+        return null;
+    }
+}
+
+function storePreloadCatalogImages() {
+    STORE_ITEMS.forEach(it => { if (it && it.img) storeCatalogImage(it.img); });
+}
+
+window.storeCatalogImage = storeCatalogImage;
+window.storePreloadCatalogImages = storePreloadCatalogImages;
+
+if (typeof Image !== 'undefined') {
+    try { storePreloadCatalogImages(); } catch (e) { /* images are cosmetic */ }
+}
 
 const STORE_BY_ID = {};
 const STORE_BY_NAME = {};
@@ -155,6 +217,11 @@ function storeLayerKey(layer) {
 
 function storeLayerGroup(value) {
     const slot = typeof value === 'string' ? value : (value && value.slot);
+    const id = (value && typeof value === 'object') ? (value.id || '') : (typeof value === 'string' ? value : '');
+    /* Omamori still equip on the normal prop layer, but the Store shows them
+       as their own group. Only an item/id resolves to 'omamori' — a bare
+       slot string like 'prop' keeps its old meaning for every caller. */
+    if (id === 'prop_omamori_exam' || id === 'prop_omamori_study') return 'omamori';
     if (slot === 'head' || slot === 'ears') return 'hat';
     if (slot === 'eyes' || slot === 'cheeks') return 'face';
     if (slot === 'neck' || slot === 'body') return 'outfit';
@@ -614,6 +681,7 @@ function storeBalanceLabel() {
 
 const STORE_GACHA_COST = 200;
 const STORE_NEW_IDS = [
+    'prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji',
     'prop_white_flag', 'prop_rubber_duck', 'prop_red_pen',
     'prop_tea_scone', 'prop_corgi', 'prop_boombox', 'prop_cozy_desk'
 ];
@@ -943,12 +1011,12 @@ function renderStore() {
     if (STORE_CATEGORY === 'new') {
         const fresh = STORE_ITEMS.filter(it => STORE_NEW_IDS.indexOf(it.id) !== -1);
         grid.innerHTML = fresh.length
-            ? '<div class="store-group"><h3 class="store-group-title">✨ New in Props</h3><div class="store-grid-inner">' + fresh.map(storeCardHTML).join('') + '</div></div>'
+            ? '<div class="store-group"><h3 class="store-group-title">✨ New</h3><div class="store-grid-inner">' + fresh.map(storeCardHTML).join('') + '</div></div>'
             : '<p class="text-gray-400 text-center py-8">New items are loading…</p>';
         storePaintCardBackgrounds(grid);
         return;
     }
-    const groups = ['victory', 'hat', 'face', 'outfit', 'car', 'prop', 'background'];
+    const groups = ['victory', 'hat', 'face', 'outfit', 'car', 'prop', 'omamori', 'background'];
     const labels = {
         victory: '🏆 Victory Animations (勝利晒命特效)',
         hat: 'Hats & Headwear',
@@ -956,6 +1024,7 @@ function renderStore() {
         outfit: 'Neck & Outfits',
         car: '🏎️ Drive & Go! Cars',
         prop: 'Props & Companions',
+        omamori: 'Omamori / 御守',
         background: 'Backgrounds & Effects'
     };
     const shown = STORE_CATEGORY === 'all' ? groups : [STORE_CATEGORY];
@@ -1327,6 +1396,18 @@ function storePaintBackground(ctx, bg, w, h) {
     ctx.beginPath();
     ctx.rect(0, 0, w, h);
     ctx.clip();
+
+    /* PNG backgrounds (Shrine, Mount Fuji) fill the frame with cover-fit.
+       The caller has already painted storeFillBackgroundBase, so while the
+       image loads the item colour is used instead — never a blank border. */
+    if (bg.img) {
+        if (storeDrawImageCover(ctx, storeCatalogImage(bg.img), w, h)) {
+            ctx.restore();
+            return;
+        }
+        ctx.restore();
+        return;
+    }
 
     if (bg.id === 'bg_pink') {
         ctx.fillStyle = 'rgba(255,255,255,.5)';

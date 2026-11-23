@@ -96,7 +96,11 @@ insert into public.store_items (id, slot, name_en, name_zh, price, rarity, emoji
     ('outfit_sailorcollar','neck','Sailor Collar','水手領',140,'Rare','⚓',63),
     ('outfit_sailortop','body','Sailor Top','水手上衣',250,'Rare','👕',64),
     ('outfit_ribbonchoker','neck','Ribbon Choker','蝴蝶結頸帶',110,'Common','🎀',65),
-    ('outfit_tutu','body','Ballet Tutu','芭蕾紗裙',290,'Epic','🩰',66)
+    ('outfit_tutu','body','Ballet Tutu','芭蕾紗裙',290,'Epic','🩰',66),
+    ('prop_omamori_exam','prop','Pass the Exam / 逢考必過','逢考必過',240,'Epic','🧧',67),
+    ('prop_omamori_study','prop','Academic Success / 學業成就','學業成就',240,'Epic','🎓',68),
+    ('bg_shrine','background','Shrine / 神社','神社',220,'Epic','⛩️',69),
+    ('bg_fuji','background','Mount Fuji / 富士山','富士山',240,'Epic','🗻',70)
 on conflict (id) do update set
     slot = excluded.slot,
     name_en = excluded.name_en,

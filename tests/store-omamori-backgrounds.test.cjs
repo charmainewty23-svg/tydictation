@@ -15,6 +15,7 @@ const htmlPath = path.join(root, 'index.html');
 const storeSqlPath = path.join(root, 'supabase/store.sql');
 const incrementalSqlPath = path.join(root, 'supabase/store_omamori_and_backgrounds.sql');
 const shrineFujiSqlPath = path.join(root, 'supabase/store_shrine_fuji_prices.sql');
+const omamoriLoveSqlPath = path.join(root, 'supabase/store_omamori_love_singles_health.sql');
 
 const storeSource = fs.readFileSync(storePath, 'utf8');
 const raceSource = fs.readFileSync(racePath, 'utf8');
@@ -24,11 +25,15 @@ const htmlSource = fs.readFileSync(htmlPath, 'utf8');
 const storeSql = fs.readFileSync(storeSqlPath, 'utf8');
 const incrementalSql = fs.readFileSync(incrementalSqlPath, 'utf8');
 const shrineFujiSql = fs.readFileSync(shrineFujiSqlPath, 'utf8');
+const omamoriLoveSql = fs.readFileSync(omamoriLoveSqlPath, 'utf8');
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const ASSETS = [
     { file: 'assets/props/omamori-pass-exam.png', w: 591, h: 900 },
     { file: 'assets/props/omamori-academic.png', w: 900, h: 785 },
+    { file: 'assets/props/omamori-love.png', w: 900, h: 691 },
+    { file: 'assets/props/omamori-singles.png', w: 457, h: 900 },
+    { file: 'assets/props/omamori-health.png', w: 900, h: 888 },
     { file: 'assets/backgrounds/bg-shrine.png', w: 1600, h: 900 },
     { file: 'assets/backgrounds/bg-fuji.png', w: 1382, h: 776 }
 ];
@@ -63,7 +68,7 @@ function loadStore() {
     return context;
 }
 
-test('the four PNGs exist with the expected IHDR size and alpha', () => {
+test('the omamori and background PNGs exist with the expected IHDR size and alpha', () => {
     for (const asset of ASSETS) {
         const p = path.join(root, asset.file);
         assert.ok(fs.existsSync(p), asset.file + ' is committed');
@@ -77,14 +82,17 @@ test('the four PNGs exist with the expected IHDR size and alpha', () => {
     }
 });
 
-test('catalog: the four items carry the right ids, paths, prices and zh', () => {
+test('catalog: the omamori and background items carry the right ids, paths, prices and zh', () => {
     const store = loadStore();
     const items = store.window.STORE_ITEMS;
     const expected = [
-        { id: 'prop_omamori_exam', name: 'Pass the Exam / 逢考必過', zh: '逢考必過', slot: 'prop', price: 240, emoji: '🧧', img: '/assets/props/omamori-pass-exam.png' },
-        { id: 'prop_omamori_study', name: 'Academic Success / 學業成就', zh: '學業成就', slot: 'prop', price: 240, emoji: '🎓', img: '/assets/props/omamori-academic.png' },
-        { id: 'bg_shrine', name: 'Shrine / 神社', zh: '神社', slot: 'background', price: 519, emoji: '⛩️', img: '/assets/backgrounds/bg-shrine.png' },
-        { id: 'bg_fuji', name: 'Mount Fuji / 富士山', zh: '富士山', slot: 'background', price: 528, emoji: '🗻', img: '/assets/backgrounds/bg-fuji.png' }
+        { id: 'prop_omamori_exam', name: 'Pass the Exam / 逢考必過', zh: '逢考必過', slot: 'prop', price: 240, rarity: 'Epic', emoji: '🧧', img: '/assets/props/omamori-pass-exam.png' },
+        { id: 'prop_omamori_study', name: 'Academic Success / 學業成就', zh: '學業成就', slot: 'prop', price: 240, rarity: 'Epic', emoji: '🎓', img: '/assets/props/omamori-academic.png' },
+        { id: 'prop_omamori_love', name: 'Love Charm / 戀愛御守', zh: '戀愛御守', slot: 'prop', price: 328, rarity: 'Epic', emoji: '💗', img: '/assets/props/omamori-love.png' },
+        { id: 'prop_omamori_singles', name: 'Find Love / 脫單御守', zh: '脫單御守', slot: 'prop', price: 355, rarity: 'Epic', emoji: '💕', img: '/assets/props/omamori-singles.png' },
+        { id: 'prop_omamori_health', name: 'Health Charm / 健康御守', zh: '健康御守', slot: 'prop', price: 182, rarity: 'Rare', emoji: '🌿', img: '/assets/props/omamori-health.png' },
+        { id: 'bg_shrine', name: 'Shrine / 神社', zh: '神社', slot: 'background', price: 519, rarity: 'Epic', emoji: '⛩️', img: '/assets/backgrounds/bg-shrine.png' },
+        { id: 'bg_fuji', name: 'Mount Fuji / 富士山', zh: '富士山', slot: 'background', price: 528, rarity: 'Epic', emoji: '🗻', img: '/assets/backgrounds/bg-fuji.png' }
     ];
     for (const want of expected) {
         const item = items.find(it => it.id === want.id);
@@ -93,7 +101,7 @@ test('catalog: the four items carry the right ids, paths, prices and zh', () => 
         assert.equal(item.zh, want.zh, want.id + ' has Chinese text (never undefined)');
         assert.equal(item.slot, want.slot);
         assert.equal(item.price, want.price, want.id + ' price is the BASE price');
-        assert.equal(item.rarity, 'Epic', want.id + ' rarity is Title Case');
+        assert.equal(item.rarity, want.rarity, want.id + ' rarity is Title Case');
         assert.equal(item.emoji, want.emoji);
         assert.equal(item.img, want.img, want.id + ' uses a leading-slash path');
         assert.ok(item.desc && item.desc.length > 5, want.id + ' has a description');
@@ -103,10 +111,12 @@ test('catalog: the four items carry the right ids, paths, prices and zh', () => 
 test('displayed shop prices use storeBasePrice (10% rise included)', () => {
     const store = loadStore();
     const items = store.window.STORE_ITEMS;
-    const shrine = items.find(it => it.id === 'bg_shrine');
-    const fuji = items.find(it => it.id === 'bg_fuji');
-    assert.equal(store.storeBasePrice(shrine), 570, 'Shrine displays 570');
-    assert.equal(store.storeBasePrice(fuji), 580, 'Mount Fuji displays 580');
+    const display = id => store.storeBasePrice(items.find(it => it.id === id));
+    assert.equal(display('bg_shrine'), 570, 'Shrine displays 570');
+    assert.equal(display('bg_fuji'), 580, 'Mount Fuji displays 580');
+    assert.equal(display('prop_omamori_love'), 360, 'Love Charm displays 360');
+    assert.equal(display('prop_omamori_singles'), 390, 'Find Love displays 390');
+    assert.equal(display('prop_omamori_health'), 200, 'Health Charm displays 200');
 });
 
 test('storeLayerGroup: omamori get their own group, other props stay props', () => {
@@ -114,8 +124,9 @@ test('storeLayerGroup: omamori get their own group, other props stay props', () 
     const items = store.window.STORE_ITEMS;
     const byId = id => items.find(it => it.id === id);
 
-    assert.equal(store.storeLayerGroup(byId('prop_omamori_exam')), 'omamori');
-    assert.equal(store.storeLayerGroup(byId('prop_omamori_study')), 'omamori');
+    for (const id of ['prop_omamori_exam', 'prop_omamori_study', 'prop_omamori_love', 'prop_omamori_singles', 'prop_omamori_health']) {
+        assert.equal(store.storeLayerGroup(byId(id)), 'omamori', id + ' is in the Omamori group');
+    }
     assert.equal(store.storeLayerGroup(byId('prop_corgi')), 'prop');
     assert.equal(store.storeLayerGroup(byId('prop_boombox')), 'prop');
     assert.equal(store.storeLayerGroup(byId('bg_shrine')), 'background');
@@ -126,12 +137,15 @@ test('storeLayerGroup: omamori get their own group, other props stay props', () 
     assert.equal(store.storeLayerGroup('background'), 'background');
 });
 
-test('STORE_NEW_IDS contains exactly the four new ids', () => {
+test('STORE_NEW_IDS contains exactly the seven listed ids', () => {
     const store = loadStore();
     const newIds = Array.from(vm.runInContext('STORE_NEW_IDS', store));
     assert.deepEqual(
         newIds,
-        ['prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji']
+        [
+            'prop_omamori_love', 'prop_omamori_singles', 'prop_omamori_health',
+            'prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji'
+        ]
     );
     for (const id of ['prop_white_flag', 'prop_rubber_duck', 'prop_red_pen', 'prop_tea_scone', 'prop_corgi', 'prop_boombox', 'prop_cozy_desk']) {
         assert.equal(newIds.indexOf(id), -1, id + ' is no longer in STORE_NEW_IDS');
@@ -175,9 +189,12 @@ test('shop markup: omamori use <img>, background cards keep their canvas', () =>
     const items = store.window.STORE_ITEMS;
     const exam = items.find(it => it.id === 'prop_omamori_exam');
     const study = items.find(it => it.id === 'prop_omamori_study');
+    const love = items.find(it => it.id === 'prop_omamori_love');
+    const singles = items.find(it => it.id === 'prop_omamori_singles');
+    const health = items.find(it => it.id === 'prop_omamori_health');
     const shrine = items.find(it => it.id === 'bg_shrine');
 
-    for (const item of [exam, study]) {
+    for (const item of [exam, study, love, singles, health]) {
         const thumb = store.storeItemThumbHTML(item, 'card');
         assert.match(thumb, /^<img /);
         assert.ok(thumb.includes('src="' + item.img + '"'));
@@ -247,6 +264,9 @@ test('DG.drawCatProps forwards the catalog item and any img prop uses drawImage'
 
     assert.match(raceSource, /'Pass the Exam \/ 逢考必過': 1\.59,/);
     assert.match(raceSource, /'Academic Success \/ 學業成就': 1\.59,/);
+    assert.match(raceSource, /'Love Charm \/ 戀愛御守': 1\.59,/);
+    assert.match(raceSource, /'Find Love \/ 脫單御守': 1\.59,/);
+    assert.match(raceSource, /'Health Charm \/ 健康御守': 1\.59,/);
 
     // The generic img branch is unchanged: the 1.5× enlargement lives in
     // PROP_SCALE only, never as a second multiplier on the drawn height.
@@ -258,7 +278,7 @@ test('omamori thumbs get the 1.5× class; other items keep their normal classes'
     const store = loadStore();
     const byId = id => store.window.STORE_ITEMS.find(it => it.id === id);
 
-    for (const id of ['prop_omamori_exam', 'prop_omamori_study']) {
+    for (const id of ['prop_omamori_exam', 'prop_omamori_study', 'prop_omamori_love', 'prop_omamori_singles', 'prop_omamori_health']) {
         const item = byId(id);
         for (const kind of ['card', 'market', 'gacha']) {
             const thumb = store.storeItemThumbHTML(item, kind);
@@ -303,37 +323,57 @@ test('index.html has the Omamori tab and the New group is retitled', () => {
     assert.ok(!storeSource.includes('✨ New in Props'), 'old group title is gone');
 });
 
-test('SQL: main insert and historic incremental keep their rows; new file reprices shrine/fuji', () => {
-    const rowRe = (id, slot, name, zh, price, sort) => {
+test('SQL: main insert and historic incremental keep their rows; new charm file adds sorts 71-73', () => {
+    const rowRe = (id, slot, name, zh, price, rarity, sort) => {
         const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\//g, '\\/');
-        return new RegExp("\\('" + id + "',\\s*'" + slot + "',\\s*'" + escaped + "',\\s*'" + zh + "',\\s*" + price + ",\\s*'Epic',[^,]+,\\s*" + sort + "\\)");
+        return new RegExp("\\('" + id + "',\\s*'" + slot + "',\\s*'" + escaped + "',\\s*'" + zh + "',\\s*" + price + ",\\s*'" + rarity + "',[^,]+,\\s*" + sort + "\\)");
     };
 
-    // Main install SQL carries the four rows with the current shrine/fuji bases.
-    for (const [id, slot, name, zh, price, sort] of [
-        ['prop_omamori_exam', 'prop', 'Pass the Exam / 逢考必過', '逢考必過', 240, 67],
-        ['prop_omamori_study', 'prop', 'Academic Success / 學業成就', '學業成就', 240, 68],
-        ['bg_shrine', 'background', 'Shrine / 神社', '神社', 519, 69],
-        ['bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 528, 70]
+    // Main install SQL carries the omamori + background rows with the current
+    // shrine/fuji bases and the three new charms.
+    for (const [id, slot, name, zh, price, rarity, sort] of [
+        ['prop_omamori_exam', 'prop', 'Pass the Exam / 逢考必過', '逢考必過', 240, 'Epic', 67],
+        ['prop_omamori_study', 'prop', 'Academic Success / 學業成就', '學業成就', 240, 'Epic', 68],
+        ['bg_shrine', 'background', 'Shrine / 神社', '神社', 519, 'Epic', 69],
+        ['bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 528, 'Epic', 70],
+        ['prop_omamori_love', 'prop', 'Love Charm / 戀愛御守', '戀愛御守', 328, 'Epic', 71],
+        ['prop_omamori_singles', 'prop', 'Find Love / 脫單御守', '脫單御守', 355, 'Epic', 72],
+        ['prop_omamori_health', 'prop', 'Health Charm / 健康御守', '健康御守', 182, 'Rare', 73]
     ]) {
-        assert.match(storeSql, rowRe(id, slot, name, zh, price, sort), id + ' main row with price ' + price + ' and sort ' + sort);
+        assert.match(storeSql, rowRe(id, slot, name, zh, price, rarity, sort), id + ' main row with price ' + price + ' and sort ' + sort);
     }
 
     // The already-run omamori incremental is historical: it may keep 220/240.
-    assert.match(incrementalSql, rowRe('bg_shrine', 'background', 'Shrine / 神社', '神社', 220, 69));
-    assert.match(incrementalSql, rowRe('bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 240, 70));
+    assert.match(incrementalSql, rowRe('bg_shrine', 'background', 'Shrine / 神社', '神社', 220, 'Epic', 69));
+    assert.match(incrementalSql, rowRe('bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 240, 'Epic', 70));
     assert.match(incrementalSql, /on conflict \(id\) do update set/i);
     assert.match(incrementalSql, /notify pgrst, 'reload schema';/);
     assert.match(incrementalSql, /Safe to re-run/i);
     assert.match(incrementalSql, /Supabase SQL editor/i);
 
-    // The new incremental only reprices shrine/fuji.
-    assert.match(shrineFujiSql, rowRe('bg_shrine', 'background', 'Shrine / 神社', '神社', 519, 69));
-    assert.match(shrineFujiSql, rowRe('bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 528, 70));
+    // The shrine/fuji repricing file is untouched.
+    assert.match(shrineFujiSql, rowRe('bg_shrine', 'background', 'Shrine / 神社', '神社', 519, 'Epic', 69));
+    assert.match(shrineFujiSql, rowRe('bg_fuji', 'background', 'Mount Fuji / 富士山', '富士山', 528, 'Epic', 70));
     assert.match(shrineFujiSql, /on conflict \(id\) do update set/i);
     assert.match(shrineFujiSql, /notify pgrst, 'reload schema';/);
     assert.match(shrineFujiSql, /Safe to re-run/i);
     assert.match(shrineFujiSql, /Supabase SQL editor/i);
     assert.ok(!shrineFujiSql.includes('prop_omamori_exam'), 'new file does not touch omamori');
     assert.ok(!shrineFujiSql.includes('prop_omamori_study'), 'new file does not touch omamori');
+
+    // The new incremental adds only the three new charms.
+    for (const [id, slot, name, zh, price, rarity, sort] of [
+        ['prop_omamori_love', 'prop', 'Love Charm / 戀愛御守', '戀愛御守', 328, 'Epic', 71],
+        ['prop_omamori_singles', 'prop', 'Find Love / 脫單御守', '脫單御守', 355, 'Epic', 72],
+        ['prop_omamori_health', 'prop', 'Health Charm / 健康御守', '健康御守', 182, 'Rare', 73]
+    ]) {
+        assert.match(omamoriLoveSql, rowRe(id, slot, name, zh, price, rarity, sort), id + ' incremental row with sort ' + sort);
+    }
+    assert.match(omamoriLoveSql, /on conflict \(id\) do update set/i);
+    assert.match(omamoriLoveSql, /notify pgrst, 'reload schema';/);
+    assert.match(omamoriLoveSql, /Safe to re-run/i);
+    assert.match(omamoriLoveSql, /Supabase SQL editor/i);
+    for (const untouched of ['prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji']) {
+        assert.equal(omamoriLoveSql.includes(untouched), false, 'new charm file does not touch ' + untouched);
+    }
 });

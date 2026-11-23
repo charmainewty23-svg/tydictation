@@ -64,6 +64,9 @@ const STORE_ITEMS = [
     // grouped separately in the Store as 🎌 Omamori.
     { id:'prop_omamori_exam', slot:'prop', name:'Pass the Exam / 逢考必過', zh:'逢考必過', price:240, rarity:'Epic', emoji:'🧧', img:'/assets/props/omamori-pass-exam.png', color:'#fb7185', desc:'A lucky charm for exam success.' },
     { id:'prop_omamori_study', slot:'prop', name:'Academic Success / 學業成就', zh:'學業成就', price:240, rarity:'Epic', emoji:'🎓', img:'/assets/props/omamori-academic.png', color:'#fbbf24', desc:'A lucky charm for study and achievement.' },
+    { id:'prop_omamori_love', slot:'prop', name:'Love Charm / 戀愛御守', zh:'戀愛御守', price:328, rarity:'Epic', emoji:'💗', img:'/assets/props/omamori-love.png', color:'#fb7185', desc:'A lucky charm for love.' },
+    { id:'prop_omamori_singles', slot:'prop', name:'Find Love / 脫單御守', zh:'脫單御守', price:355, rarity:'Epic', emoji:'💕', img:'/assets/props/omamori-singles.png', color:'#ec4899', desc:'A lucky charm for finding love.' },
+    { id:'prop_omamori_health', slot:'prop', name:'Health Charm / 健康御守', zh:'健康御守', price:182, rarity:'Rare', emoji:'🌿', img:'/assets/props/omamori-health.png', color:'#22c55e', desc:'A lucky charm for good health.' },
     // Drive & Go! car skins
     { id:'car_sunset', slot:'car', name:'Sunset Racer', zh:'日落賽車', price:600, rarity:'Rare', emoji:'🏎️', color:'#ef4444', speed:2, desc:'A red-orange racer with gold trim. Top speed +2%.' },
     { id:'car_ocean', slot:'car', name:'Ocean Bolt', zh:'海洋閃電', price:650, rarity:'Rare', emoji:'🏎️', color:'#38bdf8', speed:3, desc:'A sky-blue kart with a white stripe. Top speed +3%.' },
@@ -175,6 +178,10 @@ const STORE_THUMB_CLASS = {
     gacha: 'store-gacha-emoji'
 };
 
+function storeIsOmamoriId(id) {
+    return typeof id === 'string' && id.indexOf('prop_omamori_') === 0;
+}
+
 function storeItemThumbHTML(itemOrRow, kind) {
     const row = itemOrRow || {};
     const id = row.id || row.item_id || row.item || '';
@@ -183,7 +190,7 @@ function storeItemThumbHTML(itemOrRow, kind) {
     const img = (item && item.img) || row.img || '';
     if (img) {
         const alt = (item && item.name) || row.name || row.name_en || 'Item';
-        const extra = (id === 'prop_omamori_exam' || id === 'prop_omamori_study') ? ' store-thumb-omamori' : '';
+        const extra = storeIsOmamoriId(id) ? ' store-thumb-omamori' : '';
         return '<img class="' + cls + ' store-thumb-img' + extra + '" src="' + escapeHtml(img) + '" alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async">';
     }
     const emoji = (item && item.emoji) || row.emoji || '🎁';
@@ -222,7 +229,7 @@ function storeLayerGroup(value) {
     /* Omamori still equip on the normal prop layer, but the Store shows them
        as their own group. Only an item/id resolves to 'omamori' — a bare
        slot string like 'prop' keeps its old meaning for every caller. */
-    if (id === 'prop_omamori_exam' || id === 'prop_omamori_study') return 'omamori';
+    if (storeIsOmamoriId(id)) return 'omamori';
     if (slot === 'head' || slot === 'ears') return 'hat';
     if (slot === 'eyes' || slot === 'cheeks') return 'face';
     if (slot === 'neck' || slot === 'body') return 'outfit';
@@ -682,6 +689,7 @@ function storeBalanceLabel() {
 
 const STORE_GACHA_COST = 200;
 const STORE_NEW_IDS = [
+    'prop_omamori_love', 'prop_omamori_singles', 'prop_omamori_health',
     'prop_omamori_exam', 'prop_omamori_study', 'bg_shrine', 'bg_fuji'
 ];
 

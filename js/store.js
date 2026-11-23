@@ -94,8 +94,8 @@ const STORE_ITEMS = [
     { id:'bg_yellow', slot:'background', name:'Yellow', zh:'黃色', price:160, rarity:'Common', emoji:'💛', color:'#fde047', desc:'A bright plain yellow background.' },
     { id:'bg_black', slot:'background', name:'Black', zh:'黑色', price:220, rarity:'Rare', emoji:'🖤', color:'#1f2937', desc:'A plain black background.' },
     { id:'bg_gray', slot:'background', name:'Grey', zh:'灰色', price:220, rarity:'Rare', emoji:'🩶', color:'#9ca3af', desc:'A plain grey background.' },
-    { id:'bg_shrine', slot:'background', name:'Shrine / 神社', zh:'神社', price:220, rarity:'Epic', emoji:'⛩️', img:'/assets/backgrounds/bg-shrine.png', color:'#7dd3fc', desc:'A shrine gate with lanterns and a fox spirit.' },
-    { id:'bg_fuji', slot:'background', name:'Mount Fuji / 富士山', zh:'富士山', price:240, rarity:'Epic', emoji:'🗻', img:'/assets/backgrounds/bg-fuji.png', color:'#60a5fa', desc:'Mount Fuji under a bright sky.' }
+    { id:'bg_shrine', slot:'background', name:'Shrine / 神社', zh:'神社', price:519, rarity:'Epic', emoji:'⛩️', img:'/assets/backgrounds/bg-shrine.png', color:'#7dd3fc', desc:'A shrine gate with lanterns and a fox spirit.' },
+    { id:'bg_fuji', slot:'background', name:'Mount Fuji / 富士山', zh:'富士山', price:528, rarity:'Epic', emoji:'🗻', img:'/assets/backgrounds/bg-fuji.png', color:'#60a5fa', desc:'Mount Fuji under a bright sky.' }
 ];
 
 window.STORE_ITEMS = STORE_ITEMS;

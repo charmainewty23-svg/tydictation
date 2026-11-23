@@ -3217,8 +3217,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     `renderStore()` 嘅 All tab 次序係 `prop` → `omamori` → `background`，
     Props 分頁唔會再列出佢哋。`storeLayerGroup('prop')`（純 slot 字串）照舊回
     `'prop'`，所以舊 caller 唔受影響。
-  - 兩個背景：**Shrine / 神社**（`bg_shrine`，220，Epic，⛩️）同
-    **Mount Fuji / 富士山**（`bg_fuji`，240，Epic，🗻）。背景圖用 cover-fit
+  - 兩個背景：**Shrine / 神社**（`bg_shrine`，519，Epic，⛩️）— shop display 570 after the
+    10% rise（`storeBasePrice`）；**Mount Fuji / 富士山**（`bg_fuji`，528，Epic，🗻）— shop
+    display 580。背景圖用 cover-fit
     填滿 shop card、try-on／fitting、My Look、Drive & Go lobby 同 Word Battle
     lobby；**唔會**取代 Drive & Go 賽道內嘅 Desert Hills／Peach Stadium／Dino
     Dino Jungle，亦唔會加落 Word Jump／PurrStack。
@@ -3226,7 +3227,11 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
     「✨ New in Props」改為 **「✨ New」**。
   - SQL：新短檔 `supabase/store_omamori_and_backgrounds.sql`（老師喺 Supabase
     SQL editor 貼一次，可重跑；未跑之前買唔到，卡片照顯示）；`store.sql` 嘅
-    main insert 亦已加 sort 67–70。價錢係加價前 base（240／240／220／240）。
+    main insert 亦已加 sort 67–70。價錢係加價前 base（omamori 240／240；
+    Shrine 519、Mount Fuji 528）。
+  - 加價：新短檔 `supabase/store_shrine_fuji_prices.sql`（老師喺 Supabase SQL
+    editor 貼一次，可重跑，冇 schema change）只更新 `bg_shrine` 519 同
+    `bg_fuji` 528。未跑之前，JS 已經顯示新價（570／580），但購買仍然用舊 DB 價。
 - **🏆 Victory Animations（2026-11）**：新 store 分頁 **🏆 Victory**（slot
   `victory`，一次只可以 equip 一款），7 件特效分 3 個價位：
   1. 入門：Confetti Cannon 250／Spotlight 300／Emoji Rain 350

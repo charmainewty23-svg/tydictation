@@ -460,6 +460,16 @@
         }
         .store-card.equipped { border-color: #fbbf24; background: #fffbeb; }
         .store-card-emoji { font-size: 2.6rem; line-height: 1.1; }
+        /* Mini Corgi (and any future) pre-cut PNG thumbs share the emoji slot. */
+        .store-thumb-img {
+            object-fit: contain;
+            object-position: center bottom;
+            display: block;
+            flex: 0 0 auto;
+        }
+        img.store-card-emoji { width: 62px; height: 62px; }
+        img.store-market-emoji { width: 40px; height: 40px; }
+        img.store-gacha-emoji { width: 62px; height: 62px; }
         .store-card-bg {
             width: 100%;
             height: 74px;

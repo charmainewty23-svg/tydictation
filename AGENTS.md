@@ -3109,7 +3109,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   係 array，`storeEquippedItems('prop')` 回全部，`storeUnequip(slot,itemId)`
   逐件移除。`DG.drawCatProps()` 會將多件 props 排喺貓旁邊，件數越多畫得
   越細；`DG.drawCatProp()` 逐件畫（白旗「Too Hard!」、黃鴨、紅筆、
-  茶＋鬆餅、哥基、80 年代 boombox）。Me profile、Drive & Go preview、
+  茶＋鬆餅、80 年代 boombox）。**Mini Corgi 係唯一例外**：唔畫 vector，
+  直接用 `/assets/props/mini-corgi.png`（818×905 透明 PNG）`drawImage`，
+  PNG 未載入前只畫地面陰影，`DG.corgiArtImage()` 預載完成會
+  `DG.redrawCatPreviews()`。Me profile、Drive & Go preview、
   Word Battle 貓 preview 都用同一 helper。Props 唔會入 3D 賽道。
 - **🎁 Mystery Gacha（2026-11 加）**：Store 頂部卡片，**每次 200 Paws**，
   由所有 `store_items.active` 隨機抽一件（帽／眼鏡／outfit／prop／
@@ -3184,16 +3187,21 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `(1 + bonus)`，基礎速度乘 `(1 + bonus × 0.5)`；nitro／蘑菇上限亦改讀
   `DG.raceSpeedCap()`。**改動提示**：呢個係刻意嘅「付費有少少優勢」，
   幅度保持細（最多 +7%），唔好加大到蓋過答題表現。
-- **🪑 Props 實物化（2026-11）**：`DG.drawCatProp()` 全部重畫成**實體物件**
+- **🪑 Props 實物化（2026-11）**：`DG.drawCatProp()` 除 **Mini Corgi** 外
+  全部重畫成**實體物件**
   （中學生向，唔再係浮動 emoji）：巨型鉛筆／珍珠奶茶／放大鏡／羽毛筆＋羊皮紙
   ＋墨水瓶／開箱紙皮箱（FRAGILE 貼紙）／懸浮字典／鸚鵡／投降旗／黃鴨／
-  紅筆／英式茶＋鬆餅／哥基／Boombox；每個有 `DG.PROP_SCALE` 獨立大小
+  紅筆／英式茶＋鬆餅／Boombox；每個有 `DG.PROP_SCALE` 獨立大小
   （枱 1.5、Boombox 1.18、鴨 0.9…），`DG.drawCatProps()` 由
   `min(w,h)/(300 + 54×(n-1))` 起算，比舊版大約 1.2–1.4 倍，所以
   「Cozy Desk」係**一張真木枱**（枱面、枱腳、燈＋暖光、書、熱杯）擺喺貓旁邊。
   新 item：`prop_cozy_desk`（560 Paws，Legendary，slot `prop`）；
   SQL `supabase/store_cozy_desk.sql`（可重跑；未跑會買唔到，其他 props 照用）。
   示範：`/props-demo.html`（14 件 props + 貓，逐件放大睇）。
+  Shop 卡／Market 買賣列／Gacha 結果一律經 `storeItemThumbHTML(itemOrRow, kind)`
+  （`js/store.js`）：catalog item（或 server row 的 `item_id`）有 `img` 就出
+  `<img class="… store-thumb-img" src="/assets/props/mini-corgi.png">`，否則照舊
+  emoji。暫時只有 `prop_corgi` 有 `img`；`prop_corgi.emoji = '🐕'` 留作 fallback。
 - **🏆 Victory Animations（2026-11）**：新 store 分頁 **🏆 Victory**（slot
   `victory`，一次只可以 equip 一款），7 件特效分 3 個價位：
   1. 入門：Confetti Cannon 250／Spotlight 300／Emoji Rain 350

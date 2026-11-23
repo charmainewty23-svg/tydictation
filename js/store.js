@@ -57,7 +57,7 @@ const STORE_ITEMS = [
     { id:'prop_rubber_duck', slot:'prop', name:'Rubber Duck', zh:'沖涼黃色小鴨', price:480, rarity:'Epic', emoji:'🦆', color:'#facc15', desc:'The classic yellow debugging duck.' },
     { id:'prop_red_pen', slot:'prop', name:'Red Pen', zh:'老師改卷紅筆', price:490, rarity:'Epic', emoji:'🖊️', color:'#dc2626', desc:'A giant red marking pen, ready for homework.' },
     { id:'prop_tea_scone', slot:'prop', name:'Tea & Scone', zh:'英式下午茶', price:500, rarity:'Epic', emoji:'🫖', color:'#f59e0b', desc:'Earl Grey tea and a strawberry-jam scone.' },
-    { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
+    { id:'prop_corgi', slot:'prop', name:'Mini Corgi', zh:'迷你哥基犬', price:510, rarity:'Legendary', emoji:'🐕', img:'/assets/props/mini-corgi.png', color:'#f59e0b', desc:'A tiny royal corgi sitting beside your cat.' },
     { id:'prop_boombox', slot:'prop', name:'Boombox', zh:'復古卡式錄音機', price:520, rarity:'Legendary', emoji:'📻', color:'#334155', desc:'An 80s boombox playing English listening tapes.' },
     { id:'prop_cozy_desk', slot:'prop', name:'Cozy Desk', zh:'溫暖書桌', price:560, rarity:'Legendary', emoji:'🪵', color:'#a9763f', desc:'A real wooden desk with a lamp, books and a hot mug — right beside your cat.' },
     // Drive & Go! car skins
@@ -102,6 +102,31 @@ STORE_ITEMS.forEach(it => {
 });
 window.storeItemById = id => STORE_BY_ID[id] || null;
 window.storeItemByName = name => STORE_BY_NAME[name] || null;
+
+/* Item thumbnails for the shop cards / Market rows / Gacha result.
+   Most items are emoji, but a few (currently only the Mini Corgi) ship a
+   pre-cut transparent PNG. Rows coming back from Supabase may only carry an
+   `item_id` (and emoji), so the catalog is always consulted by id first. */
+const STORE_THUMB_CLASS = {
+    card: 'store-card-emoji',
+    market: 'store-market-emoji',
+    gacha: 'store-gacha-emoji'
+};
+
+function storeItemThumbHTML(itemOrRow, kind) {
+    const row = itemOrRow || {};
+    const id = row.id || row.item_id || row.item || '';
+    const item = (id && STORE_BY_ID[id]) || null;
+    const cls = STORE_THUMB_CLASS[kind] || STORE_THUMB_CLASS.card;
+    const img = (item && item.img) || row.img || '';
+    if (img) {
+        const alt = (item && item.name) || row.name || row.name_en || 'Item';
+        return '<img class="' + cls + ' store-thumb-img" src="' + escapeHtml(img) + '" alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async">';
+    }
+    const emoji = (item && item.emoji) || row.emoji || '🎁';
+    return '<div class="' + cls + '" aria-hidden="true">' + escapeHtml(emoji) + '</div>';
+}
+window.storeItemThumbHTML = storeItemThumbHTML;
 
 const STORE_FREE = {
     hat: ['None', 'Party Hat'],
@@ -622,7 +647,7 @@ async function storePullGacha() {
         if (!r || !r.item) throw new Error('NO_ITEMS');
         if (r.duplicate) {
             storeShowGachaResult(
-                '<div class="store-gacha-emoji" aria-hidden="true">' + escapeHtml(r.emoji || '🎁') + '</div>' +
+                storeItemThumbHTML({ id: r.item, name: r.name, emoji: r.emoji }, 'gacha') +
                 '<div><b>Duplicate: ' + escapeHtml(r.name || 'item') + '</b>' +
                 (r.zh ? ' · ' + escapeHtml(r.zh) : '') +
                 '<p>You already own it — <b>+' + Number(r.refund || 100) + ' 🐾</b> refunded.</p></div>'
@@ -630,7 +655,7 @@ async function storePullGacha() {
             updateMascot('Duplicate ' + (r.name || 'item') + ' — half your Paws are back! 🐾');
         } else {
             storeShowGachaResult(
-                '<div class="store-gacha-emoji" aria-hidden="true">' + escapeHtml(r.emoji || '🎁') + '</div>' +
+                storeItemThumbHTML({ id: r.item, name: r.name, emoji: r.emoji }, 'gacha') +
                 '<div><b>You got ' + escapeHtml(r.name || 'a new item') + '!</b>' +
                 (r.zh ? ' · ' + escapeHtml(r.zh) : '') +
                 '<p>Added to your Store — equip it whenever you like.</p></div>'
@@ -742,7 +767,7 @@ function storeRenderMarketList(rows) {
         const form = row.seller_form ? ' · ' + escapeHtml(row.seller_form) : '';
         const mine = !!row.is_mine;
         return '<div class="store-market-row">' +
-            '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(row.emoji || '🎁') + '</div>' +
+            storeItemThumbHTML(row, 'market') +
             '<div class="store-market-info"><b>' + name + (mine ? ' <span class="text-[10px] text-orange-500">(your listing)</span>' : '') + '</b><small>' + zh + (zh ? ' · ' : '') + seller + form + (row.original_price ? ' · Original ' + Number(row.original_price) + ' 🐾' : '') + '</small></div>' +
             '<div class="store-market-price">' + Number(row.price || 0) + ' 🐾</div>' +
             (mine
@@ -789,7 +814,7 @@ function storeRenderSellList(rows) {
         const basePrice = storeBasePrice(it);
         const suggested = Math.max(10, Math.round((Number(basePrice) || 100) / 2));
         return '<div class="store-market-row">' +
-            '<div class="store-market-emoji" aria-hidden="true">' + escapeHtml(it.emoji || '🎁') + '</div>' +
+            storeItemThumbHTML(it, 'market') +
             '<div class="store-market-info"><b>' + escapeHtml(it.name) + '</b><small>' + escapeHtml(it.zh || '') + ' · Original ' + Number(basePrice) + ' 🐾</small></div>' +
             '<input id="market-price-' + it.id + '" class="store-market-price-input" type="number" min="1" max="5000" value="' + suggested + '" aria-label="Price for ' + escapeHtml(it.name) + '">' +
             '<button type="button" class="store-market-btn" onclick="storeSellItem(\'' + it.id + '\')">List</button>' +
@@ -985,7 +1010,7 @@ function storeCardHTML(item) {
         (STORE_NEW_IDS.indexOf(item.id) !== -1 ? '<span class="store-card-new">NEW</span>' : '') +
         (item.slot === 'background'
             ? '<canvas class="store-card-bg" data-store-bg="' + item.id + '" aria-hidden="true"></canvas>'
-            : '<div class="store-card-emoji" aria-hidden="true">' + item.emoji + '</div>') +
+            : storeItemThumbHTML(item, 'card')) +
         '<p class="store-card-name">' + escapeHtml(item.name) + '</p>' +
         '<p class="store-card-zh">' + escapeHtml(item.zh) + '</p>' +
         topBadge +
@@ -1085,6 +1110,16 @@ function storeTryOnItem(id) {
     const canvas = document.getElementById('store-fitting-canvas');
     storePaintLook(canvas, document.getElementById('store-fitting-items'), view.look, view.prop, view.bg, '', view.mode);
     updateMascot('Trying on ' + item.name + ' ✨');
+}
+
+/* Repaint the fitting-room preview (used when the corgi PNG finishes loading). */
+function storeRepaintFitting() {
+    const canvas = document.getElementById('store-fitting-canvas');
+    if (!canvas) return;
+    const item = STORE_TRY_ON ? STORE_BY_ID[STORE_TRY_ON] : null;
+    if (!item) return;
+    const view = storeTryOnLook(item);
+    storePaintLook(canvas, document.getElementById('store-fitting-items'), view.look, view.prop, view.bg, '', view.mode);
 }
 
 function storeTryOnDenied(item) {

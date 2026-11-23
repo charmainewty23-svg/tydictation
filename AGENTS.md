@@ -2116,6 +2116,10 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   - 動畫有 WebAudio 音效：逐行 tick、自己行升名次有上升 chime，
     全部跟 `musicOn`（🔊 掣）一齊開關。音效 context 喺 Start 手勢建立，
     唔會被 autoplay 封鎖。
+  - **答完出答案一刻**會播 `playRevealSting()`：短 4 音 quiz-show jingle
+    （C5→E5→G5→C6 ＋ 低音 chord，約 0.7 秒），demo Reveal 同真房間
+    host Reveal 都會播；跟 🔊 一齊靜音。學生自己部電話唔會播（避免
+    30 部機一齊響），host／projector 播。
   - 學生電話 header 分數都會 count-up，隔籬 `#youDelta` 會彈 `+分數`／`▲N`。
   - Reveal 之後學生電話多一個 **`#srank`** panel：大字 `#N`＋`of 30`、
     名次移動 `▲N`／`▼N`，下面一句鼓勵字（按情況）：

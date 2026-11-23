@@ -1745,6 +1745,20 @@
     tone(880, 0.09, 0.12, 'sine', 0.07);
     tone(1180, 0.2, 0.18, 'sine', 0.06);
   }
+  function playRevealSting() {
+    if (!musicOn) return;
+    // Short quiz-show "answer is out" jingle: G-C-E-G-C, with a soft chord.
+    const seq = [
+      [523.25, 0.00, 0.12, 'triangle', 0.075],
+      [659.25, 0.10, 0.12, 'triangle', 0.075],
+      [783.99, 0.20, 0.14, 'triangle', 0.08],
+      [1046.50, 0.32, 0.34, 'sine', 0.075]
+    ];
+    seq.forEach(function (n) { tone(n[0], n[1], n[2], n[3], n[4]); });
+    tone(523.25, 0.32, 0.32, 'sine', 0.035);
+    tone(659.25, 0.32, 0.32, 'sine', 0.03);
+  }
+
   function playFanfare() {
     [523, 659, 784, 1047].forEach(function (f, i) { tone(f, i * 0.12, 0.3, 'triangle', 0.07); });
   }
@@ -2262,6 +2276,7 @@
   }
 
   function renderReveal(before, youBefore) {
+    playRevealSting();
     const q = currentQ();
     let right = 0, wrong = 0, none = 0;
     const counts = {};
@@ -3285,6 +3300,7 @@
   }
 
   function renderRoomReveal(st) {
+    playRevealSting();
     const q = room.questions[room.qIndex];
     if (!q) return;
     const counts = st.counts || {};

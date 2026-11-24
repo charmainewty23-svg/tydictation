@@ -6,7 +6,7 @@
  * copy, while a cached copy is still used when the network is unavailable.
  * Bump CACHE_NAME when the precache list or offline behaviour changes.
  */
-const CACHE_NAME = 'learnity-pwa-v99';
+const CACHE_NAME = 'learnity-pwa-v100';
 
 const CORE_ASSETS = [
     '/index.html',
@@ -27,6 +27,9 @@ const CORE_ASSETS = [
     '/js/grammar/drive-and-go.js',
     '/js/grammar/drive-and-go-race.js',
     '/js/grammar/drive-and-go-multiplayer.js',
+    '/js/purrfect-survival-engine.js',
+    '/js/purrfect-survival-render.js',
+    '/js/purrfect-survival.js',
     '/js/leaderboard.js',
     '/js/admin.js',
     '/js/profile.js',

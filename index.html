@@ -3801,6 +3801,682 @@
         @media (prefers-reduced-motion: reduce) {
             .flap-wchip.miss { animation: none; }
         }
+
+        /* ============================================================
+           Purr-fect Survival
+           ============================================================ */
+        #purrfect-survival-view {
+            width: 100%;
+            --ps-ink: #172554;
+            --ps-pink: #db2777;
+            --ps-pink-dark: #9d174d;
+            --ps-teal: #0f766e;
+            --ps-sand: #f4d9a6;
+        }
+        .ps-shell {
+            width: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
+            border-radius: 1.75rem;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at 18% 8%, rgba(236, 72, 153, .14), transparent 42%),
+                radial-gradient(circle at 84% 4%, rgba(14, 165, 233, .16), transparent 46%),
+                linear-gradient(160deg, #fff8f2 0%, #fdf2f8 52%, #eef9ff 100%);
+            border: 2px solid #fbcfe8;
+            box-shadow: 0 22px 60px rgba(157, 23, 77, .13);
+        }
+        .ps-topbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, .74);
+            border-bottom: 2px solid rgba(251, 207, 232, .8);
+            backdrop-filter: blur(8px);
+        }
+        .ps-exit {
+            min-height: 44px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 2px solid #fbcfe8;
+            background: #fff;
+            color: #9d174d;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .ps-exit:active { transform: translateY(1px); }
+        .ps-brand {
+            flex: 1;
+            min-width: 0;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: .01em;
+            color: #831843;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ps-code-chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: #172554;
+            color: #fef3c7;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .14em;
+            white-space: nowrap;
+        }
+        .ps-lobby { padding: 20px clamp(14px, 3vw, 34px) 30px; }
+        .ps-hero {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 4px 0 18px;
+            flex-wrap: wrap;
+        }
+        .ps-hero-icon {
+            width: 68px;
+            height: 68px;
+            border-radius: 22px;
+            display: grid;
+            place-items: center;
+            font-size: 36px;
+            background: linear-gradient(145deg, #fdf2f8, #fce7f3);
+            border: 2px solid #f9a8d4;
+            box-shadow: 0 8px 0 #fbcfe8;
+        }
+        .ps-hero h1 {
+            font-size: clamp(24px, 4vw, 38px);
+            font-weight: 800;
+            line-height: 1.06;
+            color: #9d174d;
+            letter-spacing: -.01em;
+        }
+        .ps-hero p {
+            margin-top: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            max-width: 660px;
+        }
+        .ps-notice {
+            margin: 0 0 16px;
+            padding: 14px 16px;
+            border-radius: 1.1rem;
+            border: 2px dashed #fcd34d;
+            background: #fffbeb;
+            color: #92400e;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+        .ps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+            gap: 16px;
+        }
+        .ps-card {
+            padding: 18px;
+            border-radius: 1.25rem;
+            background: rgba(255, 255, 255, .86);
+            border: 2px solid #f1e3d4;
+            box-shadow: 0 10px 24px rgba(120, 53, 15, .06);
+        }
+        .ps-card-create { border-color: #f9a8d4; }
+        .ps-card-join { border-color: #bae6fd; }
+        .ps-card h2 {
+            font-size: 18px;
+            font-weight: 800;
+            color: #831843;
+            margin-bottom: 10px;
+        }
+        .ps-card-join h2 { color: #075985; }
+        .ps-field { margin-bottom: 12px; }
+        .ps-field label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .ps-field select,
+        .ps-field input {
+            width: 100%;
+            min-height: 46px;
+            padding: 10px 12px;
+            border-radius: .85rem;
+            border: 2px solid #fbcfe8;
+            background: #fff;
+            color: #111827;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            outline: none;
+        }
+        .ps-card-join .ps-field input {
+            border-color: #bae6fd;
+            text-align: center;
+            font-size: 26px;
+            letter-spacing: .3em;
+            text-transform: uppercase;
+        }
+        .ps-field select:focus,
+        .ps-field input:focus {
+            border-color: #f472b6;
+            box-shadow: 0 0 0 4px rgba(244, 114, 182, .12);
+        }
+        .ps-check {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 2px 0 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #4b5563;
+        }
+        .ps-check input { width: 20px; height: 20px; accent-color: #db2777; }
+        .ps-primary,
+        .ps-secondary {
+            width: 100%;
+            min-height: 50px;
+            border: 0;
+            border-radius: .95rem;
+            font: inherit;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform .08s ease, filter .15s ease;
+        }
+        .ps-primary {
+            background: linear-gradient(160deg, #ec4899, #be185d);
+            color: #fff;
+            box-shadow: 0 6px 0 #831843;
+        }
+        .ps-card-join .ps-primary {
+            background: linear-gradient(160deg, #0ea5e9, #0369a1);
+            box-shadow: 0 6px 0 #075985;
+        }
+        .ps-primary:active, .ps-secondary:active { transform: translateY(2px); }
+        .ps-primary:disabled { opacity: .55; cursor: default; transform: none; }
+        .ps-secondary {
+            background: #fff;
+            color: #9d174d;
+            border: 2px solid #fbcfe8;
+        }
+        .ps-hint {
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.45;
+            color: #6b7280;
+        }
+        .ps-error {
+            margin: 16px auto 0;
+            max-width: 760px;
+            padding: 11px 14px;
+            border-radius: .9rem;
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            color: #b91c1c;
+            text-align: center;
+            font-size: 13.5px;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+        .ps-rejoin {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 0 0 16px;
+            padding: 14px 16px;
+            border-radius: 1.1rem;
+            background: #eef2ff;
+            border: 2px solid #c7d2fe;
+        }
+        .ps-rejoin p { font-size: 13px; font-weight: 700; color: #3730a3; }
+        .ps-rejoin .code { letter-spacing: .22em; font-weight: 800; }
+        .ps-note {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: .9rem;
+            background: rgba(255, 255, 255, .65);
+            border: 1px dashed #d1d5db;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        .ps-note b { color: #9d174d; }
+
+        /* ---------- waiting room ---------- */
+        .ps-waiting { padding: 24px clamp(14px, 3vw, 34px) 34px; text-align: center; }
+        .ps-waiting .kicker {
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+            color: #9d174d;
+        }
+        .ps-code {
+            margin: 10px auto 8px;
+            font-size: clamp(44px, 13vw, 90px);
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: .22em;
+            color: #831843;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 3px 0 #fbcfe8;
+        }
+        .ps-copy {
+            min-height: 44px;
+            padding: 0 18px;
+            border-radius: 999px;
+            border: 2px solid #fbcfe8;
+            background: #fff;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 800;
+            color: #9d174d;
+            cursor: pointer;
+        }
+        .ps-player-count {
+            margin: 16px 0 10px;
+            font-size: 14px;
+            font-weight: 800;
+            color: #6b7280;
+        }
+        .ps-player-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            max-width: 820px;
+            margin: 0 auto 18px;
+        }
+        .ps-player-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: #fff;
+            border: 2px solid #fce7f3;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #4b5563;
+        }
+        .ps-host-tag {
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #fce7f3;
+            color: #9d174d;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .08em;
+        }
+        .ps-wait-note { font-size: 13px; font-weight: 700; color: #6b7280; }
+        .ps-wait-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        .ps-wait-actions .ps-primary { width: auto; min-width: 190px; padding: 0 22px; }
+        .ps-leave {
+            min-height: 44px;
+            padding: 0 16px;
+            border: 0;
+            background: transparent;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 800;
+            color: #9ca3af;
+            cursor: pointer;
+        }
+        .ps-leave:hover { color: #dc2626; }
+
+        /* ---------- live game ---------- */
+        #purrfect-survival-view.ps-live {
+            position: fixed;
+            inset: 0;
+            z-index: 950;
+            width: 100%;
+            height: 100dvh;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            background: #0b1020;
+        }
+        body.ps-live-body { overflow: hidden; overscroll-behavior: none; }
+        #purrfect-survival-view.ps-live .ps-shell {
+            max-width: none;
+            height: 100dvh;
+            border-radius: 0;
+            border: 0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: none;
+            background: #0b1020;
+        }
+        #purrfect-survival-view.ps-live .ps-topbar { display: none; }
+        .ps-game { position: relative; }
+        #purrfect-survival-view.ps-live .ps-game { flex: 1; min-height: 0; }
+        .ps-stage {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 5;
+            max-height: 78vh;
+            overflow: hidden;
+            background: #1e1b4b;
+        }
+        #purrfect-survival-view.ps-live .ps-stage {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            max-height: none;
+            aspect-ratio: auto;
+        }
+        #ps-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: manipulation;
+        }
+        .ps-hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 5;
+            padding: max(8px, env(safe-area-inset-top)) 10px 11px;
+            background: linear-gradient(to bottom, rgba(8, 15, 30, .78), rgba(8, 15, 30, .42) 70%, transparent);
+            color: #f8fafc;
+            pointer-events: none;
+        }
+        .ps-hud-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-wrap: wrap;
+        }
+        .ps-hud-row > * { pointer-events: auto; }
+        .ps-badge,
+        .ps-alive,
+        .ps-phase,
+        .ps-timer {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            white-space: nowrap;
+            background: rgba(255, 255, 255, .14);
+            color: #f8fafc;
+            backdrop-filter: blur(6px);
+        }
+        .ps-badge { background: rgba(236, 72, 153, .28); color: #fce7f3; }
+        .ps-alive { background: rgba(15, 118, 110, .42); color: #ccfbf1; }
+        .ps-timer { font-variant-numeric: tabular-nums; }
+        .ps-phase-green { background: #15803d; color: #f0fdf4; }
+        .ps-phase-yellow { background: #ca8a04; color: #fefce8; }
+        .ps-phase-red { background: #b91c1c; color: #fef2f2; animation: psRedPulse .65s ease-in-out infinite alternate; }
+        .ps-phase-glass { background: #0369a1; color: #e0f2fe; }
+        .ps-phase-done { background: #374151; color: #e5e7eb; }
+        @keyframes psRedPulse {
+            from { box-shadow: 0 0 0 0 rgba(239, 68, 68, .5); }
+            to { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
+        }
+        .ps-rule {
+            margin-top: 6px;
+            max-width: 900px;
+            font-size: 10.5px;
+            font-weight: 600;
+            line-height: 1.35;
+            color: rgba(248, 250, 252, .82);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+        }
+        .ps-host-btn,
+        .ps-icon-btn {
+            min-height: 31px;
+            padding: 0 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, .3);
+            background: rgba(255, 255, 255, .16);
+            color: #f8fafc;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+            backdrop-filter: blur(6px);
+        }
+        .ps-host-btn { background: rgba(190, 24, 93, .55); }
+        .ps-icon-btn { min-width: 35px; padding: 0; }
+        .ps-host-btn:active, .ps-icon-btn:active { transform: translateY(1px); }
+
+        /* ---------- question pad ---------- */
+        .ps-question {
+            position: absolute;
+            left: 50%;
+            bottom: max(10px, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            z-index: 6;
+            width: min(560px, calc(100% - 20px));
+            padding: 10px 12px 12px;
+            border-radius: 1.25rem;
+            background: rgba(255, 255, 255, .94);
+            border: 2px solid rgba(251, 207, 232, .9);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, .28);
+            backdrop-filter: blur(10px);
+        }
+        .ps-prompt {
+            min-height: 24px;
+            margin-bottom: 8px;
+            text-align: center;
+            font-size: clamp(14px, 3.6vw, 18px);
+            font-weight: 800;
+            line-height: 1.28;
+            color: #172554;
+        }
+        .ps-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+        .ps-opt {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 48px;
+            padding: 8px 10px;
+            border-radius: .85rem;
+            border: 2px solid #fbcfe8;
+            background: #fff;
+            color: #831843;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            text-align: left;
+            cursor: pointer;
+            transition: background .1s ease, transform .06s ease;
+        }
+        .ps-opt:active { transform: translateY(1px); }
+        .ps-opt-key {
+            display: grid;
+            place-items: center;
+            width: 25px;
+            height: 25px;
+            flex: 0 0 auto;
+            border-radius: 8px;
+            background: #fce7f3;
+            color: #9d174d;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .ps-opt-text {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .ps-options-red .ps-opt {
+            border-color: #fca5a5;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        .ps-options-red .ps-opt-key { background: #fee2e2; color: #b91c1c; }
+        .ps-options-busy { opacity: .65; pointer-events: none; }
+        .ps-options-wrong { animation: psShake .32s ease; }
+        @keyframes psShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-3px); }
+            80% { transform: translateX(3px); }
+        }
+        .ps-options-glass { grid-template-columns: 1fr 1fr; }
+        .ps-glass-opt {
+            min-height: 58px;
+            justify-content: center;
+            border-color: #bae6fd;
+            background: linear-gradient(160deg, #f0f9ff, #e0f2fe);
+            color: #075985;
+            text-align: center;
+        }
+        .ps-glass-opt .ps-opt-key {
+            background: #bae6fd;
+            color: #075985;
+        }
+        .ps-glass-opt.ps-glass-safe {
+            border-color: #4ade80;
+            background: linear-gradient(160deg, #dcfce7, #bbf7d0);
+            color: #14532d;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, .22);
+        }
+        .ps-feedback {
+            min-height: 18px;
+            margin-top: 7px;
+            text-align: center;
+            font-size: 12.5px;
+            font-weight: 800;
+            line-height: 1.35;
+            color: #6b7280;
+        }
+
+        /* ---------- overlay ---------- */
+        .ps-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(8, 15, 30, .62);
+            backdrop-filter: blur(5px);
+        }
+        .ps-overlay-card {
+            width: min(460px, 100%);
+            max-height: calc(100dvh - 36px);
+            overflow: auto;
+            padding: 22px 20px;
+            border-radius: 1.4rem;
+            text-align: center;
+            background: #fff9f2;
+            border: 3px solid #fbcfe8;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+        }
+        .ps-overlay-icon { font-size: 46px; line-height: 1; }
+        .ps-overlay-card h2 {
+            margin: 8px 0 8px;
+            font-size: clamp(22px, 5vw, 30px);
+            font-weight: 800;
+            color: #831843;
+        }
+        .ps-overlay-card p {
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.55;
+            color: #4b5563;
+        }
+        .ps-overlay-card .ps-primary { max-width: 280px; margin: 0 auto; }
+
+        /* ---------- landscape / projector ---------- */
+        @media (orientation: landscape) and (min-width: 700px) {
+            .ps-hero-icon { width: 56px; height: 56px; font-size: 30px; }
+            .ps-game .ps-stage { aspect-ratio: 16 / 9; max-height: none; height: calc(100dvh - 130px); }
+            #purrfect-survival-view.ps-live .ps-stage { height: 100%; }
+            .ps-question {
+                left: 12px;
+                bottom: 12px;
+                transform: none;
+                width: min(460px, 44vw);
+                padding: 8px 10px 10px;
+            }
+            .ps-prompt { font-size: 14px; margin-bottom: 5px; }
+            .ps-opt { min-height: 40px; font-size: 12.5px; padding: 5px 8px; }
+            .ps-opt-key { width: 21px; height: 21px; font-size: 10px; }
+            .ps-rule { max-width: 62vw; font-size: 9.5px; }
+            .ps-feedback { font-size: 11px; }
+            .ps-hud { padding: 5px 9px 8px; }
+            .ps-badge, .ps-alive, .ps-phase, .ps-timer { min-height: 26px; font-size: 10.5px; padding: 3px 8px; }
+            .ps-host-btn, .ps-icon-btn { min-height: 27px; font-size: 10px; }
+        }
+        @media (max-height: 560px) and (orientation: landscape) {
+            .ps-hud-row { gap: 5px; }
+            .ps-rule {
+                display: block;
+                max-width: 56vw;
+                margin-top: 3px;
+                font-size: 8.5px;
+                line-height: 1.25;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .ps-question { bottom: 6px; left: 6px; width: min(390px, 46vw); padding: 6px 8px 8px; }
+            .ps-prompt { min-height: 0; margin-bottom: 4px; font-size: 12.5px; }
+            .ps-opt { min-height: 36px; font-size: 11.5px; }
+            .ps-glass-opt { min-height: 42px; }
+            .ps-feedback { font-size: 10.5px; margin-top: 4px; }
+            .ps-overlay-card { padding: 15px 16px; }
+            .ps-overlay-icon { font-size: 32px; }
+            .ps-overlay-card h2 { font-size: 20px; margin: 4px 0; }
+            .ps-overlay-card p { font-size: 12.5px; margin-bottom: 10px; }
+            .ps-primary { min-height: 44px; }
+        }
+        @media (max-width: 430px) {
+            .ps-lobby { padding: 14px 12px 24px; }
+            .ps-hero { gap: 10px; }
+            .ps-hero h1 { font-size: 24px; }
+            .ps-card { padding: 14px; }
+            .ps-question { width: calc(100% - 12px); padding: 8px 9px 10px; }
+            .ps-opt { min-height: 46px; font-size: 13px; }
+            .ps-hud { padding: 6px 7px 9px; }
+            .ps-badge, .ps-alive, .ps-phase, .ps-timer { font-size: 10.5px; padding: 4px 8px; }
+            .ps-rule { font-size: 9.5px; }
+        }
+        @media (max-width: 360px) {
+            .ps-brand { font-size: 13px; }
+            .ps-hero-icon { width: 52px; height: 52px; border-radius: 16px; font-size: 28px; }
+            .ps-code { letter-spacing: .16em; }
+            .ps-opt { font-size: 12px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .ps-phase-red { animation: none; }
+        }
     </style>
 </head>
 <body class="h-full">
@@ -3961,6 +4637,15 @@
                         <p id="hub-battle-sub" class="text-gray-400 text-sm">1 v 1 — create a room or join with a code.</p>
                     </div>
                     <button id="hub-battle-rejoin" type="button" onclick="event.stopPropagation(); battleRejoin();" class="hidden px-5 py-3 bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-600 transition-colors">🔄 Rejoin</button>
+                </div>
+
+                <div id="hub-purrfect-entry" class="hub-card md:col-span-2" onclick="changeView('purrfect-survival-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;border-color:#f9a8d4;background:linear-gradient(135deg,#fff7fb,#fff1f2);">
+                    <div class="text-4xl">🐱</div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-bold text-pink-600">Purr-fect Survival</h2>
+                        <p class="text-gray-400 text-sm">Class survival game — 123 木頭貓 (Red Light, Green Light) then Glass Stepping Stones.</p>
+                    </div>
+                    <span class="hidden sm:inline-flex px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-bold">UP TO 30</span>
                 </div>
 
                 <div id="hub-records-entry" class="hub-card md:col-span-2" onclick="changeView('my-records-view')" style="padding:1.5rem;flex-direction:row;gap:1rem;align-items:center;">
@@ -4661,6 +5346,149 @@
             <!-- Word Battle View -->
             <div id="purrstack-view" class="view hidden w-full">
                 <iframe id="purrstack-frame" title="PurrStack" data-src="vocab-tetris-demo.html" allow="fullscreen" loading="lazy"></iframe>
+            </div>
+
+            <!-- Purr-fect Survival: lobby + Round 1 + Round 2 -->
+            <div id="purrfect-survival-view" class="view hidden w-full">
+                <div id="ps-shell" class="ps-shell">
+                    <div class="ps-topbar" data-ps-safe="1">
+                        <button type="button" class="ps-exit" onclick="PS.backToHub()">← Hub</button>
+                        <div class="ps-brand">🐱 Purr-fect Survival</div>
+                        <div id="ps-code-chip" class="ps-code-chip hidden"></div>
+                    </div>
+
+                    <div id="ps-lobby" class="ps-lobby">
+                        <div class="ps-hero">
+                            <div class="ps-hero-icon">🦑</div>
+                            <div>
+                                <h1>Purr-fect Survival</h1>
+                                <p>One class, one survival game. Round 1: 123 木頭貓 (Red Light, Green Light). Round 2: Glass Stepping Stones. Later rounds are coming soon.</p>
+                            </div>
+                        </div>
+
+                        <div id="ps-guest-notice" class="ps-notice hidden">
+                            🔒 Sign in with your school Google account to create or join a room. Guests can watch this page but cannot play.
+                        </div>
+
+                        <div id="ps-rejoin-banner" class="ps-rejoin hidden">
+                            <div>
+                                <p>You left a room in progress — room <span id="ps-rejoin-code" class="code">----</span>.</p>
+                                <p class="ps-hint">Jump back into the waiting room, race or glass bridge.</p>
+                            </div>
+                            <button type="button" class="ps-primary" style="width:auto;min-width:170px;padding:0 18px" onclick="PS.rejoin()">🔄 Rejoin room</button>
+                        </div>
+
+                        <div id="ps-room-actions" class="ps-grid">
+                            <section class="ps-card ps-card-create">
+                                <h2>Create a room</h2>
+                                <div class="ps-field">
+                                    <label for="ps-subject">Subject</label>
+                                    <select id="ps-subject" onchange="PS.syncSubjectFields()">
+                                        <option value="vocab">📚 Vocab</option>
+                                        <option value="grammar">📜 Grammar</option>
+                                    </select>
+                                </div>
+                                <div id="ps-vocab-wrap">
+                                    <div class="ps-field">
+                                        <label for="ps-vocab-source">Word bank</label>
+                                        <select id="ps-vocab-source" onchange="PS.syncVocabForm()"></select>
+                                    </div>
+                                    <div id="ps-vocab-form-wrap" class="ps-field">
+                                        <label for="ps-vocab-form">New Vocab form</label>
+                                        <select id="ps-vocab-form"></select>
+                                    </div>
+                                </div>
+                                <div id="ps-grammar-wrap" class="hidden">
+                                    <div class="ps-field">
+                                        <label for="ps-grammar-topic">Grammar topic</label>
+                                        <select id="ps-grammar-topic" onchange="PS.syncGrammarModes()">
+                                            <option value="tenses">Tenses</option>
+                                            <option value="agreement">Agreement</option>
+                                            <option value="articles">Articles</option>
+                                            <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                        </select>
+                                    </div>
+                                    <div class="ps-field">
+                                        <label for="ps-grammar-mode">Question type</label>
+                                        <select id="ps-grammar-mode"></select>
+                                    </div>
+                                </div>
+                                <label id="ps-teacher-row" class="ps-check">
+                                    <input id="ps-teacher-plays" type="checkbox">
+                                    <span>Join as a player too (teacher host otherwise spectates)</span>
+                                </label>
+                                <button id="ps-create-btn" type="button" class="ps-primary" onclick="PS.createRoom()">Create room</button>
+                                <p class="ps-hint">One subject per room: either Vocab or Grammar, never mixed. The host's question set and light schedule are shared by everyone.</p>
+                            </section>
+
+                            <section class="ps-card ps-card-join">
+                                <h2>Join a room</h2>
+                                <div class="ps-field">
+                                    <label for="ps-join-code">Room code</label>
+                                    <input id="ps-join-code" maxlength="4" placeholder="A7K2" autocomplete="off" autocapitalize="characters" spellcheck="false" onkeydown="if(event.key==='Enter'){PS.joinRoom()}">
+                                </div>
+                                <button id="ps-join-btn" type="button" class="ps-primary" onclick="PS.joinRoom()">Join room</button>
+                                <p class="ps-hint">Up to 30 students in a room. Round 1 needs at least two players. Students join from this page — not from Dictation or Grammar Quest.</p>
+                            </section>
+                        </div>
+
+                        <div id="ps-host-note" class="ps-note">
+                            <b>Class survival rules.</b> Round 1: answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). The first 15 living students to reach 100 m cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you.
+                        </div>
+
+                    </div>
+
+                    <p id="ps-error" class="ps-error hidden"></p>
+
+                    <div id="ps-waiting" class="ps-waiting hidden">
+                        <p class="kicker">Room code</p>
+                        <div id="ps-code" class="ps-code">----</div>
+                        <button type="button" class="ps-copy" onclick="PS.copyCode()">📋 Copy code</button>
+                        <p id="ps-player-count" class="ps-player-count">0 players joined</p>
+                        <p id="ps-room-meta" class="ps-hint"></p>
+                        <div id="ps-player-list" class="ps-player-list"></div>
+                        <p id="ps-wait-msg" class="ps-wait-note"></p>
+                        <div class="ps-wait-actions">
+                            <button id="ps-start-btn" type="button" class="ps-primary hidden" onclick="PS.startRound1()">▶ Start Round 1</button>
+                            <button type="button" class="ps-leave" onclick="PS.leaveRoom()">Leave room</button>
+                        </div>
+                    </div>
+
+                    <div id="ps-game" class="ps-game hidden">
+                        <div id="ps-stage" class="ps-stage">
+                            <canvas id="ps-canvas" aria-label="Purr-fect Survival game scene"></canvas>
+
+                            <div class="ps-hud" data-ps-safe="1">
+                                <div class="ps-hud-row">
+                                    <span id="ps-hud-round" class="ps-badge">ROUND 1</span>
+                                    <span id="ps-hud-alive" class="ps-alive">Alive: 0 / 0</span>
+                                    <span id="ps-hud-you" class="ps-timer">You: 0 m</span>
+                                    <span id="ps-hud-phase" class="ps-phase ps-phase-green">🟢 GREEN — RUN!</span>
+                                    <span id="ps-hud-timer" class="ps-timer">3:00</span>
+                                    <button id="ps-host-end" type="button" class="ps-host-btn hidden" onclick="PS.endRound1Now()">⏹ End round 1</button>
+                                    <button id="ps-sound-btn" type="button" class="ps-icon-btn" onclick="PS.toggleSound()" aria-label="Mute sound">🔊</button>
+                                    <button type="button" class="ps-icon-btn" onclick="PS.backToHub()" aria-label="Back to Hub">✕</button>
+                                </div>
+                                <p id="ps-hud-rule" class="ps-rule"></p>
+                            </div>
+
+                            <div id="ps-question" class="ps-question">
+                                <p id="ps-prompt" class="ps-prompt"></p>
+                                <div id="ps-options" class="ps-options"></div>
+                                <p id="ps-feedback" class="ps-feedback"></p>
+                            </div>
+
+                            <div id="ps-round-overlay" class="ps-overlay hidden">
+                                <div class="ps-overlay-card">
+                                    <div id="ps-overlay-icon" class="ps-overlay-icon">🐱</div>
+                                    <h2 id="ps-overlay-title"></h2>
+                                    <p id="ps-overlay-body"></p>
+                                    <button id="ps-overlay-btn" type="button" class="ps-primary" onclick="PS.overlayAction()">Continue</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="battle-view" class="view hidden w-full">
@@ -5465,6 +6293,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>
     <script src="js/grammar/drive-and-go-multiplayer.js"></script>
+    <script src="js/purrfect-survival-engine.js"></script>
+    <script src="js/purrfect-survival-render.js"></script>
+    <script src="js/purrfect-survival.js"></script>
     <script src="js/leaderboard.js"></script>
     <script src="js/admin.js"></script>
     <script src="js/profile.js"></script>

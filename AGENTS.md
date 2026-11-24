@@ -3489,3 +3489,35 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - Autoplay：撳 tab 本身係 user gesture，通常可播；被阻擋時
   `armMeStoreMusicGesture()` 會喺下一次 pointerdown／keydown 再試。
 - Guest 都可以聽 Me／Store 音樂；老師 preview 一樣。
+
+## 10.18 Purr-fect Survival（2026-11，7th-tab 後新增獨立遊戲）
+
+- **入口**：Hub 嘅 `#hub-purrfect-entry`，放喺 Word Battle 卡（`#hub-battle-entry`）之後、
+  My Records 之前，獨立一頁 `#purrfect-survival-view`，唔係 Dictation／Grammar 子頁。
+  訪客撳入去只會見到「Sign in with your school Google account」提示，唔可以開房／
+  加入／玩；學生同老師先可以。房最多 30 個學生（老師落場時 31 個位）。
+- **檔案**：
+  - `js/purrfect-survival-engine.js` — 純規則（`window.PSEngine`），phase schedule、
+    red penalty、advanceRound1、glass bridge、MC／glass pair 產生器。無 DOM／network。
+  - `js/purrfect-survival-render.js` — canvas 畫 doll／track／cats／ghost／glass bridge／
+    lasers／shatter，portrait 同 landscape 版面。玩家貓用 `DG.drawCatAvatar`。
+  - `js/purrfect-survival.js` — lobby、create／join／rejoin／leave、1 秒 polling（
+    遊戲中 0.7 秒）、鍵盤 1–4／方向鍵、SQL 未跑提示。
+  - `supabase/purrfect_survival.sql` — 老師自己喺 live project `mggnwzirjmibreimrwiq`
+    嘅 SQL editor 貼一次（可重跑；**唔好**用 plugin／agent 跑）。
+- **流程**：房主揀 **Vocab 或 Grammar（唔可以混合）** → 建立房間 → 學生用 4 位房碼加入
+  → 房主 Start（至少 2 個玩家）→ Round 1 → 自動／房主手動轉 Round 2 → 完場顯示
+  中途勝利／出局畫面（Round 3 同 Squid Circle 未做）。`current_round`／`status`
+  預留日後加回合。
+- **Round 1（123 木頭貓）**：server 存 `phase_schedule`（green 4–8s、yellow 2s、
+  red 3s）同 `round1_started_at`；所有電話用 server 時間重算 phase，RPC 亦用
+  `now()` 驗證。Green／Yellow 答對 +10m；Red 亂撳第 1 次 −30m、第 2 次 −15m、
+  第 3 次出局。Green 答錯唔扣分。100m 為終點，先到 15 個（或時間到取最遠 15 個）
+  過橋。
+- **Round 2（Glass Stepping Stones）**：9 塊玻璃、左右兩塊相似選項；每人 5 秒，
+  揀錯或唔跳就跌；正確／錯誤都會永久點亮正確嗰邊俾後面同學睇，timeout 唔會點亮。
+  排隊次序跟 Round 1 名次；前面嘅人離開 step 0 或跌落，下一個才放行。
+- **同步**：短 polling（無 Realtime publication）。`tick_purrfect_survival` 由任何
+  房員 call，idempotent，負責時間到／15 人到終點轉 Round 2、5 秒 timeout、放行
+  下一個同完場。RLS 只准房員／老師讀；寫入全部經 security-definer RPC。
+- **測試**：`node --test tests/purrfect-survival.test.cjs`（27 個 engine／wiring 測試）。

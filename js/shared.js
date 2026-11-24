@@ -214,6 +214,11 @@
                 const panel = window.navBattlePanel || 'lobby';
                 return panel === 'lobby' || panel === 'result' || panel === 'class';
             }
+            if (viewId === 'purrfect-survival-view') {
+                // Lobby / waiting / result keep the bar. A live race or glass
+                // bridge is full-screen and has its own exit.
+                return !window.navPurrfectLive;
+            }
             return true;
         }
 
@@ -2508,6 +2513,7 @@
             if (viewId !== 'battle-view') battleStopPolling();
             if (viewId !== 'wordjump-view' && typeof WJ !== 'undefined') WJ.stop();
             if (viewId !== 'wordjump-view' && typeof WJC !== 'undefined') WJC.onLeaveView();
+            if (viewId !== 'purrfect-survival-view' && typeof PS !== 'undefined' && PS && typeof PS.stop === 'function') PS.stop();
             if (viewId !== 'fluency-flap-view' && typeof FLAP !== 'undefined') FLAP.stop();
             if (viewId !== 'purrstack-view') {
                 const pf = document.getElementById('purrstack-frame');
@@ -2608,6 +2614,10 @@
                 });
             }
             if (viewId === 'battle-view') { updateMascot("Word Battle! Create a room or join with a code."); battleEnter(); }
+            if (viewId === 'purrfect-survival-view') {
+                updateMascot("Purr-fect Survival — survive the doll and the glass bridge!");
+                if (typeof PS !== 'undefined' && PS && typeof PS.enter === 'function') PS.enter();
+            }
             if (viewId === 'wordjump-view') {
                 updateMascot("Jump, spell, climb — how high can you go?");
                 const back = document.getElementById('wj-back-label');

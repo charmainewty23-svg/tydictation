@@ -863,8 +863,9 @@
             <select id="setTopic" class="setup-select"></select>
           </label>
           <div class="setup-row wide hidden" id="nvScopeRow">
-            <span class="setup-label">New Vocab words</span>
+            <span class="setup-label">New Vocab words · pick one or two</span>
             <div class="pills" id="setScope"></div>
+            <div class="type-summary" id="scopeSummary"></div>
           </div>
           <div class="setup-row wide">
             <span class="setup-label">Question type · pick one or more</span>
@@ -1169,8 +1170,20 @@
     { id: 'today', label: '🆕 Added today' },
     { id: 'yesterday', label: '📅 Added yesterday' }
   ];
+  const SCOPE_IDS = SCOPE_OPTIONS.map(o => o.id);
+  function normalizeScopes(value) {
+    const list = Array.isArray(value) ? value : (value ? [value] : []);
+    const valid = SCOPE_IDS.filter(id => list.indexOf(id) !== -1);
+    if (!valid.length || valid.indexOf('all') !== -1) return ['all'];
+    return valid.slice(0, 2);
+  }
+  function scopeText(scopes, separator) {
+    const list = normalizeScopes(scopes);
+    if (list.indexOf('all') !== -1) return '';
+    return list.map(id => id === 'today' ? 'today' : 'yesterday').join(separator || ' + ');
+  }
   const SETTINGS_VERSION = 2;
-  const settings = { v: SETTINGS_VERSION, mode: 'class', topic: 'mixed', scope: 'all', types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
+  const settings = { v: SETTINGS_VERSION, mode: 'class', topic: 'mixed', scope: ['all'], types: ['mc', 'tf', 'short'], count: 10, seconds: 15 };
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -1390,6 +1403,7 @@
   }
 
   async function loadNewVocab(form, scope) {
+    const scopes = normalizeScopes(scope);
     const query = 'select=en,zh,form,created_at&limit=1000' + (form ? '&form=eq.' + encodeURIComponent(form) : '');
     const res = await fetch(SUPABASE_URL + '/rest/v1/new_vocab_words?' + query, {
       headers: {
@@ -1401,19 +1415,28 @@
     const rows = await res.json();
     const today = hkDayOffset(0);
     const yesterday = hkDayOffset(-1);
+    const seen = new Set();
     return (rows || [])
       .filter(function (r) {
         if (!r.en || !r.zh) return false;
-        if (scope === 'today') return hkDayKey(r.created_at) === today;
-        if (scope === 'yesterday') return hkDayKey(r.created_at) === yesterday;
-        return true;
+        if (scopes.indexOf('all') !== -1) return true;
+        const day = hkDayKey(r.created_at);
+        return (scopes.indexOf('today') !== -1 && day === today) ||
+          (scopes.indexOf('yesterday') !== -1 && day === yesterday);
       })
-      .map(r => ({ en: r.en, zh: r.zh, topic: 'New Vocab ' + r.form }));
+      .map(r => ({ en: r.en, zh: r.zh, topic: 'New Vocab ' + r.form }))
+      .filter(function (w) {
+        const key = w.en.trim().toLowerCase() + '|' + w.zh.trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   function loadBank(id, scope) {
-    const useScope = scope || 'all';
-    const cacheId = id + (useScope === 'all' ? '' : '|' + useScope);
+    const useScope = normalizeScopes(scope);
+    const useAll = useScope.indexOf('all') !== -1;
+    const cacheId = id + (useAll ? '' : '|' + useScope.join('+'));
     if (bankCache.has(cacheId)) return bankCache.get(cacheId);
     const cached = readBankCache(cacheId);
     if (cached) {
@@ -1798,7 +1821,9 @@
       const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
       if (!raw) return;
       if (raw.mode === 'class' || raw.mode === 'quick') settings.mode = raw.mode;
-      if (raw.scope === 'today' || raw.scope === 'yesterday' || raw.scope === 'all') settings.scope = raw.scope;
+      if (raw.scope !== undefined || raw.scopes !== undefined) {
+        settings.scope = normalizeScopes(raw.scope !== undefined ? raw.scope : raw.scopes);
+      }
       const valid = TYPE_OPTIONS.map(o => o.id);
       if (raw.v === SETTINGS_VERSION && Array.isArray(raw.types)) {
         settings.types = raw.types.filter(id => valid.indexOf(id) !== -1);
@@ -1876,6 +1901,50 @@
     });
   }
 
+  function renderScopePills() {
+    const host = $('setScope');
+    if (!host) return;
+    host.innerHTML = SCOPE_OPTIONS.map(function (option) {
+      const on = settings.scope.indexOf(option.id) !== -1;
+      return '<button type="button" class="pill' + (on ? ' on' : '') +
+        '" data-id="' + option.id + '" aria-pressed="' + on + '">' + option.label + '</button>';
+    }).join('');
+    Array.from(host.querySelectorAll('.pill')).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const id = btn.getAttribute('data-id');
+        if (id === 'all') {
+          settings.scope = ['all'];
+        } else {
+          let picked = settings.scope.filter(x => x !== 'all');
+          const at = picked.indexOf(id);
+          if (at !== -1) {
+            if (picked.length === 1) {
+              const note = $('setupNote');
+              if (note) note.textContent = 'Keep at least one New Vocab word group selected.';
+              return;
+            }
+            picked.splice(at, 1);
+          } else {
+            picked.push(id);
+            picked = SCOPE_IDS.filter(x => picked.indexOf(x) !== -1).slice(0, 2);
+          }
+          settings.scope = picked.length ? picked : ['all'];
+        }
+        saveSettings();
+        renderSetup();
+      });
+    });
+    const summary = $('scopeSummary');
+    if (summary) {
+      const all = settings.scope.indexOf('all') !== -1;
+      const text = all
+        ? 'Using all words · tap a day to narrow it down'
+        : 'Using ' + scopeText(settings.scope, ' + ') +
+          (settings.scope.length === 1 ? ' · tap another day to combine' : '');
+      summary.textContent = text;
+    }
+  }
+
   function renderSetup() {
     renderTopicSelect();
     renderPills($('setMode'), MODE_OPTIONS, settings.mode, function (id) {
@@ -1887,11 +1956,7 @@
     const isNewVocab = settings.topic.indexOf('nv:') === 0;
     const scopeRow = $('nvScopeRow');
     if (scopeRow) scopeRow.classList.toggle('hidden', !isNewVocab);
-    renderPills($('setScope'), SCOPE_OPTIONS, settings.scope, function (id) {
-      settings.scope = id;
-      saveSettings();
-      renderSetup();
-    });
+    renderScopePills();
     renderTypePills();
     const shortNames = { mc: 'MC', gap: 'Fill gap', tf: 'T/F', short: 'Type' };
     const picked = settings.types.map(function (id) { return shortNames[id] || id; });
@@ -1998,13 +2063,15 @@
     let gapRequested = 0;
     let gapUsed = 0;
     const nvTopic = settings.topic.indexOf('nv:') === 0;
+    const scopes = normalizeScopes(settings.scope);
+    const useAll = scopes.indexOf('all') !== -1;
     try {
-      let words = await loadBank(settings.topic, nvTopic ? settings.scope : 'all');
-      if (!words.length && nvTopic && settings.scope !== 'all') {
+      let words = await loadBank(settings.topic, nvTopic ? scopes : 'all');
+      if (!words.length && nvTopic && !useAll) {
         const allWords = await loadBank(settings.topic, 'all');
         if (allWords.length) {
           words = allWords;
-          message = 'No words added ' + (settings.scope === 'today' ? 'today' : 'yesterday') +
+          message = 'No words added ' + scopeText(scopes, ' or ') +
             ' for ' + topicTitle(settings.topic).replace('New Vocab · ', '') +
             ' — using all ' + allWords.length + ' words instead.';
         }
@@ -2025,8 +2092,8 @@
       }
       gapUsed = questions.filter(q => q.type === 'gap').length;
       if (!message) {
-        const scopeLabel = nvTopic && settings.scope !== 'all'
-          ? ' · ' + (settings.scope === 'today' ? 'added today' : 'added yesterday')
+        const scopeLabel = nvTopic && !useAll
+          ? ' · added ' + scopeText(scopes, ' + ')
           : '';
         message = 'Loaded ' + bank.length + ' words from ' + topicTitle(settings.topic) + scopeLabel +
           ' · ' + questions.length + ' questions · ' + settings.seconds + 's each.';
@@ -3110,9 +3177,11 @@
 
     let questions = [];
     const nvTopic = settings.topic.indexOf('nv:') === 0;
+    const scopes = normalizeScopes(settings.scope);
+    const useAll = scopes.indexOf('all') !== -1;
     try {
-      let words = await loadBank(settings.topic, nvTopic ? settings.scope : 'all');
-      if (!words.length && nvTopic && settings.scope !== 'all') {
+      let words = await loadBank(settings.topic, nvTopic ? scopes : 'all');
+      if (!words.length && nvTopic && !useAll) {
         const allWords = await loadBank(settings.topic, 'all');
         if (allWords.length) words = allWords;
       }
@@ -3908,7 +3977,7 @@
     saveSettings();
     renderSetup();
     $('setupNote').textContent = settings.topic.indexOf('nv:') === 0
-      ? 'Pick All words, Added today or Added yesterday, then press Start.'
+      ? 'Pick one or two word groups (All words, Added today, Added yesterday), then press Start.'
       : 'Words for “' + topicTitle(settings.topic) + '” load when you press Start.';
   });
   $('startBtn').addEventListener('click', startQuiz);

@@ -2049,10 +2049,14 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   設定存 `localStorage['learniTY_qk_settings']`，重新整理同「🎉 New quiz」都會保留。
   - Topic：**Mixed**（20 個 Dictation Sheet tabs ＋ 全部 New Vocab）、逐個
     Dictation topic、**New Vocab · F3／F4／F6**。`#setTopic` 用 optgroup 分組。
-  - 揀 New Vocab 時多一行 **New Vocab words**（`#nvScopeRow`／`#setScope`）：
-    📚 All words／🆕 Added today／📅 Added yesterday（`settings.scope`）。
-    用 `created_at` 同香港日界（`hkDayKey`／`hkDayOffset`）過濾；只有
-    `nv:` topic 才顯示，Mixed／Sheet topic 會收埋。
+  - 揀 New Vocab 時多一行 **New Vocab words · pick one or two**
+    （`#nvScopeRow`／`#setScope`／`#scopeSummary`）：📚 All words／🆕 Added today／
+    📅 Added yesterday。可以同時撳 **Added today＋Added yesterday** 兩粒
+    （`settings.scope` 而家係 array，例如 `['today','yesterday']`）；`All words`
+    係 exclusive，揀咗就會清走其他。最少要留一粒；兩粒日數一齊揀會合併字庫並
+    按英文＋中文去重。舊版 `settings.scope: 'today'` 會自動 migrate 做
+    `['today']`。用 `created_at` 同香港日界（`hkDayKey`／`hkDayOffset`）過濾；
+    只有 `nv:` topic 才顯示，Mixed／Sheet topic 會收埋。
   - **Question type 可以揀多過一種**（`settings.types` array）：
     🔤 Multiple choice、🧩 Fill the gap、✅ True / false、⌨️ Type the word。
     四個 pill 可以任意組合，**最少要留一個**（撳走最後一個會提示）。舊版

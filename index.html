@@ -4477,6 +4477,34 @@
         @media (prefers-reduced-motion: reduce) {
             .ps-phase-red { animation: none; }
         }
+
+        /* ---------- public demo hooks (no-login showcase) ---------- */
+        /* Only applied when the demo module adds the classes; the live
+           homepage tile never gets them. The projector class forces the
+           wide whole-class layout even if the demo iframe is slightly
+           square. */
+        body.ps-demo-mode #app > .brand-header,
+        body.ps-demo-mode #app > header,
+        body.ps-demo-mode #bottom-nav,
+        body.ps-demo-mode #home-music-btn,
+        body.ps-demo-mode #me-store-music-btn {
+            display: none !important;
+        }
+        #purrfect-survival-view.ps-demo-mode .ps-topbar { display: none; }
+        #purrfect-survival-view.ps-demo-mode #ps-game .ps-hud .ps-icon-btn[aria-label="Back to Hub"] { display: none; }
+
+        #purrfect-survival-view.ps-demo-projector .ps-game .ps-stage {
+            aspect-ratio: 16 / 9;
+            max-height: none;
+            height: calc(100dvh - 130px);
+        }
+        #purrfect-survival-view.ps-demo-projector.ps-live .ps-stage { height: 100%; }
+        #purrfect-survival-view.ps-demo-projector .ps-question {
+            left: 12px;
+            bottom: 12px;
+            transform: none;
+            width: min(460px, 44vw);
+        }
     </style>
 </head>
 <body class="h-full">

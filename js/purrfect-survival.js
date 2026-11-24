@@ -48,6 +48,23 @@
     let clockOffset = 0;
     let lastTickAt = 0;
 
+    /* ---- public demo (no login, no Supabase) -------------------------- */
+    const DEMO_ROUND_MS = 120000;
+    const DEMO_ROUND2_MS = 600000;
+    const DEMO_BOT_COUNT = 24;
+    const DEMO_VISITOR_ID = 'demo-you';
+    const DEMO_TEACHER_ID = 'demo-teacher';
+    const DEMO_SEED = 20261125;
+    let demoMode = false;
+    let demoRole = 'student';
+    let demoSubject = 'vocab';
+    let demoLoopTimer = 0;
+    let demoClassmates = [];
+    let demoGlassPairs = [];
+    let demoShieldInstalled = false;
+    let demoPrevShowApp = null;
+    let demoPrevShowLogin = null;
+
     try {
         soundOn = localStorage.getItem('learniTY_ps_sound') !== '0';
     } catch (e) { soundOn = true; }
@@ -144,6 +161,7 @@
     }
 
     function saveResume() {
+        if (demoMode) return;
         if (!room) return;
         try {
             localStorage.setItem(resumeKey(), JSON.stringify({
@@ -155,10 +173,12 @@
     }
 
     function clearResume() {
+        if (demoMode) return;
         try { localStorage.removeItem(resumeKey()); } catch (e) { /* ignore */ }
     }
 
     function readResume() {
+        if (demoMode) return null;
         try {
             const raw = localStorage.getItem(resumeKey());
             if (!raw) return null;
@@ -459,7 +479,7 @@
         const saved = readResume();
         const banner = $('ps-rejoin-banner');
         if (!banner) return;
-        if (isGuest()) {
+        if (demoMode || isGuest()) {
             banner.classList.add('hidden');
             return;
         }
@@ -489,6 +509,7 @@
     }
 
     PS.createRoom = async function () {
+        if (demoMode) { PS.demoJump('round1'); return; }
         if (busy || !assertCanPlay()) return;
         setError('');
         const subject = selectValue('ps-subject', 'vocab');
@@ -545,6 +566,7 @@
     };
 
     PS.joinRoom = async function () {
+        if (demoMode) { PS.demoJump('round1'); return; }
         if (busy || !assertCanPlay()) return;
         const input = $('ps-join-code');
         const code = (input && input.value ? input.value : '').trim().toUpperCase();
@@ -571,6 +593,7 @@
     };
 
     PS.rejoin = async function () {
+        if (demoMode) { PS.demoJump('lobby'); return; }
         if (busy || !assertCanPlay()) return;
         const saved = readResume();
         if (!saved || !saved.roomId) return;
@@ -618,6 +641,7 @@
 
     function startPolling() {
         stopPolling();
+        if (demoMode) return;
         pollTimer = setInterval(poll, pollDelay());
     }
 
@@ -636,6 +660,7 @@
     }
 
     async function poll(force) {
+        if (demoMode) return;
         if (!room || pollBusy || isGuest()) return;
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
         pollBusy = true;
@@ -734,6 +759,7 @@
     }
 
     PS.backToHub = function () {
+        if (demoMode) { PS.hideOverlay(); PS.demoJump('lobby'); return; }
         const keep = room;
         PS.stop();
         if (typeof changeView === 'function') changeView('hub-view');
@@ -818,7 +844,7 @@
     }
 
     function renderSpectator(isR2) {
-        if (!me) {
+        if (!me || (demoMode && !isPlayingPlayer(me))) {
             // Teacher / host spectating with no player seat: keep the whole
             // track or bridge unobstructed.
             show('ps-question', false);
@@ -977,7 +1003,7 @@
                 const info = phaseInfo();
                 const state = {
                     round: isR2 ? 2 : 1,
-                    role: (isHost() && !me) ? 'host' : 'player',
+                    role: (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
                     w: surface.w,
                     h: surface.h,
                     players: players,
@@ -1086,6 +1112,7 @@
     }
 
     async function redPress() {
+        if (demoMode) { demoRedPress(); return; }
         if (busy || !room || room.status !== 'round1' || !me || me.status === 'eliminated' || me.ghost) return;
         const info = currentQuestionPhase();
         if (!info || info.phase !== 'red') {
@@ -1127,6 +1154,7 @@
     }
 
     PS.answer = async function (choice) {
+        if (demoMode) { demoAnswer(choice); return; }
         if (busy || !room || room.status !== 'round1' || !me || !isPlayingPlayer(me)) return;
         if (me.status === 'eliminated' || me.ghost || me.reached_finish) return;
         if (Date.now() < answerLockUntil) return;
@@ -1183,6 +1211,7 @@
     /* ------------------------------------------------------------------ */
 
     PS.jump = async function (side) {
+        if (demoMode) { demoGlassJump(side); return; }
         if (busy || !room || room.status !== 'round2' || !me || !isPlayingPlayer(me)) return;
         if (!me.glass_active || me.status !== 'alive') return;
         if (side !== 'left' && side !== 'right') return;
@@ -1242,6 +1271,7 @@
     /* ------------------------------------------------------------------ */
 
     PS.startRound1 = async function () {
+        if (demoMode) { PS.demoJump('round1'); return; }
         if (busy || !room || room.status !== 'waiting' || !isHost()) return;
         if (totalPlayers() < 2) return setError('Wait for at least two players before starting.');
         setError('');
@@ -1286,6 +1316,7 @@
     };
 
     PS.endRound1Now = async function () {
+        if (demoMode) { demoAdvanceToRound2(); render(); return; }
         if (busy || !room || !isHost() || room.status !== 'round1') return;
         if (typeof window.confirm === 'function' &&
             !window.confirm('End Round 1 now and move the first 15 survivors to the glass bridge?')) return;
@@ -1529,6 +1560,16 @@
     /* ------------------------------------------------------------------ */
 
     PS.enter = async function () {
+        if (demoMode) {
+            demoEnsureUser();
+            demoPrepareChrome();
+            demoApplyRoleClass();
+            me = myPlayer();
+            if (room) render();
+            else setPanel('lobby');
+            demoStartLoop();
+            return;
+        }
         if (!signedInUser() || isGuest()) {
             populateLobby();
             setPanel('lobby');
@@ -1589,6 +1630,7 @@
     };
 
     PS.leaveRoom = async function () {
+        if (demoMode) { PS.hideOverlay(); PS.demoJump('lobby'); return; }
         if (!room) {
             PS.backToHub();
             return;
@@ -1629,6 +1671,779 @@
     };
 
     /* ------------------------------------------------------------------ */
+    /* Public demo mode (no login / no Supabase)                          */
+    /* ------------------------------------------------------------------ */
+    /*
+     * The public demo reuses this exact module, the existing renderer and
+     * the PSEngine rules. There is no second game loop and no second
+     * canvas: a local setInterval updates the same `room` / `players`
+     * objects the live polling would update, then calls the normal
+     * render() and canvas frame loop.
+     *
+     * demoMode is only ever turned on by PS.startDemo() — which the demo
+     * page calls, or which auto-boots when index.html?psdemo=1 is opened.
+     * The normal homepage tile never sets it, so isGuest() /
+     * assertCanPlay() / PS.enter() keep their real guest blocking.
+     */
+
+    function demoHash01(text) {
+        return PSEngine.hashString(text) / 4294967296;
+    }
+
+    function demoIdentity() {
+        if (demoRole === 'teacher') {
+            return {
+                id: DEMO_TEACHER_ID,
+                email: 'teacher@lstyoungkhl.edu.hk',
+                user_metadata: { full_name: '4C Teacher' }
+            };
+        }
+        return {
+            id: DEMO_VISITOR_ID,
+            email: 'demo16@lstyoungkhl.edu.hk',
+            user_metadata: { full_name: '4C 16 Demo' }
+        };
+    }
+
+    function demoEnsureUser() {
+        if (!demoMode) return;
+        const user = demoIdentity();
+        try {
+            if (typeof currentUser !== 'undefined' && (!currentUser || currentUser.id !== user.id)) {
+                currentUser = user;
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            if (typeof guestSession !== 'undefined' && guestSession) guestSession = false;
+        } catch (e) { /* ignore */ }
+    }
+
+    function demoPrepareChrome() {
+        if (!demoMode) return;
+        demoEnsureUser();
+        document.body.classList.add('ps-demo-mode');
+        const login = $('login-view');
+        if (login) login.style.display = 'none';
+        const app = $('app');
+        if (app) app.classList.add('logged-in');
+        ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+            const el = $(id);
+            if (el) el.style.display = 'none';
+        });
+        const header = document.querySelector('#app > .brand-header');
+        if (header) header.style.display = 'none';
+        const mascot = document.querySelector('#app > header');
+        if (mascot) mascot.style.display = 'none';
+    }
+
+    /* Supabase auth can still emit a session event inside the demo
+       iframe. Keep the demo in charge without touching the real path:
+       showApp()/showLogin() fall back to the originals whenever demoMode
+       is off. */
+    function demoInstallShield() {
+        if (demoShieldInstalled) return;
+        demoShieldInstalled = true;
+        try {
+            demoPrevShowApp = root.showApp;
+            demoPrevShowLogin = root.showLogin;
+            root.showApp = function () {
+                if (demoMode) {
+                    demoPrepareChrome();
+                    demoApplyRoleClass();
+                    if (typeof currentView !== 'undefined' && currentView !== VIEW_ID && typeof changeView === 'function') {
+                        changeView(VIEW_ID);
+                    } else if (room) {
+                        render();
+                    }
+                    return;
+                }
+                if (typeof demoPrevShowApp === 'function') return demoPrevShowApp.apply(this, arguments);
+            };
+            root.showLogin = function () {
+                if (demoMode) {
+                    demoPrepareChrome();
+                    return;
+                }
+                if (typeof demoPrevShowLogin === 'function') return demoPrevShowLogin.apply(this, arguments);
+            };
+        } catch (e) { /* ignore */ }
+    }
+
+    function demoApplyRoleClass() {
+        const view = $(VIEW_ID);
+        if (view) {
+            view.classList.add('ps-demo-mode');
+            view.classList.toggle('ps-demo-projector', demoRole === 'teacher');
+        }
+        document.body.classList.toggle('ps-demo-projector', demoRole === 'teacher');
+    }
+
+    function demoOpenView() {
+        demoPrepareChrome();
+        demoApplyRoleClass();
+        if (typeof changeView === 'function') {
+            if (typeof currentView === 'undefined' || currentView !== VIEW_ID) changeView(VIEW_ID);
+        } else {
+            const view = $(VIEW_ID);
+            if (view) view.classList.remove('hidden');
+        }
+    }
+
+    function demoPlayerRow(bot) {
+        return {
+            user_id: bot.user_id,
+            email: bot.email || '',
+            nickname: bot.nickname || '',
+            cat: bot.cat || 'Ginger',
+            glasses: bot.glasses || 'None',
+            hat: bot.hat || 'None',
+            outfit: bot.outfit || 'None',
+            is_playing: bot.is_playing !== false,
+            status: 'alive',
+            ghost: false,
+            distance: 0,
+            red_offences: 0,
+            question_index: 0,
+            reached_finish: false,
+            finished_at: null,
+            last_red_phase: -1,
+            demo_attempts: 0,
+            next_answer_at: 0,
+            round1_advanced: false,
+            round1_rank: null,
+            glass_step: 0,
+            glass_active: false,
+            glass_released: false,
+            glass_side: null,
+            glass_started_at: null,
+            glass_shattered: false,
+            glass_finished_at: null,
+            crossed_glass: false,
+            survived_round2: false,
+            advanced_round2: false
+        };
+    }
+
+    function demoBuildGlassSteps() {
+        return PSEngine.buildGlassSteps({
+            pairs: demoGlassPairs,
+            seed: PSEngine.coerceSeed(DEMO_SEED) + 17,
+            count: PSEngine.ROUND2.STEP_COUNT
+        });
+    }
+
+    function demoInit() {
+        const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+        questions = built.questions.slice();
+        demoGlassPairs = built.glassPairs.slice();
+        glassSteps = (built.glassSteps || demoBuildGlassSteps()).slice();
+        demoClassmates = PSEngine.buildDemoClassmates({ count: DEMO_BOT_COUNT, seed: DEMO_SEED });
+        players = demoClassmates.map(demoPlayerRow);
+        players.push(demoPlayerRow({
+            user_id: DEMO_VISITOR_ID,
+            email: 'demo16@lstyoungkhl.edu.hk',
+            nickname: '4C 16 Demo',
+            cat: 'Ragdoll',
+            glasses: 'Glasses',
+            hat: 'None',
+            outfit: 'None'
+        }));
+        const teacher = demoPlayerRow({
+            user_id: DEMO_TEACHER_ID,
+            email: 'teacher@lstyoungkhl.edu.hk',
+            nickname: '4C Teacher',
+            cat: 'Garfield',
+            glasses: 'None',
+            hat: 'None',
+            outfit: 'None'
+        });
+        teacher.is_playing = false;
+        players.push(teacher);
+        room = {
+            id: 'demo-purrfect-room',
+            code: 'DEMO',
+            host_id: DEMO_TEACHER_ID,
+            status: 'waiting',
+            subject: demoSubject,
+            source: 'Demo Vocab',
+            topic: 'Demo Vocab',
+            bank_mode: '',
+            seed: DEMO_SEED,
+            max_players: 30,
+            finish_distance: 100,
+            current_round: 1,
+            round1_started_at: null,
+            round1_ends_at: null,
+            round2_started_at: null,
+            round2_ends_at: null,
+            phase_schedule: [],
+            glass_steps: glassSteps,
+            questions: questions,
+            settings: { roundMs: DEMO_ROUND_MS },
+            server_now: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            started_at: null,
+            finished_at: null
+        };
+        clockOffset = 0;
+        shownKeys = {};
+        questionsKey = '';
+        lastPhaseKey = '';
+        lastRedSent = -1;
+        overlayAction = null;
+        busy = false;
+        me = myPlayer();
+    }
+
+    function demoResetPlayers() {
+        players.forEach(function (p) {
+            p.status = 'alive';
+            p.ghost = false;
+            p.distance = 0;
+            p.red_offences = 0;
+            p.question_index = 0;
+            p.reached_finish = false;
+            p.finished_at = null;
+            p.last_red_phase = -1;
+            p.demo_attempts = 0;
+            p.next_answer_at = 0;
+            p.round1_advanced = false;
+            p.round1_rank = null;
+            p.glass_step = 0;
+            p.glass_active = false;
+            p.glass_released = false;
+            p.glass_side = null;
+            p.glass_started_at = null;
+            p.glass_shattered = false;
+            p.glass_finished_at = null;
+            p.crossed_glass = false;
+            p.survived_round2 = false;
+            p.advanced_round2 = false;
+            p.eliminated_reason = null;
+        });
+        questionsKey = '';
+        lastPhaseKey = '';
+        lastRedSent = -1;
+    }
+
+    function demoIsVisitor(p) {
+        return !!(demoMode && demoRole === 'student' && p && String(p.user_id) === DEMO_VISITOR_ID);
+    }
+
+    function demoBotSucceeds(p) {
+        const skill = 0.80 + demoHash01(p.user_id + ':skill') * 0.15;
+        return demoHash01(p.user_id + ':attempt:' + (Number(p.demo_attempts) || 0)) < skill;
+    }
+
+    function demoBotPace(p) {
+        const base = 2600 + demoHash01(p.user_id + ':pace') * 1600;
+        const jitter = (demoHash01(p.user_id + ':pj:' + (Number(p.demo_attempts) || 0)) - 0.5) * 700;
+        return Math.max(1200, base + jitter);
+    }
+
+    function demoJumpLobby() {
+        demoResetPlayers();
+        room.status = 'waiting';
+        room.current_round = 1;
+        room.round1_started_at = null;
+        room.round1_ends_at = null;
+        room.round2_started_at = null;
+        room.round2_ends_at = null;
+        room.finished_at = null;
+        room.phase_schedule = [];
+        glassSteps = demoBuildGlassSteps();
+        room.glass_steps = glassSteps;
+        shownKeys = {};
+        questionsKey = '';
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function demoJumpRound1() {
+        demoResetPlayers();
+        if (!questions.length) {
+            const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+            questions = built.questions.slice();
+            demoGlassPairs = built.glassPairs.slice();
+        }
+        const now = Date.now();
+        const roundMs = DEMO_ROUND_MS;
+        room.status = 'round1';
+        room.current_round = 1;
+        room.settings = Object.assign({}, room.settings, { roundMs: roundMs });
+        room.round1_started_at = new Date(now).toISOString();
+        room.round1_ends_at = new Date(now + roundMs).toISOString();
+        room.round2_started_at = null;
+        room.round2_ends_at = null;
+        room.finished_at = null;
+        room.phase_schedule = PSEngine.buildPhaseSchedule(DEMO_SEED, { roundMs: roundMs });
+        glassSteps = demoBuildGlassSteps();
+        room.glass_steps = glassSteps;
+        room.questions = questions;
+        shownKeys = {};
+        questionsKey = '';
+        lastPhaseKey = '';
+        lastRedSent = -1;
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p, i) {
+            p.next_answer_at = now + 300 + ((i * 127) % 1500) + demoHash01(p.user_id + ':stagger') * 600;
+        });
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function demoJumpRound2() {
+        demoResetPlayers();
+        if (!questions.length) {
+            const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+            questions = built.questions.slice();
+            demoGlassPairs = built.glassPairs.slice();
+        }
+        const now = Date.now();
+        const playing = players.filter(isPlayingPlayer);
+        const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+        const survivors = [];
+        if (visitor && demoRole === 'student') survivors.push(visitor);
+        const bots = playing.filter(function (p) { return p.user_id !== DEMO_VISITOR_ID; });
+        bots.sort(function (a, b) {
+            return demoHash01('survive:' + a.user_id) - demoHash01('survive:' + b.user_id);
+        });
+        while (survivors.length < PSEngine.ROUND1.ADVANCE_LIMIT && bots.length) survivors.push(bots.shift());
+        const kept = {};
+        survivors.forEach(function (p, i) {
+            kept[p.user_id] = true;
+            p.round1_advanced = true;
+            p.round1_rank = i + 1;
+            p.status = 'alive';
+            p.ghost = false;
+            p.distance = 100;
+        });
+        playing.forEach(function (p) {
+            if (kept[p.user_id]) return;
+            p.status = 'eliminated';
+            p.ghost = true;
+            p.eliminated_reason = 'round1_cut';
+            p.round1_advanced = false;
+            p.round1_rank = null;
+        });
+        room.status = 'round2';
+        room.current_round = 2;
+        room.round1_started_at = room.round1_started_at || new Date(now - 45000).toISOString();
+        room.round1_ends_at = room.round1_ends_at || new Date(now).toISOString();
+        room.round2_started_at = new Date(now).toISOString();
+        room.round2_ends_at = new Date(now + DEMO_ROUND2_MS).toISOString();
+        room.finished_at = null;
+        glassSteps = demoBuildGlassSteps();
+        room.glass_steps = glassSteps;
+        room.questions = questions;
+        shownKeys = {};
+        shownKeys['intro2:' + room.id] = true;
+        questionsKey = '';
+        me = myPlayer();
+        demoReleaseGlass(now);
+        PS.hideOverlay();
+    }
+
+    function demoJumpVictory() {
+        demoResetPlayers();
+        const now = Date.now();
+        const playing = players.filter(isPlayingPlayer);
+        const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+        const bots = playing.filter(function (p) { return p.user_id !== DEMO_VISITOR_ID; });
+        bots.slice(0, 5).forEach(function (p, i) {
+            p.status = 'advanced';
+            p.crossed_glass = true;
+            p.survived_round2 = true;
+            p.advanced_round2 = true;
+            p.glass_step = PSEngine.ROUND2.STEP_COUNT;
+            p.glass_active = false;
+            p.round1_rank = i + 1;
+        });
+        if (visitor && demoRole === 'student') {
+            visitor.status = 'advanced';
+            visitor.crossed_glass = true;
+            visitor.survived_round2 = true;
+            visitor.advanced_round2 = true;
+            visitor.glass_step = PSEngine.ROUND2.STEP_COUNT;
+            visitor.glass_active = false;
+            visitor.round1_rank = 1;
+        }
+        playing.forEach(function (p) {
+            if (p.status !== 'advanced') {
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = 'glass';
+                p.glass_active = false;
+            }
+        });
+        room.status = 'finished';
+        room.current_round = 2;
+        room.round2_started_at = room.round2_started_at || new Date(now - 40000).toISOString();
+        room.round2_ends_at = new Date(now).toISOString();
+        room.finished_at = new Date(now).toISOString();
+        glassSteps = demoBuildGlassSteps();
+        for (let i = 0; i < glassSteps.length; i++) PSEngine.revealGlassStep(glassSteps[i], 'correct');
+        room.glass_steps = glassSteps;
+        room.questions = questions;
+        shownKeys = {};
+        questionsKey = '';
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function demoAdvanceToRound2() {
+        if (!room || room.status !== 'round1') return;
+        const now = Date.now();
+        const playing = players.filter(isPlayingPlayer);
+        const picked = PSEngine.advanceRound1(playing, {
+            limit: PSEngine.ROUND1.ADVANCE_LIMIT,
+            finishDistance: room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE
+        });
+        const kept = {};
+        picked.forEach(function (p) { kept[p.user_id] = true; });
+        playing.forEach(function (p) {
+            p.glass_step = 0;
+            p.glass_active = false;
+            p.glass_released = false;
+            p.glass_side = null;
+            p.glass_started_at = null;
+            p.glass_shattered = false;
+            p.glass_finished_at = null;
+            p.crossed_glass = false;
+            p.survived_round2 = false;
+            p.advanced_round2 = false;
+            if (kept[p.user_id]) {
+                p.status = 'alive';
+                p.ghost = false;
+            } else {
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = p.eliminated_reason || 'round1_cut';
+            }
+        });
+        glassSteps = demoBuildGlassSteps();
+        room.glass_steps = glassSteps;
+        room.status = 'round2';
+        room.current_round = 2;
+        room.round2_started_at = new Date(now).toISOString();
+        room.round2_ends_at = new Date(now + DEMO_ROUND2_MS).toISOString();
+        room.finished_at = null;
+        shownKeys['intro2:' + room.id] = true;
+        questionsKey = '';
+        me = myPlayer();
+        PS.hideOverlay();
+        demoReleaseGlass(now);
+    }
+
+    function demoFinishRound2(now) {
+        if (!room || room.status !== 'round2') return;
+        room.status = 'finished';
+        room.current_round = 2;
+        room.finished_at = new Date(now || Date.now()).toISOString();
+    }
+
+    function demoReleaseGlass(now) {
+        if (!room || room.status !== 'round2') return;
+        const playing = players.filter(isPlayingPlayer);
+        const queue = PSEngine.glassQueueIds(playing);
+        PSEngine.releaseGlassQueue(playing, queue, { now: now || Date.now() });
+    }
+
+    function demoBotGlassJump(p, now) {
+        const stepIndex = Math.max(0, Number(p.glass_step) || 0);
+        const step = glassSteps[stepIndex];
+        if (!step) { p.glass_active = false; return; }
+        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        let side;
+        if (step.revealed && step.revealed_side) {
+            const wantCorrect = demoHash01(p.user_id + ':reveal:' + stepIndex) < 0.9;
+            side = wantCorrect ? step.revealed_side : (step.revealed_side === 'left' ? 'right' : 'left');
+        } else {
+            const correctSide = step.correct_side === 'right' ? 'right' : 'left';
+            const guessCorrect = demoHash01(p.user_id + ':guess:' + stepIndex + ':' + String(p.glass_started_at)) < 0.55;
+            side = guessCorrect ? correctSide : (correctSide === 'left' ? 'right' : 'left');
+        }
+        const result = PSEngine.applyGlassJump(p, step, side, { stepCount: stepCount, at: now });
+        if (result.outcome === 'correct' && !p.crossed_glass && p.status === 'alive') {
+            // The live SQL keeps the same player on the bridge for the next
+            // pane until they cross or fall; mirror that turn continuation.
+            p.glass_active = true;
+            p.glass_started_at = now;
+        }
+    }
+
+    function demoGlassTimeout(p, now) {
+        const stepIndex = Math.max(0, Number(p.glass_step) || 0);
+        const step = glassSteps[stepIndex];
+        if (!step) { p.glass_active = false; return; }
+        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        PSEngine.applyGlassJump(p, step, '', { stepCount: stepCount, timedOut: true, at: now });
+        if (demoIsVisitor(p)) {
+            sfxShatter();
+            toast('⏱ Time up! No jump — you fell.');
+            showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
+            questionsKey = '';
+            renderPlayerQuestion(true);
+        }
+    }
+
+    function demoTickRound1(now) {
+        const info = phaseInfo();
+        // A missing clock (just after jump, or a missing start stamp) is
+        // not the same as the schedule being finished — wait, do not
+        // skip the visitor straight to the glass bridge.
+        if (!info) return;
+        if (info.done) {
+            demoAdvanceToRound2();
+            return;
+        }
+        const phase = info;
+        const playing = players.filter(isPlayingPlayer);
+
+        if (phase.phase === 'green' || phase.phase === 'yellow') {
+            playing.forEach(function (p) {
+                if (demoIsVisitor(p)) return;
+                if (!PSEngine.isAlive(p) || p.reached_finish) return;
+                if (!p.next_answer_at) p.next_answer_at = now + 300 + demoHash01(p.user_id + ':start') * 900;
+                if (now < p.next_answer_at) return;
+                const correct = demoBotSucceeds(p);
+                if (correct) {
+                    PSEngine.applyGreenCorrect(p, PSEngine.ROUND1.SPRINT_METERS, {
+                        at: now,
+                        finishDistance: room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE
+                    });
+                } else {
+                    PSEngine.applyGreenWrong(p);
+                }
+                p.question_index = (Number(p.question_index) || 0) + 1;
+                p.demo_attempts = (Number(p.demo_attempts) || 0) + 1;
+                p.next_answer_at = now + demoBotPace(p);
+            });
+        } else if (phase.phase === 'red') {
+            playing.forEach(function (p) {
+                if (demoIsVisitor(p)) return;
+                if (!PSEngine.isAlive(p) || p.reached_finish) return;
+                const wait = Math.max(0, Number(info.remaining_ms) || 0);
+                if (!p.next_answer_at || p.next_answer_at < now + wait) {
+                    p.next_answer_at = now + wait + 150 + demoHash01(p.user_id + ':postred') * 500;
+                }
+                if (p.last_red_phase === phase.index) return;
+                if (demoHash01(p.user_id + ':red:' + room.round1_started_at + ':' + phase.index) < 0.055) {
+                    p.last_red_phase = phase.index;
+                    PSEngine.applyRedPenalty(p);
+                }
+            });
+        }
+
+        const finishers = playing.filter(function (p) {
+            return PSEngine.isAlive(p) && PSEngine.isRound1Finished(p, room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE);
+        });
+        const ends = room.round1_ends_at ? Date.parse(room.round1_ends_at) : 0;
+        if (finishers.length >= PSEngine.ROUND1.ADVANCE_LIMIT || (ends && now >= ends)) {
+            demoAdvanceToRound2();
+        }
+    }
+
+    function demoTickRound2(now) {
+        demoReleaseGlass(now);
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p) {
+            if (!PSEngine.isAlive(p) || !p.glass_active) return;
+            const stepIndex = Math.max(0, Number(p.glass_step) || 0);
+            const step = glassSteps[stepIndex];
+            if (!step) { p.glass_active = false; return; }
+            if (PSEngine.glassWindowExpired(p.glass_started_at, now, PSEngine.ROUND2.WINDOW_MS)) {
+                demoGlassTimeout(p, now);
+                return;
+            }
+            const isVisitor = demoIsVisitor(p);
+            if (isVisitor) return;
+            const start = p.glass_started_at;
+            const elapsed = now - (typeof start === 'number' ? start : (Date.parse(start) || now));
+            const delay = 700 + demoHash01(p.user_id + ':glass:' + stepIndex + ':' + String(start)) * 3000;
+            if (elapsed >= delay) demoBotGlassJump(p, now);
+        });
+        if (!playing.some(PSEngine.isAlive)) demoFinishRound2(now);
+    }
+
+    function demoTick() {
+        if (!demoMode || !room) return;
+        demoEnsureUser();
+        demoPrepareChrome();
+        demoApplyRoleClass();
+        if (typeof currentView !== 'undefined' && currentView !== VIEW_ID && typeof changeView === 'function') {
+            changeView(VIEW_ID);
+        }
+        room.server_now = new Date().toISOString();
+        if (room.status === 'round1') demoTickRound1(Date.now());
+        else if (room.status === 'round2') demoTickRound2(Date.now());
+        render();
+        if (room && (room.status === 'round1' || room.status === 'round2')) startFrames();
+    }
+
+    function demoStartLoop() {
+        if (demoLoopTimer) return;
+        demoLoopTimer = setInterval(demoTick, 150);
+    }
+
+    function demoRedPress() {
+        if (!room || room.status !== 'round1' || !me || !isPlayingPlayer(me)) return;
+        if (me.status === 'eliminated' || me.ghost) return;
+        const info = currentQuestionPhase();
+        if (!info || info.phase !== 'red') {
+            if (info && (info.phase === 'green' || info.phase === 'yellow')) toast('Go! Answer with 1–4.');
+            return;
+        }
+        if (lastRedSent === info.index || Number(me.last_red_phase) === info.index) {
+            toast('Wait for the green light — one hit per red phase.');
+            return;
+        }
+        lastRedSent = info.index;
+        me.last_red_phase = info.index;
+        lastBang = Date.now();
+        const result = PSEngine.handleRound1Press(me, 'red');
+        sfxRed();
+        if (result.action === 'eliminated') {
+            toast('🔴 Laser hit — you are out!');
+            showEliminatedOverlay();
+        } else if (result.penalty) {
+            toast('🔴 Laser hit! ' + result.penalty + ' m. Get ready for the green light.');
+        } else {
+            toast('Hold still — wait for the green light.');
+        }
+        renderPlayerQuestion(false);
+    }
+
+    function demoAnswer(choice) {
+        if (!room || room.status !== 'round1' || !me || !isPlayingPlayer(me)) return;
+        if (me.status === 'eliminated' || me.ghost || me.reached_finish) return;
+        if (Date.now() < answerLockUntil) return;
+        const info = currentQuestionPhase();
+        if (!info) return;
+        if (info.phase === 'red' || info.done) { demoRedPress(); return; }
+        if (!PSEngine.isAnswerPhase(info.phase)) return;
+        const qIndex = (Number(me.question_index) || 0) % Math.max(1, questions.length);
+        const q = questions[qIndex];
+        if (!q) return;
+
+        answerLockUntil = Date.now() + 260;
+        const correct = Number(choice) === Number(q.answer);
+        me.question_index = (Number(me.question_index) || 0) + 1;
+        if (correct) {
+            PSEngine.applyGreenCorrect(me, PSEngine.ROUND1.SPRINT_METERS, {
+                at: Date.now(),
+                finishDistance: room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE
+            });
+            sfxCorrect();
+            toast('✅ +10 m! (' + (Number(me.distance) || 0) + ' / ' + (room.finish_distance || 100) + ' m)');
+            if (me.reached_finish) showFinishOverlay();
+        } else {
+            PSEngine.applyGreenWrong(me);
+            sfxWrong();
+            const optsEl = $('ps-options');
+            if (optsEl) {
+                optsEl.classList.add('ps-options-wrong');
+                setTimeout(function () { optsEl.classList.remove('ps-options-wrong'); }, 340);
+            }
+            toast('❌ Not this one — next question.');
+        }
+        questionsKey = '';
+        renderPlayerQuestion(false);
+    }
+
+    function demoGlassJump(side) {
+        if (!room || room.status !== 'round2' || !me || !isPlayingPlayer(me)) return;
+        if (!me.glass_active || me.status !== 'alive') return;
+        if (side !== 'left' && side !== 'right') return;
+        const stepIndex = Math.max(0, Number(me.glass_step) || 0);
+        const step = glassSteps[stepIndex];
+        if (!step) return;
+        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        const result = PSEngine.applyGlassJump(me, step, side, { stepCount: stepCount, at: Date.now() });
+        if (result.outcome === 'correct') {
+            sfxCorrect();
+            if (me.crossed_glass) {
+                sfxWin();
+                showSurvivedOverlay();
+            } else {
+                me.glass_active = true;
+                me.glass_started_at = Date.now();
+                toast('✅ Tempered pane! Step ' + (Number(me.glass_step) || 0) + ' cleared.');
+            }
+        } else if (result.outcome === 'wrong') {
+            sfxShatter();
+            toast('💥 Normal glass! You fell — the correct pane is lit for the class.');
+            showGlassOutOverlay('💥 You fell', 'The pane shattered. The correct side is now lit for the classmates behind you.');
+        } else if (result.outcome === 'timeout') {
+            sfxShatter();
+            toast('⏱ Time up! No jump — you fell.');
+            showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
+        } else if (result.outcome !== 'ignored') {
+            return;
+        }
+        questionsKey = '';
+        renderPlayerQuestion(true);
+        demoReleaseGlass(Date.now());
+        if (!players.filter(isPlayingPlayer).some(PSEngine.isAlive)) demoFinishRound2(Date.now());
+    }
+
+    PS.isDemoMode = function () {
+        return demoMode;
+    };
+
+    PS.startDemo = function (opts) {
+        const o = opts || {};
+        demoMode = true;
+        if (o.subject) demoSubject = PSEngine.normalizeSubject(o.subject) || 'vocab';
+        if (o.role) demoRole = o.role === 'teacher' ? 'teacher' : 'student';
+        demoInstallShield();
+        demoEnsureUser();
+        if (!room) demoInit();
+        demoApplyRoleClass();
+        me = myPlayer();
+        demoOpenView();
+        demoStartLoop();
+        if (o.scene) PS.demoJump(o.scene);
+        else render();
+        return true;
+    };
+
+    PS.setDemoRole = function (role) {
+        if (!demoMode) return false;
+        demoRole = role === 'teacher' ? 'teacher' : 'student';
+        demoEnsureUser();
+        demoApplyRoleClass();
+        me = myPlayer();
+        questionsKey = '';
+        render();
+        return true;
+    };
+
+    PS.setDemoSubject = function (subject) {
+        if (!demoMode) return false;
+        demoSubject = PSEngine.normalizeSubject(subject) || 'vocab';
+        const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+        questions = built.questions.slice();
+        demoGlassPairs = built.glassPairs.slice();
+        PS.demoJump('round1');
+        return true;
+    };
+
+    PS.demoJump = function (scene) {
+        if (!demoMode || !room) PS.startDemo({ role: demoRole, scene: 'lobby' });
+        demoEnsureUser();
+        demoApplyRoleClass();
+        const target = String(scene || 'round1').toLowerCase();
+        if (target === 'lobby' || target === 'waiting') demoJumpLobby();
+        else if (target === 'round2' || target === 'glass') demoJumpRound2();
+        else if (target === 'victory' || target === 'finished') demoJumpVictory();
+        else demoJumpRound1();
+        demoOpenView();
+        demoStartLoop();
+        render();
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Wire listeners once                                                */
     /* ------------------------------------------------------------------ */
 
@@ -1654,6 +2469,26 @@
             }
         }, 180);
     });
+
+    /* Direct public URL: index.html?psdemo=1 boots the same no-login demo
+       without needing the wrapper page. The wrapper is still the public
+       link; this keeps the flag usable on its own. */
+    function demoAutoBoot() {
+        try {
+            const search = String((root.location && root.location.search) || '');
+            if (!/[?&]psdemo=1(?:&|$)/.test(search)) return;
+            if (demoMode) return;
+            PS.startDemo({ role: 'student', scene: 'round1' });
+        } catch (e) { /* ignore */ }
+    }
+
+    try {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () { setTimeout(demoAutoBoot, 40); });
+        } else {
+            setTimeout(demoAutoBoot, 40);
+        }
+    } catch (e) { /* ignore */ }
 
     root.PS = PS;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

@@ -1745,9 +1745,38 @@
     tone(880, 0.09, 0.12, 'sine', 0.07);
     tone(1180, 0.2, 0.18, 'sine', 0.06);
   }
+  let revealAudio = null;
+  let revealAudioFailed = false;
+  function ensureRevealAudio() {
+    if (revealAudio) return revealAudio;
+    revealAudio = new Audio('/music/correctans_quizzykitty.mp3');
+    revealAudio.volume = 0.55;
+    revealAudio.preload = 'auto';
+    revealAudio.addEventListener('error', function () { revealAudioFailed = true; });
+    return revealAudio;
+  }
+  function stopRevealSting() {
+    if (!revealAudio) return;
+    try { revealAudio.pause(); revealAudio.currentTime = 0; } catch (e) { /* ignore */ }
+  }
+  // Play the short "correct answer is out" soundtrack once per reveal.
+  // The old WebAudio jingle is only a fallback if the MP3 is unavailable.
   function playRevealSting() {
     if (!musicOn) return;
-    // Short quiz-show "answer is out" jingle: G-C-E-G-C, with a soft chord.
+    if (!revealAudioFailed) {
+      try {
+        const audio = ensureRevealAudio();
+        stopRevealSting();
+        const p = audio.play();
+        if (p && p.catch) p.catch(function () { playRevealTone(); });
+        return;
+      } catch (e) { revealAudioFailed = true; }
+    }
+    playRevealTone();
+  }
+  function playRevealTone() {
+    if (!musicOn) return;
+    // Fallback quiz-show "answer is out" jingle: C5-E5-G5-C6 + soft chord.
     const seq = [
       [523.25, 0.00, 0.12, 'triangle', 0.075],
       [659.25, 0.10, 0.12, 'triangle', 0.075],
@@ -1965,6 +1994,7 @@
   async function startQuiz() {
     if (phase === 'loading' || phase === 'question') return;
     ensureAudio();
+    stopRevealSting();
     startMusic();
     phase = 'loading';
     const btn = $('startBtn');
@@ -2063,6 +2093,7 @@
 
   function nextQuestion() {
     clearTimers();
+    stopRevealSting();
     qIndex += 1;
     if (qIndex >= questions.length) { finish(); return; }
     phase = 'question';
@@ -2817,6 +2848,7 @@
   }
 
   function finishToSetup() {
+    stopRevealSting();
     wrongBook = [];
     $('studentReview').classList.add('hidden');
     $('analysis').classList.add('hidden');
@@ -3398,6 +3430,7 @@
         roomFinish(st);
         return;
       }
+      stopRevealSting();
       room.qIndex = res.q_index;
       room.phase = 'question';
       const sorted = roomPlayers.slice().sort((a, b) => b.score - a.score);
@@ -3408,6 +3441,7 @@
   }
 
   function roomFinish(st) {
+    stopRevealSting();
     stopRoomTimer();
     stopHostPoll();
     if (st && st.players) roomPlayers = roomPlayerList(st);
@@ -3906,7 +3940,7 @@
     musicOn = !musicOn;
     $('musicBtn').textContent = musicOn ? '🔊' : '🔇';
     if (musicOn) { if (phase === 'question' || phase === 'reveal') startMusic(); }
-    else stopMusic();
+    else { stopMusic(); stopRevealSting(); }
   });
 
   Array.from(document.querySelectorAll('.tabs button')).forEach(function (btn) {

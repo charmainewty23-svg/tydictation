@@ -1506,7 +1506,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the round-2 report change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v111") !== -1, 'CACHE_NAME is v111');
+    assert.ok(sw.indexOf("learnity-pwa-v112") !== -1, 'CACHE_NAME is v112');
+    assert.equal(sw.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');
@@ -2532,10 +2533,27 @@ test('the demo iframe unlocks Survival audio and keeps the documented mute', () 
     const main = fs.readFileSync(MAIN_PATH, 'utf8');
     assert.ok(main.indexOf('PS.unlockAudio') !== -1, 'PS exposes unlockAudio');
     assert.ok(main.indexOf("learniTY_ps_sound") !== -1, 'the documented mute key is still honoured');
-    assert.ok(main.indexOf("new Audio('/music/battlemusic.mp3')") !== -1, 'a looping BGM is wired');
+    assert.ok(main.indexOf("src: '/music/survival_lobby_music.mp3'") !== -1, 'lobby BGM is the teacher lobby track');
+    assert.ok(main.indexOf("src: '/music/survival_music.mp3'") !== -1, 'gameplay BGM is the teacher Survival track');
+    assert.ok(main.indexOf("src: '/music/trophyMusic.mp3'") !== -1, 'the prize ceremony uses the site trophy music');
+    assert.equal(main.indexOf('/music/battlemusic.mp3'), -1, 'gameplay no longer uses battlemusic');
+    assert.ok(main.indexOf("room.status === 'waiting') return 'lobby'") !== -1, 'lobby track plays while waiting');
+    assert.ok(main.indexOf("room.status === 'finished') return 'ceremony'") !== -1, 'ceremony track plays when finished');
     assert.ok(main.indexOf('function startBgm()') !== -1, 'BGM starts from gestures');
     assert.ok(main.indexOf('stopBgm()') !== -1, 'BGM stops when leaving / muting');
+    assert.ok(main.indexOf('syncMusic()') !== -1, 'render syncs the track to the room status');
     assert.equal(/soundOn\s*=\s*false/.test(main), false, 'demo mode does not hard-wire sound off');
+});
+
+test('Survival music files exist and are not precached by the service worker', () => {
+    const musicDir = path.join(__dirname, '..', 'music');
+    assert.ok(fs.existsSync(path.join(musicDir, 'survival_lobby_music.mp3')), 'lobby track is in music/');
+    assert.ok(fs.existsSync(path.join(musicDir, 'survival_music.mp3')), 'gameplay track is in music/');
+    assert.ok(fs.existsSync(path.join(musicDir, 'trophyMusic.mp3')), 'ceremony track is already in music/');
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    ['survival_lobby_music.mp3', 'survival_music.mp3', 'trophyMusic.mp3', 'battlemusic.mp3'].forEach(function (name) {
+        assert.equal(sw.indexOf(name), -1, name + ' must not be in the service-worker precache');
+    });
 });
 
 test('round-2 answer/order SQL is a safe teacher-run incremental', () => {

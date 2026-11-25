@@ -3730,10 +3730,15 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   R2 wrong/timeout pane、R3 wrong tug answer。Live SQL 喺
   `submit_purrfect_survival_answer()`、`glass_jump_purrfect_survival()` 同 tug
   分支 append `answer_log`；demo 直接寫 player object。
-- **Audio（live＋demo）**：`PS.unlockAudio()` resume iframe AudioContext 並播
-  `/music/battlemusic.mp3`（loop、volume 0.3；唔入 `sw.js` CORE_ASSETS）。
-  `PS.startDemo()`／`PS.startRound1()`／`PS.enter()`（非 waiting）會試播；
-  `PS.stop()`／離開房／🔇 會停。Demo iframe 加咗 `allow="autoplay; fullscreen"`，
+- **Audio（live＋demo）**：三條 track，live 同 official demo 共用，全部唔入
+  `sw.js` CORE_ASSETS。Waiting lobby 播 `/music/survival_lobby_music.mp3`
+  （loop、volume 0.3）；rounds 播老師提供嘅 `/music/survival_music.mp3`
+  （loop、volume 0.3）；頒獎典禮停 gameplay／lobby，改播網站慣用嘅
+  `/music/trophyMusic.mp3`（volume 0.45，唔 loop，同 Word Battle／Drive & Go!
+  同一檔）。`syncMusic()`／`startBgm()` 跟 `room.status` 切歌；
+  `PS.unlockAudio()` resume iframe AudioContext 後播而家呢條。
+  `PS.startDemo()`／`PS.startRound1()`／`PS.enter()`（包括 waiting）會試播；
+  `PS.stop()`／離開房／🔇 會停晒。Demo iframe 加咗 `allow="autoplay; fullscreen"`，
   parent demo-bar 每次 `callFrame()` 都先 call `PS.unlockAudio()`，iframe 內
   pointerdown 亦會 unlock。`learniTY_ps_sound === '0'` 仍然係唯一 mute。
 - **SQL**：`supabase/purrfect_survival_round2_answers.sql`（可重跑；老師喺
@@ -3741,4 +3746,4 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   要喺 host-settings／tug／ceremony／qualifier incrementals 之後跑；
   `purrfect_survival_qualifier.sql` 仍然需要保留 live 7 秒玻璃延遲。Canonical
   `supabase/purrfect_survival.sql` 已同步；`/workspace/` 亦有一份副本。
-- **Cache**：`sw.js` `CACHE_NAME` 升到 `learnity-pwa-v111`。
+- **Cache**：`sw.js` `CACHE_NAME` 升到 `learnity-pwa-v112`（JS 有改；mp3 唔入 precache）。

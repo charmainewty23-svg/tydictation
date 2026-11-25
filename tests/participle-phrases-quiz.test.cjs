@@ -259,8 +259,9 @@ test('end-of-quiz review explains wrong items only', () => {
 
 /* ------------------------- service worker ------------------------- */
 
-test('service worker is v111', () => {
-    assert.ok(swSource.indexOf("learnity-pwa-v111") !== -1, 'CACHE_NAME is v111');
+test('service worker is v112', () => {
+    assert.ok(swSource.indexOf("learnity-pwa-v112") !== -1, 'CACHE_NAME is v112');
+    assert.equal(swSource.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');

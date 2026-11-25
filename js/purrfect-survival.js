@@ -53,7 +53,8 @@
     let lastAlive = 0;
     let audioCtx = null;
     let soundOn = true;
-    let bgm = null;
+    let musicTracks = { lobby: null, game: null, ceremony: null };
+    let musicKind = '';
     let liveOn = false;
     let clockOffset = 0;
     let lastTickAt = 0;
@@ -521,40 +522,93 @@
         [520, 660, 780, 1040].forEach((f, i) => tone(f, 0.16, 'sine', 0.07, i * 0.09));
     }
 
-    /* One looping BGM shared by live and demo (same file as Drive & Go!).
-       It is deliberately not in the service-worker precache; the browser
-       caches it after the first play. */
-    function ensureBgm() {
-        if (bgm) return bgm;
+    /* Three Survival tracks, shared by the live path and the official demo.
+       None of the mp3s are in the service-worker precache; the browser
+       caches them after the first play.
+         lobby     — waiting room, /music/survival_lobby_music.mp3
+         game      — rounds, the teacher's Survival track /music/survival_music.mp3
+         ceremony  — prize ceremony, same /music/trophyMusic.mp3 as Word Battle
+                     and Drive & Go! */
+    const MUSIC_SPEC = {
+        lobby: { src: '/music/survival_lobby_music.mp3', volume: 0.3, loop: true },
+        game: { src: '/music/survival_music.mp3', volume: 0.3, loop: true },
+        ceremony: { src: '/music/trophyMusic.mp3', volume: 0.45, loop: false }
+    };
+
+    function ensureTrack(kind) {
+        const spec = MUSIC_SPEC[kind];
+        if (!spec) return null;
+        if (musicTracks[kind]) return musicTracks[kind];
         try {
-            bgm = new Audio('/music/battlemusic.mp3');
-            bgm.loop = true;
-            bgm.volume = 0.3;
-            bgm.preload = 'none';
+            const track = new Audio(spec.src);
+            track.loop = !!spec.loop;
+            track.volume = spec.volume;
+            track.preload = 'none';
+            musicTracks[kind] = track;
         } catch (e) {
-            bgm = null;
+            musicTracks[kind] = null;
         }
-        return bgm;
+        return musicTracks[kind];
     }
 
-    function startBgm() {
-        if (!soundOn) return;
-        const track = ensureBgm();
+    function stopTrack(kind) {
+        const track = musicTracks[kind];
         if (!track) return;
+        try { track.pause(); track.currentTime = 0; } catch (e) { /* ignore */ }
+    }
+
+    function stopAllMusic() {
+        stopTrack('lobby');
+        stopTrack('game');
+        stopTrack('ceremony');
+        musicKind = '';
+    }
+
+    function desiredMusicKind() {
+        if (!soundOn || !room) return '';
+        if (room.status === 'waiting') return 'lobby';
+        if (room.status === 'finished') return 'ceremony';
+        if (room.status === 'round1' || room.status === 'round2' || room.status === 'round3') {
+            return 'game';
+        }
+        return '';
+    }
+
+    function startTrack(kind) {
+        if (!kind) {
+            stopAllMusic();
+            return;
+        }
+        if (musicKind && musicKind !== kind) {
+            stopTrack('lobby');
+            stopTrack('game');
+            stopTrack('ceremony');
+            musicKind = '';
+        }
+        const track = ensureTrack(kind);
+        if (!track) return;
+        musicKind = kind;
         try {
             const played = track.play();
             if (played && typeof played.catch === 'function') played.catch(() => {});
         } catch (e) { /* autoplay may still need a click */ }
     }
 
+    function syncMusic() {
+        startTrack(desiredMusicKind());
+    }
+
+    function startBgm() {
+        syncMusic();
+    }
+
     function stopBgm() {
-        if (!bgm) return;
-        try { bgm.pause(); } catch (e) { /* ignore */ }
+        stopAllMusic();
     }
 
     /* Called from the public demo's parent bar (a real user gesture) and
        from the first in-iframe tap. Resumes the AudioContext and starts the
-       same looping track the live game uses. */
+       track that matches the current room (lobby, gameplay, or ceremony). */
     PS.unlockAudio = function () {
         const ctx = audio();
         if (ctx && ctx.state === 'suspended') {
@@ -1318,6 +1372,7 @@
             show('ps-progress', false);
             show('ps-qualifier', false);
             renderRejoin();
+            syncMusic();
             return;
         }
         if (room.status === 'waiting') {
@@ -1325,6 +1380,7 @@
             show('ps-progress', false);
             show('ps-qualifier', false);
             renderWaiting();
+            syncMusic();
             return;
         }
         if (room.status === 'finished') {
@@ -1366,6 +1422,7 @@
         renderTeacherProgress();
         renderQualifier();
         checkMilestones();
+        syncMusic();
         requestAnimationFrame(() => startFrames());
     }
 
@@ -2512,6 +2569,7 @@
         setText('ps-ceremony-note', ceremonyNoteText());
 
         claimCeremonyPaws();
+        syncMusic();
         if (!rafId) startFrames();
     }
 
@@ -2770,7 +2828,7 @@
             }
             startPolling();
             poll(true);
-            if (room.status !== 'waiting') startBgm();
+            startBgm();
         } else {
             setPanel('lobby');
             setLive(false);

@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.4.0';
+    R.VERSION = '2.5.2';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -3028,6 +3028,734 @@
     };
 
     /* ================================================================== */
+    /* Round 4 — Dalgona Candy Carving                                    */
+    /*                                                                    */
+    /* Original art only: a hand-painted golden honeycomb candy in a      */
+    /* shallow metal tin, with a dashed stamped shape. No reference       */
+    /* stills, no photos and no bitmap loading anywhere in this block.    */
+    /*                                                                    */
+    /*   player — close-up of THEIR candy + the Cat Needle                */
+    /*   host   — overhead grid of the whole class (tins + names + state) */
+    /* ================================================================== */
+
+    function dalgonaCircle(cx, cy, r, n) {
+        const pts = [];
+        const count = Math.max(8, Math.floor(n || 18));
+        for (let i = 0; i <= count; i++) {
+            const a = (i / count) * Math.PI * 2;
+            pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+        }
+        return pts;
+    }
+
+    /* Stamped shapes in a -1..1 box. Fishbone / cat paw / crown cat only. */
+    function dalgonaShapeLines(pattern) {
+        const kind = String(pattern || '');
+        if (kind === 'paw') {
+            return [
+                dalgonaCircle(0, 0.26, 0.42, 22),
+                dalgonaCircle(-0.56, -0.34, 0.20, 14),
+                dalgonaCircle(-0.20, -0.60, 0.21, 14),
+                dalgonaCircle(0.20, -0.60, 0.21, 14),
+                dalgonaCircle(0.56, -0.34, 0.20, 14)
+            ];
+        }
+        if (kind === 'crown') {
+            return [[
+                [-0.82, 0.42], [-0.82, 0.02], [-0.56, -0.46], [-0.30, 0.02],
+                [0, -0.58], [0.30, 0.02], [0.56, -0.46], [0.82, 0.02],
+                [0.82, 0.42], [0.30, 0.42], [0.30, 0.58], [0.12, 0.58],
+                [0.12, 0.42], [-0.12, 0.42], [-0.12, 0.58], [-0.30, 0.58],
+                [-0.30, 0.42], [-0.82, 0.42]
+            ], [
+                [-0.56, -0.46], [-0.36, -0.70], [-0.16, -0.46]
+            ], [
+                [0.16, -0.46], [0.36, -0.70], [0.56, -0.46]
+            ]];
+        }
+        const lines = [[[-0.86, 0], [0.86, 0]]];
+        [-0.58, -0.30, 0.02, 0.34, 0.66].forEach(function (x) {
+            lines.push([[x, 0], [x - 0.26, -0.34]]);
+            lines.push([[x, 0], [x - 0.26, 0.34]]);
+        });
+        return lines;
+    }
+
+    function dalgonaLineLength(pts) {
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) {
+            total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        }
+        return total;
+    }
+
+    function dalgonaPointAt(lines, lengths, total, distance) {
+        let d = Math.max(0, Math.min(total, distance));
+        for (let i = 0; i < lines.length; i++) {
+            const len = lengths[i];
+            if (d <= len || i === lines.length - 1) {
+                const pts = lines[i];
+                const t = len <= 0 ? 0 : d / len;
+                const pos = t * (pts.length - 1);
+                const idx = Math.min(pts.length - 2, Math.floor(pos));
+                const f = pos - idx;
+                return [
+                    pts[idx][0] + (pts[idx + 1][0] - pts[idx][0]) * f,
+                    pts[idx][1] + (pts[idx + 1][1] - pts[idx][1]) * f
+                ];
+            }
+            d -= len;
+        }
+        return [0, 0];
+    }
+
+    /* Resample every stamped shape into exactly `count` dash segments, so
+       one correct unit always equals one carved dash. */
+    function dalgonaSegments(pattern, count) {
+        const n = Math.max(1, Math.floor(count || 1));
+        const lines = dalgonaShapeLines(pattern);
+        const lengths = lines.map(dalgonaLineLength);
+        const total = lengths.reduce(function (a, b) { return a + b; }, 0) || 1;
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const a = dalgonaPointAt(lines, lengths, total, (i / n) * total);
+            const b = dalgonaPointAt(lines, lengths, total, ((i + 1) / n) * total);
+            out.push([a[0], a[1], b[0], b[1]]);
+        }
+        return out;
+    }
+
+    function dalgonaSand(ctx, L) {
+        const sky = ctx.createLinearGradient(0, 0, 0, L.h);
+        sky.addColorStop(0, '#f6d9a0');
+        sky.addColorStop(0.55, '#efc27a');
+        sky.addColorStop(1, '#d99a4e');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, L.w, L.h);
+        /* soft wide playground dunes */
+        for (let i = 0; i < 4; i++) {
+            const y = L.h * (0.22 + i * 0.19);
+            ctx.beginPath();
+            ctx.moveTo(-20, y);
+            for (let x = 0; x <= L.w + 20; x += 40) {
+                const yy = y + Math.sin((x / Math.max(1, L.w)) * Math.PI * 2 + i) * (8 + i * 3);
+                ctx.lineTo(x, yy);
+            }
+            ctx.lineTo(L.w + 20, L.h + 20);
+            ctx.lineTo(-20, L.h + 20);
+            ctx.closePath();
+            ctx.fillStyle = i % 2 ? 'rgba(255,232,183,.28)' : 'rgba(196,137,64,.14)';
+            ctx.fill();
+        }
+        /* distant cat-world fence + palm silhouettes */
+        ctx.strokeStyle = 'rgba(120,78,30,.28)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 12; x < L.w; x += 46) {
+            ctx.moveTo(x, L.h * 0.17);
+            ctx.lineTo(x, L.h * 0.27);
+        }
+        ctx.moveTo(0, L.h * 0.2);
+        ctx.lineTo(L.w, L.h * 0.2);
+        ctx.stroke();
+        for (let i = 0; i < 5; i++) {
+            const x = ((i * 0.23 + 0.08) % 1) * L.w;
+            const y = L.h * 0.21;
+            ctx.strokeStyle = 'rgba(88,64,32,.18)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x - 8, y - 26, x - 4, y - 54);
+            ctx.stroke();
+            for (let f = 0; f < 5; f++) {
+                const a = -1.9 + f * 0.55;
+                ctx.beginPath();
+                ctx.moveTo(x - 4, y - 54);
+                ctx.quadraticCurveTo(x - 4 + Math.cos(a) * 26, y - 54 + Math.sin(a) * 20,
+                    x - 4 + Math.cos(a) * 40, y - 54 + Math.sin(a) * 34);
+                ctx.stroke();
+            }
+        }
+    }
+
+    function paintDalgonaBody(ctx, cx, cy, r, op) {
+        const o = op || {};
+        ctx.save();
+        /* shallow metal tin */
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.14, r * 1.24, r * 1.20, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#6b7280';
+        ctx.fill();
+        const ring = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+        ring.addColorStop(0, '#f8fafc');
+        ring.addColorStop(0.35, '#cbd5e1');
+        ring.addColorStop(0.65, '#94a3b8');
+        ring.addColorStop(1, '#e2e8f0');
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.12, r * 1.20, r * 1.16, 0, 0, Math.PI * 2);
+        ctx.fillStyle = ring;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + r * 0.10, r * 1.02, r * 0.99, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#4b3a22';
+        ctx.fill();
+
+        /* honeycomb candy disc */
+        const candy = ctx.createRadialGradient(cx - r * 0.32, cy - r * 0.36, r * 0.08, cx, cy, r);
+        candy.addColorStop(0, '#fff0b8');
+        candy.addColorStop(0.35, '#f7c948');
+        candy.addColorStop(0.72, '#e09b1a');
+        candy.addColorStop(1, '#a9630b');
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = candy;
+        ctx.fill();
+        ctx.lineWidth = Math.max(1.5, r * 0.03);
+        ctx.strokeStyle = 'rgba(120,68,8,.55)';
+        ctx.stroke();
+
+        /* honeycomb bubbles (deterministic, faint) */
+        for (let i = 0; i < 26; i++) {
+            const a = hash01('dalgona-bubble-a-' + i) * Math.PI * 2;
+            const d = hash01('dalgona-bubble-d-' + i) * 0.86;
+            const br = r * (0.018 + hash01('dalgona-bubble-r-' + i) * 0.035);
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(a) * d * r, cy + Math.sin(a) * d * r, br, 0, Math.PI * 2);
+            ctx.fillStyle = i % 3 === 0 ? 'rgba(255,248,205,.38)' : 'rgba(139,82,10,.16)';
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function paintDalgonaPattern(ctx, cx, cy, r, pattern, progress, total, status, opts) {
+        const o = opts || {};
+        if (!pattern || !total) return;
+        const segments = dalgonaSegments(pattern, total);
+        const scale = r * 0.60;
+        const done = Math.max(0, Math.min(total, Number(progress) || 0));
+        const shattered = status === 'shattered';
+        segments.forEach(function (seg, i) {
+            const x1 = cx + seg[0] * scale;
+            const y1 = cy + seg[1] * scale;
+            const x2 = cx + seg[2] * scale;
+            const y2 = cy + seg[3] * scale;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            if (i < done) {
+                ctx.setLineDash([]);
+                ctx.lineWidth = Math.max(2, r * (o.small ? 0.055 : 0.034));
+                ctx.strokeStyle = o.gold || '#ffe066';
+                ctx.shadowColor = '#ffd23f';
+                ctx.shadowBlur = o.small ? 4 : 12;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.setLineDash([Math.max(2, r * 0.035), Math.max(2, r * 0.035)]);
+                ctx.lineWidth = Math.max(1, r * (o.small ? 0.035 : 0.022));
+                ctx.strokeStyle = shattered
+                    ? 'rgba(54,32,8,.42)'
+                    : (i === done ? 'rgba(92,52,6,.85)' : 'rgba(92,52,6,.46)');
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        });
+        /* Cat Needle on the current dash */
+        if (!shattered && done < total) {
+            const seg = segments[done];
+            const x1 = cx + seg[0] * scale;
+            const y1 = cy + seg[1] * scale;
+            const x2 = cx + seg[2] * scale;
+            const y2 = cy + seg[3] * scale;
+            const ang = Math.atan2(y2 - y1, x2 - x1);
+            ctx.save();
+            ctx.translate(x2, y2);
+            ctx.rotate(ang);
+            const len = Math.max(10, r * 0.26);
+            ctx.lineWidth = Math.max(1.5, r * 0.022);
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.shadowColor = '#f8fafc';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.moveTo(-len, 0);
+            ctx.lineTo(0, 0);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-r * 0.06, -r * 0.035);
+            ctx.lineTo(-r * 0.06, r * 0.035);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(-len, 0, Math.max(1.5, r * 0.028), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function paintDalgonaCrack(ctx, cx, cy, r) {
+        ctx.save();
+        ctx.strokeStyle = '#1a1206';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = Math.max(2, r * 0.028);
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.82, cy - r * 0.46);
+        ctx.lineTo(cx - r * 0.26, cy - r * 0.10);
+        ctx.lineTo(cx - r * 0.46, cy + r * 0.06);
+        ctx.lineTo(cx + r * 0.06, cy + r * 0.26);
+        ctx.lineTo(cx - r * 0.12, cy + r * 0.40);
+        ctx.lineTo(cx + r * 0.66, cy + r * 0.78);
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1, r * 0.012);
+        ctx.strokeStyle = 'rgba(255,255,255,.22)';
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.80, cy - r * 0.44);
+        ctx.lineTo(cx - r * 0.24, cy - r * 0.08);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function paintDalgonaCandy(ctx, cx, cy, r, pattern, progress, total, cracks, status, opts) {
+        const o = opts || {};
+        const shattered = status === 'shattered';
+        if (!shattered) {
+            paintDalgonaBody(ctx, cx, cy, r, o);
+            paintDalgonaPattern(ctx, cx, cy, r, pattern, progress, total, status, o);
+            if (cracks >= 1) paintDalgonaCrack(ctx, cx, cy, r);
+            return;
+        }
+        /* Two halves, pulled apart. Clip each half, then draw the dark gap. */
+        const half = r * 1.24;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx - half, cy - half, half * 2, half);
+        ctx.clip();
+        ctx.translate(0, -r * 0.075);
+        paintDalgonaBody(ctx, cx, cy, r, o);
+        paintDalgonaPattern(ctx, cx, cy, r, pattern, progress, total, status, o);
+        paintDalgonaCrack(ctx, cx, cy, r);
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx - half, cy, half * 2, half);
+        ctx.clip();
+        ctx.translate(0, r * 0.075);
+        paintDalgonaBody(ctx, cx, cy, r, o);
+        paintDalgonaPattern(ctx, cx, cy, r, pattern, progress, total, status, o);
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(30,18,4,.85)';
+        ctx.lineWidth = Math.max(3, r * 0.05);
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 1.26, cy);
+        ctx.lineTo(cx + r * 1.26, cy);
+        ctx.stroke();
+    }
+
+    function dalgonaStatusColor(status) {
+        if (status === 'finished') return { ring: '#34d399', glow: 'rgba(52,211,153,.55)' };
+        if (status === 'shattered') return { ring: '#ef4444', glow: 'rgba(239,68,68,.5)' };
+        if (status === 'danger') return { ring: '#f59e0b', glow: 'rgba(245,158,11,.55)' };
+        return { ring: 'rgba(146,64,14,.65)', glow: 'rgba(253,224,71,.35)' };
+    }
+
+    function drawDalgonaDangerFrame(ctx, L, alpha) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(239,68,68,' + (alpha == null ? 0.85 : alpha) + ')';
+        ctx.lineWidth = 5;
+        ctx.shadowColor = '#ef4444';
+        ctx.shadowBlur = 16;
+        ctx.strokeRect(6, 6, L.w - 12, L.h - 12);
+        ctx.restore();
+    }
+
+    /* Filled, tapered tongue ribbon from the cat's mouth (a) to the tip (b).
+       Two curved sides plus a slightly squashed cap give the tongue real
+       volume; `bow` bends it sideways so the swipe follows the candy path. */
+    function lickTonguePath(ctx, ax, ay, bx, by, baseW, tipW, bow) {
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const nx = -uy;
+        const ny = ux;
+        const mx = (ax + bx) / 2 + nx * bow;
+        const my = (ay + by) / 2 + ny * bow;
+        const midW = baseW * 0.55 + tipW * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(ax + nx * baseW, ay + ny * baseW);
+        ctx.quadraticCurveTo(mx + nx * midW, my + ny * midW, bx + nx * tipW, by + ny * tipW);
+        /* rounded tip, flattened a little by the contact pressure */
+        ctx.quadraticCurveTo(bx + ux * tipW * 0.82, by + uy * tipW * 0.82,
+            bx - nx * tipW, by - ny * tipW);
+        ctx.quadraticCurveTo(mx - nx * midW, my - ny * midW, ax - nx * baseW, ay - ny * baseW);
+        ctx.closePath();
+    }
+
+    /* Original stylised cat lick. The cat itself is the student's own
+       LearniTY avatar (`DG.drawCatAvatar` via drawCat) peeking over the top
+       edge of the tin; the tongue is a filled, tapered, wet-looking ribbon
+       that reaches the candy, squashes on contact, swipes across the carved
+       path and retracts. All shapes are canvas paths / gradients — no
+       bitmaps, no external art. `t` is 0..1 across the one-second lick. */
+    function drawCatLick(ctx, cx, cy, r, t, look) {
+        const p = clamp(Number(t) || 0, 0, 1);
+        const lk = look || {};
+        const hr = Math.max(12, r * 0.27);
+        const scale = hr / 33;
+        const candyTop = cy - r;
+        /* Head leans over the tin: its chin just crosses the top edge, so
+           the tongue only has to travel a short, natural distance to the
+           candy face. DG avatars put the head 91 * scale above the feet. */
+        const headCY = candyTop + r * 0.04 - hr;
+        const feetY = headCY + 91 * scale;
+        const out = p < 0.24 ? smoothstep(p / 0.24)
+            : (p > 0.78 ? 1 - smoothstep((p - 0.78) / 0.22) : 1);
+        if (out <= 0.004) return;
+        const swipe = -1 + 2 * smoothstep(clamp((p - 0.26) / 0.46, 0, 1));
+        const lean = -0.10 + 0.07 * swipe;
+
+        ctx.save();
+
+        /* ---- the student's own cat, clipped at the tin's top edge ---- */
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-6000, -6000, 12000, 6000 + candyTop + r * 0.07);
+        ctx.clip();
+        ctx.translate(cx, headCY);
+        ctx.rotate(lean);
+        ctx.translate(-cx, -headCY);
+        drawCat(ctx, cx, feetY, scale, lk, { preview: true });
+        ctx.restore();
+
+        /* ---- mouth (just under the avatar head) → candy contact ---- */
+        const mouthDrop = hr * 0.62;
+        const mouthX = cx - Math.sin(lean) * mouthDrop;
+        const mouthY = headCY + Math.cos(lean) * mouthDrop;
+        const contactX = cx + r * 0.34 * swipe;
+        const contactY = candyTop + r * 0.40;
+        const tipX = mouthX + (contactX - mouthX) * out;
+        const tipY = mouthY + (contactY - mouthY) * out
+            + Math.sin(p * Math.PI * 4) * r * 0.008 * out;
+        const squash = clamp((out - 0.72) / 0.28, 0, 1);
+        const baseW = Math.max(2.2, hr * 0.34) * (0.55 + 0.45 * out);
+        const tipW = baseW * (0.95 + 0.55 * squash);
+        const dx = tipX - mouthX;
+        const dy = tipY - mouthY;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const bow = r * 0.05 * swipe * out;
+
+        /* ---- wet smear on the candy where the tongue lands ---- */
+        if (out > 0.55) {
+            const wet = clamp((out - 0.55) / 0.45, 0, 1);
+            ctx.save();
+            ctx.globalAlpha = 0.26 + wet * 0.32;
+            const smear = ctx.createRadialGradient(tipX, tipY, r * 0.01, tipX, tipY, r * 0.20);
+            smear.addColorStop(0, 'rgba(255,251,235,.92)');
+            smear.addColorStop(0.45, 'rgba(253,224,171,.46)');
+            smear.addColorStop(1, 'rgba(253,224,171,0)');
+            ctx.fillStyle = smear;
+            ctx.beginPath();
+            ctx.ellipse(tipX, tipY, r * (0.09 + 0.10 * wet), r * (0.05 + 0.04 * wet), 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        /* ---- fleshy tongue body ---- */
+        lickTonguePath(ctx, mouthX, mouthY, tipX, tipY, baseW, tipW, bow);
+        const flesh = ctx.createLinearGradient(
+            mouthX - nx * baseW * 1.5, mouthY - ny * baseW * 1.5,
+            mouthX + nx * baseW * 1.5, mouthY + ny * baseW * 1.5);
+        flesh.addColorStop(0, '#b83b6d');
+        flesh.addColorStop(0.30, '#d64f7d');
+        flesh.addColorStop(0.60, '#ef6f95');
+        flesh.addColorStop(0.88, '#ff9fb7');
+        flesh.addColorStop(1, '#ffc2cf');
+        ctx.fillStyle = flesh;
+        ctx.fill();
+
+        /* darker underside edge keeps the ribbon from reading flat */
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(150,38,84,.42)';
+        ctx.lineWidth = Math.max(1, baseW * 0.30);
+        ctx.beginPath();
+        ctx.moveTo(mouthX + nx * baseW * 0.82, mouthY + ny * baseW * 0.82);
+        ctx.quadraticCurveTo(
+            (mouthX + tipX) / 2 + nx * (baseW * 0.55 + tipW * 0.45 + bow),
+            (mouthY + tipY) / 2 + ny * (baseW * 0.55 + tipW * 0.45 + bow),
+            tipX + nx * tipW * 0.82, tipY + ny * tipW * 0.82);
+        ctx.stroke();
+        ctx.restore();
+
+        /* wet highlight streak down the centre */
+        ctx.save();
+        ctx.lineCap = 'round';
+        const hx0 = mouthX + dx * 0.16;
+        const hy0 = mouthY + dy * 0.16;
+        const hx1 = mouthX + dx * 0.93;
+        const hy1 = mouthY + dy * 0.93;
+        ctx.strokeStyle = 'rgba(255,255,255,.40)';
+        ctx.lineWidth = Math.max(1, baseW * (0.70 - 0.28 * squash));
+        ctx.beginPath();
+        ctx.moveTo(hx0 - nx * baseW * 0.28, hy0 - ny * baseW * 0.28);
+        ctx.quadraticCurveTo(
+            (hx0 + hx1) / 2 - nx * baseW * 0.34 + bow,
+            (hy0 + hy1) / 2 - ny * baseW * 0.34 + bow,
+            hx1 - nx * tipW * 0.22, hy1 - ny * tipW * 0.22);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.55)';
+        ctx.lineWidth = Math.max(0.8, baseW * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(hx0 - nx * baseW * 0.10, hy0 - ny * baseW * 0.10);
+        ctx.quadraticCurveTo(
+            (hx0 + hx1) / 2 - nx * baseW * 0.12 + bow,
+            (hy0 + hy1) / 2 - ny * baseW * 0.12 + bow,
+            hx1 - nx * tipW * 0.08, hy1 - ny * tipW * 0.08);
+        ctx.stroke();
+        ctx.restore();
+
+        /* glossy tip that presses into the candy */
+        const tipGloss = ctx.createRadialGradient(
+            tipX - nx * tipW * 0.30, tipY - ny * tipW * 0.30, tipW * 0.12,
+            tipX, tipY, tipW * 1.08);
+        tipGloss.addColorStop(0, 'rgba(255,246,249,.82)');
+        tipGloss.addColorStop(0.55, 'rgba(255,190,212,.32)');
+        tipGloss.addColorStop(1, 'rgba(255,150,180,0)');
+        ctx.fillStyle = tipGloss;
+        ctx.beginPath();
+        ctx.ellipse(tipX, tipY, tipW * 1.02, tipW * (0.72 + 0.24 * (1 - squash)),
+            Math.atan2(dy, dx), 0, Math.PI * 2);
+        ctx.fill();
+
+        /* ---- modest wet sparkle at the contact point ---- */
+        if (squash > 0.18) {
+            ctx.save();
+            ctx.globalAlpha = 0.30 + squash * 0.42;
+            ctx.fillStyle = '#fffbe8';
+            for (let i = 0; i < 2; i++) {
+                const ang = -0.75 + i * 1.1;
+                ctx.beginPath();
+                ctx.arc(tipX + Math.cos(ang) * r * 0.10, tipY + Math.sin(ang) * r * 0.07,
+                    Math.max(1.1, r * 0.016), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    /* Student Round 4 composition. The tin lives in the free rectangle
+       between the HUD (top) and the question pad (bottom). `padBottom` is
+       measured live from #ps-question; when the pad is hidden (or the
+       client could not measure it) a conservative portrait reserve keeps
+       the candy out of the letter keys instead of under them. */
+    const R4_HEAD_BAND = 0.50;   // leaning-cat head above the candy, × r
+
+    R.round4PlayerCandyLayout = function (L, s) {
+        const layout = L || R.layout(390, 844, 'player');
+        const r4 = (s && s.round4) || {};
+        let padBottom = Number(r4.padBottom);
+        if (!isFinite(padBottom) || padBottom < 0) padBottom = 0;
+        const measured = padBottom > 0;
+        if (!measured) padBottom = layout.h * (layout.landscape ? 0.26 : 0.38);
+        /* In landscape the pad sits in the bottom-left corner, so it only
+           needs to claim that corner: cap the reserve and bias the tin to
+           the right of it instead of shrinking it to nothing. */
+        padBottom = clamp(padBottom, 0, layout.h * (layout.landscape ? 0.30 : 0.62));
+        const top = layout.hud + Math.max(4, layout.h * 0.01);
+        const bottom = Math.max(top + 60, layout.h - padBottom - 6);
+        const freeH = Math.max(60, bottom - top);
+        const widthCap = layout.w * (layout.landscape ? 0.19 : 0.36);
+        const heightCap = (freeH * 0.98) / (2 + R4_HEAD_BAND);
+        const r = Math.max(30, Math.min(widthCap, heightCap, layout.h * 0.30, 210));
+        const cx = layout.w / 2 + (layout.landscape ? layout.w * 0.06 : 0);
+        const cy = top + r * R4_HEAD_BAND + r;
+        return {
+            cx: cx,
+            cy: cy,
+            r: r,
+            top: top,
+            bottom: bottom,
+            candyTop: cy - r,
+            candyBottom: cy + r,
+            headBand: r * R4_HEAD_BAND,
+            padBottom: padBottom,
+            measured: measured
+        };
+    };
+
+    function drawRound4Player(ctx, L, s) {
+        const r4 = s.round4 || {};
+        const st = r4.me || {};
+        const status = String(st.status || 'carving');
+        const pattern = String(st.pattern || '');
+        const total = Math.max(1, Number(st.total) || Number(st.units && st.units.length) || 1);
+        const progress = Math.max(0, Math.min(total, Number(st.progress) || 0));
+        const cracks = Math.max(0, Number(st.cracks) || 0);
+        const lickAnim = (typeof st.lickAnim === 'number' && st.lickAnim >= 0 && st.lickAnim <= 1)
+            ? st.lickAnim : null;
+        /* While the cat's tongue is still swiping, the newest carved dash is
+           held back so the fill lands as the tongue passes it. */
+        const shownProgress = lickAnim != null && lickAnim < 0.55
+            ? Math.max(0, progress - 1) : progress;
+        const candy = R.round4PlayerCandyLayout(L, s);
+        const cx = candy.cx;
+        const cy = candy.cy;
+        const r = candy.r;
+        const look = (r4.me && r4.me.look) || {};
+
+        ctx.save();
+        /* Student phone view is deliberately text-light: the candy itself is
+           the HUD. No title pill, no counter pill, no long status caption. */
+        glow(ctx, cx, cy, r * 2.1, '#fff3c4', 0.20);
+        paintDalgonaCandy(ctx, cx, cy, r, pattern, shownProgress, total, cracks, status, {});
+
+        if (lickAnim != null && status !== 'finished' && status !== 'shattered') {
+            drawCatLick(ctx, cx, cy, r, lickAnim, look);
+        }
+
+        /* At most one very short visual tag for the end states. */
+        if (status === 'finished' || status === 'shattered') {
+            const tag = status === 'finished' ? '✅' : '💥';
+            pill(ctx, cx, Math.min(cy + r * 1.34, L.h - 24), tag, {
+                size: Math.max(18, Math.min(30, L.w * (L.landscape ? 0.03 : 0.07))),
+                bg: status === 'finished' ? 'rgba(6,78,59,.84)' : 'rgba(69,10,10,.84)',
+                color: '#fff7ed',
+                border: status === 'finished' ? 'rgba(52,211,153,.65)' : 'rgba(248,113,113,.65)'
+            });
+        }
+        if (status === 'shattered') {
+            ctx.save();
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = '#1c0a02';
+            ctx.fillRect(0, L.hud, L.w, L.h - L.hud);
+            ctx.restore();
+        }
+        if (status === 'danger') drawDalgonaDangerFrame(ctx, L, 0.65 + 0.25 * Math.sin((Number(s.now) || 0) / 160));
+        ctx.restore();
+    }
+
+    function drawRound4Host(ctx, L, s) {
+        const r4 = s.round4 || {};
+        const board = Array.isArray(r4.board) ? r4.board.filter(function (row) {
+            return row && row.is_playing !== false;
+        }) : [];
+        const top = L.hud + 10;
+        const bottom = L.h - 10;
+        const availH = Math.max(40, bottom - top);
+        if (!board.length) {
+            pill(ctx, L.w / 2, top + 20, 'Round 4 · waiting for the tug winners', {
+                size: Math.max(10, Math.min(15, L.w * 0.02)), bg: 'rgba(69,26,3,.8)', color: '#fde68a'
+            });
+            return;
+        }
+        const n = board.length;
+        let cols;
+        if (L.landscape) cols = Math.max(2, Math.min(8, Math.ceil(Math.sqrt(n * 1.7))));
+        else cols = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(n))));
+        const rows = Math.max(1, Math.ceil(n / cols));
+        const padX = 14;
+        const cellW = (L.w - padX * 2) / cols;
+        const cellH = availH / rows;
+        const radius = Math.max(18, Math.min(cellW * 0.30, cellH * 0.30, 62));
+
+        pill(ctx, L.w / 2, top + 12, 'ROUND 4 · ' + n + ' CARVERS · LIVE CLASS GRID', {
+            size: Math.max(9, Math.min(14, L.w * (L.landscape ? 0.014 : 0.03))),
+            bg: 'rgba(69,26,3,.82)', color: '#fde68a', border: 'rgba(251,191,36,.5)'
+        });
+        const gridTop = top + 30;
+        const gridH = Math.max(20, bottom - gridTop);
+        const ch = gridH / rows;
+
+        board.forEach(function (row, i) {
+            const col = i % cols;
+            const rr = Math.floor(i / cols);
+            const cx = padX + cellW * (col + 0.5);
+            const cy = gridTop + ch * (rr + 0.5) - ch * 0.06;
+            const status = row.status_key || 'carving';
+            const total = Math.max(1, Number(row.total) || 1);
+            const progress = Math.max(0, Math.min(total, Number(row.progress) || 0));
+            const colors = dalgonaStatusColor(status);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 1.48, 0, Math.PI * 2);
+            ctx.fillStyle = colors.glow;
+            ctx.globalAlpha = status === 'shattered' ? 0.16 : 0.34;
+            ctx.fill();
+            ctx.restore();
+
+            paintDalgonaCandy(ctx, cx, cy, radius, row.pattern, progress, total, row.cracks, status, { small: true });
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 1.10, 0, Math.PI * 2);
+            ctx.lineWidth = status === 'finished' ? 4 : 2.5;
+            ctx.strokeStyle = colors.ring;
+            ctx.stroke();
+            ctx.restore();
+
+            const nameSize = Math.max(8, Math.min(13, cellW * 0.105));
+            pill(ctx, cx, cy - radius * 1.34, row.name || 'Player', {
+                size: nameSize, bg: 'rgba(30,18,4,.78)', color: '#fef3c7', border: colors.ring
+            });
+            const statusLabel = status === 'finished' ? '✅ Finished'
+                : (status === 'shattered' ? '💥 Shattered'
+                    : (status === 'danger' ? '⚡ Danger' : '🔪 Carving'));
+            pill(ctx, cx, cy + radius * 1.14, (row.pattern_label || 'Candy') + ' · ' + progress + '/' + total, {
+                size: Math.max(7, Math.min(12, cellW * 0.095)),
+                bg: 'rgba(30,18,4,.74)', color: '#fde68a', border: colors.ring
+            });
+            pill(ctx, cx, cy + radius * 1.52, statusLabel, {
+                size: Math.max(7, Math.min(11, cellW * 0.088)),
+                bg: status === 'shattered' ? 'rgba(69,10,10,.8)'
+                    : (status === 'finished' ? 'rgba(6,78,59,.8)' : 'rgba(69,26,3,.75)'),
+                color: status === 'shattered' ? '#fecaca' : (status === 'finished' ? '#a7f3d0' : '#fde68a')
+            });
+        });
+    }
+
+    R.drawCatLick = drawCatLick;
+
+    R.drawRound4 = function (ctx, state) {
+        if (!ctx) return;
+        const s = state || {};
+        const L = R.layout(s.w, s.h, s.role);
+        const host = String(s.role || '') === 'host';
+        const patternKey = host && s.round4 && Array.isArray(s.round4.board)
+            ? s.round4.board.map(function (row) { return row.pattern || ''; }).join(',')
+            : String((s.round4 && s.round4.me && s.round4.me.pattern) || '');
+
+        drawCached(ctx, L, 'dalgona-bg:' + (s.role || 'player') + ':' + (L.landscape ? 'l' : 'p') + ':' + patternKey,
+            function (paint) { dalgonaSand(paint, L); });
+
+        if (host) drawRound4Host(ctx, L, s);
+        else drawRound4Player(ctx, L, s);
+
+        /* vignette keeps the candy the brightest thing on screen */
+        const vig = ctx.createRadialGradient(L.w / 2, L.h * 0.5, L.w * 0.30, L.w / 2, L.h * 0.5, L.w * 0.92);
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(46,24,4,.48)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, L.w, L.h);
+
+        if (host) {
+            ctx.save();
+            pill(ctx, 14, L.hud + 16, 'Dalgona Candy Carving', {
+                size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
+            });
+            ctx.restore();
+        }
+    };
+
+    /* ================================================================== */
     /* Prize ceremony — original 3D podium                                */
     /* ================================================================== */
 
@@ -3206,6 +3934,8 @@
             R.drawCeremony(ctx, s);
         } else if (s.mode === 'intro' || Number(s.round) === 0) {
             R.drawIntro(ctx, s);
+        } else if (Number(s.round) === 4 || (s.round4 && (s.round4.me || s.round4.board))) {
+            R.drawRound4(ctx, s);
         } else if (Number(s.round) === 3) {
             R.drawRound3(ctx, s);
         } else if (Number(s.round) === 2) {

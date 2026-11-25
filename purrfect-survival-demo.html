@@ -119,6 +119,7 @@
     <button type="button" id="demo-round1" data-scene="round1" class="active" title="1-2-3 Meow!">🟢 Round 1</button>
     <button type="button" id="demo-round2" data-scene="round2" title="Glass Stepping Stones">🧊 Round 2</button>
     <button type="button" id="demo-round3" data-scene="round3" title="Tug of War">🪢 Round 3</button>
+    <button type="button" id="demo-round4" data-scene="round4" title="Dalgona Candy Carving">🍬 Round 4</button>
     <button type="button" id="demo-victory" data-scene="victory" title="Prize ceremony">🎉 Prize ceremony</button>
     <span class="demo-sep"></span>
     <label class="demo-num" for="demo-round-count">Rounds
@@ -126,6 +127,7 @@
             <option value="1">1</option>
             <option value="2" selected>2</option>
             <option value="3">3</option>
+            <option value="4">4</option>
         </select>
     </label>
     <label class="demo-num" for="demo-finish-distance">Metres
@@ -143,9 +145,10 @@
 
 <div id="demo-stage">
     <iframe id="demo-app" src="/index.html?psdemo=1" allow="autoplay; fullscreen" title="Purr-fect Survival demo"></iframe>
-    <div id="demo-note">Round 1: 1-2-3 Meow! · Round 2: Glass Stepping Stones · Round 3: Tug of War. Public demo · no login · no saved scores · about 25 cats</div>
+    <div id="demo-note">Round 1: 1-2-3 Meow! · Round 2: Glass Stepping Stones · Round 3: Tug of War · Round 4: Dalgona Candy Carving. Public demo · no login · no saved scores · about 25 cats</div>
 </div>
 
+<script src="js/grammar/participle-clauses-combining-data.js"></script>
 <script>
 (function () {
     var frame = document.getElementById('demo-app');
@@ -323,6 +326,7 @@
     document.getElementById('demo-round1').addEventListener('click', function () { goScene('round1'); });
     document.getElementById('demo-round2').addEventListener('click', function () { goScene('round2'); });
     document.getElementById('demo-round3').addEventListener('click', function () { goScene('round3'); });
+    document.getElementById('demo-round4').addEventListener('click', function () { goScene('round4'); });
     document.getElementById('demo-victory').addEventListener('click', function () { goScene('victory'); });
 
     function applyDemoSettings() {

@@ -7,9 +7,10 @@
  * Round 1  — 1-2-3 Meow! (Red Light, Green Light)
  * Round 2  — Glass Stepping Stones
  * Round 3  — Tug of War (team life-or-death)
- * Rounds 4-5 (a second bridge, Squid Circle) are deliberately not
- * implemented; the room keeps current_round / status extensible. When each
- * later round ships, its host settings must ship in the same change.
+ * Round 4  — Dalgona Candy Carving (carve a shape before the clock)
+ * Round 5 (Squid Circle) is deliberately not implemented; the room keeps
+ * current_round / status extensible. When each later round ships, its host
+ * settings must ship in the same change.
  */
 (function (root) {
     'use strict';
@@ -20,7 +21,7 @@
     /* Constants                                                           */
     /* ------------------------------------------------------------------ */
 
-    PS.VERSION = '1.2.0';
+    PS.VERSION = '1.3.0';
 
     PS.ROUND1 = {
         GREEN_MIN_MS: 4000,
@@ -61,19 +62,50 @@
         WIN_PULL: 20
     };
 
-    /* Host settings are extensible by design. Round 3 (tug of war) is now
-       implemented; rounds 4-5 (a second glass bridge, Squid Circle) are NOT
-       playable yet. When each one is implemented, that game AND its host
-       settings must ship in the same change. */
+    /* Round 4 — Dalgona Candy Carving. Three candy patterns are assigned
+       seeded among the living tug winners; each correct letter / word block
+       carves one dash segment. Two mistakes break the candy. One lick per
+       player auto-fills the next unit. */
+    PS.ROUND4 = {
+        DEFAULT_MS: 180000,
+        MIN_MS: 60000,
+        MAX_MS: 600000,
+        CRACKS_TO_BREAK: 2,
+        LICKS: 1,
+        QUALIFIER_MS: 7000,
+        PATTERNS: ['fishbone', 'paw', 'crown'],
+        /* Student cat-lick animation on the Hint button. Purely visual; the
+           lick result is applied immediately and the renderer masks the new
+           segment until the tongue has swiped past it. */
+        LICK_ANIM_MS: 1000
+    };
+
+    /* Pure helper for the visual cat-lick window. Returns null outside the
+       window, otherwise a 0..1 progress value. The window is inclusive at
+       both ends so a renderer never sees a gap between clear frames. */
+    PS.lickAnimProgress = function (startMs, nowMs, durationMs) {
+        const start = Number(startMs);
+        const now = Number(nowMs);
+        const duration = Number(durationMs);
+        if (!isFinite(start) || !isFinite(now) || !isFinite(duration)) return null;
+        if (start <= 0 || duration <= 0) return null;
+        const p = (now - start) / duration;
+        if (p < 0 || p > 1) return null;
+        return p;
+    };
+
+    /* Host settings are extensible by design. Rounds 1–4 are implemented;
+       Round 5 (Squid Circle) is NOT playable yet. When it is implemented,
+       that game AND its host settings must ship in the same change. */
     PS.HOST = {
-        MAX_IMPLEMENTED: 3,
+        MAX_IMPLEMENTED: 4,
         MAX_PLANNED: 5,
         DEFAULT_ROUNDS: 2,
         KINDS: {
             1: 'meow',
             2: 'glass',
             3: 'tug',
-            4: 'glass2',
+            4: 'dalgona',
             5: 'squid'
         }
     };
@@ -110,7 +142,8 @@
     PS.RULE_TEXT = {
         round1: 'Green: answer to sprint +10 m. Yellow: 2 s warning, answers still count. Red: 3 s — do not answer. Pressing in red costs 30 m, then 15 m, then you are out. Reach 100 m. First 15 survivors cross to the bridge.',
         round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.',
-        round3: 'Survivors are split into a red team and a blue team. Both teams answer at the same time: every correct answer pulls the rope +1. Five correct answers in a row trigger 爆走拉力 2x for 5 seconds (each correct then pulls +2). A wrong answer breaks the combo. Pull the golden salmon 20 steps past the centre to win — or be ahead when the clock runs out. The losing team falls into the abyss.'
+        round3: 'Survivors are split into a red team and a blue team. Both teams answer at the same time: every correct answer pulls the rope +1. Five correct answers in a row trigger 爆走拉力 2x for 5 seconds (each correct then pulls +2). A wrong answer breaks the combo. Pull the golden salmon 20 steps past the centre to win — or be ahead when the clock runs out. The losing team falls into the abyss.',
+        round4: 'The Tug of War winners each receive a golden dalgona candy with a stamped shape: fishbone (spell the word from its Chinese hint), cat paw (build the grammar answer from word blocks) or crown cat (combine the two participle-clause sentences). Carve every dash before the clock runs out. The Cat Needle fills one segment per correct letter or block. A first mistake is a black crack and a warning; a second mistake splits the candy and you are out. One lick per player auto-fills the next segment. Finish the pattern to survive.'
     };
 
     /* Traditional Chinese (Hong Kong) sibling of RULE_TEXT. The English
@@ -118,7 +151,8 @@
     PS.RULE_TEXT_ZH = {
         round1: '綠燈：作答向前衝 +10 米。黃燈：2 秒警告，作答仍然計分。紅燈：3 秒——唔好作答。紅燈時撳會扣 30 米，再撳扣 15 米，第三次出局。跑到 100 米，最先 15 位生存者過橋。',
         round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。',
-        round3: '生存者會平均分去紅隊同藍隊。兩隊同時作答：每答啱一題，條繩就會向自己隊拉 +1。連續答啱 5 題會爆發「爆走拉力 2x」5 秒，期間每題 +2。答錯會斷連勝。將金色三文魚拉過中線 20 步就贏；時間到就由三文魚喺邊一邊定勝負。輸咗嗰隊會跌落深淵。'
+        round3: '生存者會平均分去紅隊同藍隊。兩隊同時作答：每答啱一題，條繩就會向自己隊拉 +1。連續答啱 5 題會爆發「爆走拉力 2x」5 秒，期間每題 +2。答錯會斷連勝。將金色三文魚拉過中線 20 步就贏；時間到就由三文魚喺邊一邊定勝負。輸咗嗰隊會跌落深淵。',
+        round4: '拔河勝出嘅同學每人會得到一塊金色椪糖，上面有一個壓印圖案：魚骨（睇中文提示串英文字）、貓掌（用字塊砌出文法答案）或者皇冠貓（合併兩句分詞子句）。時間完之前要雕好所有虛線。每答啱一個字母或字塊，貓爪鋼針就會雕好一段。第一次錯會爆出黑色裂痕兼警告；第二次錯椪糖會裂開，你就會出局。每人有一次「舔一口椪糖」機會，會自動填下一個正確答案。雕完成個圖案就過關。'
     };
 
     /* ------------------------------------------------------------------ */
@@ -344,6 +378,18 @@
         return Math.max(PS.ROUND3.MIN_MS, Math.min(PS.ROUND3.MAX_MS, n));
     };
 
+    /* Round-4 carving duration. The lobby input is in SECONDS; a value
+       <= 600 is read as seconds, larger values as milliseconds. Default
+       180 s, clamped to 60–600 s (10 minutes). */
+    PS.normalizeDalgonaDuration = function (value) {
+        if (value == null || value === '') return PS.ROUND4.DEFAULT_MS;
+        let n = Number(value);
+        if (!isFinite(n) || n <= 0) return PS.ROUND4.DEFAULT_MS;
+        if (n <= 600) n = n * 1000;
+        n = Math.round(n);
+        return Math.max(PS.ROUND4.MIN_MS, Math.min(PS.ROUND4.MAX_MS, n));
+    };
+
     function clampRoundMs(value) {
         const n = Number(value);
         if (!isFinite(n) || n <= 0) return PS.ROUND1.DEFAULT_ROUND_MS;
@@ -412,10 +458,26 @@
         return PS.shouldPlayRound2(settings) ? 'bridge' : 'finish';
     };
 
+    PS.shouldPlayRound4 = function (settings) {
+        return PS.roomRoundCount(settings) >= 4;
+    };
+
     /* 'tug' when the glass bridge advances into the Tug of War, 'finish'
        when the class only selected 1 or 2 rounds. */
     PS.round2EndAction = function (settings) {
         return PS.shouldPlayRound3(settings) ? 'tug' : 'finish';
+    };
+
+    /* 'dalgona' when the tug winners go on to carve candy, 'finish' when
+       the class selected only 1–3 rounds. */
+    PS.round3EndAction = function (settings) {
+        return PS.shouldPlayRound4(settings) ? 'dalgona' : 'finish';
+    };
+
+    /* Round 5 (Squid Circle) is not implemented, so Round 4 always leads to
+       the prize ceremony. */
+    PS.round4EndAction = function () {
+        return 'finish';
     };
 
     /* Config for round n (1-based) with old-room fallback: missing or
@@ -482,6 +544,9 @@
         const tugRaw = entry.tugDuration != null ? entry.tugDuration
             : (s.tugDuration != null ? s.tugDuration : undefined);
         const tugDuration = PS.normalizeTugDuration(tugRaw);
+        const dalgonaRaw = entry.dalgonaDuration != null ? entry.dalgonaDuration
+            : (s.dalgonaDuration != null ? s.dalgonaDuration : undefined);
+        const dalgonaDuration = PS.normalizeDalgonaDuration(dalgonaRaw);
 
         return {
             round: roundNo,
@@ -495,7 +560,8 @@
             finishDistance: finishDistance,
             roundMs: roundMs,
             glassSteps: glassSteps,
-            tugDuration: tugDuration
+            tugDuration: tugDuration,
+            dalgonaDuration: dalgonaDuration
         };
     };
 
@@ -512,9 +578,11 @@
         if (!isFinite(roundCount) || Math.floor(roundCount) !== roundCount || roundCount < 1) {
             return { ok: false, error: 'INVALID_ROUND_COUNT' };
         }
-        if (roundCount > PS.HOST.MAX_IMPLEMENTED) {
-            return { ok: false, error: 'ROUNDS_NOT_IMPLEMENTED' };
-        }
+        // Round 5 is not implemented yet: a request above 4 clamps to 4
+        // instead of failing the whole room (old behaviour kept 4 and 5
+        // unplayable, but a clamped class is friendlier and matches
+        // roomRoundCount).
+        roundCount = Math.min(PS.HOST.MAX_IMPLEMENTED, roundCount);
 
         const finishDistance = PS.normalizeFinishDistance(
             raw.finishDistance != null ? raw.finishDistance
@@ -529,6 +597,12 @@
             tugEntry && tugEntry.tugDuration != null ? tugEntry.tugDuration
                 : (raw.tugDuration != null ? raw.tugDuration
                     : (raw.tug_duration != null ? raw.tug_duration : undefined))
+        );
+        const dalgonaEntry = rawRounds.find(item => item && Number(item.round) === 4);
+        const dalgonaDuration = PS.normalizeDalgonaDuration(
+            dalgonaEntry && dalgonaEntry.dalgonaDuration != null ? dalgonaEntry.dalgonaDuration
+                : (raw.dalgonaDuration != null ? raw.dalgonaDuration
+                    : (raw.dalgona_duration != null ? raw.dalgona_duration : undefined))
         );
 
         const rounds = [];
@@ -568,6 +642,10 @@
                 const tugRaw = entry && entry.tugDuration != null ? entry.tugDuration : tugDuration;
                 cfg.tugDuration = PS.normalizeTugDuration(tugRaw);
             }
+            if (n === 4) {
+                const dalgonaRaw = entry && entry.dalgonaDuration != null ? entry.dalgonaDuration : dalgonaDuration;
+                cfg.dalgonaDuration = PS.normalizeDalgonaDuration(dalgonaRaw);
+            }
             rounds.push(cfg);
             previous = cfg;
         }
@@ -580,7 +658,8 @@
             roundMs: r1.roundMs,
             finishDistance: r1.finishDistance,
             glassSteps: rounds[1] ? rounds[1].glassSteps : null,
-            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration
+            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration,
+            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration
         };
 
         return {
@@ -596,7 +675,8 @@
             finishDistance: r1.finishDistance,
             roundMs: r1.roundMs,
             glassSteps: rounds[1] ? rounds[1].glassSteps : null,
-            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration
+            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration,
+            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration
         };
     };
 
@@ -1021,9 +1101,44 @@
        that crossed the glass bridge. Stable order, no server fields. */
     PS.qualifierRoster = function (players, opts) {
         const o = opts || {};
-        const fromRound = Math.max(1, Math.min(2, Math.floor(Number(o.fromRound) || 1)));
+        const fromRound = Math.max(1, Math.min(3, Math.floor(Number(o.fromRound) || 1)));
         const finish = o.finishDistance == null ? PS.ROUND1.FINISH_DISTANCE : Number(o.finishDistance);
         const list = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
+
+        /* Round 3 -> Round 4: the Tug of War winners advance to Dalgona
+           Candy Carving. The winning team is used when the host state is
+           known; otherwise every still-living player is listed (older rows
+           already mark losers as eliminated). */
+        if (fromRound >= 3) {
+            const tug = PS.normalizeTugState(o.tug);
+            const winner = tug.winner === 'red' || tug.winner === 'blue' ? tug.winner : '';
+            let survivors;
+            if (winner) {
+                survivors = list.filter(p => p.tug_team === winner);
+            } else {
+                survivors = list.filter(p => {
+                    if (p.ghost === true) return false;
+                    const status = String(p.status || 'alive');
+                    return status !== 'eliminated' && status !== 'out' && status !== 'ghost';
+                });
+                if (!survivors.length) survivors = PS.tugSurvivors(list);
+            }
+            survivors = survivors.slice().sort((a, b) => {
+                const ra = a.round1_rank == null ? Infinity : Number(a.round1_rank);
+                const rb = b.round1_rank == null ? Infinity : Number(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+            });
+            return survivors.map((p, i) => ({
+                user_id: PS.userKey(p),
+                name: PS.playerName(p),
+                place: i + 1,
+                detail: winner ? 'Won the Tug of War' : 'Survived the Tug of War',
+                team: p.tug_team === 'red' || p.tug_team === 'blue' ? p.tug_team : '',
+                distance: PS.round1Distance(p),
+                step: Number(p.glass_step) || 0
+            }));
+        }
 
         if (fromRound >= 2) {
             const survivors = PS.tugSurvivors(list).slice().sort((a, b) => {
@@ -1065,9 +1180,9 @@
     };
 
     PS.qualifierTitle = function (fromRound) {
-        return Math.floor(Number(fromRound) || 1) >= 2
-            ? 'Advancing to Tug of War'
-            : 'Advancing to Glass Stepping Stones';
+        const n = Math.floor(Number(fromRound) || 1);
+        if (n >= 3) return 'Advancing to Dalgona Candy Carving';
+        return n >= 2 ? 'Advancing to Tug of War' : 'Advancing to Glass Stepping Stones';
     };
 
     /* ------------------------------------------------------------------ */
@@ -1201,7 +1316,8 @@
             ? player.answer_log.slice()
             : (Array.isArray(player.mistakes) ? player.mistakes.slice() : []);
         const clean = {};
-        ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+        ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty',
+            'pattern', 'unit'].forEach(function (key) {
             if (entry[key] != null) clean[key] = entry[key];
         });
         clean.correct = false;
@@ -1218,7 +1334,8 @@
         return raw.filter(function (entry) { return entry && typeof entry === 'object'; })
             .map(function (entry) {
                 const clean = {};
-                ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+                ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty',
+                    'pattern', 'unit'].forEach(function (key) {
                     if (entry[key] != null) clean[key] = entry[key];
                 });
                 clean.correct = false;
@@ -1643,6 +1760,441 @@
     };
 
     /* ------------------------------------------------------------------ */
+    /* Round 4 — Dalgona Candy Carving                                     */
+    /*                                                                    */
+    /* Three patterns, each with its own question bank:                    */
+    /*   fishbone — spell the English word from its Chinese hint           */
+    /*              (New Vocab + Dictation Master words)                   */
+    /*   paw      — build the grammar answer from word blocks              */
+    /*              (the same five Grammar Quest topics as Drive & Go!)    */
+    /*   crown    — combine two participle-clause sentences (Q251+)        */
+    /*                                                                    */
+    /* Units are always the carve path: one correct letter / word block    */
+    /* advances the Cat Needle by one dash segment.                        */
+    /* ------------------------------------------------------------------ */
+
+    PS.DALGONA_PATTERN_LABEL = {
+        fishbone: 'Fishbone',
+        paw: 'Cat paw',
+        crown: 'Crown cat'
+    };
+
+    PS.dalgonaPatternLabel = function (pattern) {
+        return PS.DALGONA_PATTERN_LABEL[String(pattern || '')] || 'Candy';
+    };
+
+    /* Split an official answer into typed word blocks. Punctuation stays
+       attached to its word (same rule in the browser and the SQL mirror). */
+    PS.dalgonaTokenize = function (text) {
+        return String(text == null ? '' : text).trim().split(/\s+/).filter(Boolean);
+    };
+
+    /* Letters only, in order. Spaces / hyphens / apostrophes / punctuation
+       are ignored when building the fishbone carve path. */
+    PS.fishboneLetters = function (word) {
+        return (String(word == null ? '' : word).match(/[A-Za-z]/g) || []);
+    };
+
+    /* Merge New Vocab and Dictation Master rows. Both columns are required,
+       English is deduped case-insensitively (first row wins). */
+    PS.buildFishboneBank = function (input) {
+        const o = input || {};
+        const seen = {};
+        const out = [];
+        [o.newVocab, o.dictation].forEach(function (list) {
+            (Array.isArray(list) ? list : []).forEach(function (row) {
+                const en = String(row && row.en != null ? row.en : '').trim();
+                const zh = String(row && row.zh != null ? row.zh : '').trim();
+                if (!en || !zh) return;
+                const key = en.toLowerCase();
+                if (seen[key]) return;
+                seen[key] = true;
+                out.push({ en: en, zh: zh });
+            });
+        });
+        return out;
+    };
+
+    PS.buildFishboneItem = function (word, seed) {
+        const en = String(word && word.en != null ? word.en : (typeof word === 'string' ? word : '')).trim();
+        const zh = String(word && word.zh != null ? word.zh : '').trim();
+        const units = PS.fishboneLetters(en);
+        return {
+            id: 'fishbone:' + (seed == null ? 1 : seed) + ':' + en.toLowerCase(),
+            pattern: 'fishbone',
+            mode: 'letters',
+            prompt: zh,
+            target: en,
+            units: units,
+            tiles: [],
+            accept: en ? [en] : [],
+            topic: ''
+        };
+    };
+
+    function stripQuestionPrefix(text) {
+        return String(text == null ? '' : text)
+            .replace(/^\s*\d+\.\s*(?:gap-?fill|choose)\s*:\s*/i, '')
+            .trim();
+    }
+
+    PS.buildPawItem = function (question, seed) {
+        const q = question || {};
+        const answer = String(q.primary != null ? q.primary : (q.a != null ? q.a : (q.answer != null ? q.answer : ''))).trim();
+        const prompt = stripQuestionPrefix(q.prompt != null ? q.prompt : (q.q != null ? q.q : ''));
+        const units = PS.dalgonaTokenize(answer);
+        const optionTiles = Array.isArray(q.options) ? q.options.map(function (x) { return String(x).trim(); }).filter(Boolean) : [];
+        const tiles = units.slice();
+        if (units.length === 1) {
+            optionTiles.forEach(function (opt) {
+                if (!tiles.some(function (t) { return t.toLowerCase() === opt.toLowerCase(); })) tiles.push(opt);
+            });
+        }
+        PS.shuffleInPlace(tiles, PS.mulberry32(coerceSeed('paw-tiles:' + (seed == null ? 1 : seed) + ':' + answer)));
+        return {
+            id: 'paw:' + (q.id != null ? q.id : (seed == null ? 1 : seed)),
+            pattern: 'paw',
+            mode: 'blocks',
+            prompt: prompt,
+            target: answer,
+            units: units,
+            tiles: tiles,
+            accept: answer ? [answer] : [],
+            topic: String(q.topic || q.sheet || q.section || ''),
+            options: optionTiles
+        };
+    };
+
+    PS.buildCrownItem = function (question, seed) {
+        const q = question || {};
+        const answer = String(q.a != null ? q.a : (q.primary != null ? q.primary : '')).trim();
+        const units = PS.dalgonaTokenize(answer);
+        const tiles = units.slice();
+        PS.shuffleInPlace(tiles, PS.mulberry32(coerceSeed('crown-tiles:' + (q.id != null ? q.id : (seed == null ? 1 : seed)))));
+        const accept = Array.isArray(q.accept) && q.accept.length
+            ? q.accept.map(function (s) { return String(s).trim(); }).filter(Boolean)
+            : (answer ? [answer] : []);
+        return {
+            id: 'crown:' + (q.id != null ? q.id : (seed == null ? 1 : seed)),
+            source_id: q.id != null ? Number(q.id) : null,
+            pattern: 'crown',
+            mode: 'blocks',
+            prompt: String(q.q != null ? q.q : (q.prompt != null ? q.prompt : '')).trim(),
+            target: answer,
+            units: units,
+            tiles: tiles,
+            accept: accept,
+            topic: 'participle_phrases'
+        };
+    };
+
+    /* Seeded, roughly even mix of the three patterns among the living tug
+       winners. Stable by user_id; a demo that jumps straight to Round 4
+       simply uses the living players. */
+    PS.assignDalgonaPatterns = function (players, seed) {
+        const living = (Array.isArray(players) ? players : []).filter(function (p) {
+            if (!p || p.is_playing === false || p.ghost === true) return false;
+            const status = String(p.status || 'alive');
+            return status !== 'eliminated' && status !== 'out' && status !== 'ghost';
+        }).sort(function (a, b) {
+            return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+        });
+        const winners = living.filter(function (p) { return p.advanced_round3 === true; });
+        const base = winners.length ? winners : living;
+        const rng = PS.mulberry32(coerceSeed('dalgona-patterns:' + (seed == null ? 1 : seed)));
+        const offset = Math.floor(rng() * PS.ROUND4.PATTERNS.length);
+        return base.map(function (p, i) {
+            return {
+                user_id: PS.userKey(p),
+                pattern: PS.ROUND4.PATTERNS[(offset + i) % PS.ROUND4.PATTERNS.length]
+            };
+        });
+    };
+
+    function dalgonaDeck(items, pattern) {
+        const deck = (Array.isArray(items) ? items : []).filter(function (it) {
+            return it && Array.isArray(it.units) && it.units.length;
+        });
+        if (pattern === 'crown') {
+            return deck.sort(function (a, b) { return b.units.length - a.units.length; });
+        }
+        if (pattern === 'paw') {
+            return deck.sort(function (a, b) {
+                return Math.abs(a.units.length - 10) - Math.abs(b.units.length - 10);
+            });
+        }
+        return deck.sort(function (a, b) { return a.units.length - b.units.length; });
+    }
+
+    /* Assign one unused item per player. Decks run longest-first for the
+       crown (harder patterns get longer items), medium for the paw and
+       shortest-first for the fishbone. If a bank is short the deck wraps,
+       re-shuffled, so the order stays varied but deterministic. */
+    PS.buildDalgonaAssignments = function (input) {
+        const o = input || {};
+        const seed = o.seed == null ? 1 : o.seed;
+        const rows = PS.assignDalgonaPatterns(o.players, seed);
+        const pawItems = (Array.isArray(o.pawQuestions) ? o.pawQuestions : []).map(function (q, i) {
+            return PS.buildPawItem(q, coerceSeed(seed + ':paw:' + i));
+        });
+        const pawPool = uniqueTexts(pawItems.map(function (it) { return it.target; }));
+        pawItems.forEach(function (it) {
+            if (it.units.length !== 1) return;
+            if (it.tiles.length >= 2) return;
+            const extras = pawPool.filter(function (t) {
+                return t.toLowerCase() !== it.target.toLowerCase();
+            }).slice(0, 3);
+            it.tiles = [it.target].concat(extras);
+            PS.shuffleInPlace(it.tiles, PS.mulberry32(coerceSeed('paw-single:' + it.id + ':' + seed)));
+        });
+        const decks = {
+            fishbone: dalgonaDeck((Array.isArray(o.fishboneWords) ? o.fishboneWords : []).map(function (w, i) {
+                return PS.buildFishboneItem(w, coerceSeed(seed + ':' + i));
+            }), 'fishbone'),
+            paw: dalgonaDeck(pawItems, 'paw'),
+            crown: dalgonaDeck((Array.isArray(o.crownQuestions) ? o.crownQuestions : []).map(function (q, i) {
+                return PS.buildCrownItem(q, coerceSeed(seed + ':crown:' + i));
+            }), 'crown')
+        };
+        const cursor = { fishbone: 0, paw: 0, crown: 0 };
+        const rng = PS.mulberry32(coerceSeed('dalgona-pick:' + seed));
+        return rows.map(function (row) {
+            const deck = decks[row.pattern] || [];
+            if (!deck.length) return null;
+            if (cursor[row.pattern] >= deck.length) {
+                cursor[row.pattern] = 0;
+                PS.shuffleInPlace(deck, rng);
+            }
+            const item = deck[cursor[row.pattern]++];
+            return {
+                user_id: row.user_id,
+                pattern: row.pattern,
+                prompt: item.prompt,
+                target: item.target,
+                units: item.units.slice(),
+                tiles: (item.tiles || []).slice(),
+                accept: (item.accept || []).slice(),
+                topic: item.topic || '',
+                item: Object.assign({}, item, {
+                    units: item.units.slice(),
+                    tiles: (item.tiles || []).slice(),
+                    accept: (item.accept || []).slice()
+                }),
+                progress: 0,
+                cracks: 0,
+                lickUsed: false,
+                status: 'carving',
+                finishedAt: null
+            };
+        }).filter(Boolean);
+    };
+
+    /* Accepts a live player row (dalgona_* columns) or a plain demo state. */
+    PS.normalizeDalgonaState = function (playerOrState) {
+        const raw = playerOrState || {};
+        const item = raw.item || (raw.dalgona_item && typeof raw.dalgona_item === 'object' ? raw.dalgona_item : null);
+        const pattern = String(raw.dalgona_pattern || raw.pattern || (item && item.pattern) || '');
+        const units = Array.isArray(raw.dalgona_units) ? raw.dalgona_units.slice()
+            : (Array.isArray(raw.units) ? raw.units.slice()
+                : (Array.isArray(item && item.units) ? item.units.slice() : []));
+        const num = function (v, fallback) {
+            const n = Number(v);
+            return isFinite(n) ? n : fallback;
+        };
+        let progress = num(raw.dalgona_progress != null ? raw.dalgona_progress : raw.progress, 0);
+        progress = Math.max(0, Math.floor(progress));
+        if (units.length) progress = Math.min(units.length, progress);
+        const cracks = Math.max(0, Math.floor(num(raw.dalgona_cracks != null ? raw.dalgona_cracks : raw.cracks, 0)));
+        const lickUsed = (raw.dalgona_lick_used != null ? raw.dalgona_lick_used : raw.lickUsed) === true;
+        const finishedRaw = raw.dalgona_finished_at != null ? raw.dalgona_finished_at : raw.finishedAt;
+        const finishedAt = finishedRaw == null || finishedRaw === '' ? null : finishedRaw;
+        const complete = !!finishedAt || (units.length > 0 && progress >= units.length);
+        let status = 'carving';
+        if (complete) status = 'finished';
+        else if (cracks >= PS.ROUND4.CRACKS_TO_BREAK) status = 'shattered';
+        else if (cracks > 0) status = 'danger';
+        return {
+            pattern: pattern,
+            units: units,
+            target: String(raw.target || (item && item.target) || ''),
+            prompt: String(raw.prompt || (item && item.prompt) || ''),
+            tiles: Array.isArray(raw.tiles) ? raw.tiles.slice() : (Array.isArray(item && item.tiles) ? item.tiles.slice() : []),
+            accept: Array.isArray(raw.accept) ? raw.accept.slice() : (Array.isArray(item && item.accept) ? item.accept.slice() : []),
+            topic: String(raw.topic || (item && item.topic) || ''),
+            progress: complete ? Math.max(progress, units.length) : progress,
+            cracks: cracks,
+            lickUsed: lickUsed,
+            status: status,
+            finishedAt: finishedAt
+        };
+    };
+
+    PS.dalgonaNextUnit = function (state) {
+        const st = PS.normalizeDalgonaState(state);
+        if (st.status === 'finished' || st.status === 'shattered') return null;
+        return st.units[st.progress] == null ? null : String(st.units[st.progress]);
+    };
+
+    function dalgonaSameUnit(expected, value) {
+        return String(expected == null ? '' : expected).trim().toLowerCase()
+            === String(value == null ? '' : value).trim().toLowerCase();
+    }
+
+    /* Apply one letter / block. Returns the engine's decision plus a new
+       state object; the caller persists progress / cracks / finishedAt. */
+    PS.dalgonaApplyInput = function (state, unitValue, opts) {
+        const o = opts || {};
+        const current = PS.normalizeDalgonaState(state);
+        if (current.status === 'finished' || current.status === 'shattered') {
+            return {
+                ok: false, correct: false, ignored: true, state: current,
+                finished: current.status === 'finished', eliminated: current.status === 'shattered', crack: false
+            };
+        }
+        /* Crown-cat items may list more than one official combined sentence
+           in `accept`. The word tiles are built from the first sentence, but
+           a complete alternative sentence is still accepted. */
+        const acceptList = (current.accept || []).map(function (s) { return String(s).trim().toLowerCase(); });
+        const candidate = o.assembled != null
+            ? String(o.assembled).trim().toLowerCase()
+            : (current.progress === 0 ? String(unitValue == null ? '' : unitValue).trim().toLowerCase() : '');
+        if (candidate && acceptList.indexOf(candidate) !== -1) {
+            const won = PS.normalizeDalgonaState(current);
+            won.progress = won.units.length;
+            won.status = 'finished';
+            won.finishedAt = o.now != null ? o.now : (current.finishedAt == null ? true : current.finishedAt);
+            return {
+                ok: true, correct: true, acceptedSentence: true, state: won,
+                finished: true, eliminated: false, crack: false
+            };
+        }
+        const expected = current.units[current.progress];
+        if (expected == null) {
+            return { ok: false, correct: false, ignored: true, state: current, finished: false, eliminated: false, crack: false };
+        }
+        const next = PS.normalizeDalgonaState(current);
+        if (dalgonaSameUnit(expected, unitValue)) {
+            next.progress = current.progress + 1;
+            const complete = next.progress >= next.units.length;
+            if (complete) {
+                next.status = 'finished';
+                next.finishedAt = o.now != null ? o.now : (current.finishedAt == null ? true : current.finishedAt);
+            }
+            return {
+                ok: true, correct: true, expected: String(expected), state: next,
+                finished: complete, eliminated: false, crack: false
+            };
+        }
+        next.cracks = current.cracks + 1;
+        next.status = next.cracks >= PS.ROUND4.CRACKS_TO_BREAK ? 'shattered' : 'danger';
+        return {
+            ok: true, correct: false, expected: String(expected), state: next,
+            finished: false, eliminated: next.status === 'shattered', crack: true
+        };
+    };
+
+    /* One lick per player per round: fills the next correct unit without a
+       crack. No unit left → not consumed. */
+    PS.dalgonaLick = function (state, opts) {
+        const o = opts || {};
+        const current = PS.normalizeDalgonaState(state);
+        if (current.lickUsed || current.status === 'finished' || current.status === 'shattered') {
+            return { applied: false, ok: false, state: current, finished: false, eliminated: false };
+        }
+        const expected = current.units[current.progress];
+        if (expected == null) {
+            return { applied: false, ok: false, state: current, finished: false, eliminated: false };
+        }
+        const next = PS.normalizeDalgonaState(current);
+        next.lickUsed = true;
+        next.progress = current.progress + 1;
+        const complete = next.progress >= next.units.length;
+        if (complete) {
+            next.status = 'finished';
+            next.finishedAt = o.now != null ? o.now : (current.finishedAt == null ? true : current.finishedAt);
+        }
+        return {
+            applied: true, ok: true, correct: true, unit: String(expected), state: next,
+            finished: complete, eliminated: false
+        };
+    };
+
+    /* Host / projector board rows. Same order and fields the client list
+       and the SQL mirror use: finished first, then carvers by progress,
+       then shattered / non-carvers. */
+    PS.teacherRound4Board = function (players, opts) {
+        const o = opts || {};
+        const list = (Array.isArray(players) ? players : []).filter(function (p) {
+            if (!p || p.is_playing === false) return false;
+            /* Only the Round 4 carvers (the tug winners) and students who
+               were eliminated by this candy belong on the host grid. */
+            const reason = String(p.eliminated_reason || '');
+            return p.advanced_round3 === true
+                || p.dalgona_finished_at != null
+                || reason === 'dalgona' || reason === 'dalgona_timeout';
+        });
+        const rows = list.map(function (p) {
+            const st = PS.normalizeDalgonaState(p);
+            const total = st.units.length || Number(o.total) || 0;
+            const finished = st.status === 'finished';
+            const shattered = st.status === 'shattered' || !st.pattern;
+            const timedOut = !finished && String(p.eliminated_reason || '') === 'dalgona_timeout';
+            const status = finished ? 'Finished'
+                : (shattered ? 'Shattered'
+                    : (timedOut ? 'Out'
+                        : (st.status === 'danger' ? 'Danger' : (st.pattern ? 'Carving' : 'Watching'))));
+            return {
+                user_id: PS.userKey(p),
+                name: PS.playerName(p),
+                pattern: st.pattern,
+                pattern_label: PS.dalgonaPatternLabel(st.pattern),
+                progress: st.progress,
+                total: total,
+                cracks: st.cracks,
+                status: status,
+                status_key: finished ? 'finished' : (shattered ? 'shattered' : (st.status === 'danger' ? 'danger' : 'carving')),
+                detail: st.pattern ? (st.progress + ' / ' + total) : '—',
+                finished_at: st.finishedAt,
+                near: !finished && !shattered && total > 0 && st.progress >= total - 3,
+                team: '',
+                combo: 0,
+                distance: PS.round1Distance(p),
+                step: 0
+            };
+        });
+        rows.sort(function (a, b) {
+            const rank = function (r) {
+                if (r.status_key === 'finished') return 0;
+                if (r.status_key === 'shattered' || !r.pattern) return 2;
+                return 1;
+            };
+            const ra = rank(a);
+            const rb = rank(b);
+            if (ra !== rb) return ra - rb;
+            if (ra === 1 && a.progress !== b.progress) return b.progress - a.progress;
+            if (ra === 0) {
+                const ta = PS.timeValue(a.finished_at);
+                const tb = PS.timeValue(b.finished_at);
+                if (ta !== tb) return ta < tb ? -1 : 1;
+            }
+            return a.user_id < b.user_id ? -1 : (a.user_id > b.user_id ? 1 : 0);
+        });
+        return rows.map(function (row, i) {
+            row.place = i + 1;
+            return row;
+        });
+    };
+
+    /* Mini official-sheet bank for the public demo when the vendored Q251+
+       file is unavailable. Ids match the official sheet. */
+    PS.DEMO_COMBINING = [
+        { id: 251, q: 'She was anxious about the oral exam. She rehearsed her answers on the way to school.', a: 'Being anxious about the oral exam, she rehearsed her answers on the way to school.', accept: ['Being anxious about the oral exam, she rehearsed her answers on the way to school.', 'Feeling anxious about the oral exam, she rehearsed her answers on the way to school.'] },
+        { id: 252, q: 'When he stepped off the tram, he noticed a wallet on the seat.', a: 'Stepping off the tram, he noticed a wallet on the seat.', accept: ['Stepping off the tram, he noticed a wallet on the seat.'] },
+        { id: 253, q: 'If the herbs are stored in a dry cupboard, they keep their flavour for months.', a: 'Stored in a dry cupboard, the herbs keep their flavour for months.', accept: ['Stored in a dry cupboard, the herbs keep their flavour for months.'] },
+        { id: 254, q: 'He did not want to spoil the surprise. He hid the tickets in a drawer.', a: 'Not wanting to spoil the surprise, he hid the tickets in a drawer.', accept: ['Not wanting to spoil the surprise, he hid the tickets in a drawer.'] }
+    ];
+
+    /* ------------------------------------------------------------------ */
     /* Prize ceremony — ranking + Paws                                     */
     /*                                                                    */
     /* This is the single source of truth for the end-of-class ceremony.  */
@@ -1711,6 +2263,41 @@
         let survivedOf = round1Survivor;
 
         const ordered = eligible.slice().sort((a, b) => {
+            if (roundCount >= 4) {
+                /* Round 4 ranking: carvers who finished first (by finish
+                   time), then still-carving / danger by progress desc, then
+                   shattered / non-players. */
+                const dg = (p) => PS.normalizeDalgonaState(p);
+                const carver = (p) => p.advanced_round3 === true
+                    || p.dalgona_finished_at != null
+                    || String(p.eliminated_reason || '') === 'dalgona'
+                    || String(p.eliminated_reason || '') === 'dalgona_timeout';
+                const bucket = (p) => {
+                    const st = dg(p);
+                    if (st.status === 'finished') return 0;
+                    return carver(p) ? 1 : 2;
+                };
+                const sa = dg(a);
+                const sb = dg(b);
+                const fa = bucket(a);
+                const fb = bucket(b);
+                if (fa !== fb) return fa - fb;
+                if (fa === 0) {
+                    const ta = ceremonyTimeValue(sa.finishedAt != null ? sa.finishedAt : a.dalgona_finished_at);
+                    const tb = ceremonyTimeValue(sb.finishedAt != null ? sb.finishedAt : b.dalgona_finished_at);
+                    if (ta !== tb) return ta < tb ? -1 : 1;
+                    return compareCeremonyUser(a, b);
+                }
+                if (sa.progress !== sb.progress) return sb.progress - sa.progress;
+                const ta = ceremonyTimeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+                const tb = ceremonyTimeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+                if (ta !== tb) return ta < tb ? -1 : 1;
+                const ra = ceremonyRankValue(a.round1_rank);
+                const rb = ceremonyRankValue(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                return compareCeremonyUser(a, b);
+            }
+
             if (roundCount >= 3) {
                 const groupOf = (p) => {
                     if (winner) {
@@ -1774,12 +2361,18 @@
             return compareCeremonyUser(a, b);
         });
 
-        survivedOf = roundCount >= 3
-            ? function (p) {
-                if (winner) return p.tug_team === winner;
-                return round2Survivor(p);
-            }
-            : (roundCount === 2 ? round2Survivor : round1Survivor);
+        if (roundCount >= 4) {
+            survivedOf = function (p) {
+                return PS.normalizeDalgonaState(p).status === 'finished';
+            };
+        } else {
+            survivedOf = roundCount >= 3
+                ? function (p) {
+                    if (winner) return p.tug_team === winner;
+                    return round2Survivor(p);
+                }
+                : (roundCount === 2 ? round2Survivor : round1Survivor);
+        }
 
         return ordered.map((player, index) => {
             const place = index + 1;
@@ -1805,6 +2398,16 @@
                 rounds.r3 = {
                     tug_team: player.tug_team === 'red' || player.tug_team === 'blue' ? player.tug_team : null,
                     won: winner ? player.tug_team === winner : null
+                };
+            }
+            if (roundCount >= 4) {
+                const dg = PS.normalizeDalgonaState(player);
+                rounds.r4 = {
+                    pattern: dg.pattern || null,
+                    progress: dg.progress,
+                    cracks: dg.cracks,
+                    finished_at: dg.finishedAt != null ? dg.finishedAt : null,
+                    status: dg.status
                 };
             }
             return {

@@ -3539,9 +3539,10 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - `supabase/purrfect_survival.sql` — 老師自己喺 live project `mggnwzirjmibreimrwiq`
     嘅 SQL editor 貼一次（可重跑；**唔好**用 plugin／agent 跑）。
 - **流程**：房主揀 **Vocab 或 Grammar（唔可以混合）** → 建立房間 → 學生用 4 位房碼加入
-  → 房主 Start（至少 2 個玩家）→ Round 1 →（2／3 回合房）自動／房主手動轉
-  Round 2 →（3 回合房）Tug of War → 任何結局都出 **prize ceremony**（見 §10.18c）。
-  Round 4–5（Squid Circle）仍未做；`current_round`／`status` 預留日後加回合。
+  → 房主 Start（至少 2 個玩家）→ Round 1 →（2／3／4 回合房）自動／房主手動轉
+  Round 2 →（3／4 回合房）Tug of War →（4 回合房）Dalgona Candy Carving
+  → 任何結局都出 **prize ceremony**（見 §10.18c、§10.18f）。
+  Round 5（Squid Circle）仍未做；`current_round`／`status` 預留日後加回合。
 - **Round 1（1-2-3 Meow!）**：server 存 `phase_schedule`（green 4–8s、yellow 2s、
   red 3s）同 `round1_started_at`；所有電話用 server 時間重算 phase，RPC 亦用
   `now()` 驗證。Green／Yellow 答對 +10m；Red 亂撳第 1 次 −30m、第 2 次 −15m、
@@ -3767,3 +3768,109 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `purrfect_survival_qualifier.sql` 仍然需要保留 live 7 秒玻璃延遲。Canonical
   `supabase/purrfect_survival.sql` 已同步；`/workspace/` 亦有一份副本。
 - **Cache**：`sw.js` `CACHE_NAME` 升到 `learnity-pwa-v112`（JS 有改；mp3 唔入 precache）。
+
+### 10.18f Dalgona Candy Carving (Round 4)（2026-11 加）
+
+- **Flow**：只喺房主揀 **4 rounds** 時先會玩。Tug of War 分出勝方之後，贏咗嗰隊
+  會入 `status = 'round4'`（輸咗嗰隊照舊出局／spectate），先播現有
+  **7 秒** qualifier board（`QUALIFIER_MS = 7000`），標題
+  **「Advancing to Dalgona Candy Carving」**，列出 tug winners；board 未完之前
+  server 同 client 都唔接受雕刻輸入，雕刻時鐘喺 7 秒後才真正開始
+  （SQL `round4_started_at + interval '7 seconds'`）。
+  1–3 回合房完全照舊（R1／glass／tug → ceremony）。
+  `HOST.MAX_IMPLEMENTED = 4`、`HOST.KINDS[4] = 'dalgona'`；
+  `MAX_PLANNED` 仍然 5、`KINDS[5] = 'squid'` 仍然未玩。預設 `roundCount` 仍然 2；
+  5 會 clamp 去 4。
+- **三種圖案／三個題庫**（開局時 client 用 seed 平均分配畀所有玩家，tug winners
+  之後沿用自己嗰份）：
+  1. 🐟 **Fishbone** — 睇中文提示串英文字。字庫 = 該 form 嘅 **New Vocab**
+     ＋ **Dictation Master 全部 tabs**，用 `buildFishboneBank()` 合併、
+     英文（大小楷唔計）去重、只留 en＋zh 齊嘅 row。Units 係 A–Z 字母，
+     空格／連字號／撇號／標點唔計。
+  2. 🐾 **Cat paw** — 文法答案砌字塊。只用現有五個 Grammar Quest topic：
+     `tenses`／`agreement`／`articles`／`indefinite_pronouns`／
+     `participle_phrases`（**唔會**用 Q251+ combining 題）。Units = 官方答案
+     逐個字；如果答案本身係單字而且有 choices，tiles 可以用嗰幾個 choices。
+  3. 👑 **Crown cat** — participle clause sentence combining，只准
+     **Q251+**（id 251–330）。題庫係新檔
+     `js/grammar/participle-clauses-combining-data.js`
+     （`window.DG_PARTICIPLE_CLAUSES_COMBINING`，80 題，由
+     `/workspace/ps-dalgona-q251.json` 直接 vendor，保留 `id`／`q`／`a`／
+     `accept` 原文）。Prompt 係兩句原句；tiles 用第一句官方 `a` 砌，
+     engine 亦接受任何一條 `accept` 嘅完整組合。
+- **Crack meter（2 條命，唔係扣分）**：第一次錯字母／字塊 → 黑色閃電裂痕、
+  畫面震、紅色 danger frame、播「咔嚓！」warning SFX，狀態 `danger`；
+  第二次錯 → 椪糖分開兩半、狀態 `shattered`、玩家出局（今回合冇 survivor
+  獎勵），變成鬼貓 spectate，唔可以再雕。
+- **Lick power-up**：每位玩家今回合 **一次**（每個 pattern／句子計），
+  按鈕文字固定 **`[ 👅 舔一口椪糖 (Hint) ]`**。會自動填下一個正確字母／
+  字塊（當一次答對、唔會裂、鋼針照樣前進），用完即 disable；
+  如果已經冇下一個 unit，按鈕唔會消耗。
+- **輸入／畫面**：學生手機係金色圓形椪糖喺淺金屬 tin 嘅 close-up，
+  上面有虛線壓印圖案（fishbone／cat paw／crown cat），Cat Needle（貓爪鋼針）
+  沿住當前虛線段雕；每答啱一個 unit 就多一段發光金色實線。1 crack 有黑色
+  裂痕＋紅色 danger frame；2 cracks 見到兩半；完成就全條金色發光。
+  Fishbone 用 A–Z 鍵盤；paw／crown 用 seeded shuffle 嘅字塊（用完會 disable，
+  refresh 唔會重新洗牌）。老師／projector（`role === 'host'`）係 cat-world
+  沙地 overhead **全班 grid**：每個 carver 一個 named tin＋pattern＋
+  `progress / total`＋Carving／Danger／Shattered／Finished，唔會顯示
+  未雕嘅完整答案。畫全部係原創 canvas，冇 reference stills／JPEG／
+  `drawImage`；亦冇 TV-show 粉紅守衛。
+- **時間到／提早完**：時間到仍未完成而未 shattered 嘅 carver 會出局
+  （`dalgona_timeout`），之後入 ceremony；如果全班都 finished／shattered
+  就唔等時鐘，即刻完場。Ceremony 4 回合排名：finished（按完成時間）→
+  仍未完成（progress desc）→ shattered／非 carver；1–3 回合 ceremony
+  排名完全不變。Mistake report cover R4 錯字母／錯字塊同 shatter
+  （學生只見自己，老師見全班）。
+- **SQL**：`supabase/purrfect_survival_round4_dalgona.sql`（可重跑；老師自己
+  喺 live project `mggnwzirjmibreimrwiq` SQL editor 貼，**唔好**用
+  plugin／CLI／agent）。要喺 host-settings → tug → ceremony → qualifier →
+  `purrfect_survival_round2_answers.sql` **之後**跑，唔好重跑舊 incrementals。
+  加 rooms `round4_started_at`／`round4_ends_at`；players
+  `dalgona_pattern`／`dalgona_progress`／`dalgona_cracks`／
+  `dalgona_lick_used`／`dalgona_finished_at`／`dalgona_units`／
+  `dalgona_item`／`advanced_round3`；status check 加 `round4`；
+  `purrfect_survival_round_count` max 4；RPC
+  `start_purrfect_survival_round4`、`submit_purrfect_survival_dalgona`、
+  `lick_purrfect_survival_dalgona`、`purrfect_survival_dalgona_item`；
+  `start_purrfect_survival` 多一個 `p_dalgona` 一次過存每位玩家自己嘅
+  units／item（class poll 唔會讀 `dalgona_item`／`dalgona_units`，
+  學生只經自己嗰行／RPC 攞自己答案）。Tug winner 喺 tick 同
+  `submit_purrfect_survival_answer()` 都會經
+  `purrfect_survival_enter_round4()` 入 R4，唔會再直接 finished。
+  `/workspace/purrfect_survival_round4_dalgona.sql` 有同一份副本。
+- **Demo**：`purrfect-survival-demo.html` 加 **🍬 Round 4** scene；
+  Teacher／Projector 見班級 grid，Student 見自己 candy close-up；bot 有
+  混合 pattern 同 live-ish progress，visitor 可以試 crack／lick。
+  公開 demo 仍然 no login／no saved scores；音樂照用 `survival_music.mp3`，
+  mute 跟 `learniTY_ps_sound === '0'`。
+- **Version／cache**：`PS.VERSION = 1.3.0`、`PSRender.VERSION = 2.5.2`；
+  `sw.js` `CACHE_NAME` 升到 **`learnity-pwa-v113`**，新 bank 加入
+  `CORE_ASSETS`；**冇** mp3 加入 precache。
+
+### 10.18g Round 4 student composition ＋ own-cat lick（2026-11 加）
+
+- **學生糖果位置**：`R.round4PlayerCandyLayout(L, s)`（renderer）用
+  `state.round4.padBottom`（client 喺 `frame()` 量 `#ps-question.offsetHeight`
+  ＋10，隱藏／未 layout 就 0）計出 `{cx, cy, r, top, bottom, candyTop,
+  candyBottom, headBand}`。上面留 `L.hud`，下面留問題 pad；糖果貼近上方
+  （唔再係 `0.46h` 中心），r 按剩餘高度／闊度收放，`candyBottom` 一定喺 pad
+  之上。冇量到 pad 時 portrait 用 `0.38h` 保守 reserve；landscape 只 reserve
+  最多 `0.30h` 並把糖果略微右移（pad 喺左下角），唔會縮到睇唔到。
+- **學生 R4 pad 收緊**：`render()` 對 `#purrfect-survival-view` toggle
+  `ps-r4-student`（只 round 4 而且唔係 host／projector；`PS.stop()` 清走），
+  CSS 只喺呢個 class 下細少少 padding、prompt min-height、letter key 36px、
+  dalgona tile 38px、lick 40px。其他回合同老師／投影機完全唔變。
+- **用學生自己隻貓舔**：`state.round4.me.look` 由
+  `js/purrfect-survival.js` 嘅 `playerLook(me)` 傳入（cat／glasses／hat／
+  outfit，demo visitor 一樣）；`R.drawCatLick(ctx, cx, cy, r, t, look)`
+  唔再畫舊嘅 painted ginger 頭，改為 `drawCat` → `DG.drawCatAvatar`
+  由糖果上緣探頭（clip 喺 `candyTop + 0.07r`，只露頭同帽／眼鏡），
+  頭半徑 ≈ `0.27r`，嘴喺頭底，舌頭由嘴伸到糖果面。
+- **舌頭**：`lickTonguePath()` 用兩條 quadratic 邊＋圓尖砌出有體積嘅
+  tapered 舌頭，`createLinearGradient` 做底面深粉→面層玫瑰色，
+  中間加白色濕潤高光條、尖端 glossy radial、contact 位有濕痕 smear，
+  接觸時 tip 變闊（`squash`）＋少量反光點。時序同以前一樣約 1 秒：
+  伸出 → 橫掃（-1→1 swipe）→ 縮回；最新一條 carved dash 仍然
+  0.55 前遮住。`drawCatLick` 只收 4 個參數都仍然 work（look = `{}`）。
+

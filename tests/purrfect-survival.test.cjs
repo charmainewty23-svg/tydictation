@@ -63,11 +63,13 @@ function mockContext(canvas) {
     return ctx;
 }
 
-function loadRenderer() {
+function loadRenderer(options) {
+    const opts = options || {};
     const code = fs.readFileSync(RENDER_PATH, 'utf8');
     const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
+    if (opts.dg) sandbox.DG = opts.dg;
     vm.createContext(sandbox);
     vm.runInContext(code, sandbox, { filename: 'purrfect-survival-render.js' });
     assert.ok(sandbox.PSRender, 'renderer attaches window.PSRender');
@@ -206,6 +208,16 @@ function loadMainWithDom(options) {
     add('ps-cine', 'div');
     add('ps-stage', 'div');
     add('ps-question', 'div');
+    add('ps-prompt', 'p');
+    add('ps-carved', 'p');
+    add('ps-options', 'div');
+    add('ps-feedback', 'p');
+    add('ps-lick-btn', 'button').classList.add('hidden');
+    add('ps-hud-rule', 'p');
+    add('ps-hud-round', 'span');
+    add('ps-hud-you', 'span');
+    add('ps-hud-phase', 'span');
+    add('ps-hud-timer', 'span');
     add('ps-round-overlay', 'div');
     add('ps-room-actions', 'div');
     add('ps-host-note', 'div');
@@ -1147,12 +1159,12 @@ test('bilingual rules are faithful to the English engine copy', () => {
 /* ---------------------------------------------------------------- */
 
 test('host settings expose an extensible round map and default to two rounds', () => {
-    assert.equal(PS.HOST.MAX_IMPLEMENTED, 3);
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 4);
     assert.equal(PS.HOST.MAX_PLANNED, 5);
     assert.equal(PS.HOST.KINDS[1], 'meow');
     assert.equal(PS.HOST.KINDS[2], 'glass');
     assert.equal(PS.HOST.KINDS[3], 'tug');
-    assert.equal(PS.HOST.KINDS[4], 'glass2');
+    assert.equal(PS.HOST.KINDS[4], 'dalgona');
     assert.equal(PS.HOST.KINDS[5], 'squid');
 
     assert.equal(PS.roomRoundCount({}), 2, 'old rooms default to 2 rounds');
@@ -1160,7 +1172,8 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.roomRoundCount({ roundCount: 2 }), 2);
     assert.equal(PS.roomRoundCount({ roundCount: 3 }), 3);
     assert.equal(PS.roomRoundCount({ roundCount: 0 }), 1, 'below 1 clamps to 1');
-    assert.equal(PS.roomRoundCount({ roundCount: 4 }), 3, 'above the implemented max clamps to 3');
+    assert.equal(PS.roomRoundCount({ roundCount: 4 }), 4);
+    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 4, 'above the implemented max clamps to 4');
     assert.equal(PS.roomRoundCount(JSON.stringify({ roundCount: 1 })), 1, 'JSON strings are accepted');
 
     assert.equal(PS.shouldPlayRound2({ roundCount: 1 }), false);
@@ -1174,6 +1187,11 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.round2EndAction({ roundCount: 1 }), 'finish');
     assert.equal(PS.round2EndAction({ roundCount: 2 }), 'finish');
     assert.equal(PS.round2EndAction({ roundCount: 3 }), 'tug');
+    assert.equal(PS.shouldPlayRound4({ roundCount: 3 }), false);
+    assert.equal(PS.shouldPlayRound4({ roundCount: 4 }), true);
+    assert.equal(PS.round3EndAction({ roundCount: 3 }), 'finish');
+    assert.equal(PS.round3EndAction({ roundCount: 4 }), 'dalgona');
+    assert.equal(PS.round4EndAction({ roundCount: 4 }), 'finish');
 });
 
 test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
@@ -1351,15 +1369,21 @@ test('roundConfig reads per-round entries and room-level fallback', () => {
     assert.equal(PS.roundConfig({}, 1, { subject: 'vocab', source: 'Shopping' }).vocabSource, 'Shopping');
 });
 
-test('host settings reject unimplemented rounds and invalid subjects/topics', () => {
-    assert.equal(PS.validateHostSettings({
+test('host settings accept 4 rounds, clamp 5 to 4 and reject invalid subjects/topics', () => {
+    const four = PS.validateHostSettings({
         roundCount: 4,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
-    }).error, 'ROUNDS_NOT_IMPLEMENTED');
-    assert.equal(PS.validateHostSettings({
+    });
+    assert.equal(four.ok, true, four.error);
+    assert.equal(four.roundCount, 4);
+    assert.equal(four.settings.roundCount, 4);
+    assert.equal(four.rounds[3].kind, 'dalgona');
+    const five = PS.validateHostSettings({
         roundCount: 5,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
-    }).error, 'ROUNDS_NOT_IMPLEMENTED');
+    });
+    assert.equal(five.ok, true, five.error);
+    assert.equal(five.roundCount, 4, 'round 5 clamps to 4');
     assert.equal(PS.validateHostSettings({
         roundCount: 0,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
@@ -1389,7 +1413,8 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
         'ps-r2-subject', 'ps-r2-vocab-source', 'ps-r2-grammar-topic',
         'ps-r3-subject', 'ps-r3-vocab-source', 'ps-r3-grammar-topic',
         'ps-tug-duration', 'ps-tug-start-btn',
-        'ps-round1-card', 'ps-round2-card', 'ps-round3-card'].forEach(id => {
+        'ps-round1-card', 'ps-round2-card', 'ps-round3-card', 'ps-round4-card',
+        'ps-dalgona-duration', 'ps-lick-btn'].forEach(id => {
         assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists');
     });
     assert.ok(html.indexOf('min="30" max="300" step="10"') !== -1, 'distance input range 30–300 step 10');
@@ -1398,7 +1423,8 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
         'tug duration input range 30–120 step 5');
     assert.equal(html.indexOf('value="3" disabled'), -1, 'round 3 is no longer coming soon');
     assert.ok(html.indexOf('value="3">3 rounds') !== -1, 'round 3 is selectable');
-    assert.ok(html.indexOf('value="4" disabled') !== -1, 'round 4 still coming soon');
+    assert.equal(html.indexOf('value="4" disabled'), -1, 'round 4 is no longer coming soon');
+    assert.ok(html.indexOf('value="4">4 rounds') !== -1, 'round 4 is selectable');
     assert.ok(html.indexOf('value="5" disabled') !== -1, 'round 5 still coming soon');
     assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
@@ -1506,7 +1532,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the round-2 report change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v112") !== -1, 'CACHE_NAME is v112');
+    assert.ok(sw.indexOf("learnity-pwa-v113") !== -1, 'CACHE_NAME is v113');
+    assert.equal(sw.indexOf("learnity-pwa-v112"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
@@ -1518,10 +1545,11 @@ test('service worker cache is bumped for the round-2 report change', () => {
 
 test('demo page exposes round count, metres, glass step and tug controls', () => {
     const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
-    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration', 'demo-round3'].forEach(id => {
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration', 'demo-round3', 'demo-round4'].forEach(id => {
         assert.ok(demo.indexOf('id="' + id + '"') !== -1, id + ' control exists');
     });
     assert.ok(demo.indexOf('<option value="3">3</option>') !== -1, 'round 3 is selectable in the demo');
+    assert.ok(demo.indexOf('<option value="4">4</option>') !== -1, 'round 4 is selectable in the demo');
     assert.ok(demo.indexOf('applyDemoSettings') !== -1, 'controls re-apply the demo settings');
     assert.ok(demo.indexOf('setDemoSettings') !== -1, 'main demo API is used');
 });
@@ -2100,7 +2128,7 @@ test('drawCeremony paints a podium in portrait and landscape without bitmaps', (
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
-    assert.match(RENDERER.VERSION, /^2\.4\./);
+    assert.match(RENDERER.VERSION, /^2\.5\./);
 });
 
 test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
@@ -2384,7 +2412,7 @@ test('drawRound1 paints the 1280x720 host track and the student track', () => {
             })), 'round 1 ' + role + ' @' + size.join('x'));
         });
     });
-    assert.match(RENDERER.VERSION, /^2\.4\./);
+    assert.match(RENDERER.VERSION, /^2\.5\./);
 });
 
 test('glass panes are lights only: no vocab text on the 3D bridge', () => {
@@ -2584,4 +2612,630 @@ test('round-2 answer/order SQL is a safe teacher-run incremental', () => {
     const copy = '/workspace/purrfect_survival_round2_answers.sql';
     assert.ok(fs.existsSync(copy), 'workspace copy exists');
     assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches the repo incremental');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 4 — Dalgona Candy Carving                                  */
+/* ---------------------------------------------------------------- */
+
+const COMBINING_PATH = path.join(__dirname, '..', 'js', 'grammar', 'participle-clauses-combining-data.js');
+
+function loadCombiningBank() {
+    const code = fs.readFileSync(COMBINING_PATH, 'utf8');
+    const sandbox = { window: {}, console, Date, Math, JSON, Number, String, Array, Object, isFinite };
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'participle-clauses-combining-data.js' });
+    return sandbox.window.DG_PARTICIPLE_CLAUSES_COMBINING;
+}
+
+function dalgonaPlayer(id, pattern, units, extra) {
+    return Object.assign({
+        user_id: id,
+        nickname: id.toUpperCase(),
+        is_playing: true,
+        status: 'advanced',
+        advanced_round3: true,
+        ghost: false,
+        dalgona_pattern: pattern,
+        dalgona_progress: 0,
+        dalgona_cracks: 0,
+        dalgona_lick_used: false,
+        dalgona_finished_at: null,
+        dalgona_units: units.slice(),
+        dalgona_item: { pattern: pattern, units: units.slice(), prompt: 'Q ' + id, target: units.join(' ') }
+    }, extra || {});
+}
+
+test('Round 4 carving: every correct unit advances one segment and finishing marks finished', () => {
+    const units = ['C', 'A', 'T'];
+    let state = { pattern: 'fishbone', units: units.slice(), progress: 0, cracks: 0, lickUsed: false };
+    let res = PS.dalgonaApplyInput(state, 'c', { now: 1000 });
+    assert.equal(res.ok, true);
+    assert.equal(res.correct, true);
+    assert.equal(res.state.progress, 1);
+    assert.equal(res.state.units.length, 3);
+    assert.equal(res.finished, false);
+
+    res = PS.dalgonaApplyInput(res.state, 'A', { now: 1200 });
+    assert.equal(res.state.progress, 2);
+
+    res = PS.dalgonaApplyInput(res.state, 't', { now: 1500 });
+    assert.equal(res.state.progress, 3);
+    assert.equal(res.finished, true);
+    assert.equal(res.state.status, 'finished');
+    assert.equal(res.state.finishedAt, 1500, 'finish time comes from opts.now');
+
+    const again = PS.dalgonaApplyInput(res.state, 'x', { now: 2000 });
+    assert.equal(again.ok, false, 'finished states ignore further input');
+    assert.equal(again.state.cracks, 0);
+
+    const board = PS.teacherRound4Board([dalgonaPlayer('a', 'fishbone', units, { dalgona_progress: 2 })]);
+    assert.equal(board[0].progress, 2);
+    assert.equal(board[0].detail, '2 / 3');
+    assert.equal(board[0].pattern_label, 'Fishbone');
+});
+
+test('Round 4 crack meter: 1st wrong = danger, 2nd wrong = shattered and eliminated', () => {
+    const units = ['a', 'b', 'c'];
+    let res = PS.dalgonaApplyInput({ pattern: 'paw', units: units, progress: 0, cracks: 0 }, 'zzz');
+    assert.equal(res.correct, false);
+    assert.equal(res.crack, true);
+    assert.equal(res.eliminated, false);
+    assert.equal(res.state.cracks, 1);
+    assert.equal(res.state.status, 'danger');
+    assert.equal(res.state.progress, 0);
+
+    res = PS.dalgonaApplyInput(res.state, 'nope');
+    assert.equal(res.eliminated, true);
+    assert.equal(res.state.cracks, 2);
+    assert.equal(res.state.status, 'shattered');
+
+    const after = PS.dalgonaApplyInput(res.state, 'a');
+    assert.equal(after.ok, false);
+    assert.equal(after.ignored, true);
+    assert.equal(after.state.progress, 0, 'shattered students cannot carve');
+    assert.equal(after.state.cracks, 2);
+});
+
+test('Round 4 lick: fills one unit, consumes the single lick, never cracks and is rejected afterwards', () => {
+    const units = ['one', 'two', 'three'];
+    const state = { pattern: 'crown', units: units.slice(), progress: 1, cracks: 0, lickUsed: false };
+    const res = PS.dalgonaLick(state, { now: 900 });
+    assert.equal(res.applied, true);
+    assert.equal(res.correct, true);
+    assert.equal(res.state.progress, 2);
+    assert.equal(res.state.lickUsed, true);
+    assert.equal(res.state.cracks, 0, 'lick does not crack');
+    assert.equal(res.unit, 'two');
+
+    const second = PS.dalgonaLick(res.state);
+    assert.equal(second.applied, false, 'only one lick per round');
+    assert.equal(second.state.progress, 2);
+
+    assert.equal(PS.dalgonaLick({ pattern: 'crown', units: units, progress: 3, cracks: 0, lickUsed: false }).applied, false,
+        'no unit left → not consumed');
+    assert.equal(PS.dalgonaLick({ pattern: 'crown', units: units, progress: 1, cracks: 2, lickUsed: false }).applied, false,
+        'shattered students cannot lick');
+    const finish = PS.dalgonaLick({ pattern: 'crown', units: units, progress: 2, cracks: 0, lickUsed: false }, { now: 5 });
+    assert.equal(finish.finished, true);
+    assert.equal(finish.state.status, 'finished');
+});
+
+test('Round 4 fishbone bank merges New Vocab + Dictation, dedupes and requires English + Chinese', () => {
+    const bank = PS.buildFishboneBank({
+        newVocab: [
+            { en: 'Library', zh: '圖書館' },
+            { en: 'library', zh: '重複' },
+            { en: 'no-zh', zh: '' },
+            { en: '', zh: '冇英文' }
+        ],
+        dictation: [
+            { en: 'LIBRARY', zh: '又一個' },
+            { en: 'apple', zh: '蘋果' }
+        ]
+    });
+    assert.deepEqual(bank.map(w => w.en), ['Library', 'apple']);
+    assert.deepEqual(bank.map(w => w.zh), ['圖書館', '蘋果']);
+
+    const item = PS.buildFishboneItem(bank[1], 3);
+    assert.equal(item.pattern, 'fishbone');
+    assert.equal(item.prompt, '蘋果');
+    assert.equal(item.target, 'apple');
+    assert.deepEqual(item.units, ['a', 'p', 'p', 'l', 'e']);
+
+    const spaced = PS.buildFishboneItem({ en: "don't stop-me", zh: '唔好停' }, 4);
+    assert.deepEqual(spaced.units, ['d', 'o', 'n', 't', 's', 't', 'o', 'p', 'm', 'e'],
+        'spaces, apostrophes and hyphens are ignored');
+});
+
+test('Round 4 cat paw items come from the five grammar topics and never a Q251+ combining stem', () => {
+    PS.GRAMMAR_TOPICS.forEach(topic => {
+        const item = PS.buildPawItem({
+            id: topic + '-1',
+            topic: topic,
+            prompt: 'Choose the correct form: She ___ ready.',
+            primary: 'is',
+            options: ['is', 'are', 'was']
+        }, 7);
+        assert.equal(item.pattern, 'paw');
+        assert.equal(item.topic, topic);
+        assert.deepEqual(item.units, ['is']);
+        assert.ok(item.tiles.length >= 2, 'single-token answers use the official choices as tiles');
+    });
+    const multi = PS.buildPawItem({ id: 'x', prompt: '1. Choose: The cat ___', primary: 'has been sleeping', options: ['has been sleeping', 'have been sleeping'] }, 1);
+    assert.deepEqual(multi.units, ['has', 'been', 'sleeping']);
+    assert.equal(multi.prompt.indexOf('Choose:'), -1, 'the sheet prefix is stripped for display');
+
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(src.indexOf('PSEngine.GRAMMAR_TOPICS') !== -1, 'the client loads exactly the five grammar topics');
+    assert.ok(src.indexOf('participle_phrases') === -1 || src.indexOf('PSEngine.GRAMMAR_TOPICS') !== -1);
+});
+
+test('Round 4 crown bank is Q251+ only, keeps official wording and accepts every official sentence', () => {
+    const bank = loadCombiningBank();
+    assert.equal(bank.length, 80);
+    assert.equal(Math.min(...bank.map(q => Number(q.id))), 251);
+    assert.equal(Math.max(...bank.map(q => Number(q.id))), 330);
+    assert.ok(bank.some(q => q.id === 251));
+    assert.ok(bank.some(q => q.id === 252));
+    assert.equal(bank.filter(q => Number(q.id) < 251).length, 0, 'no Q1–250 gap-fill items');
+    bank.forEach(q => {
+        assert.ok(q.q && q.a && Array.isArray(q.accept) && q.accept.length >= 1);
+        assert.ok(q.accept.indexOf(q.a) !== -1, 'a is inside accept');
+    });
+
+    const item = PS.buildCrownItem(bank[0], 1);
+    assert.equal(item.pattern, 'crown');
+    assert.equal(item.source_id, 251);
+    assert.equal(item.prompt, bank[0].q);
+    assert.deepEqual(item.units, PS.dalgonaTokenize(bank[0].a));
+    assert.equal(item.accept.length, 2);
+    assert.equal(item.tiles.length, item.units.length);
+
+    const alt = PS.dalgonaApplyInput({
+        pattern: 'crown', units: item.units, tiles: item.tiles, accept: item.accept,
+        progress: 0, cracks: 0, lickUsed: false
+    }, '__sentence__', { assembled: item.accept[1], now: 77 });
+    assert.equal(alt.finished, true, 'a complete alternative accept sentence finishes the candy');
+    assert.equal(alt.state.progress, item.units.length);
+});
+
+test('Round 4 assignment: seeded patterns, one item per player and a mix of patterns', () => {
+    const bank = loadCombiningBank();
+    const players = [
+        dalgonaPlayer('a', '', [], { advanced_round3: true }),
+        dalgonaPlayer('b', '', [], { advanced_round3: true }),
+        dalgonaPlayer('c', '', [], { advanced_round3: true }),
+        dalgonaPlayer('out', '', [], { advanced_round3: false, status: 'eliminated', ghost: true })
+    ];
+    const assignments = PS.buildDalgonaAssignments({
+        players: players,
+        seed: 4242,
+        fishboneWords: PS.DEMO_VOCAB,
+        pawQuestions: PS.DEMO_GRAMMAR,
+        crownQuestions: bank
+    });
+    assert.equal(assignments.length, 3, 'only living tug winners get candy');
+    assert.equal(new Set(assignments.map(a => a.user_id)).size, 3);
+    assignments.forEach(a => {
+        assert.ok(PS.ROUND4.PATTERNS.indexOf(a.pattern) !== -1);
+        assert.ok(a.units.length > 0);
+        assert.equal(a.item.pattern, a.pattern);
+        assert.equal(a.progress, 0);
+        assert.equal(a.cracks, 0);
+    });
+    assert.equal(new Set(assignments.map(a => a.pattern)).size, 3, 'three winners get one of each pattern');
+
+    const patterns = PS.assignDalgonaPatterns(players, 4242);
+    assert.deepEqual(patterns.map(p => p.user_id), ['a', 'b', 'c']);
+    assert.deepEqual(patterns, PS.assignDalgonaPatterns(players, 4242), 'stable by user_id + seed');
+});
+
+test('Round 4 host board rows match every shared student dalgona state', () => {
+    const players = [
+        dalgonaPlayer('a', 'fishbone', ['a', 'b', 'c', 'd'], { dalgona_progress: 4, dalgona_finished_at: 2000 }),
+        dalgonaPlayer('b', 'paw', ['x', 'y'], { dalgona_progress: 1, dalgona_cracks: 1 }),
+        dalgonaPlayer('c', 'crown', ['m', 'n'], { dalgona_progress: 0, dalgona_cracks: 2, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' }),
+        dalgonaPlayer('d', 'fishbone', ['q'], { dalgona_progress: 0, advanced_round3: false, tug_team: 'blue', status: 'eliminated', ghost: true, eliminated_reason: 'tug' })
+    ];
+    const board = PS.teacherRound4Board(players, {});
+    const byId = {};
+    board.forEach(row => { byId[row.user_id] = row; });
+    assert.equal(byId.a.status, 'Finished');
+    assert.equal(byId.a.progress, 4);
+    assert.equal(byId.b.status, 'Danger');
+    assert.equal(byId.b.progress, 1);
+    assert.equal(byId.b.cracks, 1);
+    assert.equal(byId.c.status, 'Shattered');
+    assert.equal(byId.c.cracks, 2);
+    assert.equal(byId.d, undefined, 'a tug loser is not on the Round 4 grid');
+    assert.equal(board[0].user_id, 'a', 'finished carver ranks first');
+    assert.ok(board.findIndex(r => r.user_id === 'b') < board.findIndex(r => r.user_id === 'c'));
+});
+
+test('Round 4 host settings: default 2, 4 plays dalgona, 5 clamps, 3 does not', () => {
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 4);
+    assert.equal(PS.roomRoundCount({}), 2);
+    assert.equal(PS.roomRoundCount({ roundCount: 4 }), 4);
+    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 4);
+    assert.equal(PS.shouldPlayRound4({ roundCount: 3 }), false);
+    assert.equal(PS.shouldPlayRound4({ roundCount: 4 }), true);
+    assert.equal(PS.round3EndAction({ roundCount: 4 }), 'dalgona');
+    assert.equal(PS.round3EndAction({ roundCount: 3 }), 'finish');
+    assert.equal(PS.round4EndAction({ roundCount: 4 }), 'finish');
+
+    assert.equal(PS.normalizeDalgonaDuration(), 180000);
+    assert.equal(PS.normalizeDalgonaDuration('180'), 180000);
+    assert.equal(PS.normalizeDalgonaDuration(30), 60000, 'below the range clamps to 60 s');
+    assert.equal(PS.normalizeDalgonaDuration(900000), 600000, 'above the range clamps to 600 s');
+    assert.equal(PS.normalizeDalgonaDuration(900), 60000, 'a value above 600 is read as milliseconds (0.9 s → 60 s floor)');
+    assert.equal(PS.normalizeDalgonaDuration(120000), 120000, 'large values are milliseconds');
+
+    const result = PS.validateHostSettings({
+        roundCount: 4,
+        dalgonaDuration: 240,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.rounds[3].kind, 'dalgona');
+    assert.equal(result.rounds[3].dalgonaDuration, 240000);
+    assert.equal(result.settings.dalgonaDuration, 240000);
+});
+
+test('Round 4 qualifier board is titled for Dalgona and lists the tug winners', () => {
+    const players = [
+        dalgonaPlayer('r1', 'fishbone', ['a'], { tug_team: 'red', advanced_round3: true }),
+        dalgonaPlayer('r2', 'paw', ['b'], { tug_team: 'red', advanced_round3: true }),
+        dalgonaPlayer('b1', 'crown', ['c'], { tug_team: 'blue', advanced_round3: false, status: 'eliminated', ghost: true, eliminated_reason: 'tug' })
+    ];
+    assert.equal(PS.qualifierTitle(3), 'Advancing to Dalgona Candy Carving');
+    assert.equal(PS.qualifierTitle(2), 'Advancing to Tug of War');
+    assert.equal(PS.qualifierTitle(1), 'Advancing to Glass Stepping Stones');
+
+    const roster = PS.qualifierRoster(players, { fromRound: 3, tug: { phase: 'done', winner: 'red' } });
+    assert.deepEqual(roster.map(r => r.user_id), ['r1', 'r2']);
+    assert.equal(roster[0].detail, 'Won the Tug of War');
+    assert.equal(roster[0].team, 'red');
+});
+
+test('Round 4 ceremony ranks finished carvers above shattered students and keeps 3-round tug order', () => {
+    const players = [
+        dalgonaPlayer('slow', 'fishbone', ['a'], { dalgona_progress: 1, dalgona_finished_at: 3000 }),
+        dalgonaPlayer('fast', 'paw', ['b'], { dalgona_progress: 1, dalgona_finished_at: 1000 }),
+        dalgonaPlayer('carver', 'crown', ['c', 'd'], { dalgona_progress: 1 }),
+        dalgonaPlayer('broken', 'fishbone', ['e'], { dalgona_progress: 0, dalgona_cracks: 2, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' }),
+        dalgonaPlayer('tugout', 'paw', ['f'], { status: 'eliminated', ghost: true, eliminated_reason: 'tug', advanced_round3: false })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 4 });
+    assert.deepEqual(rows.slice(0, 3).map(r => r.user_id), ['fast', 'slow', 'carver']);
+    assert.equal(rows[0].survived, true);
+    assert.equal(rows[0].paws, 20);
+    assert.equal(rows.find(r => r.user_id === 'broken').survived, false);
+    assert.ok(rows.find(r => r.user_id === 'broken').place > rows.find(r => r.user_id === 'carver').place);
+    assert.equal(rows.find(r => r.user_id === 'fast').rounds.r4.status, 'finished');
+    assert.equal(rows.find(r => r.user_id === 'broken').rounds.r4.status, 'shattered');
+
+    const three = PS.ceremonyResults([
+        dalgonaPlayer('blue', 'fishbone', [], { tug_team: 'blue' }),
+        dalgonaPlayer('red', 'fishbone', [], { tug_team: 'red' })
+    ], { roundCount: 3, tug: { phase: 'done', winner: 'blue' } });
+    assert.equal(three[0].user_id, 'blue', '3-round ranking stays on the tug winner');
+    assert.equal(three[0].rounds.r4, undefined);
+});
+
+test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters CORE_ASSETS', () => {
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(render.indexOf('R.drawRound4 = function') !== -1, 'drawer exists');
+    assert.ok(render.indexOf('R.drawRound4(ctx, s)') !== -1, 'drawScene dispatches round 4');
+    assert.equal(/\.drawImage\s*\(/.test(render), false, 'no drawImage');
+    const R = loadRenderer();
+    assert.equal(R.VERSION, '2.5.2');
+    assert.equal(typeof R.drawRound4, 'function');
+    const ctx = mockContext({ width: 390, height: 844 });
+    R.drawRound4(ctx, {
+        w: 390, h: 844, hud: 80, role: 'player', now: 1200,
+        round4: { me: { pattern: 'crown', pattern_label: 'Crown cat', progress: 4, total: 18, cracks: 1, status: 'danger' }, board: [] }
+    });
+    R.drawRound4(ctx, {
+        w: 1280, h: 720, hud: 80, role: 'host', now: 1200,
+        round4: {
+            me: null,
+            board: PS.teacherRound4Board([
+                dalgonaPlayer('a', 'fishbone', ['a', 'b', 'c'], { dalgona_progress: 2 }),
+                dalgonaPlayer('b', 'paw', ['d'], { dalgona_cracks: 1 }),
+                dalgonaPlayer('c', 'crown', ['e'], { dalgona_cracks: 2, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' })
+            ])
+        }
+    });
+
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
+    assert.ok(sw.indexOf('learnity-pwa-v113') !== -1, 'cache is v113');
+    const assets = sw.slice(sw.indexOf('const CORE_ASSETS'), sw.indexOf('];', sw.indexOf('const CORE_ASSETS')));
+    assert.equal(/\.mp3/.test(assets), false, 'no mp3 in CORE_ASSETS');
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.ok(html.indexOf('js/grammar/participle-clauses-combining-data.js') !== -1, 'index loads the bank');
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    assert.ok(demo.indexOf('js/grammar/participle-clauses-combining-data.js') !== -1, 'demo loads the bank');
+
+    assert.equal(PS.VERSION, '1.3.0');
+
+    const client = fs.readFileSync(path.join(__dirname, '..', 'js', 'purrfect-survival.js'), 'utf8');
+    assert.ok(client.indexOf('dalgona_item') !== -1 && client.indexOf('PLAYER_COLUMNS') !== -1);
+    assert.ok(client.indexOf("roomRoundCount() >= 4") !== -1
+        && client.indexOf('? PLAYER_COLUMNS') !== -1,
+        '4-round rooms never select * for the class poll');
+    assert.ok(client.indexOf("rpc('purrfect_survival_dalgona_item'") !== -1,
+        'a student loads only their own candy via the RPC');
+});
+
+test('Round 4 SQL incremental is safe to re-run and mirrors the engine rules', () => {
+    const sqlPath = path.join(__dirname, '..', 'supabase', 'purrfect_survival_round4_dalgona.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    assert.ok(/Safe to re-run/i.test(sql));
+    assert.ok(/Do NOT re-run/i.test(sql));
+    assert.ok(/plugin, CLI or agent/i.test(sql));
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1);
+    ['round4_started_at', 'round4_ends_at', 'dalgona_pattern', 'dalgona_progress',
+        'dalgona_cracks', 'dalgona_lick_used', 'dalgona_finished_at', 'dalgona_units',
+        'submit_purrfect_survival_dalgona', 'lick_purrfect_survival_dalgona',
+        'start_purrfect_survival_round4', 'purrfect_survival_enter_round4',
+        'purrfect_survival_dalgona_item'].forEach(token => {
+        assert.ok(sql.indexOf(token) !== -1, token + ' exists');
+    });
+    assert.ok(sql.indexOf("check (status in ('waiting', 'round1', 'round2', 'round3', 'round4', 'finished'))") !== -1);
+    assert.ok(/interval '7 seconds'/.test(sql), 'honours the 7-second qualifier');
+    assert.ok(sql.indexOf('return least(4, greatest(1, v_raw::int))') !== -1, 'round count max is 4');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+    assert.equal(sql.indexOf('create or replace function public.submit_purrfect_survival_answer') !== -1, true,
+        'round-3 winner path is patched to enter round 4');
+    assert.ok(sql.indexOf('purrfect_survival_enter_round4(p_room_id, v_winner)') !== -1);
+
+    const copy = '/workspace/purrfect_survival_round4_dalgona.sql';
+    assert.ok(fs.existsSync(copy), 'workspace copy exists');
+    assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches');
+});
+
+test('demo Round 4 builds a live carving state with mixed patterns, lick and crack wiring', async () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round4' });
+    let state = dom.PS.state();
+    assert.equal(state.room.status, 'round4');
+    assert.equal(state.room.current_round, 4);
+    assert.ok(state.room.round4_started_at && state.room.round4_ends_at);
+
+    const visitor = state.players.find(p => p.user_id === 'demo-you');
+    assert.ok(visitor, 'the demo visitor is in the room');
+    assert.ok(visitor.dalgona_pattern, 'the visitor has a stamped pattern');
+    assert.ok(visitor.dalgona_units.length > 0, 'the visitor has carve units');
+
+    const board = PS.teacherRound4Board(state.players, {});
+    assert.ok(board.length >= 5, 'the teacher grid has the carving class');
+    assert.ok(board.some(r => r.pattern === 'fishbone'));
+    assert.ok(board.some(r => r.pattern === 'paw') || board.some(r => r.pattern === 'crown'),
+        'the demo mixes patterns');
+
+    const before = visitor.dalgona_progress;
+    dom.PS.dalgonaLick();
+    state = dom.PS.state();
+    const afterLick = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(afterLick.dalgona_lick_used, true, 'lick is consumed');
+    assert.equal(afterLick.dalgona_progress, before + 1, 'lick fills one unit');
+    assert.equal(afterLick.dalgona_cracks, 0, 'lick never cracks');
+
+    dom.PS.dalgonaInput('__definitely_wrong__');
+    await new Promise(resolve => setTimeout(resolve, 240));
+    state = dom.PS.state();
+    let me = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(me.dalgona_cracks, 1, 'first wrong carve is one crack');
+    assert.notEqual(me.status, 'eliminated');
+
+    dom.PS.dalgonaInput('__still_wrong__');
+    state = dom.PS.state();
+    me = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(me.dalgona_cracks, 2, 'second wrong carve splits the candy');
+    assert.equal(me.status, 'eliminated');
+    assert.equal(me.eliminated_reason, 'dalgona');
+});
+
+test('lickAnimProgress is null outside the window and 0..1 inside it', () => {
+    assert.equal(PS.ROUND4.LICK_ANIM_MS, 1000);
+    assert.equal(PS.lickAnimProgress(0, 500, 1000), null, 'no start time');
+    assert.equal(PS.lickAnimProgress(1000, 999, 1000), null, 'before the tap');
+    assert.equal(PS.lickAnimProgress(1000, 1000, 1000), 0, 'first frame');
+    assert.equal(PS.lickAnimProgress(1000, 1500, 1000), 0.5, 'half way');
+    assert.equal(PS.lickAnimProgress(1000, 1999, 1000), 0.999, 'just before the end');
+    assert.equal(PS.lickAnimProgress(1000, 2000, 1000), 1, 'last frame is inclusive');
+    assert.equal(PS.lickAnimProgress(1000, 2001, 1000), null, 'after the window');
+    assert.equal(PS.lickAnimProgress(1000, 1500, 0), null, 'a zero duration has no window');
+});
+
+test('demo student Hint starts the cat lick, fills exactly one unit once, and disables the button', async () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round4' });
+    let state = dom.PS.state();
+    const visitor = state.players.find(p => p.user_id === 'demo-you');
+    assert.ok(visitor && visitor.dalgona_pattern && visitor.dalgona_units.length, 'the visitor is carving');
+    const before = visitor.dalgona_progress;
+    assert.equal(dom.PS.lickAnimActive(), false, 'no animation before the tap');
+    const btn = dom.el('ps-lick-btn');
+    assert.ok(!btn.classList.contains('hidden'), 'the Hint button is offered');
+
+    dom.PS.dalgonaLick();
+    assert.equal(dom.PS.lickAnimActive(), true, 'the cat-lick window opens on tap');
+    const anim = dom.PS.state().lickAnim;
+    assert.ok(typeof anim === 'number' && anim >= 0 && anim <= 1, 'state exposes the animation progress');
+    assert.ok(btn.classList.contains('hidden') || btn.disabled, 'the Hint button is hidden or disabled immediately');
+
+    await new Promise(resolve => setTimeout(resolve, 40));
+    state = dom.PS.state();
+    const afterLick = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(afterLick.dalgona_progress, before + 1, 'one lick fills one unit');
+    assert.equal(afterLick.dalgona_lick_used, true, 'the single lick is consumed');
+    assert.equal(afterLick.dalgona_cracks, 0, 'a lick never cracks the candy');
+
+    dom.PS.dalgonaLick();
+    state = dom.PS.state();
+    const second = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(second.dalgona_progress, before + 1, 'a second tap does nothing');
+    assert.equal(second.dalgona_lick_used, true);
+});
+
+test('drawCatLick paints original canvas art at t = 0, 0.5 and 1 without bitmaps', () => {
+    const R = loadRenderer();
+    assert.equal(typeof R.drawCatLick, 'function', 'the renderer exports the cat lick');
+    const ctx = mockContext({ width: 390, height: 844 });
+    const look = { cat: 'Siamese', hat: 'Crown', glasses: 'None', outfit: 'None' };
+    [0, 0.5, 1].forEach(t => {
+        assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 120, t, look), 'drawCatLick t=' + t);
+    });
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const start = src.indexOf('function drawCatLick');
+    const end = src.indexOf('function drawRound4Player');
+    assert.ok(start !== -1 && end > start, 'cat lick is its own function');
+    const body = src.slice(start, end);
+    assert.equal(/drawImage/.test(body), false, 'the cat lick never blits bitmaps');
+    assert.ok(/drawCat\s*\(/.test(body), 'the lick draws the real LearniTY cat avatar');
+    assert.ok(body.indexOf('createLinearGradient') !== -1, 'the tongue is a fleshy gradient fill');
+    assert.ok(body.indexOf('quadraticCurveTo') !== -1, 'the tongue is a tapered curved path');
+    assert.ok(body.indexOf('squash') !== -1, 'the tip flattens on contact');
+    assert.ok(body.indexOf('rgba(255,255,255,.40)') !== -1, 'a wet highlight streak runs down the centre');
+    ['#f4a261', '#e8798f', '#f9c0a0'].forEach(colour => {
+        assert.equal(body.indexOf(colour), -1, 'the old painted ' + colour + ' ginger head is gone');
+    });
+    assert.equal(src.indexOf('function lickTonguePath') !== -1, true, 'the tapered tongue path is factored out');
+});
+
+test('drawCatLick uses each student own LearniTY cat and survives a missing look', () => {
+    const calls = [];
+    const DG = {
+        drawCatAvatar(ctx, x, y, scale, look) {
+            calls.push({ x: x, y: y, scale: scale, look: look });
+        }
+    };
+    const R = loadRenderer({ dg: DG });
+    const ctx = mockContext({ width: 390, height: 844 });
+    const look = { cat: 'Siamese', hat: 'Crown', glasses: 'None', outfit: 'None' };
+
+    R.drawCatLick(ctx, 195, 500, 140, 0.5, look);
+    assert.equal(calls.length, 1, 'the lick draws exactly one avatar');
+    assert.equal(calls[0].look.cat, 'Siamese', 'the supplied look is forwarded');
+    assert.equal(calls[0].look.hat, 'Crown');
+
+    const headR = 33 * calls[0].scale;
+    const headY = calls[0].y - 91 * calls[0].scale;
+    const candyTop = 500 - 140;
+    assert.ok(headY < candyTop, 'the head sits above the candy surface');
+    assert.ok(headY > candyTop - 140 * 0.5, 'the head stays inside the reserved lick band');
+    assert.ok(headR / 140 > 0.25 && headR / 140 < 0.4, 'the head is 0.25-0.4 of the candy radius');
+
+    calls.length = 0;
+    assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 140, 0.5), 'a 4-arg call still works');
+    assert.equal(calls.length, 1, 'the default look still draws the DG / Ginger cat');
+    assert.ok(calls[0].look && calls[0].look.cat === undefined, 'missing look falls back to DG defaults');
+
+    /* drawRound4Player forwards state.round4.me.look to the lick */
+    calls.length = 0;
+    R.drawRound4(ctx, {
+        w: 390, h: 844, hud: 80, role: 'player', now: 600,
+        round4: {
+            padBottom: 300,
+            me: {
+                pattern: 'fishbone', pattern_label: 'Fishbone', progress: 3, total: 8,
+                cracks: 0, status: 'carving', lickAnim: 0.5,
+                look: { cat: 'Garfield', hat: 'None', glasses: 'Sunglasses', outfit: 'None' }
+            },
+            board: []
+        }
+    });
+    assert.ok(calls.length >= 1, 'the player view draws the licking cat');
+    assert.equal(calls[0].look.cat, 'Garfield', 'the student own cat reaches the canvas');
+    assert.equal(calls[0].look.glasses, 'Sunglasses');
+});
+
+test('Round 4 student candy layout keeps the tin above the question pad', () => {
+    const R = loadRenderer();
+    const L = R.layout(390, 844, 'player');
+    const candy = R.round4PlayerCandyLayout(L, {
+        round4: { me: { pattern: 'fishbone' }, padBottom: 300 }
+    });
+    assert.ok(candy.padBottom === 300, 'the measured pad height is honoured');
+    assert.ok(candy.candyBottom <= 844 - 300 + 8, 'the candy bottom stays above the pad (slack <= 8px)');
+    assert.ok(candy.cy <= 844 * 0.42, 'the tin sits clearly higher than the old 0.46 * h centre');
+    assert.ok(candy.cy > L.hud, 'the tin stays below the HUD');
+    assert.ok(candy.candyTop > L.hud, 'the candy top clears the HUD');
+
+    /* No measurement (hidden pad / no real layout): conservative portrait
+       reserve so the candy is still out of the usual key zone. */
+    const auto = R.round4PlayerCandyLayout(L, { round4: { me: { pattern: 'paw' } } });
+    assert.equal(auto.measured, false, 'the fallback is used when the pad is not measured');
+    assert.ok(auto.candyBottom < 844 - 844 * 0.36, 'the fallback keeps the candy above the pad zone');
+    assert.ok(auto.cy <= 844 * 0.42, 'the fallback is also higher than the old centre');
+
+    /* A shorter pad keeps the tin large; a taller pad shrinks it so it still
+       fits, and an absurd pad never pushes it off screen. */
+    const tight = R.round4PlayerCandyLayout(L, { round4: { padBottom: 200 } });
+    assert.ok(tight.r >= candy.r * 0.98, 'a shorter pad never shrinks the tin');
+    const tall = R.round4PlayerCandyLayout(L, { round4: { padBottom: 420 } });
+    assert.ok(tall.r < candy.r, 'a taller pad shrinks the tin so it still fits');
+    const huge = R.round4PlayerCandyLayout(L, { round4: { padBottom: 900 } });
+    assert.ok(huge.r >= 30 && huge.candyBottom <= 844, 'an oversized pad never pushes the tin off screen');
+
+    /* Landscape is capped so the tin stays visible next to the corner pad. */
+    const land = R.round4PlayerCandyLayout(R.layout(844, 390, 'player'), { round4: { padBottom: 230 } });
+    assert.ok(land.r >= 60, 'landscape still gets a usable tin');
+    assert.ok(land.candyBottom <= 390, 'landscape keeps the tin on screen');
+
+    /* The host grid path is untouched and still runs. */
+    const host = R.layout(1280, 720, 'host');
+    assert.doesNotThrow(() => R.drawRound4(mockContext({ width: 1280, height: 720 }), {
+        w: 1280, h: 720, hud: 80, role: 'host', now: 1200,
+        round4: {
+            me: null,
+            board: PS.teacherRound4Board([
+                dalgonaPlayer('a', 'fishbone', ['a', 'b'], { dalgona_progress: 1 }),
+                dalgonaPlayer('b', 'paw', ['d'], { dalgona_cracks: 2, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' })
+            ])
+        }
+    }));
+    assert.equal(host.host, true);
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(src.indexOf("'ROUND 4 · ' + n + ' CARVERS · LIVE CLASS GRID'") !== -1,
+        'the teacher grid title is unchanged');
+});
+
+test('Round 4 student phone view is decluttered while the host grid keeps its labels', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round4' });
+    const prompt = String(dom.el('ps-prompt').textContent || '');
+    assert.ok(prompt.length > 0, 'the student still sees the question');
+    const lower = prompt.toLowerCase();
+    ['spell the english', 'carved', 'dalgona candy carving'].forEach(token => {
+        assert.equal(lower.indexOf(token), -1, 'the prompt has no "' + token + '"');
+    });
+    assert.equal(/\d+\s*\/\s*\d+/.test(prompt), false, 'no x / y progress counter in the prompt');
+
+    const rule = dom.el('ps-hud-rule');
+    assert.ok(rule.textContent === '' || rule.classList.contains('hidden'), 'the long Round 4 rule is hidden for students');
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const player = src.slice(src.indexOf('function drawRound4Player'), src.indexOf('function drawRound4Host'));
+    assert.equal(player.indexOf('One lick available'), -1, 'the long lick caption is gone');
+    assert.equal(player.indexOf('DALGONA CANDY CARVING'), -1, 'the big student title pill is gone');
+    assert.ok(src.indexOf("'ROUND 4 · ' + n + ' CARVERS · LIVE CLASS GRID'") !== -1,
+        'the teacher grid title is unchanged');
+    assert.ok(src.indexOf("'✅ Finished'") !== -1 && src.indexOf("'💥 Shattered'") !== -1,
+        'the teacher grid still labels every student');
+
+    dom.PS.demoJump('round1');
+    const r1Rule = dom.el('ps-hud-rule');
+    assert.ok(r1Rule.textContent.length > 0, 'round 1 keeps its rule');
+    assert.equal(r1Rule.classList.contains('hidden'), false, 'round 1 has no hidden rule');
+
+    dom.PS.startDemo({ role: 'teacher', scene: 'round4' });
+    const hostRule = dom.el('ps-hud-rule');
+    assert.ok(hostRule.textContent.length > 0, 'the teacher / projector keeps the Round 4 rule');
+    assert.equal(hostRule.classList.contains('hidden'), false);
 });

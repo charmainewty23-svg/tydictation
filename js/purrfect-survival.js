@@ -601,7 +601,7 @@
         const subject = subjectSel ? subjectSel.value : 'vocab';
         show(roundId(r, 'vocab-wrap'), subject === 'vocab');
         show(roundId(r, 'grammar-wrap'), subject === 'grammar');
-        if (subject === 'vocab') syncVocabForm(r);
+        if (subject === 'vocab') populateVocabSources(r);
         else syncGrammarModes(r);
         if (r === 1) syncTeacherPlays();
     }
@@ -636,7 +636,10 @@
             soundBtn.textContent = soundOn ? '🔊' : '🔇';
             soundBtn.setAttribute('aria-label', soundOn ? 'Mute sound' : 'Turn sound on');
         }
-        const guest = isGuest();
+        // The public demo sets currentUser through demoEnsureUser(), but
+        // isGuestUser() can still report true inside the iframe. Never hide
+        // the host settings there; live guest blocking stays unchanged.
+        const guest = !demoMode && isGuest();
         show('ps-guest-notice', guest);
         show('ps-room-actions', !guest);
         show('ps-host-note', !guest);
@@ -2225,6 +2228,7 @@
             demoPrepareChrome();
             demoApplyRoleClass();
             me = myPlayer();
+            populateLobby();
             if (room) render();
             else setPanel('lobby');
             demoStartLoop();
@@ -2329,6 +2333,7 @@
     };
 
     PS.render = render;
+    PS.populateLobby = populateLobby;
     PS.syncSubjectFields = syncSubjectFields;
     PS.syncVocabForm = syncVocabForm;
     PS.syncGrammarModes = syncGrammarModes;
@@ -2499,7 +2504,7 @@
     }
 
     function demoRoundMs() {
-        return Math.max(PS.ROUND1.MIN_ROUND_MS, Math.round(DEMO_ROUND_MS * (demoFinishDistance / PS.ROUND1.FINISH_DISTANCE)));
+        return Math.max(PSEngine.ROUND1.MIN_ROUND_MS, Math.round(DEMO_ROUND_MS * (demoFinishDistance / PSEngine.ROUND1.FINISH_DISTANCE)));
     }
 
     function demoSettings() {
@@ -2692,6 +2697,7 @@
         shownKeys = {};
         questionsKey = '';
         me = myPlayer();
+        populateLobby();
         PS.hideOverlay();
     }
 
@@ -3419,6 +3425,7 @@
         if (!room) demoInit();
         demoApplyRoleClass();
         me = myPlayer();
+        populateLobby();
         demoOpenView();
         demoStartLoop();
         if (o.scene) PS.demoJump(o.scene);

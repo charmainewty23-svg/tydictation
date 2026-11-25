@@ -107,6 +107,184 @@ function loadMain() {
     return sandbox.PS;
 }
 
+/* A small but real DOM surface for the lobby code. Element.innerHTML parses
+   <option> tags the way a browser select would, so populateVocabSources() and
+   syncSubjectFields() can be exercised without a browser. */
+function loadMainWithDom(options) {
+    const opts = options || {};
+    const code = fs.readFileSync(MAIN_PATH, 'utf8');
+    const store = {
+        getItem() { return null; },
+        setItem() {},
+        removeItem() {}
+    };
+    const elements = Object.create(null);
+
+    function decodeEntities(text) {
+        return String(text == null ? '' : text)
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'");
+    }
+
+    function makeClassList() {
+        const set = new Set();
+        return {
+            add(name) { set.add(name); },
+            remove(name) { set.delete(name); },
+            contains(name) { return set.has(name); },
+            toggle(name, on) {
+                const next = on === undefined ? !set.has(name) : !!on;
+                if (next) set.add(name); else set.delete(name);
+                return next;
+            },
+            has(name) { return set.has(name); }
+        };
+    }
+
+    function makeEl(id, tag, value) {
+        const el = {
+            id: id,
+            tagName: String(tag || 'div').toUpperCase(),
+            style: {},
+            disabled: false,
+            checked: false,
+            textContent: '',
+            _options: [],
+            _html: '',
+            _value: value === undefined ? '' : String(value),
+            setAttribute(name, val) { el[name] = val; },
+            getAttribute(name) { return el[name]; },
+            appendChild() {},
+            focus() {},
+            getContext() { return null; }
+        };
+        el.classList = makeClassList();
+        Object.defineProperty(el, 'className', {
+            get() { return ''; },
+            set(val) {
+                String(val || '').split(/\s+/).filter(Boolean).forEach(name => el.classList.add(name));
+            }
+        });
+        Object.defineProperty(el, 'options', {
+            get() { return el._options; },
+            set(list) { el._options = Array.from(list || []); }
+        });
+        Object.defineProperty(el, 'innerHTML', {
+            get() { return el._html; },
+            set(html) {
+                el._html = String(html == null ? '' : html);
+                const parsed = [];
+                const re = /<option\b[^>]*value="([^"]*)"[^>]*>([\s\S]*?)<\/option>/gi;
+                let m;
+                while ((m = re.exec(el._html))) {
+                    parsed.push({
+                        value: decodeEntities(m[1]),
+                        text: decodeEntities(String(m[2]).replace(/<[^>]*>/g, '')).trim()
+                    });
+                }
+                el._options = parsed;
+                el._value = parsed.length ? parsed[0].value : '';
+            }
+        });
+        Object.defineProperty(el, 'value', {
+            get() { return el._value; },
+            set(val) { el._value = String(val == null ? '' : val); }
+        });
+        elements[id] = el;
+        return el;
+    }
+
+    function add(id, tag, value) {
+        return makeEl(id, tag, value);
+    }
+
+    add('ps-lobby', 'div');
+    add('ps-game', 'div');
+    add('ps-cine', 'div');
+    add('ps-stage', 'div');
+    add('ps-question', 'div');
+    add('ps-round-overlay', 'div');
+    add('ps-room-actions', 'div');
+    add('ps-host-note', 'div');
+    add('ps-guest-notice', 'div').classList.add('hidden');
+    add('ps-rejoin-banner', 'div').classList.add('hidden');
+    add('ps-rejoin-code', 'span');
+    add('ps-teacher-row', 'label');
+    add('ps-teacher-plays', 'input');
+    add('ps-round-count', 'select', '2');
+    add('ps-round2-card', 'section');
+    add('ps-round3-card', 'section').classList.add('hidden');
+    add('ps-sound-btn', 'button');
+    add('ps-code', 'span');
+    add('ps-code-chip', 'div');
+    add('ps-room-meta', 'div');
+    add('ps-player-list', 'div');
+    add('ps-start-btn', 'button');
+    add('ps-wait-msg', 'p');
+    add('ps-host-end', 'button');
+    add('ps-canvas', 'canvas');
+    add('purrfect-survival-view', 'div');
+    add('login-view', 'div');
+    add('app', 'div');
+    add('bottom-nav', 'nav');
+    add('home-music-btn', 'button');
+    add('me-store-music-btn', 'button');
+
+    for (let r = 1; r <= 3; r++) {
+        add('ps-r' + r + '-subject', 'select', 'vocab');
+        add('ps-r' + r + '-vocab-wrap', 'div');
+        add('ps-r' + r + '-grammar-wrap', 'div').classList.add('hidden');
+        add('ps-r' + r + '-vocab-source', 'select');
+        add('ps-r' + r + '-vocab-form-wrap', 'div');
+        add('ps-r' + r + '-vocab-form', 'select');
+        add('ps-r' + r + '-grammar-topic', 'select', 'tenses');
+        add('ps-r' + r + '-grammar-mode', 'select');
+    }
+
+    const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.PSEngine = loadEngine();
+    sandbox.updateMascot = function () {};
+    sandbox.SHEET_NAMES = opts.sheetNames || ['Food', 'School'];
+    if (opts.currentUser !== undefined) sandbox.currentUser = opts.currentUser;
+    if (opts.isGuestUser) sandbox.isGuestUser = opts.isGuestUser;
+    sandbox.localStorage = store;
+    sandbox.sessionStorage = store;
+    sandbox.devicePixelRatio = 1;
+    sandbox.document = {
+        readyState: 'complete',
+        getElementById(id) { return elements[id] || null; },
+        querySelector() { return null; },
+        addEventListener() {},
+        createElement(tag) { return makeEl('created-' + tag, tag); },
+        body: makeEl('body', 'body')
+    };
+    sandbox.addEventListener = function () {};
+    sandbox.removeEventListener = function () {};
+    sandbox.requestAnimationFrame = function () { return 0; };
+    sandbox.cancelAnimationFrame = function () {};
+    sandbox.setInterval = function () { return 0; };
+    sandbox.clearInterval = function () {};
+    sandbox.setTimeout = function () { return 0; };
+    sandbox.clearTimeout = function () {};
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'purrfect-survival.js' });
+    assert.ok(sandbox.PS, 'main module attaches window.PS');
+    return {
+        PS: sandbox.PS,
+        sandbox: sandbox,
+        el(id) { return elements[id] || null; },
+        optionValues(id) {
+            const el = elements[id];
+            return el ? Array.from(el.options).map(o => o.value) : [];
+        }
+    };
+}
+
 function player(id, distance, extra) {
     return Object.assign({
         user_id: id,
@@ -707,6 +885,59 @@ test('demo page and demo mode stay gated without weakening guest blocking', () =
     assert.ok(demo.indexOf('Mid-victory') !== -1, 'mid-victory control');
 });
 
+test('demo lobby fills the vocab word-bank even when isGuestUser() is still true', async () => {
+    const dom = loadMainWithDom({
+        sheetNames: ['Food', 'School'],
+        isGuestUser: function () { return true; }
+    });
+
+    dom.PS.startDemo({ role: 'student', scene: 'lobby' });
+
+    ['ps-r1-vocab-source', 'ps-r2-vocab-source', 'ps-r3-vocab-source'].forEach(id => {
+        const values = dom.optionValues(id);
+        assert.ok(values.indexOf('New Vocab') !== -1, id + ' has New Vocab');
+        assert.ok(values.indexOf('Food') !== -1, id + ' has the Food sheet topic');
+        assert.ok(values.indexOf('School') !== -1, id + ' has the School sheet topic');
+    });
+    assert.ok(!dom.el('ps-room-actions').classList.contains('hidden'), 'demo keeps the host topic pickers visible');
+    assert.ok(!dom.el('ps-host-note').classList.contains('hidden'), 'demo keeps the host note visible');
+    assert.ok(dom.el('ps-guest-notice').classList.contains('hidden'), 'demo does not show the sign-in block');
+
+    // PS.enter() is the other demo entry path (e.g. returning from another view).
+    dom.el('ps-r1-vocab-source').innerHTML = '';
+    assert.deepEqual(dom.optionValues('ps-r1-vocab-source'), []);
+    await dom.PS.enter();
+    assert.ok(dom.optionValues('ps-r1-vocab-source').indexOf('New Vocab') !== -1, 'demo enter refills the word bank');
+
+    // Switching to Vocab must refill the list even if populateLobby was missed.
+    dom.el('ps-r1-vocab-source').innerHTML = '';
+    const subject = dom.el('ps-r1-subject');
+    subject.value = 'grammar';
+    dom.PS.syncSubjectFields(1);
+    subject.value = 'vocab';
+    dom.PS.syncSubjectFields(1);
+    const values = dom.optionValues('ps-r1-vocab-source');
+    assert.ok(values.indexOf('New Vocab') !== -1, 'vocab switch restores New Vocab');
+    assert.ok(values.indexOf('Food') !== -1, 'vocab switch restores the sheet topics');
+    assert.ok(values.indexOf('School') !== -1, 'vocab switch restores every sheet topic');
+});
+
+test('live guest path still hides the host settings', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], isGuestUser: function () { return false; } });
+    dom.PS.populateLobby();
+    assert.ok(dom.el('ps-room-actions').classList.contains('hidden'), 'live guests cannot see the create-room card');
+    assert.ok(dom.el('ps-host-note').classList.contains('hidden'), 'live guests do not see host settings');
+    assert.ok(!dom.el('ps-guest-notice').classList.contains('hidden'), 'live guests see the sign-in notice');
+});
+
+test('demo entry paths call populateLobby', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'purrfect-survival.js'), 'utf8');
+    const enterDemo = src.slice(src.indexOf('PS.enter = async function'), src.indexOf('if (!signedInUser() || isGuest())'));
+    assert.ok(enterDemo.indexOf('populateLobby();') !== -1, 'demo enter calls populateLobby');
+    const jumpLobby = src.slice(src.indexOf('function demoJumpLobby()'), src.indexOf('function demoJumpRound1()'));
+    assert.ok(jumpLobby.indexOf('populateLobby();') !== -1, 'demoJumpLobby calls populateLobby');
+});
+
 /* 3D renderer: exports, drawing safety and original artwork         */
 /* ---------------------------------------------------------------- */
 
@@ -1197,8 +1428,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the tug-of-war change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v104") !== -1, 'CACHE_NAME is v104');
-    assert.equal(sw.indexOf("learnity-pwa-v103"), -1, 'the old cache name is gone');
+    assert.ok(sw.indexOf("learnity-pwa-v105") !== -1, 'CACHE_NAME is v105');
+    assert.equal(sw.indexOf("learnity-pwa-v104"), -1, 'the old cache name is gone');
 });
 
 test('demo page exposes round count, metres, glass step and tug controls', () => {

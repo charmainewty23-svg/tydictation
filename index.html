@@ -4875,6 +4875,64 @@
             80% { transform: translateX(3px); }
         }
         .ps-options-glass { grid-template-columns: 1fr 1fr; }
+        /* ---------- Round 4 · Dalgona Candy Carving ---------- */
+        .ps-options-dalgona {
+            grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+        }
+        .ps-opt-dalgona {
+            justify-content: center;
+            min-height: 46px;
+            border-color: #fcd34d;
+            background: linear-gradient(160deg, #fffbeb, #fef3c7);
+            color: #78350f;
+            text-align: center;
+        }
+        .ps-opt-dalgona .ps-opt-text { flex: 0 1 auto; }
+        .ps-opt-dalgona.ps-opt-used {
+            opacity: .34;
+            pointer-events: none;
+            text-decoration: line-through;
+        }
+        .ps-options-letters {
+            grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+            gap: 5px;
+        }
+        .ps-options-letters .ps-opt {
+            justify-content: center;
+            min-height: 42px;
+            padding: 4px;
+            font-size: 16px;
+        }
+        .ps-lick {
+            display: block;
+            width: 100%;
+            min-height: 46px;
+            margin-top: 8px;
+            border-radius: .85rem;
+            border: 2px solid #fb923c;
+            background: linear-gradient(160deg, #fff7ed, #ffedd5);
+            color: #9a3412;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .ps-lick:disabled {
+            opacity: .5;
+            cursor: default;
+            border-color: #e5e7eb;
+            color: #6b7280;
+            background: #f8fafc;
+        }
+        .ps-lick.hidden { display: none; }
+        .ps-danger-frame {
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, .55), 0 16px 40px rgba(0, 0, 0, .28) !important;
+            animation: psDangerPulse .9s ease-in-out infinite;
+        }
+        @keyframes psDangerPulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(239, 68, 68, .4), 0 16px 40px rgba(0,0,0,.28); }
+            50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, .7), 0 16px 40px rgba(0,0,0,.28); }
+        }
         .ps-glass-opt {
             min-height: 58px;
             justify-content: center;
@@ -5418,7 +5476,7 @@
                     <div class="text-4xl">🐱</div>
                     <div class="flex-1">
                         <h2 class="text-xl font-bold text-pink-600">Purr-fect Survival</h2>
-                        <p class="text-gray-400 text-sm">Class survival game — 1-2-3 Meow! (Red Light, Green Light) then Glass Stepping Stones.</p>
+                        <p class="text-gray-400 text-sm">Class survival game — 1-2-3 Meow!, Glass Stepping Stones, Tug of War and Dalgona Candy Carving.</p>
                     </div>
                     <span class="hidden sm:inline-flex px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-bold">UP TO 30</span>
                 </div>
@@ -6141,7 +6199,7 @@
                             <div class="ps-hero-icon">🦑</div>
                             <div>
                                 <h1>Purr-fect Survival</h1>
-                                <p>One class, one survival game. Round 1: 1-2-3 Meow! (Red Light, Green Light). Round 2: Glass Stepping Stones. Round 3: Tug of War. Later rounds are coming soon.</p>
+                                <p>One class, one survival game. Round 1: 1-2-3 Meow! (Red Light, Green Light). Round 2: Glass Stepping Stones. Round 3: Tug of War. Round 4: Dalgona Candy Carving. Round 5 is still coming soon.</p>
                             </div>
                         </div>
 
@@ -6166,7 +6224,7 @@
                                         <option value="1">1 round · 1-2-3 Meow!</option>
                                         <option value="2" selected>2 rounds · 1-2-3 Meow! + Glass Stepping Stones</option>
                                         <option value="3">3 rounds · 1-2-3 Meow! + Glass Stepping Stones + Tug of War</option>
-                                        <option value="4" disabled>4 rounds · coming soon</option>
+                                        <option value="4">4 rounds · 1-2-3 Meow! + Glass Stepping Stones + Tug of War + Dalgona Candy Carving</option>
                                         <option value="5" disabled>5 rounds · coming soon</option>
                                     </select>
                                 </div>
@@ -6321,12 +6379,21 @@
                                     </div>
                                 </section>
 
+                                <section id="ps-round4-card" class="ps-round-config hidden">
+                                    <h3 class="ps-round-title">Round 4 · Dalgona Candy Carving</h3>
+                                    <div class="ps-field">
+                                        <label for="ps-dalgona-duration">Carving time limit (seconds)</label>
+                                        <input id="ps-dalgona-duration" type="number" min="60" max="600" step="15" value="180" inputmode="numeric">
+                                        <p class="ps-hint">60–600 seconds (default 180). The tug winners carve a golden candy. Candy patterns assign the question types automatically: 🐟 Fishbone = New Vocab + Dictation Master spelling; 🐾 Cat paw = the five grammar topics; 👑 Crown cat = participle sentence combining (Q251+). One wrong carve is a crack, a second splits the candy.</p>
+                                    </div>
+                                </section>
+
                                 <label id="ps-teacher-row" class="ps-check">
                                     <input id="ps-teacher-plays" type="checkbox">
                                     <span>Join as a player too (teacher host otherwise spectates)</span>
                                 </label>
                                 <button id="ps-create-btn" type="button" class="ps-primary" onclick="PS.createRoom()">Create room</button>
-                                <p class="ps-hint">Each round can use a different subject and topic. The host sets the rounds, finish distance, glass steps and tug time limit for the whole class; every round may use a different bank.</p>
+                                <p class="ps-hint">Each round can use a different subject and topic. The host sets the rounds, finish distance, glass steps, tug time limit and dalgona carving time for the whole class; every round may use a different bank.</p>
                             </section>
 
                             <section class="ps-card ps-card-join">
@@ -6341,7 +6408,7 @@
                         </div>
 
                         <div id="ps-host-note" class="ps-note">
-                            <b>Class survival rules.</b> The host chooses 1–3 rounds, a subject and topic for each round, the round-1 finish distance, the number of glass steps and the round-3 tug time limit. Round 1 (1-2-3 Meow!): answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). With 2–3 rounds the first 15 living students to reach the finish cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you. Round 3 (Tug of War): survivors are split into red and blue teams, both answer at the same time, every correct answer pulls +1, five in a row trigger 爆走拉力 2x, and the losing team falls into the abyss. With 1 round the class ends in a survivor victory as soon as time is up or every living student finishes.
+                            <b>Class survival rules.</b> The host chooses 1–4 rounds, a subject and topic for each round, the round-1 finish distance, the number of glass steps, the round-3 tug time limit and the round-4 carving time limit. Round 1 (1-2-3 Meow!): answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). With 2–4 rounds the first 15 living students to reach the finish cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you. Round 3 (Tug of War): survivors are split into red and blue teams, both answer at the same time, every correct answer pulls +1, five in a row trigger 爆走拉力 2x, and the losing team falls into the abyss. Round 4 (Dalgona Candy Carving): the tug winners each get a golden candy with a fishbone, cat-paw or crown-cat pattern; carve every dash before the clock — one wrong carve is a crack, a second splits the candy, and one lick per player auto-fills the next segment. With 1 round the class ends in a survivor victory as soon as time is up or every living student finishes.
                         </div>
 
                     </div>
@@ -6380,6 +6447,11 @@
                                             <h3><span class="ps-rule-tag">ROUND 3</span> Tug of War</h3>
                                             <p id="ps-cine-rule3-en" class="ps-rule-en"></p>
                                             <p id="ps-cine-rule3-zh" class="ps-rule-zh"></p>
+                                        </div>
+                                        <div id="ps-cine-rule4" class="ps-rule-card hidden">
+                                            <h3><span class="ps-rule-tag">ROUND 4</span> Dalgona Candy Carving</h3>
+                                            <p id="ps-cine-rule4-en" class="ps-rule-en"></p>
+                                            <p id="ps-cine-rule4-zh" class="ps-rule-zh"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -6424,6 +6496,7 @@
                             <div id="ps-question" class="ps-question">
                                 <p id="ps-prompt" class="ps-prompt"></p>
                                 <div id="ps-options" class="ps-options"></div>
+                                <button id="ps-lick-btn" type="button" class="ps-lick hidden" onclick="PS.dalgonaLick()">[ 👅 舔一口椪糖 (Hint) ]</button>
                                 <p id="ps-feedback" class="ps-feedback"></p>
                             </div>
 
@@ -7272,6 +7345,7 @@
     <script src="js/grammar/articles-data.js"></script>
     <script src="js/grammar/indefinite-pronouns-data.js"></script>
     <script src="js/grammar/participle-phrases-data.js"></script>
+    <script src="js/grammar/participle-clauses-combining-data.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>

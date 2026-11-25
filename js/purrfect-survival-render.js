@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.5.1';
+    R.VERSION = '2.5.2';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -3372,160 +3372,224 @@
         ctx.restore();
     }
 
-    /* Original stylised pseudo-3D cat-lick animation. All shapes are canvas
-       paths / gradients — no bitmaps, no external art. `t` is 0..1 across
-       the one-second lick: the tongue reaches down, swipes across the next
-       carved segment, then retracts. */
-    function drawCatLick(ctx, cx, cy, r, t) {
-        const p = Math.max(0, Math.min(1, Number(t) || 0));
-        const headY = cy - r * 1.12;
-        const hr = Math.max(16, r * 0.34);
-        const out = p < 0.30 ? smoothstep(p / 0.30)
-            : (p > 0.72 ? 1 - smoothstep((p - 0.72) / 0.28) : 1);
-        if (out <= 0.002) return;
+    /* Filled, tapered tongue ribbon from the cat's mouth (a) to the tip (b).
+       Two curved sides plus a slightly squashed cap give the tongue real
+       volume; `bow` bends it sideways so the swipe follows the candy path. */
+    function lickTonguePath(ctx, ax, ay, bx, by, baseW, tipW, bow) {
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const nx = -uy;
+        const ny = ux;
+        const mx = (ax + bx) / 2 + nx * bow;
+        const my = (ay + by) / 2 + ny * bow;
+        const midW = baseW * 0.55 + tipW * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(ax + nx * baseW, ay + ny * baseW);
+        ctx.quadraticCurveTo(mx + nx * midW, my + ny * midW, bx + nx * tipW, by + ny * tipW);
+        /* rounded tip, flattened a little by the contact pressure */
+        ctx.quadraticCurveTo(bx + ux * tipW * 0.82, by + uy * tipW * 0.82,
+            bx - nx * tipW, by - ny * tipW);
+        ctx.quadraticCurveTo(mx - nx * midW, my - ny * midW, ax - nx * baseW, ay - ny * baseW);
+        ctx.closePath();
+    }
+
+    /* Original stylised cat lick. The cat itself is the student's own
+       LearniTY avatar (`DG.drawCatAvatar` via drawCat) peeking over the top
+       edge of the tin; the tongue is a filled, tapered, wet-looking ribbon
+       that reaches the candy, squashes on contact, swipes across the carved
+       path and retracts. All shapes are canvas paths / gradients — no
+       bitmaps, no external art. `t` is 0..1 across the one-second lick. */
+    function drawCatLick(ctx, cx, cy, r, t, look) {
+        const p = clamp(Number(t) || 0, 0, 1);
+        const lk = look || {};
+        const hr = Math.max(12, r * 0.27);
+        const scale = hr / 33;
+        const candyTop = cy - r;
+        /* Head leans over the tin: its chin just crosses the top edge, so
+           the tongue only has to travel a short, natural distance to the
+           candy face. DG avatars put the head 91 * scale above the feet. */
+        const headCY = candyTop + r * 0.04 - hr;
+        const feetY = headCY + 91 * scale;
+        const out = p < 0.24 ? smoothstep(p / 0.24)
+            : (p > 0.78 ? 1 - smoothstep((p - 0.78) / 0.22) : 1);
+        if (out <= 0.004) return;
+        const swipe = -1 + 2 * smoothstep(clamp((p - 0.26) / 0.46, 0, 1));
+        const lean = -0.10 + 0.07 * swipe;
 
         ctx.save();
 
-        /* ---- cat head ---- */
-        const earY = headY - hr * 0.58;
-        [-1, 1].forEach(function (side) {
-            ctx.beginPath();
-            ctx.moveTo(cx + side * hr * 0.72, earY + hr * 0.18);
-            ctx.lineTo(cx + side * hr * 1.04, earY - hr * 0.58);
-            ctx.lineTo(cx + side * hr * 0.28, earY - hr * 0.34);
-            ctx.closePath();
-            ctx.fillStyle = '#f4a261';
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(cx + side * hr * 0.74, earY + hr * 0.02);
-            ctx.lineTo(cx + side * hr * 0.94, earY - hr * 0.40);
-            ctx.lineTo(cx + side * hr * 0.45, earY - hr * 0.26);
-            ctx.closePath();
-            ctx.fillStyle = '#f9c0a0';
-            ctx.fill();
-        });
-        const head = ctx.createRadialGradient(cx - hr * 0.34, headY - hr * 0.40, hr * 0.10,
-            cx, headY, hr * 1.16);
-        head.addColorStop(0, '#fff8ee');
-        head.addColorStop(0.46, '#fbd7a8');
-        head.addColorStop(0.82, '#f2a45f');
-        head.addColorStop(1, '#c97a36');
+        /* ---- the student's own cat, clipped at the tin's top edge ---- */
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(cx, headY, hr, 0, Math.PI * 2);
-        ctx.fillStyle = head;
-        ctx.fill();
-        ctx.lineWidth = Math.max(1, hr * 0.06);
-        ctx.strokeStyle = 'rgba(120,62,18,.45)';
-        ctx.stroke();
+        ctx.rect(-6000, -6000, 12000, 6000 + candyTop + r * 0.07);
+        ctx.clip();
+        ctx.translate(cx, headCY);
+        ctx.rotate(lean);
+        ctx.translate(-cx, -headCY);
+        drawCat(ctx, cx, feetY, scale, lk, { preview: true });
+        ctx.restore();
 
-        /* happy closed eyes */
-        ctx.strokeStyle = '#4a2a10';
-        ctx.lineWidth = Math.max(1.6, hr * 0.09);
-        ctx.lineCap = 'round';
-        [-1, 1].forEach(function (side) {
-            ctx.beginPath();
-            ctx.arc(cx + side * hr * 0.34, headY - hr * 0.10, hr * 0.20, Math.PI * 0.18, Math.PI * 0.82);
-            ctx.stroke();
-        });
-        /* nose + mouth */
-        ctx.beginPath();
-        ctx.moveTo(cx - hr * 0.10, headY + hr * 0.16);
-        ctx.lineTo(cx + hr * 0.10, headY + hr * 0.16);
-        ctx.lineTo(cx, headY + hr * 0.30);
-        ctx.closePath();
-        ctx.fillStyle = '#e8798f';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(74,42,16,.7)';
-        ctx.lineWidth = Math.max(1, hr * 0.055);
-        ctx.beginPath();
-        ctx.moveTo(cx, headY + hr * 0.30);
-        ctx.quadraticCurveTo(cx - hr * 0.12, headY + hr * 0.48, cx - hr * 0.22, headY + hr * 0.42);
-        ctx.moveTo(cx, headY + hr * 0.30);
-        ctx.quadraticCurveTo(cx + hr * 0.12, headY + hr * 0.48, cx + hr * 0.22, headY + hr * 0.42);
-        ctx.stroke();
-        /* whiskers */
-        ctx.strokeStyle = 'rgba(90,52,18,.55)';
-        ctx.lineWidth = Math.max(1, hr * 0.045);
-        [-1, 1].forEach(function (side) {
-            for (let i = 0; i < 3; i++) {
-                const ay = headY + hr * (0.08 + i * 0.11);
-                ctx.beginPath();
-                ctx.moveTo(cx + side * hr * 0.28, ay);
-                ctx.lineTo(cx + side * hr * 1.18, ay - hr * (0.10 - i * 0.08));
-                ctx.stroke();
-            }
-        });
+        /* ---- mouth (just under the avatar head) → candy contact ---- */
+        const mouthDrop = hr * 0.62;
+        const mouthX = cx - Math.sin(lean) * mouthDrop;
+        const mouthY = headCY + Math.cos(lean) * mouthDrop;
+        const contactX = cx + r * 0.34 * swipe;
+        const contactY = candyTop + r * 0.40;
+        const tipX = mouthX + (contactX - mouthX) * out;
+        const tipY = mouthY + (contactY - mouthY) * out
+            + Math.sin(p * Math.PI * 4) * r * 0.008 * out;
+        const squash = clamp((out - 0.72) / 0.28, 0, 1);
+        const baseW = Math.max(2.2, hr * 0.34) * (0.55 + 0.45 * out);
+        const tipW = baseW * (0.95 + 0.55 * squash);
+        const dx = tipX - mouthX;
+        const dy = tipY - mouthY;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const bow = r * 0.05 * swipe * out;
 
-        /* ---- tongue ---- */
-        const swipe = p < 0.34 ? -0.34
-            : (p >= 0.66 ? 0.34 : -0.34 + 0.68 * ((p - 0.34) / 0.32));
-        const baseX = cx;
-        const baseY = headY + hr * 0.52;
-        const targetX = cx + r * 0.40 * swipe;
-        const targetY = cy - r * 0.02;
-        const tipX = baseX + (targetX - baseX) * out;
-        const tipY = baseY + (targetY - baseY) * out;
-        const ctrlX = baseX + (tipX - baseX) * 0.32;
-        const ctrlY = baseY + (tipY - baseY) * 0.58;
-        const tongueW = Math.max(3, hr * 0.58 * (0.45 + out * 0.55));
-
-        const tongue = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
-        tongue.addColorStop(0, '#f472b6');
-        tongue.addColorStop(0.5, '#fb7185');
-        tongue.addColorStop(1, '#fda4af');
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineWidth = tongueW;
-        ctx.strokeStyle = tongue;
-        ctx.beginPath();
-        ctx.moveTo(baseX, baseY);
-        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
-        ctx.stroke();
-        ctx.lineWidth = Math.max(1, tongueW * 0.30);
-        ctx.strokeStyle = 'rgba(255,255,255,.55)';
-        ctx.beginPath();
-        ctx.moveTo(baseX - tongueW * 0.16, baseY + tongueW * 0.2);
-        ctx.quadraticCurveTo(ctrlX - tongueW * 0.16, ctrlY, tipX - tongueW * 0.10, tipY - tongueW * 0.3);
-        ctx.stroke();
-        /* rounded tip */
-        ctx.beginPath();
-        ctx.arc(tipX, tipY, tongueW * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#fda4af';
-        ctx.fill();
-
-        /* ---- sparkle + melt glints where the tongue touches the candy ---- */
-        const glint = Math.sin(Math.min(1, out) * Math.PI) * (p > 0.32 && p < 0.78 ? 1 : 0.55);
-        if (glint > 0.05) {
+        /* ---- wet smear on the candy where the tongue lands ---- */
+        if (out > 0.55) {
+            const wet = clamp((out - 0.55) / 0.45, 0, 1);
             ctx.save();
-            ctx.globalAlpha = 0.35 + glint * 0.55;
+            ctx.globalAlpha = 0.26 + wet * 0.32;
+            const smear = ctx.createRadialGradient(tipX, tipY, r * 0.01, tipX, tipY, r * 0.20);
+            smear.addColorStop(0, 'rgba(255,251,235,.92)');
+            smear.addColorStop(0.45, 'rgba(253,224,171,.46)');
+            smear.addColorStop(1, 'rgba(253,224,171,0)');
+            ctx.fillStyle = smear;
+            ctx.beginPath();
+            ctx.ellipse(tipX, tipY, r * (0.09 + 0.10 * wet), r * (0.05 + 0.04 * wet), 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        /* ---- fleshy tongue body ---- */
+        lickTonguePath(ctx, mouthX, mouthY, tipX, tipY, baseW, tipW, bow);
+        const flesh = ctx.createLinearGradient(
+            mouthX - nx * baseW * 1.5, mouthY - ny * baseW * 1.5,
+            mouthX + nx * baseW * 1.5, mouthY + ny * baseW * 1.5);
+        flesh.addColorStop(0, '#b83b6d');
+        flesh.addColorStop(0.30, '#d64f7d');
+        flesh.addColorStop(0.60, '#ef6f95');
+        flesh.addColorStop(0.88, '#ff9fb7');
+        flesh.addColorStop(1, '#ffc2cf');
+        ctx.fillStyle = flesh;
+        ctx.fill();
+
+        /* darker underside edge keeps the ribbon from reading flat */
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(150,38,84,.42)';
+        ctx.lineWidth = Math.max(1, baseW * 0.30);
+        ctx.beginPath();
+        ctx.moveTo(mouthX + nx * baseW * 0.82, mouthY + ny * baseW * 0.82);
+        ctx.quadraticCurveTo(
+            (mouthX + tipX) / 2 + nx * (baseW * 0.55 + tipW * 0.45 + bow),
+            (mouthY + tipY) / 2 + ny * (baseW * 0.55 + tipW * 0.45 + bow),
+            tipX + nx * tipW * 0.82, tipY + ny * tipW * 0.82);
+        ctx.stroke();
+        ctx.restore();
+
+        /* wet highlight streak down the centre */
+        ctx.save();
+        ctx.lineCap = 'round';
+        const hx0 = mouthX + dx * 0.16;
+        const hy0 = mouthY + dy * 0.16;
+        const hx1 = mouthX + dx * 0.93;
+        const hy1 = mouthY + dy * 0.93;
+        ctx.strokeStyle = 'rgba(255,255,255,.40)';
+        ctx.lineWidth = Math.max(1, baseW * (0.70 - 0.28 * squash));
+        ctx.beginPath();
+        ctx.moveTo(hx0 - nx * baseW * 0.28, hy0 - ny * baseW * 0.28);
+        ctx.quadraticCurveTo(
+            (hx0 + hx1) / 2 - nx * baseW * 0.34 + bow,
+            (hy0 + hy1) / 2 - ny * baseW * 0.34 + bow,
+            hx1 - nx * tipW * 0.22, hy1 - ny * tipW * 0.22);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.55)';
+        ctx.lineWidth = Math.max(0.8, baseW * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(hx0 - nx * baseW * 0.10, hy0 - ny * baseW * 0.10);
+        ctx.quadraticCurveTo(
+            (hx0 + hx1) / 2 - nx * baseW * 0.12 + bow,
+            (hy0 + hy1) / 2 - ny * baseW * 0.12 + bow,
+            hx1 - nx * tipW * 0.08, hy1 - ny * tipW * 0.08);
+        ctx.stroke();
+        ctx.restore();
+
+        /* glossy tip that presses into the candy */
+        const tipGloss = ctx.createRadialGradient(
+            tipX - nx * tipW * 0.30, tipY - ny * tipW * 0.30, tipW * 0.12,
+            tipX, tipY, tipW * 1.08);
+        tipGloss.addColorStop(0, 'rgba(255,246,249,.82)');
+        tipGloss.addColorStop(0.55, 'rgba(255,190,212,.32)');
+        tipGloss.addColorStop(1, 'rgba(255,150,180,0)');
+        ctx.fillStyle = tipGloss;
+        ctx.beginPath();
+        ctx.ellipse(tipX, tipY, tipW * 1.02, tipW * (0.72 + 0.24 * (1 - squash)),
+            Math.atan2(dy, dx), 0, Math.PI * 2);
+        ctx.fill();
+
+        /* ---- modest wet sparkle at the contact point ---- */
+        if (squash > 0.18) {
+            ctx.save();
+            ctx.globalAlpha = 0.30 + squash * 0.42;
             ctx.fillStyle = '#fffbe8';
-            for (let i = 0; i < 3; i++) {
-                const ang = -0.9 + i * 0.9;
-                const dx = tipX + Math.cos(ang) * r * 0.11;
-                const dy = tipY + Math.sin(ang) * r * 0.08;
+            for (let i = 0; i < 2; i++) {
+                const ang = -0.75 + i * 1.1;
                 ctx.beginPath();
-                ctx.arc(dx, dy, Math.max(1.2, r * 0.018), 0, Math.PI * 2);
+                ctx.arc(tipX + Math.cos(ang) * r * 0.10, tipY + Math.sin(ang) * r * 0.07,
+                    Math.max(1.1, r * 0.016), 0, Math.PI * 2);
                 ctx.fill();
             }
-            const sx = tipX + r * 0.13;
-            const sy = tipY - r * 0.10;
-            const sr = Math.max(3, r * 0.055) * (0.7 + glint * 0.6);
-            ctx.fillStyle = '#fff7c2';
-            ctx.beginPath();
-            for (let i = 0; i < 8; i++) {
-                const a = (Math.PI / 4) * i;
-                const rad = i % 2 === 0 ? sr : sr * 0.32;
-                const x = sx + Math.cos(a) * rad;
-                const y = sy + Math.sin(a) * rad;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.closePath();
-            ctx.fill();
             ctx.restore();
         }
         ctx.restore();
     }
+
+    /* Student Round 4 composition. The tin lives in the free rectangle
+       between the HUD (top) and the question pad (bottom). `padBottom` is
+       measured live from #ps-question; when the pad is hidden (or the
+       client could not measure it) a conservative portrait reserve keeps
+       the candy out of the letter keys instead of under them. */
+    const R4_HEAD_BAND = 0.50;   // leaning-cat head above the candy, × r
+
+    R.round4PlayerCandyLayout = function (L, s) {
+        const layout = L || R.layout(390, 844, 'player');
+        const r4 = (s && s.round4) || {};
+        let padBottom = Number(r4.padBottom);
+        if (!isFinite(padBottom) || padBottom < 0) padBottom = 0;
+        const measured = padBottom > 0;
+        if (!measured) padBottom = layout.h * (layout.landscape ? 0.26 : 0.38);
+        /* In landscape the pad sits in the bottom-left corner, so it only
+           needs to claim that corner: cap the reserve and bias the tin to
+           the right of it instead of shrinking it to nothing. */
+        padBottom = clamp(padBottom, 0, layout.h * (layout.landscape ? 0.30 : 0.62));
+        const top = layout.hud + Math.max(4, layout.h * 0.01);
+        const bottom = Math.max(top + 60, layout.h - padBottom - 6);
+        const freeH = Math.max(60, bottom - top);
+        const widthCap = layout.w * (layout.landscape ? 0.19 : 0.36);
+        const heightCap = (freeH * 0.98) / (2 + R4_HEAD_BAND);
+        const r = Math.max(30, Math.min(widthCap, heightCap, layout.h * 0.30, 210));
+        const cx = layout.w / 2 + (layout.landscape ? layout.w * 0.06 : 0);
+        const cy = top + r * R4_HEAD_BAND + r;
+        return {
+            cx: cx,
+            cy: cy,
+            r: r,
+            top: top,
+            bottom: bottom,
+            candyTop: cy - r,
+            candyBottom: cy + r,
+            headBand: r * R4_HEAD_BAND,
+            padBottom: padBottom,
+            measured: measured
+        };
+    };
 
     function drawRound4Player(ctx, L, s) {
         const r4 = s.round4 || {};
@@ -3541,23 +3605,26 @@
            held back so the fill lands as the tongue passes it. */
         const shownProgress = lickAnim != null && lickAnim < 0.55
             ? Math.max(0, progress - 1) : progress;
-        const cy = L.h * (L.landscape ? 0.52 : 0.46);
-        const r = Math.max(60, Math.min(L.w * (L.landscape ? 0.20 : 0.36), L.h * 0.28, 210));
+        const candy = R.round4PlayerCandyLayout(L, s);
+        const cx = candy.cx;
+        const cy = candy.cy;
+        const r = candy.r;
+        const look = (r4.me && r4.me.look) || {};
 
         ctx.save();
         /* Student phone view is deliberately text-light: the candy itself is
            the HUD. No title pill, no counter pill, no long status caption. */
-        glow(ctx, L.w / 2, cy, r * 2.1, '#fff3c4', 0.20);
-        paintDalgonaCandy(ctx, L.w / 2, cy, r, pattern, shownProgress, total, cracks, status, {});
+        glow(ctx, cx, cy, r * 2.1, '#fff3c4', 0.20);
+        paintDalgonaCandy(ctx, cx, cy, r, pattern, shownProgress, total, cracks, status, {});
 
         if (lickAnim != null && status !== 'finished' && status !== 'shattered') {
-            drawCatLick(ctx, L.w / 2, cy, r, lickAnim);
+            drawCatLick(ctx, cx, cy, r, lickAnim, look);
         }
 
         /* At most one very short visual tag for the end states. */
         if (status === 'finished' || status === 'shattered') {
             const tag = status === 'finished' ? '✅' : '💥';
-            pill(ctx, L.w / 2, cy + r * 1.34, tag, {
+            pill(ctx, cx, Math.min(cy + r * 1.34, L.h - 24), tag, {
                 size: Math.max(18, Math.min(30, L.w * (L.landscape ? 0.03 : 0.07))),
                 bg: status === 'finished' ? 'rgba(6,78,59,.84)' : 'rgba(69,10,10,.84)',
                 color: '#fff7ed',

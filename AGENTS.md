@@ -3844,6 +3844,33 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   混合 pattern 同 live-ish progress，visitor 可以試 crack／lick。
   公開 demo 仍然 no login／no saved scores；音樂照用 `survival_music.mp3`，
   mute 跟 `learniTY_ps_sound === '0'`。
-- **Version／cache**：`PS.VERSION = 1.3.0`、`PSRender.VERSION = 2.5.0`；
+- **Version／cache**：`PS.VERSION = 1.3.0`、`PSRender.VERSION = 2.5.2`；
   `sw.js` `CACHE_NAME` 升到 **`learnity-pwa-v113`**，新 bank 加入
   `CORE_ASSETS`；**冇** mp3 加入 precache。
+
+### 10.18g Round 4 student composition ＋ own-cat lick（2026-11 加）
+
+- **學生糖果位置**：`R.round4PlayerCandyLayout(L, s)`（renderer）用
+  `state.round4.padBottom`（client 喺 `frame()` 量 `#ps-question.offsetHeight`
+  ＋10，隱藏／未 layout 就 0）計出 `{cx, cy, r, top, bottom, candyTop,
+  candyBottom, headBand}`。上面留 `L.hud`，下面留問題 pad；糖果貼近上方
+  （唔再係 `0.46h` 中心），r 按剩餘高度／闊度收放，`candyBottom` 一定喺 pad
+  之上。冇量到 pad 時 portrait 用 `0.38h` 保守 reserve；landscape 只 reserve
+  最多 `0.30h` 並把糖果略微右移（pad 喺左下角），唔會縮到睇唔到。
+- **學生 R4 pad 收緊**：`render()` 對 `#purrfect-survival-view` toggle
+  `ps-r4-student`（只 round 4 而且唔係 host／projector；`PS.stop()` 清走），
+  CSS 只喺呢個 class 下細少少 padding、prompt min-height、letter key 36px、
+  dalgona tile 38px、lick 40px。其他回合同老師／投影機完全唔變。
+- **用學生自己隻貓舔**：`state.round4.me.look` 由
+  `js/purrfect-survival.js` 嘅 `playerLook(me)` 傳入（cat／glasses／hat／
+  outfit，demo visitor 一樣）；`R.drawCatLick(ctx, cx, cy, r, t, look)`
+  唔再畫舊嘅 painted ginger 頭，改為 `drawCat` → `DG.drawCatAvatar`
+  由糖果上緣探頭（clip 喺 `candyTop + 0.07r`，只露頭同帽／眼鏡），
+  頭半徑 ≈ `0.27r`，嘴喺頭底，舌頭由嘴伸到糖果面。
+- **舌頭**：`lickTonguePath()` 用兩條 quadratic 邊＋圓尖砌出有體積嘅
+  tapered 舌頭，`createLinearGradient` 做底面深粉→面層玫瑰色，
+  中間加白色濕潤高光條、尖端 glossy radial、contact 位有濕痕 smear，
+  接觸時 tip 變闊（`squash`）＋少量反光點。時序同以前一樣約 1 秒：
+  伸出 → 橫掃（-1→1 swipe）→ 縮回；最新一條 carved dash 仍然
+  0.55 前遮住。`drawCatLick` 只收 4 個參數都仍然 work（look = `{}`）。
+

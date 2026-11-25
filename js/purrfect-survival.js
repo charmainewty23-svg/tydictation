@@ -163,6 +163,36 @@
         };
     }
 
+    /* Same {cat, glasses, hat, outfit} shape the canvas renderer feeds to
+       DG.drawCatAvatar, taken from whichever player is being drawn. */
+    function playerLook(player) {
+        const p = player || {};
+        return {
+            cat: p.cat || 'Ginger',
+            glasses: p.glasses || 'None',
+            hat: p.hat || 'None',
+            outfit: p.outfit || 'None'
+        };
+    }
+
+    /* Height the Round 4 question pad occupies under the stage. The renderer
+       keeps the candy above it. 0 when the pad is hidden or not laid out
+       (the renderer then uses its own conservative reserve). */
+    function dalgonaPadBottom() {
+        if (isHostView()) return 0;
+        const box = $('ps-question');
+        if (!box || !box.classList || box.classList.contains('hidden')) return 0;
+        const h = Number(box.offsetHeight) || 0;
+        return h > 0 ? Math.round(h) + 10 : 0;
+    }
+
+    /* Tight student Round 4 pad only; every other round and the teacher
+       view keep the normal sizing. */
+    function setRound4StudentClass(on) {
+        const view = $('purrfect-survival-view');
+        if (view && view.classList) view.classList.toggle('ps-r4-student', !!on);
+    }
+
     function myNickname() {
         const user = signedInUser();
         if (!user) return 'Guest';
@@ -1553,6 +1583,7 @@
     /* ------------------------------------------------------------------ */
 
     function render() {
+        setRound4StudentClass(!!room && room.status === 'round4' && !isHostView());
         if (!room) {
             setPanel('lobby');
             setLive(false);
@@ -2160,6 +2191,9 @@
                 if (isR4) {
                     const st = me && isPlayingPlayer(me) ? myDalgonaState() : null;
                     state.round4 = {
+                        /* where the student's question pad sits, so the tin
+                           is drawn in the free space above it */
+                        padBottom: dalgonaPadBottom(),
                         me: st ? {
                             pattern: st.pattern,
                             pattern_label: PSEngine.dalgonaPatternLabel(st.pattern),
@@ -2172,7 +2206,9 @@
                             cracks: st.cracks,
                             lickUsed: st.lickUsed,
                             lickAnim: lickAnimProgress(),
-                            status: st.status
+                            status: st.status,
+                            /* the student's own LearniTY cat (store look) */
+                            look: playerLook(me)
                         } : null,
                         board: dalgonaBoard()
                     };
@@ -3423,6 +3459,7 @@
         hideCeremony();
         setLive(false);
         stopBgm();
+        setRound4StudentClass(false);
         if (cueTimer) {
             clearTimeout(cueTimer);
             cueTimer = 0;

@@ -63,11 +63,13 @@ function mockContext(canvas) {
     return ctx;
 }
 
-function loadRenderer() {
+function loadRenderer(options) {
+    const opts = options || {};
     const code = fs.readFileSync(RENDER_PATH, 'utf8');
     const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
+    if (opts.dg) sandbox.DG = opts.dg;
     vm.createContext(sandbox);
     vm.runInContext(code, sandbox, { filename: 'purrfect-survival-render.js' });
     assert.ok(sandbox.PSRender, 'renderer attaches window.PSRender');
@@ -2928,7 +2930,7 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
     assert.ok(render.indexOf('R.drawRound4(ctx, s)') !== -1, 'drawScene dispatches round 4');
     assert.equal(/\.drawImage\s*\(/.test(render), false, 'no drawImage');
     const R = loadRenderer();
-    assert.equal(R.VERSION, '2.5.1');
+    assert.equal(R.VERSION, '2.5.2');
     assert.equal(typeof R.drawRound4, 'function');
     const ctx = mockContext({ width: 390, height: 844 });
     R.drawRound4(ctx, {
@@ -3085,8 +3087,9 @@ test('drawCatLick paints original canvas art at t = 0, 0.5 and 1 without bitmaps
     const R = loadRenderer();
     assert.equal(typeof R.drawCatLick, 'function', 'the renderer exports the cat lick');
     const ctx = mockContext({ width: 390, height: 844 });
+    const look = { cat: 'Siamese', hat: 'Crown', glasses: 'None', outfit: 'None' };
     [0, 0.5, 1].forEach(t => {
-        assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 120, t), 'drawCatLick t=' + t);
+        assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 120, t, look), 'drawCatLick t=' + t);
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     const start = src.indexOf('function drawCatLick');
@@ -3094,8 +3097,113 @@ test('drawCatLick paints original canvas art at t = 0, 0.5 and 1 without bitmaps
     assert.ok(start !== -1 && end > start, 'cat lick is its own function');
     const body = src.slice(start, end);
     assert.equal(/drawImage/.test(body), false, 'the cat lick never blits bitmaps');
-    assert.ok(body.indexOf('createRadialGradient') !== -1, 'the cat head uses radial-gradient shading');
-    assert.ok(body.indexOf('createLinearGradient') !== -1, 'the tongue uses a gradient');
+    assert.ok(/drawCat\s*\(/.test(body), 'the lick draws the real LearniTY cat avatar');
+    assert.ok(body.indexOf('createLinearGradient') !== -1, 'the tongue is a fleshy gradient fill');
+    assert.ok(body.indexOf('quadraticCurveTo') !== -1, 'the tongue is a tapered curved path');
+    assert.ok(body.indexOf('squash') !== -1, 'the tip flattens on contact');
+    assert.ok(body.indexOf('rgba(255,255,255,.40)') !== -1, 'a wet highlight streak runs down the centre');
+    ['#f4a261', '#e8798f', '#f9c0a0'].forEach(colour => {
+        assert.equal(body.indexOf(colour), -1, 'the old painted ' + colour + ' ginger head is gone');
+    });
+    assert.equal(src.indexOf('function lickTonguePath') !== -1, true, 'the tapered tongue path is factored out');
+});
+
+test('drawCatLick uses each student own LearniTY cat and survives a missing look', () => {
+    const calls = [];
+    const DG = {
+        drawCatAvatar(ctx, x, y, scale, look) {
+            calls.push({ x: x, y: y, scale: scale, look: look });
+        }
+    };
+    const R = loadRenderer({ dg: DG });
+    const ctx = mockContext({ width: 390, height: 844 });
+    const look = { cat: 'Siamese', hat: 'Crown', glasses: 'None', outfit: 'None' };
+
+    R.drawCatLick(ctx, 195, 500, 140, 0.5, look);
+    assert.equal(calls.length, 1, 'the lick draws exactly one avatar');
+    assert.equal(calls[0].look.cat, 'Siamese', 'the supplied look is forwarded');
+    assert.equal(calls[0].look.hat, 'Crown');
+
+    const headR = 33 * calls[0].scale;
+    const headY = calls[0].y - 91 * calls[0].scale;
+    const candyTop = 500 - 140;
+    assert.ok(headY < candyTop, 'the head sits above the candy surface');
+    assert.ok(headY > candyTop - 140 * 0.5, 'the head stays inside the reserved lick band');
+    assert.ok(headR / 140 > 0.25 && headR / 140 < 0.4, 'the head is 0.25-0.4 of the candy radius');
+
+    calls.length = 0;
+    assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 140, 0.5), 'a 4-arg call still works');
+    assert.equal(calls.length, 1, 'the default look still draws the DG / Ginger cat');
+    assert.ok(calls[0].look && calls[0].look.cat === undefined, 'missing look falls back to DG defaults');
+
+    /* drawRound4Player forwards state.round4.me.look to the lick */
+    calls.length = 0;
+    R.drawRound4(ctx, {
+        w: 390, h: 844, hud: 80, role: 'player', now: 600,
+        round4: {
+            padBottom: 300,
+            me: {
+                pattern: 'fishbone', pattern_label: 'Fishbone', progress: 3, total: 8,
+                cracks: 0, status: 'carving', lickAnim: 0.5,
+                look: { cat: 'Garfield', hat: 'None', glasses: 'Sunglasses', outfit: 'None' }
+            },
+            board: []
+        }
+    });
+    assert.ok(calls.length >= 1, 'the player view draws the licking cat');
+    assert.equal(calls[0].look.cat, 'Garfield', 'the student own cat reaches the canvas');
+    assert.equal(calls[0].look.glasses, 'Sunglasses');
+});
+
+test('Round 4 student candy layout keeps the tin above the question pad', () => {
+    const R = loadRenderer();
+    const L = R.layout(390, 844, 'player');
+    const candy = R.round4PlayerCandyLayout(L, {
+        round4: { me: { pattern: 'fishbone' }, padBottom: 300 }
+    });
+    assert.ok(candy.padBottom === 300, 'the measured pad height is honoured');
+    assert.ok(candy.candyBottom <= 844 - 300 + 8, 'the candy bottom stays above the pad (slack <= 8px)');
+    assert.ok(candy.cy <= 844 * 0.42, 'the tin sits clearly higher than the old 0.46 * h centre');
+    assert.ok(candy.cy > L.hud, 'the tin stays below the HUD');
+    assert.ok(candy.candyTop > L.hud, 'the candy top clears the HUD');
+
+    /* No measurement (hidden pad / no real layout): conservative portrait
+       reserve so the candy is still out of the usual key zone. */
+    const auto = R.round4PlayerCandyLayout(L, { round4: { me: { pattern: 'paw' } } });
+    assert.equal(auto.measured, false, 'the fallback is used when the pad is not measured');
+    assert.ok(auto.candyBottom < 844 - 844 * 0.36, 'the fallback keeps the candy above the pad zone');
+    assert.ok(auto.cy <= 844 * 0.42, 'the fallback is also higher than the old centre');
+
+    /* A shorter pad keeps the tin large; a taller pad shrinks it so it still
+       fits, and an absurd pad never pushes it off screen. */
+    const tight = R.round4PlayerCandyLayout(L, { round4: { padBottom: 200 } });
+    assert.ok(tight.r >= candy.r * 0.98, 'a shorter pad never shrinks the tin');
+    const tall = R.round4PlayerCandyLayout(L, { round4: { padBottom: 420 } });
+    assert.ok(tall.r < candy.r, 'a taller pad shrinks the tin so it still fits');
+    const huge = R.round4PlayerCandyLayout(L, { round4: { padBottom: 900 } });
+    assert.ok(huge.r >= 30 && huge.candyBottom <= 844, 'an oversized pad never pushes the tin off screen');
+
+    /* Landscape is capped so the tin stays visible next to the corner pad. */
+    const land = R.round4PlayerCandyLayout(R.layout(844, 390, 'player'), { round4: { padBottom: 230 } });
+    assert.ok(land.r >= 60, 'landscape still gets a usable tin');
+    assert.ok(land.candyBottom <= 390, 'landscape keeps the tin on screen');
+
+    /* The host grid path is untouched and still runs. */
+    const host = R.layout(1280, 720, 'host');
+    assert.doesNotThrow(() => R.drawRound4(mockContext({ width: 1280, height: 720 }), {
+        w: 1280, h: 720, hud: 80, role: 'host', now: 1200,
+        round4: {
+            me: null,
+            board: PS.teacherRound4Board([
+                dalgonaPlayer('a', 'fishbone', ['a', 'b'], { dalgona_progress: 1 }),
+                dalgonaPlayer('b', 'paw', ['d'], { dalgona_cracks: 2, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' })
+            ])
+        }
+    }));
+    assert.equal(host.host, true);
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(src.indexOf("'ROUND 4 · ' + n + ' CARVERS · LIVE CLASS GRID'") !== -1,
+        'the teacher grid title is unchanged');
 });
 
 test('Round 4 student phone view is decluttered while the host grid keeps its labels', () => {

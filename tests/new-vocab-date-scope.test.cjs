@@ -16,7 +16,7 @@ const wordBattleSource = fs.readFileSync(path.join(root, 'js', 'word-battle.js')
 const newVocabSource = fs.readFileSync(path.join(root, 'js', 'new-vocab.js'), 'utf8');
 const dictationSource = fs.readFileSync(path.join(root, 'js', 'dictation.js'), 'utf8');
 const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const incrementalSql = fs.readFileSync(path.join(root, 'supabase', 'new_vocab_date_scope.sql'), 'utf8');
+const agentsSource = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
 
 function makeStorage() {
     const map = new Map();
@@ -232,18 +232,23 @@ test('Dictation Master scope chips show All / Added today / Added yesterday, def
     assert.ok(dictationSource.indexOf('Switch to All to practise the bank.') !== -1, 'empty today/yesterday copy says All');
 });
 
-test('Word Battle picker and room labels support yesterday and persist it', () => {
-    assert.ok(indexSource.indexOf('<option value="all" selected>All</option>') !== -1);
-    assert.ok(indexSource.indexOf('<option value="today">Added today</option>') !== -1);
-    assert.ok(indexSource.indexOf('<option value="yesterday">Added yesterday</option>') !== -1);
+test('Word Battle offers only All and Added today, and never asks for new SQL', () => {
+    const start = indexSource.indexOf('id="battle-vocab-scope"');
+    assert.ok(start !== -1, 'battle scope select exists');
+    const block = indexSource.slice(start, indexSource.indexOf('</select>', start));
+    assert.ok(block.indexOf('<option value="all" selected>All</option>') !== -1, 'default All');
+    assert.ok(block.indexOf('<option value="today">Added today</option>') !== -1, 'Added today');
+    assert.equal(block.indexOf('<option value="yesterday">Added yesterday</option>'), -1, 'no yesterday in Word Battle');
+
     assert.ok(wordBattleSource.indexOf('function battleVocabScope()') !== -1, 'scope reader');
     assert.ok(wordBattleSource.indexOf('function battleRoomVocabScope(room)') !== -1, 'room label helper');
     assert.ok(wordBattleSource.indexOf('vocab_today ? \'today\' : \'all\'') !== -1, 'legacy room fallback');
     assert.ok(wordBattleSource.indexOf('p_scope: scope') !== -1, 'new RPC argument is sent');
     assert.ok(wordBattleSource.indexOf('p_today_only: scope === \'today\'') !== -1, 'old today flag stays compatible');
-    assert.ok(wordBattleSource.indexOf('NO_VOCAB_YESTERDAY') !== -1, 'empty yesterday is handled');
-    assert.ok(wordBattleSource.indexOf('Added yesterday in Word Battle needs supabase/new_vocab_date_scope.sql') !== -1, 'missing SQL hint');
-    assert.ok(wordBattleSource.indexOf("' · yesterday'") !== -1, 'room label shows yesterday');
+    assert.ok(wordBattleSource.indexOf('const retry = await sb.rpc(\'set_battle_vocab\', baseArgs);') !== -1, '3-arg fallback kept');
+    assert.ok(wordBattleSource.indexOf('NO_VOCAB_TODAY') !== -1, 'empty today is handled');
+    assert.equal(wordBattleSource.indexOf('NO_VOCAB_YESTERDAY'), -1, 'yesterday error branch is gone');
+    assert.equal(wordBattleSource.indexOf('new_vocab_date_scope.sql'), -1, 'no SQL hint for yesterday');
 });
 
 test('Purr-fect Survival lobby has the same three choices for rounds 1–3', () => {
@@ -276,41 +281,17 @@ test('an empty today/yesterday bank stops before a quiz or round starts', () => 
 });
 
 /* ------------------------------------------------------------------ */
-/* 7) Incremental SQL is safe and keeps the ALL-form snapshot         */
+/* 7) The Word Battle date-scope SQL is gone and no longer needed      */
 /* ------------------------------------------------------------------ */
 
-test('new_vocab_date_scope.sql stores the scope and keeps legacy behaviour', () => {
-    assert.ok(fs.existsSync(path.join('/workspace', 'new_vocab_date_scope.sql')), 'copied to /workspace');
-    assert.equal(fs.readFileSync(path.join('/workspace', 'new_vocab_date_scope.sql'), 'utf8'), incrementalSql, 'the copy matches the repo file');
+test('Word Battle needs no incremental date-scope SQL', () => {
+    assert.equal(fs.existsSync(path.join(root, 'supabase', 'new_vocab_date_scope.sql')), false, 'the incremental SQL file is deleted');
+    assert.equal(/new_vocab_date_scope\.sql/.test(agentsSource), false, 'AGENTS.md does not tell anyone to run it');
+    assert.equal(/new_vocab_date_scope\.sql/.test(wordBattleSource), false, 'Word Battle does not mention it');
 
-    assert.ok(incrementalSql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
-    assert.ok(/Safe to re-run/i.test(incrementalSql), 'safe to re-run');
-    assert.ok(/do NOT re-run supabase\/new_vocab\.sql/i.test(incrementalSql), 'does not ask the teacher to re-run the old files');
-    assert.ok(/plugin, CLI or agent/i.test(incrementalSql), 'never run via a plugin');
-    assert.ok(incrementalSql.indexOf('add column if not exists vocab_scope text') !== -1, 'vocab_scope column');
-    assert.ok(incrementalSql.indexOf("alter column vocab_scope set default 'all'") !== -1, 'default all');
-    assert.ok(incrementalSql.indexOf("check (vocab_scope in ('all', 'today', 'yesterday'))") !== -1, 'scope check');
-    assert.ok(incrementalSql.indexOf('when coalesce(vocab_today, false) then \'today\' else \'all\'') !== -1, 'legacy backfill');
-    assert.ok(incrementalSql.indexOf('p_scope      text default null') !== -1, 'optional p_scope');
-    assert.ok(incrementalSql.indexOf('p_today_only boolean default false') !== -1, 'old boolean still accepted');
-    assert.ok(incrementalSql.indexOf('NO_VOCAB_YESTERDAY') !== -1, 'yesterday empty error');
-    assert.ok(incrementalSql.indexOf('NO_VOCAB_TODAY') !== -1, 'today empty error');
-    assert.ok(incrementalSql.indexOf('Asia/Hong_Kong') !== -1, 'Hong Kong calendar day');
-    assert.ok(incrementalSql.indexOf('w.created_at') !== -1, 'created_at is the day column');
-    assert.ok(incrementalSql.indexOf('(v_all or w.form = v_form)') !== -1, 'ALL-form snapshot preserved');
-    assert.ok(incrementalSql.indexOf("vocab_today = (v_scope = 'today')") !== -1, 'legacy today flag still written');
-    assert.ok(incrementalSql.indexOf('grant execute on function public.set_battle_vocab(uuid, text, boolean, text) to authenticated;') !== -1, 'authenticated grant');
-    assert.ok(incrementalSql.indexOf('revoke all on function public.set_battle_vocab(uuid, text, boolean, text) from public, anon;') !== -1, 'anon revoked');
-    assert.ok(incrementalSql.indexOf('auth.uid() is null') !== -1, 'auth check kept');
-    assert.ok(incrementalSql.indexOf("v_room.status <> 'waiting'") !== -1, 'waiting-room check kept');
-    assert.ok(incrementalSql.indexOf('v_room.host_id is distinct from auth.uid()') !== -1, 'host-only check kept');
-
-    const canonical = fs.readFileSync(path.join(root, 'supabase', 'new_vocab.sql'), 'utf8');
+    // Canonical files may still carry the vocab_scope body; the teacher is not
+    // told to re-run them for this change, and All / today keep working through
+    // the existing 3-arg set_battle_vocab fallback.
     const unassigned = fs.readFileSync(path.join(root, 'supabase', 'new_vocab_unassigned_read.sql'), 'utf8');
-    [canonical, unassigned].forEach(sql => {
-        assert.ok(sql.indexOf('vocab_scope') !== -1, 'canonical body has vocab_scope');
-        assert.ok(sql.indexOf('p_scope') !== -1, 'canonical body has p_scope');
-        assert.ok(sql.indexOf('NO_VOCAB_YESTERDAY') !== -1, 'canonical body has yesterday error');
-    });
     assert.ok(unassigned.indexOf('(v_all or w.form = v_form)') !== -1, 'unassigned file keeps ALL-form support');
 });

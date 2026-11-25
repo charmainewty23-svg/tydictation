@@ -251,9 +251,11 @@
         function battleVocabScope() {
             const sel = document.getElementById('battle-vocab-scope');
             const raw = sel ? sel.value : 'all';
-            return typeof normalizeVocabDateScope === 'function'
+            const scope = typeof normalizeVocabDateScope === 'function'
                 ? normalizeVocabDateScope(raw)
-                : (raw === 'today' || raw === 'yesterday' ? raw : 'all');
+                : (raw === 'today' ? raw : 'all');
+            // Word Battle only offers All and Added today.
+            return scope === 'today' ? 'today' : 'all';
         }
 
         function battleRoomVocabScope(room) {
@@ -300,9 +302,9 @@
             const scope = battleVocabScope();
             const baseArgs = { p_room_id: room.id, p_form: form, p_today_only: scope === 'today' };
             let { data, error } = await sb.rpc('set_battle_vocab', Object.assign({}, baseArgs, { p_scope: scope }));
-            // Older servers only know the 3-argument shape. Keep All / today
-            // working there; yesterday needs the incremental SQL.
-            if (error && isMissingSchema(error.message) && scope !== 'yesterday') {
+            // Older servers only know the 3-argument shape. All / today keep
+            // working there through p_today_only, so no new SQL is needed.
+            if (error && isMissingSchema(error.message)) {
                 const retry = await sb.rpc('set_battle_vocab', baseArgs);
                 data = retry.data;
                 error = retry.error;
@@ -310,9 +312,7 @@
             if (error) {
                 try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
                 const m = error.message || '';
-                if (m.includes('NO_VOCAB_YESTERDAY')) return battleSetError('No English New Vocab words were added yesterday for ' + form + '. Switch to All, or add the English first.');
                 if (m.includes('NO_VOCAB_TODAY')) return battleSetError('No English New Vocab words were added today for ' + form + '. Switch to All, or add the English first.');
-                if (scope === 'yesterday' && isMissingSchema(m)) return battleSetError('Added yesterday in Word Battle needs supabase/new_vocab_date_scope.sql in the Supabase SQL editor.');
                 if (m.includes('NO_VOCAB')) return battleSetError('New Vocab for ' + form + ' has no English words yet. Chinese-only cards stay in the bank until you add the English.');
                 if (isMissingSchema(m) || m.includes('BATTLE_SQL_MISSING')) return battleSetError('New Vocab battles need supabase/new_vocab.sql (re-run it after the battle SQL).');
                 return battleSetError(battleErrorMessage(error));
@@ -321,7 +321,7 @@
             battleAdoptRoom(updated || room);
             if (updated && updated.question_count < asked) {
                 updateMascot('This room uses all ' + updated.question_count + ' ' + form
-                    + (scope === 'today' ? ' words added today.' : (scope === 'yesterday' ? ' words added yesterday.' : ' New Vocab words.')));
+                    + (scope === 'today' ? ' words added today.' : ' New Vocab words.'));
             }
             return true;
         }

@@ -969,7 +969,7 @@
         setPanel('game');
         setLive(room.status === 'round1' || room.status === 'round2');
         const isR2 = roomRound() === 2;
-        setText('ps-hud-round', isR2 ? 'ROUND 2 · GLASS BRIDGE' : 'ROUND 1 · 123 木頭貓');
+        setText('ps-hud-round', isR2 ? 'ROUND 2 · GLASS BRIDGE' : 'ROUND 1 · 1-2-3 Meow!');
         setText('ps-hud-rule', isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1);
         const alive = alivePlayers().length;
         const total = totalPlayers();
@@ -1623,7 +1623,7 @@
         if (!el) return;
         const isR1 = Number(roundNo) !== 2;
         el.innerHTML = isR1
-            ? '<b>🟢 ROUND 1 · 123 木頭貓</b><span>Green = answer · Red = freeze</span>'
+            ? '<b>🟢 ROUND 1 · 1-2-3 Meow!</b><span>Green = answer · Red = freeze</span>'
             : '<b>🧊 ROUND 2 · 玻璃橋</b><span>Pick the tempered pane before 5 s</span>';
         el.classList.remove('hidden');
         // restart the CSS animation

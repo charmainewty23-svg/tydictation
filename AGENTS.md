@@ -3509,7 +3509,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   → 房主 Start（至少 2 個玩家）→ Round 1 → 自動／房主手動轉 Round 2 → 完場顯示
   中途勝利／出局畫面（Round 3 同 Squid Circle 未做）。`current_round`／`status`
   預留日後加回合。
-- **Round 1（123 木頭貓）**：server 存 `phase_schedule`（green 4–8s、yellow 2s、
+- **Round 1（1-2-3 Meow!）**：server 存 `phase_schedule`（green 4–8s、yellow 2s、
   red 3s）同 `round1_started_at`；所有電話用 server 時間重算 phase，RPC 亦用
   `now()` 驗證。Green／Yellow 答對 +10m；Red 亂撳第 1 次 −30m、第 2 次 −15m、
   第 3 次出局。Green 答錯唔扣分。100m 為終點，先到 15 個（或時間到取最遠 15 個）

@@ -4,7 +4,7 @@
  * Supabase and no clock: every function takes the values it needs, so the
  * same rules run in the browser, inside the SQL mirror and in node:test.
  *
- * Round 1  — 123 木頭貓 (Red Light, Green Light)
+ * Round 1  — 1-2-3 Meow! (Red Light, Green Light)
  * Round 2  — Glass Stepping Stones
  * Later rounds (tug of war, a second bridge, Squid Circle) are deliberately
  * not implemented; the room keeps current_round / status extensible.

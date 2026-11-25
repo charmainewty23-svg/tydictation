@@ -1914,7 +1914,7 @@
         drawLight(ctx, L, s, cam);
 
         ctx.save();
-        pill(ctx, 14, L.hud + 16, '123 木頭貓 · RED LIGHT, GREEN LIGHT', {
+        pill(ctx, 14, L.hud + 16, '1-2-3 Meow! · RED LIGHT, GREEN LIGHT', {
             size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
         });
         ctx.restore();

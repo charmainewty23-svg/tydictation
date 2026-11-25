@@ -5,7 +5,7 @@
 --   https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new
 -- Do NOT apply it from a plugin, CLI or agent. Safe to re-run.
 --
--- Covers the lobby, Round 1 (123 木頭貓 / Red Light, Green Light) and
+-- Covers the lobby, Round 1 (1-2-3 Meow! / Red Light, Green Light) and
 -- Round 2 (Glass Stepping Stones). `current_round` and `status` are
 -- deliberately extensible for later rounds.
 --

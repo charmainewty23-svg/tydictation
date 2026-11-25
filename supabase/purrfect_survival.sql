@@ -91,6 +91,8 @@ create table if not exists public.purrfect_survival_players (
     glass_finished_at timestamptz,
     crossed_glass    boolean not null default false,
     tug_team         text,
+    answer_log       jsonb not null default '[]'::jsonb,
+    glass_order      jsonb not null default '[]'::jsonb,
     is_playing       boolean not null default true,
     last_seen        timestamptz not null default now(),
     primary key (room_id, user_id)
@@ -102,7 +104,9 @@ create index if not exists ps_players_room_idx on public.purrfect_survival_playe
 
 alter table public.purrfect_survival_players
     add column if not exists glass_finished_at timestamptz,
-    add column if not exists tug_team text;
+    add column if not exists tug_team text,
+    add column if not exists answer_log jsonb not null default '[]'::jsonb,
+    add column if not exists glass_order jsonb not null default '[]'::jsonb;
 
 -- ---------- helpers ----------
 
@@ -403,9 +407,70 @@ begin
 end;
 $$;
 
+-- Deterministic per-student glass order. One shared topic bank is handed
+-- out in a different sequence to each student, so the classmate ahead cannot
+-- give the answers away. Mirrors PSEngine.glassOrderForPlayer (FNV-1a seed +
+-- mulberry32 + Fisher-Yates), all in uint32 arithmetic.
+create or replace function public.purrfect_survival_glass_order(
+    p_seed bigint,
+    p_user uuid,
+    p_len int
+) returns jsonb
+language plpgsql
+immutable
+as $$
+declare
+    v_len int := greatest(1, least(15, coalesce(p_len, 9)));
+    v_text text;
+    v_hash bigint := 2166136261;
+    v_a bigint;
+    v_t bigint;
+    v_u bigint;
+    v_i int;
+    v_j int;
+    v_tmp int;
+    v_arr int[] := '{}';
+    v_out jsonb := '[]'::jsonb;
+begin
+    v_text := coalesce(p_seed, 1)::text || '|' || coalesce(p_user::text, '') || '|glass';
+    for v_i in 1..char_length(v_text) loop
+        v_hash := ((v_hash # ascii(substr(v_text, v_i, 1))) * 16777619) & 4294967295;
+    end loop;
+
+    for v_i in 0..v_len - 1 loop
+        v_arr := v_arr || v_i;
+    end loop;
+
+    v_a := v_hash;
+    v_i := v_len - 1;
+    while v_i > 0 loop
+        v_a := (v_a + 1831565813) & 4294967295;
+        v_t := (v_a # (v_a >> 15)) & 4294967295;
+        v_t := (v_t * ((1 | v_a) & 4294967295)) & 4294967295;
+        v_u := (v_t # (v_t >> 7)) & 4294967295;
+        v_u := (v_u * ((61 | v_t) & 4294967295)) & 4294967295;
+        v_t := ((v_t + v_u) & 4294967295) # v_t;
+        v_j := floor(
+            ((((v_t # (v_t >> 14)) & 4294967295)::double precision) / 4294967296.0)
+            * (v_i + 1)
+        )::int;
+        v_tmp := v_arr[v_i + 1];
+        v_arr[v_i + 1] := v_arr[v_j + 1];
+        v_arr[v_j + 1] := v_tmp;
+        v_i := v_i - 1;
+    end loop;
+
+    for v_i in 1..v_len loop
+        v_out := v_out || to_jsonb(v_arr[v_i]);
+    end loop;
+    return v_out;
+end;
+$$;
+
 -- Releases exactly one queued player onto step 0 once nobody living is
 -- still standing on step 0. A player who moved to step 1+ or fell
--- unblocks the classmate behind them.
+-- unblocks the classmate behind them. The qualifier board keeps the first
+-- 7 seconds clear (Round 2 starts after the board).
 create or replace function public.purrfect_survival_release_glass(p_room_id uuid)
 returns void
 language plpgsql
@@ -416,11 +481,12 @@ declare
     v_blocked int;
     v_status text;
     v_started timestamptz;
+    v_seed bigint;
+    v_len int;
 begin
-    -- The client qualifier board owns the first 7 seconds of round 2. Do not
-    -- start the first 5 s glass window while that board is still on screen.
-    select status, round2_started_at
-      into v_status, v_started
+    select status, round2_started_at, seed,
+           jsonb_array_length(coalesce(glass_steps, '[]'::jsonb))
+      into v_status, v_started, v_seed, v_len
       from public.purrfect_survival_rooms
      where id = p_room_id;
 
@@ -429,6 +495,12 @@ begin
        and now() < v_started + interval '7 seconds' then
         return;
     end if;
+
+    -- Late joiners / rows created before the order column get an order too.
+    update public.purrfect_survival_players p
+    set glass_order = public.purrfect_survival_glass_order(v_seed, p.user_id, v_len)
+    where p.room_id = p_room_id
+      and (p.glass_order is null or p.glass_order = '[]'::jsonb);
 
     select count(*) into v_blocked
     from public.purrfect_survival_players
@@ -462,8 +534,6 @@ begin
 end;
 $$;
 
--- Moves a round-1 room to the glass bridge. Survivors keep status=alive
--- and receive round1_rank (the queue order); the cut becomes ghosts.
 create or replace function public.purrfect_survival_begin_round2(p_room_id uuid)
 returns public.purrfect_survival_rooms
 language plpgsql
@@ -472,6 +542,7 @@ set search_path = public
 as $$
 declare
     v_room public.purrfect_survival_rooms;
+    v_len int;
 begin
     select * into v_room
     from public.purrfect_survival_rooms
@@ -484,6 +555,8 @@ begin
     if v_room.status <> 'round1' then
         return v_room;
     end if;
+
+    v_len := jsonb_array_length(coalesce(v_room.glass_steps, '[]'::jsonb));
 
     with ranked as (
         select
@@ -511,7 +584,8 @@ begin
         glass_side = null,
         glass_active = false,
         glass_started_at = null,
-        crossed_glass = false
+        crossed_glass = false,
+        glass_order = public.purrfect_survival_glass_order(v_room.seed, p.user_id, v_len)
     from ranked r
     where p.user_id = r.user_id
       and p.room_id = p_room_id;
@@ -530,10 +604,6 @@ begin
 end;
 $$;
 
--- Ends round 1 correctly for the selected round count. A 2-round class
--- advances the first 15 survivors to the glass bridge; a 1-round class
--- finishes immediately and every living player (still status='alive')
--- wins. No top-15 cut is applied to a 1-round room.
 create or replace function public.purrfect_survival_complete_round1(p_room_id uuid)
 returns public.purrfect_survival_rooms
 language plpgsql
@@ -1125,6 +1195,8 @@ begin
         glass_finished_at = null,
         crossed_glass = false,
         tug_team = null,
+        answer_log = '[]'::jsonb,
+        glass_order = '[]'::jsonb,
         last_seen = now()
     where room_id = p_room_id and is_playing;
 
@@ -1404,6 +1476,7 @@ declare
     v_pull int := 0;
     v_rage boolean := false;
     v_winner text;
+    v_log jsonb := '[]'::jsonb;
 begin
     if auth.uid() is null then
         raise exception 'NOT_AUTHENTICATED';
@@ -1454,6 +1527,18 @@ begin
         v_question := v_bank -> (v_player.question_index % v_qcount);
         v_correct := (p_choice = coalesce((v_question ->> 'answer')::int, -1));
 
+        if not v_correct then
+            v_log := jsonb_build_array(jsonb_build_object(
+                'round', 3,
+                'kind', 'tug',
+                'prompt', coalesce(v_question ->> 'prompt', ''),
+                'choice', coalesce((v_question -> 'options') ->> p_choice, ''),
+                'answer', coalesce((v_question -> 'options') ->> ((v_question ->> 'answer')::int), ''),
+                'correct', false,
+                'at', now()
+            ));
+        end if;
+
         v_team := v_player.tug_team;
         v_old_red := coalesce((v_state ->> 'redPull')::int, 0);
         v_old_blue := coalesce((v_state ->> 'bluePull')::int, 0);
@@ -1468,6 +1553,7 @@ begin
 
         update public.purrfect_survival_players
         set question_index = v_player.question_index + 1,
+            answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
             last_seen = now()
         where room_id = p_room_id and user_id = auth.uid()
         returning * into v_player;
@@ -1545,6 +1631,18 @@ begin
         v_question := v_room.questions -> (v_player.question_index % v_qcount);
         v_correct := (p_choice = coalesce((v_question ->> 'answer')::int, -1));
 
+        if not v_correct then
+            v_log := jsonb_build_array(jsonb_build_object(
+                'round', 1,
+                'kind', 'answer',
+                'prompt', coalesce(v_question ->> 'prompt', ''),
+                'choice', coalesce((v_question -> 'options') ->> p_choice, ''),
+                'answer', coalesce((v_question -> 'options') ->> ((v_question ->> 'answer')::int), ''),
+                'correct', false,
+                'at', now()
+            ));
+        end if;
+
         v_distance := v_player.distance;
         if v_correct then
             v_distance := least(v_room.finish_distance, v_player.distance + 10);
@@ -1553,6 +1651,7 @@ begin
         update public.purrfect_survival_players
         set distance = v_distance,
             question_index = v_player.question_index + 1,
+            answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
             reached_finish = (v_distance >= v_room.finish_distance),
             finished_at = case
                 when v_distance >= v_room.finish_distance and finished_at is null then now()
@@ -1603,10 +1702,20 @@ begin
         v_eliminated := true;
     end if;
 
+    v_log := jsonb_build_array(jsonb_build_object(
+        'round', 1,
+        'kind', 'red',
+        'note', case when v_eliminated then 'Eliminated on red light' else 'Moved on red light' end,
+        'penalty', v_penalty,
+        'correct', false,
+        'at', now()
+    ));
+
     update public.purrfect_survival_players
     set distance = v_distance,
         red_offences = v_offences,
         last_red_phase = v_phase.phase_index,
+        answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
         status = case when v_eliminated then 'eliminated' else status end,
         ghost = case when v_eliminated then true else ghost end,
         eliminated_reason = case when v_eliminated then 'red_light' else eliminated_reason end,
@@ -1630,6 +1739,11 @@ $$;
 -- Glass jump. correct -> next step; wrong -> fall (correct pane is lit);
 -- no jump within 5 s -> fall with no reveal. The next queued player is
 -- released as soon as step 0 is clear.
+-- Glass jump. correct -> next step; wrong -> fall (correct pane is lit);
+-- no jump within 5 s -> fall with no reveal. Each player is validated
+-- against their own glass_order, never the shared array as if everybody
+-- had already revealed it. The shared bank is not mutated with reveal
+-- flags, so the next jumper starts clean.
 create or replace function public.glass_jump_purrfect_survival(
     p_room_id uuid,
     p_side text
@@ -1643,13 +1757,16 @@ declare
     v_player public.purrfect_survival_players;
     v_side text;
     v_index int;
+    v_bank_index int;
     v_steps jsonb;
     v_step jsonb;
+    v_order jsonb;
     v_correct_side text;
     v_outcome text;
     v_new_step int;
     v_len int;
     v_finished boolean := false;
+    v_log jsonb := '[]'::jsonb;
 begin
     if auth.uid() is null then
         raise exception 'NOT_AUTHENTICATED';
@@ -1682,14 +1799,39 @@ begin
         return jsonb_build_object('ok', false, 'error', 'NOT_YOUR_TURN');
     end if;
 
-    -- Server-side 5 second window.
+    v_steps := coalesce(v_room.glass_steps, '[]'::jsonb);
+    v_len := jsonb_array_length(v_steps);
+    v_order := coalesce(
+        nullif(v_player.glass_order, '[]'::jsonb),
+        public.purrfect_survival_glass_order(v_room.seed, v_player.user_id, v_len)
+    );
+    v_bank_index := coalesce((v_order ->> v_player.glass_step)::int, -1);
+    v_step := case when v_bank_index >= 0 and v_bank_index < v_len
+        then v_steps -> v_bank_index else null end;
+
+    -- Server-side 5 second window. The pane text is logged for the
+    -- post-ceremony report, but the class is not shown the answer.
     if v_player.glass_started_at is not null
        and now() - v_player.glass_started_at >= interval '5 seconds' then
+        if v_step is not null then
+            v_log := jsonb_build_array(jsonb_build_object(
+                'round', 2,
+                'kind', 'glass_timeout',
+                'prompt', coalesce(v_step ->> 'prompt', ''),
+                'left', coalesce(v_step ->> 'left', ''),
+                'right', coalesce(v_step ->> 'right', ''),
+                'choice', null,
+                'answer', coalesce(v_step ->> 'correct_side', ''),
+                'correct', false,
+                'at', now()
+            ));
+        end if;
         update public.purrfect_survival_players
         set status = 'eliminated',
             ghost = true,
             eliminated_reason = 'glass_timeout',
-            glass_active = false
+            glass_active = false,
+            answer_log = coalesce(answer_log, '[]'::jsonb) || v_log
         where room_id = p_room_id and user_id = auth.uid()
         returning * into v_player;
 
@@ -1710,29 +1852,27 @@ begin
         return jsonb_build_object('ok', false, 'error', 'INVALID_SIDE');
     end if;
 
-    v_steps := coalesce(v_room.glass_steps, '[]'::jsonb);
-    v_len := jsonb_array_length(v_steps);
-    v_index := v_player.glass_step;
-
-    if v_index < 0 or v_index >= v_len then
+    if v_step is null then
         return jsonb_build_object('ok', false, 'error', 'INVALID_STEP');
     end if;
 
-    v_step := v_steps -> v_index;
+    v_index := v_player.glass_step;
     v_correct_side := v_step ->> 'correct_side';
     v_outcome := case when v_side = v_correct_side then 'correct' else 'wrong' end;
 
-    v_step := jsonb_set(v_step, '{revealed}', 'true'::jsonb, true);
-    v_step := jsonb_set(v_step, '{revealed_side}', to_jsonb(v_correct_side), true);
-    v_step := jsonb_set(
-        v_step,
-        '{shattered_side}',
-        case when v_outcome = 'wrong'
-             then to_jsonb(case when v_correct_side = 'left' then 'right' else 'left' end)
-             else 'null'::jsonb end,
-        true
-    );
-    v_steps := jsonb_set(v_steps, array[v_index::text], v_step, false);
+    if v_outcome = 'wrong' then
+        v_log := jsonb_build_array(jsonb_build_object(
+            'round', 2,
+            'kind', 'glass',
+            'prompt', coalesce(v_step ->> 'prompt', ''),
+            'left', coalesce(v_step ->> 'left', ''),
+            'right', coalesce(v_step ->> 'right', ''),
+            'choice', v_side,
+            'answer', v_correct_side,
+            'correct', false,
+            'at', now()
+        ));
+    end if;
 
     if v_outcome = 'correct' then
         v_new_step := v_index + 1;
@@ -1745,6 +1885,7 @@ begin
                 glass_finished_at = now(),
                 crossed_glass = true,
                 status = 'advanced',
+                answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
                 last_seen = now()
             where room_id = p_room_id and user_id = auth.uid()
             returning * into v_player;
@@ -1756,6 +1897,7 @@ begin
                 glass_started_at = now(),
                 crossed_glass = false,
                 status = 'alive',
+                answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
                 last_seen = now()
             where room_id = p_room_id and user_id = auth.uid()
             returning * into v_player;
@@ -1767,16 +1909,15 @@ begin
             status = 'eliminated',
             ghost = true,
             eliminated_reason = 'glass',
+            answer_log = coalesce(answer_log, '[]'::jsonb) || v_log,
             last_seen = now()
         where room_id = p_room_id and user_id = auth.uid()
         returning * into v_player;
     end if;
 
-    update public.purrfect_survival_rooms
-    set glass_steps = v_steps
-    where id = p_room_id
-    returning * into v_room;
-
+    -- Deliberately do NOT write revealed_side back to the shared bank:
+    -- each student's sequence is different, so a shared reveal would leak
+    -- a pane that does not belong to the next jumper's question.
     perform public.purrfect_survival_release_glass(p_room_id);
     v_room := public.purrfect_survival_finish_if_done(p_room_id);
 
@@ -1786,7 +1927,7 @@ begin
         'finished_bridge', v_finished,
         'correct_side', v_correct_side,
         'revealed', true,
-        'step_index', v_index,
+        'step_index', v_bank_index,
         'player', to_jsonb(v_player),
         'room', to_jsonb(v_room) - 'questions'
     );

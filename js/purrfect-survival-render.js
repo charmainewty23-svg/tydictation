@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.3.0';
+    R.VERSION = '2.4.0';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -709,9 +709,15 @@
         /* The teacher / projector gets a true overhead view of each arena
            so the whole class and the finish are visible at once. Students
            keep the closer, lower, more cinematic camera. */
+        /* The projector course is longer (it starts nearer the camera) so
+           the host camera is pulled down/forward to frame it tightly. The
+           student camera and course are unchanged. */
         const hostCam1 = landscape
-            ? { eye: [0, 11.5, -9.0], target: [0, 0.2, 8.4], fov: 58 }
+            ? { eye: [0, 7.5, -6.0], target: [0, 0.2, 9.0], fov: 60 }
             : { eye: [0, 8.0, -4.0], target: [0, 0.2, 8.4], fov: 64 };
+        const r1Track = host
+            ? { startZ: 0.8, finishZ: 9.95, dollZ: 10.2 }
+            : { startZ: 5.0, finishZ: 9.8, dollZ: 10.15 };
         const hostCam2 = landscape
             ? { eye: [0, 11.0, -9.0], target: [0, 0.0, 7.6], fov: 58 }
             : { eye: [0, 8.4, -4.4], target: [0, 0.0, 7.6], fov: 64 };
@@ -730,6 +736,9 @@
             bridgeFarY: height * (landscape ? 0.24 : 0.28),
             bridgeNearY: height * (landscape ? 0.80 : 0.72),
             centerX: width * 0.5,
+            round1StartZ: r1Track.startZ,
+            round1FinishZ: r1Track.finishZ,
+            round1DollZ: r1Track.dollZ,
             // camera presets for the 3D sets
             cam1: host
                 ? hostCam1
@@ -1511,8 +1520,10 @@
         finishZ: 9.8
     };
 
-    function r1Z(metres) {
-        return lerp(PG.startZ, PG.finishZ, clamp(metres / 100, 0, 1));
+    function r1Z(metres, L) {
+        const start = L && L.round1StartZ != null ? L.round1StartZ : PG.startZ;
+        const finish = L && L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ;
+        return lerp(start, finish, clamp(metres / 100, 0, 1));
     }
 
     /* The phone shows a tighter, more cinematic crop of the same room; the
@@ -1806,7 +1817,7 @@
 
         // distance markers + finish line on the sand
         for (let m = 0; m <= 100; m += 20) {
-            const z = r1Z(m);
+            const z = r1Z(m, L);
             line3(ctx, cam, [-5.4, 0.012, z], [5.4, 0.012, z],
                 { stroke: m === 0 ? 'rgba(255,255,255,.55)' : 'rgba(120,88,44,.28)', lineWidth: m === 0 ? 2 : 1, dash: m === 0 ? null : [6, 8] });
             if (m % 20 === 0) {
@@ -1815,7 +1826,7 @@
             }
         }
         // checkered finish strip
-        const fz = PG.finishZ;
+        const fz = L && L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ;
         const cols = 14;
         for (let i = 0; i < cols; i++) {
             const x0 = -5.2 + (10.4 * i) / cols;
@@ -1907,7 +1918,9 @@
         const t = Number(s.now) || 0;
         const phase = s.phase || 'green';
 
-        drawCached(ctx, L, 'playground:' + (s.role || 'player'), c => {
+        drawCached(ctx, L, 'playground:' + (s.role || 'player') + ':' +
+            (L.round1StartZ != null ? L.round1StartZ : PG.startZ) + '-' +
+            (L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ), c => {
             drawPlaygroundStatic(c, L, cam);
         });
 
@@ -1918,7 +1931,7 @@
         });
 
         // the mechanical cat doll at the finish line
-        const dollP = project(cam, 0, 0, PG.dollZ);
+        const dollP = project(cam, 0, 0, L.round1DollZ != null ? L.round1DollZ : PG.dollZ);
         if (dollP) {
             const turnBase = phase === 'red' || phase === 'done' ? 1 : 0;
             let turn = turnBase;
@@ -2008,7 +2021,7 @@
             const pid = String(player.user_id || player.id || '');
             const alive = player.status !== 'eliminated' && player.status !== 'out' && player.status !== 'advanced' && player.ghost !== true;
             const dist = clamp(Number(player.distance) || 0, 0, finish);
-            const z = r1Z(dist);
+            const z = r1Z(dist, L);
             const lane = Math.floor(mix01(pid + ':lane') * 9);
             const jitter = (mix01('jx:' + pid) - 0.5) * 0.9;
             // Lanes converge with depth like a real running field, which also
@@ -2411,26 +2424,8 @@
             poly3(ctx, cam, corners, { stroke: '#fde047', lineWidth: 2.4, dash: [7, 5] });
         }
 
-        // option label on the glass
-        const label = side === 'left' ? step.left : step.right;
-        if (p && label) {
-            const fs = Math.max(7, Math.min(p.s * 0.20, 18));
-            ctx.save();
-            setFont(ctx, fs, 800);
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            let text = String(label);
-            const maxW = p.s * R2.paneHalf * 1.55;
-            if (ctx.measureText(text).width > maxW) {
-                while (text.length > 1 && ctx.measureText(text + '…').width > maxW) text = text.slice(0, -1);
-                text += '…';
-            }
-            ctx.fillStyle = isCorrect ? '#052e16' : '#f4f1ff';
-            ctx.shadowColor = 'rgba(0,0,0,.8)';
-            ctx.shadowBlur = isCorrect ? 2 : 6;
-            ctx.fillText(text, p.x, p.y + 0.5);
-            ctx.restore();
-        }
+        // Lights only: the pane choices live on the student's phone, never
+        // as text on the 3D bridge (two classmates see different orders).
     }
 
     function drawBridgePanes(ctx, cam, state, t) {

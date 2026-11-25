@@ -1128,6 +1128,145 @@
         return out;
     };
 
+    /* Round 2 uses one shared topic bank (the same pairs for the whole
+       class) but every student gets their own deterministic order, so the
+       classmate ahead cannot hand the answers to the next jumper. The seed
+       mixes the room seed with the student id; the same inputs always give
+       the same order. */
+    PS.glassOrderSeed = function (seed, userId) {
+        return coerceSeed(String(seed == null ? 1 : seed) + '|' + String(userId == null ? '' : userId) + '|glass');
+    };
+
+    PS.glassOrderForPlayer = function (userId, stepCount, seed) {
+        const n = Math.max(1, Math.min(PS.ROUND2.MAX_STEPS, Math.floor(Number(stepCount) || PS.ROUND2.STEP_COUNT)));
+        const order = [];
+        for (let i = 0; i < n; i++) order.push(i);
+        PS.shuffleInPlace(order, PS.mulberry32(PS.glassOrderSeed(seed, userId)));
+        return order;
+    };
+
+    function validOrder(order, n) {
+        if (!Array.isArray(order) || order.length !== n) return null;
+        const seen = {};
+        const out = [];
+        for (let i = 0; i < order.length; i++) {
+            const idx = Math.floor(Number(order[i]));
+            if (!isFinite(idx) || idx < 0 || idx >= n || seen[idx]) return null;
+            seen[idx] = true;
+            out.push(idx);
+        }
+        return out;
+    }
+
+    /* Clone the shared bank into one student's sequence. Revealed/shattered
+       lights from anybody else are always stripped, so a queued student is
+       never handed a classmate's answer. */
+    PS.glassStepsForPlayer = function (baseSteps, userId, seed, orderOverride) {
+        const base = Array.isArray(baseSteps) ? baseSteps : [];
+        const n = base.length;
+        if (!n) return [];
+        const order = validOrder(orderOverride, n)
+            || PS.glassOrderForPlayer(userId, n, seed);
+        return order.map(function (idx, seq) {
+            const src = base[idx] || {};
+            return {
+                index: seq,
+                bank_index: idx,
+                prompt: src.prompt == null ? '' : String(src.prompt),
+                left: src.left == null ? '' : String(src.left),
+                right: src.right == null ? '' : String(src.right),
+                correct_side: src.correct_side === 'right' ? 'right' : 'left',
+                revealed: false,
+                revealed_side: null,
+                shattered_side: null
+            };
+        });
+    };
+
+    /* The step this student is standing on, taken from their own sequence.
+       Never reads the shared room array's reveal flags. */
+    PS.playerGlassStep = function (baseSteps, player, seed) {
+        if (!player) return null;
+        const steps = PS.glassStepsForPlayer(baseSteps, PS.userKey(player), seed, player.glass_order);
+        const idx = Math.max(0, Number(player.glass_step) || 0);
+        return steps[idx] || null;
+    };
+
+    /* Append-only mistake log. Safe to call with a plain player object in
+       the demo (no SQL required); live rooms get the same entries appended
+       by the server RPCs. */
+    PS.recordMistake = function (player, entry) {
+        if (!player || !entry) return player;
+        const list = Array.isArray(player.answer_log)
+            ? player.answer_log.slice()
+            : (Array.isArray(player.mistakes) ? player.mistakes.slice() : []);
+        const clean = {};
+        ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+            if (entry[key] != null) clean[key] = entry[key];
+        });
+        clean.correct = false;
+        list.push(clean);
+        player.answer_log = list;
+        player.mistakes = list;
+        return player;
+    };
+
+    function mistakeList(player) {
+        if (!player) return [];
+        const raw = Array.isArray(player.answer_log) ? player.answer_log
+            : (Array.isArray(player.mistakes) ? player.mistakes : []);
+        return raw.filter(function (entry) { return entry && typeof entry === 'object'; })
+            .map(function (entry) {
+                const clean = {};
+                ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+                    if (entry[key] != null) clean[key] = entry[key];
+                });
+                clean.correct = false;
+                return clean;
+            });
+    }
+
+    /* Student view: only their own rows. Teacher / projector: every player
+       with at least one mistake, grouped by student. */
+    PS.mistakeReport = function (players, opts) {
+        const o = opts || {};
+        const viewer = o.viewer === 'teacher' ? 'teacher' : 'student';
+        const list = (Array.isArray(players) ? players : []).filter(function (p) {
+            return p && p.is_playing !== false;
+        });
+        const rows = [];
+        if (viewer === 'student') {
+            const meId = String(o.meId == null ? '' : o.meId);
+            const p = list.find(function (x) { return PS.userKey(x) === meId; });
+            if (p) {
+                rows.push({
+                    user_id: PS.userKey(p),
+                    nickname: String(p.nickname || ''),
+                    mistakes: mistakeList(p)
+                });
+            }
+        } else {
+            list.forEach(function (p) {
+                const mistakes = mistakeList(p);
+                if (!mistakes.length) return;
+                rows.push({
+                    user_id: PS.userKey(p),
+                    nickname: String(p.nickname || ''),
+                    mistakes: mistakes
+                });
+            });
+            rows.sort(function (a, b) {
+                if (a.nickname !== b.nickname) return a.nickname < b.nickname ? -1 : 1;
+                return a.user_id < b.user_id ? -1 : (a.user_id > b.user_id ? 1 : 0);
+            });
+        }
+        return {
+            viewer: viewer,
+            rows: rows,
+            total: rows.reduce(function (n, row) { return n + row.mistakes.length; }, 0)
+        };
+    };
+
     PS.revealGlassStep = function (step, outcome) {
         if (!step) return step;
         const o = String(outcome || 'correct');

@@ -1504,9 +1504,10 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the prize ceremony change', () => {
+test('service worker cache is bumped for the round-2 report change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v110") !== -1, 'CACHE_NAME is v110');
+    assert.ok(sw.indexOf("learnity-pwa-v111") !== -1, 'CACHE_NAME is v111');
+    assert.equal(sw.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v107"), -1, 'the old cache name is gone');
@@ -2098,7 +2099,7 @@ test('drawCeremony paints a podium in portrait and landscape without bitmaps', (
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
-    assert.match(RENDERER.VERSION, /^2\.3\./);
+    assert.match(RENDERER.VERSION, /^2\.4\./);
 });
 
 test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
@@ -2341,4 +2342,228 @@ test('qualifier SQL is a safe, teacher-run incremental', () => {
     const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
     assert.ok(canonical.indexOf("interval '7 seconds'") !== -1,
         'fresh installs also wait for the qualifier before releasing glass');
+});
+
+/* ---------------------------------------------------------------- */
+/* Follow-up: longer host track, glass lights/order, reports, audio   */
+/* ---------------------------------------------------------------- */
+
+test('host Round 1 track is clearly longer than the student track', () => {
+    const host = RENDERER.layout(1280, 720, 'host');
+    const player = RENDERER.layout(1280, 720, 'player');
+    assert.equal(player.round1StartZ, 5.0, 'student start stays at 5.0');
+    assert.equal(player.round1FinishZ, 9.8, 'student finish stays at 9.8');
+    assert.ok(host.round1StartZ < player.round1StartZ, 'host course starts nearer the camera');
+    assert.ok(host.round1FinishZ >= player.round1FinishZ, 'host keeps the finish at the far end');
+    const hostSpan = host.round1FinishZ - host.round1StartZ;
+    const playerSpan = player.round1FinishZ - player.round1StartZ;
+    assert.ok(hostSpan > playerSpan * 1.5, 'host track is substantially longer');
+
+    const portraitHost = RENDERER.layout(390, 844, 'host');
+    const portraitPlayer = RENDERER.layout(390, 844, 'player');
+    assert.ok(portraitHost.round1StartZ < portraitPlayer.round1StartZ);
+    assert.equal(portraitPlayer.round1StartZ, 5.0);
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(src.indexOf('round1StartZ') !== -1, 'layout exposes the track extents');
+    assert.ok(src.indexOf('r1Z(m, L)') !== -1, 'metre marks use the host extents');
+    assert.ok(src.indexOf('r1Z(dist, L)') !== -1, 'cats use the host extents');
+    assert.ok(src.indexOf('L.round1FinishZ') !== -1, 'finish strip uses the host extents');
+    assert.ok(src.indexOf('L.round1DollZ') !== -1, 'the doll uses the host extents');
+    assert.ok(src.indexOf("'playground:' + (s.role || 'player') + ':'") !== -1,
+        'static cache key includes the host track identity');
+});
+
+test('drawRound1 paints the 1280x720 host track and the student track', () => {
+    [[1280, 720], [390, 844], [844, 390]].forEach(size => {
+        ['host', 'player'].forEach(role => {
+            const ctx = mockContext({ width: size[0], height: size[1] });
+            assert.doesNotThrow(() => RENDERER.drawRound1(ctx, sampleState(1, {
+                w: size[0], h: size[1], role: role
+            })), 'round 1 ' + role + ' @' + size.join('x'));
+        });
+    });
+    assert.match(RENDERER.VERSION, /^2\.4\./);
+});
+
+test('glass panes are lights only: no vocab text on the 3D bridge', () => {
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const start = src.indexOf('function drawPane3D(');
+    const end = src.indexOf('function drawBridgePanes(', start);
+    assert.ok(start !== -1 && end > start);
+    const fn = src.slice(start, end);
+    assert.equal(fn.indexOf('fillText'), -1, 'drawPane3D never writes option text');
+    assert.equal(fn.indexOf('step.left'), -1, 'left option is not referenced in the pane painter');
+    assert.equal(fn.indexOf('step.right'), -1, 'right option is not referenced in the pane painter');
+    assert.ok(fn.indexOf('revealed_side') !== -1, 'correct panes still light up');
+    assert.ok(fn.indexOf('shattered_side') !== -1, 'broken panes still shatter');
+
+    const ctx = mockContext({ width: 1280, height: 720 });
+    assert.doesNotThrow(() => RENDERER.drawRound2(ctx, sampleState(2, { role: 'host', w: 1280, h: 720 })));
+});
+
+test('each student gets a different glass order from the same bank', () => {
+    const bank = PS.buildGlassSteps({
+        pairs: PS.buildGlassPairs({ words: PS.DEMO_VOCAB, seed: 99, count: 9 }),
+        seed: 99,
+        count: 9
+    });
+    const a = PS.glassStepsForPlayer(bank, 'student-a', 1234);
+    const b = PS.glassStepsForPlayer(bank, 'student-b', 1234);
+    const aAgain = PS.glassStepsForPlayer(bank, 'student-a', 1234);
+    assert.equal(a.length, 9);
+    assert.deepEqual(a.map(s => s.bank_index), aAgain.map(s => s.bank_index), 'same user + seed is stable');
+    assert.notDeepEqual(a.map(s => s.bank_index), b.map(s => s.bank_index), 'two classmates get different orders');
+    assert.deepEqual(a.map(s => s.bank_index).slice().sort((x, y) => x - y), [0, 1, 2, 3, 4, 5, 6, 7, 8],
+        'the order is a permutation of the same topic bank');
+    a.forEach(step => {
+        assert.equal(step.revealed, false);
+        assert.equal(step.revealed_side, null);
+        const src = bank[step.bank_index];
+        assert.equal(step.left, src.left);
+        assert.equal(step.right, src.right);
+        assert.equal(step.correct_side, src.correct_side);
+    });
+
+    // A reveal on the shared base array must not pre-mark B's phone.
+    bank[0].revealed = true;
+    bank[0].revealed_side = bank[0].correct_side;
+    const freshB = PS.glassStepsForPlayer(bank, 'student-b', 1234);
+    assert.ok(freshB.every(s => s.revealed === false && s.revealed_side === null),
+        'another student\'s revealed_side is stripped');
+
+    const p = { user_id: 'student-a', glass_step: 2, glass_order: a.map(s => s.bank_index) };
+    const step = PS.playerGlassStep(bank, p, 1234);
+    assert.equal(step.bank_index, a[2].bank_index, 'validation follows the student\'s own sequence');
+});
+
+test('the SQL glass-order mirror matches the JS order', () => {
+    function sqlOrder(seed, userId, len) {
+        const text = String(seed) + '|' + String(userId) + '|glass';
+        let hash = 2166136261n;
+        for (let i = 0; i < text.length; i++) {
+            hash = ((hash ^ BigInt(text.charCodeAt(i))) * 16777619n) & 0xFFFFFFFFn;
+        }
+        let a = hash;
+        const arr = [];
+        for (let i = 0; i < len; i++) arr.push(i);
+        for (let i = len - 1; i > 0; i--) {
+            a = (a + 1831565813n) & 0xFFFFFFFFn;
+            let t = (a ^ (a >> 15n)) & 0xFFFFFFFFn;
+            t = (t * ((1n | a) & 0xFFFFFFFFn)) & 0xFFFFFFFFn;
+            let u = (t ^ (t >> 7n)) & 0xFFFFFFFFn;
+            u = (u * ((61n | t) & 0xFFFFFFFFn)) & 0xFFFFFFFFn;
+            t = ((t + u) & 0xFFFFFFFFn) ^ t;
+            const r = Number(((t ^ (t >> 14n)) & 0xFFFFFFFFn)) / 4294967296;
+            const j = Math.floor(r * (i + 1));
+            const tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+    ['u-1', 'u-2', '4c16', 'student-abc'].forEach(user => {
+        [0, 20261125, 1234].forEach(seed => {
+            const js = PS.glassOrderForPlayer(user, 9, seed);
+            assert.deepEqual(js, sqlOrder(seed, user, 9), 'same order for ' + user + '/' + seed);
+        });
+    });
+});
+
+test('the queue view has no option buttons and the phone shows only its own step', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = src.indexOf('function renderGlassTurn()');
+    const end = src.indexOf('function renderTugTurn()', start);
+    assert.ok(start !== -1 && end > start);
+    const fn = src.slice(start, end);
+    assert.ok(fn.indexOf("if (!me.glass_active)") !== -1, 'queued students get a queue message');
+    assert.ok(/opts\.innerHTML = ''/.test(fn), 'queue clears the answer pad');
+    assert.equal(fn.indexOf('ps-glass-safe'), -1, 'no revealed answer highlighting on a student phone');
+    assert.ok(fn.indexOf('playerGlassSteps(me)') !== -1, 'the phone reads the student sequence');
+
+    assert.ok(src.indexOf('function demoGlassJump(') !== -1);
+    assert.ok(src.indexOf('playerGlassSteps(me)') !== -1, 'demo validation uses the per-student sequence');
+    assert.ok(src.indexOf('playerGlassSteps(p)') !== -1, 'demo bots also use their own sequence');
+});
+
+test('mistake reports are per-student for students and whole-class for teachers', () => {
+    const a = { user_id: 'a', nickname: '4C 01 Amy', is_playing: true, answer_log: [] };
+    const b = { user_id: 'b', nickname: '4C 02 Ben', is_playing: true, answer_log: [] };
+    const c = { user_id: 'c', nickname: '4C 03 Cal', is_playing: true, answer_log: [] };
+    PS.recordMistake(a, { round: 1, kind: 'answer', prompt: 'Charity?', choice: 'sleep', answer: 'help' });
+    PS.recordMistake(a, { round: 2, kind: 'glass_timeout', prompt: 'Pane', left: 'a', right: 'b', answer: 'b' });
+    PS.recordMistake(b, { round: 3, kind: 'tug', prompt: 'Past tense of go', choice: 'goed', answer: 'went' });
+
+    const mine = PS.mistakeReport([a, b, c], { meId: 'a', viewer: 'student' });
+    assert.equal(mine.viewer, 'student');
+    assert.equal(mine.rows.length, 1);
+    assert.equal(mine.rows[0].user_id, 'a');
+    assert.equal(mine.rows[0].mistakes.length, 2);
+    assert.equal(mine.total, 2);
+
+    const other = PS.mistakeReport([a, b, c], { meId: 'c', viewer: 'student' });
+    assert.equal(other.rows[0].user_id, 'c');
+    assert.deepEqual(other.rows[0].mistakes, [], 'a student with no mistakes sees an empty list');
+
+    const teacher = PS.mistakeReport([a, b, c], { viewer: 'teacher' });
+    assert.equal(teacher.viewer, 'teacher');
+    assert.deepEqual(teacher.rows.map(r => r.user_id), ['a', 'b']);
+    assert.equal(teacher.total, 3);
+
+    const empty = PS.mistakeReport([c], { viewer: 'teacher' });
+    assert.deepEqual(empty.rows, []);
+    assert.equal(empty.total, 0);
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['id="ps-mistake-report"', 'id="ps-mistake-title"', 'id="ps-mistake-list"'].forEach(token => {
+        assert.ok(html.indexOf(token) !== -1, token + ' exists in index.html');
+    });
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('renderMistakeReport()') !== -1, 'the ceremony renders the report');
+    assert.ok(main.indexOf('PSEngine.recordMistake') !== -1, 'demo play records mistakes');
+    assert.ok(main.indexOf('PSEngine.mistakeReport') !== -1, 'the report comes from the pure engine');
+});
+
+test('the demo iframe unlocks Survival audio and keeps the documented mute', () => {
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    assert.ok(demo.indexOf('allow="autoplay') !== -1, 'the iframe allows autoplay');
+    assert.ok(demo.indexOf('unlockAudio') !== -1, 'the demo bar calls PS.unlockAudio');
+
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('PS.unlockAudio') !== -1, 'PS exposes unlockAudio');
+    assert.ok(main.indexOf("learniTY_ps_sound") !== -1, 'the documented mute key is still honoured');
+    assert.ok(main.indexOf("new Audio('/music/battlemusic.mp3')") !== -1, 'a looping BGM is wired');
+    assert.ok(main.indexOf('function startBgm()') !== -1, 'BGM starts from gestures');
+    assert.ok(main.indexOf('stopBgm()') !== -1, 'BGM stops when leaving / muting');
+    assert.equal(/soundOn\s*=\s*false/.test(main), false, 'demo mode does not hard-wire sound off');
+});
+
+test('round-2 answer/order SQL is a safe teacher-run incremental', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_round2_answers.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Clear the editor/i.test(sql), 'tells the teacher to clear the editor');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('qualifier') !== -1, 'says to run after the qualifier incremental');
+    ['answer_log', 'glass_order', 'purrfect_survival_glass_order',
+        'glass_jump_purrfect_survival', 'submit_purrfect_survival_answer',
+        'purrfect_survival_begin_round2', 'purrfect_survival_release_glass'].forEach(token => {
+        assert.ok(sql.indexOf(token) !== -1, token + ' exists');
+    });
+    assert.ok(/interval '7 seconds'/.test(sql), 'keeps the qualifier glass delay');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    ['answer_log', 'glass_order', 'purrfect_survival_glass_order'].forEach(token => {
+        assert.ok(canonical.indexOf(token) !== -1, token + ' is in the canonical SQL');
+    });
+    assert.ok(canonical.indexOf('v_order := coalesce(') !== -1, 'canonical validates against the player order');
+    assert.equal(canonical.indexOf('set glass_steps = v_steps'), -1, 'canonical no longer writes shared reveals');
+
+    const copy = '/workspace/purrfect_survival_round2_answers.sql';
+    assert.ok(fs.existsSync(copy), 'workspace copy exists');
+    assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches the repo incremental');
 });

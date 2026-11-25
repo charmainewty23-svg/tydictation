@@ -5060,6 +5060,52 @@
             line-height: 1.35;
             color: rgba(248, 250, 252, .58);
         }
+        .ps-mistake-report {
+            margin: 0 0 9px;
+            padding: 8px 9px;
+            border-radius: .75rem;
+            background: rgba(244, 63, 94, .08);
+            border: 1px solid rgba(244, 63, 94, .28);
+            max-height: 30vh;
+            overflow-y: auto;
+        }
+        .ps-mistake-title {
+            margin: 0 0 2px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #fecdd3;
+        }
+        .ps-mistake-sub {
+            margin: 0 0 6px;
+            font-size: 9.5px;
+            font-weight: 600;
+            color: rgba(254, 205, 211, .72);
+        }
+        .ps-mistake-list { display: grid; gap: 6px; }
+        .ps-mistake-student {
+            padding: 5px 7px;
+            border-radius: .6rem;
+            background: rgba(255, 255, 255, .04);
+        }
+        .ps-mistake-name {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #fecdd3;
+            margin-bottom: 2px;
+        }
+        .ps-mistake-items { margin: 0; padding-left: 16px; }
+        .ps-mistake-item {
+            font-size: 10px;
+            line-height: 1.35;
+            color: rgba(248, 250, 252, .78);
+        }
+        .ps-mistake-empty,
+        .ps-mistake-none {
+            margin: 0;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #bbf7d0;
+        }
         .ps-ceremony-card .ps-primary { max-width: 260px; margin: 0 auto; }
 
         /* ---------- landscape / projector ---------- */
@@ -5153,6 +5199,10 @@
             .ps-ceremony-detail { font-size: 9px; }
             .ps-ceremony-paws { font-size: 10px; }
             .ps-ceremony-note { margin-bottom: 6px; font-size: 9px; }
+            .ps-mistake-report { max-height: 21vh; padding: 5px 7px; margin-bottom: 5px; }
+            .ps-mistake-title { font-size: 10px; }
+            .ps-mistake-sub { font-size: 8.5px; margin-bottom: 4px; }
+            .ps-mistake-item { font-size: 8.5px; }
         }
         @media (max-width: 430px) {
             .ps-lobby { padding: 14px 12px 24px; }
@@ -6409,6 +6459,11 @@
                                     </header>
                                     <div id="ps-ceremony-summary" class="ps-ceremony-summary"></div>
                                     <div id="ps-ceremony-list" class="ps-ceremony-list"></div>
+                                    <section id="ps-mistake-report" class="ps-mistake-report" aria-label="Mistake report">
+                                        <h3 id="ps-mistake-title" class="ps-mistake-title">📕 Your mistakes</h3>
+                                        <p id="ps-mistake-sub" class="ps-mistake-sub"></p>
+                                        <div id="ps-mistake-list" class="ps-mistake-list"></div>
+                                    </section>
                                     <p id="ps-ceremony-note" class="ps-ceremony-note"></p>
                                     <button type="button" class="ps-primary" onclick="PS.backToHub()">← Back to Hub</button>
                                 </div>

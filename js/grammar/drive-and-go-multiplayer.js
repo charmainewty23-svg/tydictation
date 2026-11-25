@@ -95,6 +95,13 @@
                 'Do not re-run the older Drive &amp; Go! files for this. ' +
                 'Indefinite Pronouns Single Player and Tenses / Agreement / Articles multiplayer keep working without it.</div>';
         }
+        if (kind === 'participle_phrases') {
+            return '<div class="dg-note warn text-left"><b>Participle phrases multiplayer needs one SQL file.</b><br>' +
+                'The teacher must run <code>supabase/drive_and_go_participle_phrases_topic.sql</code> in the Supabase SQL editor. ' +
+                'It adds the <code>participle_phrases</code> topic (and keeps <code>articles</code> / <code>indefinite_pronouns</code>). ' +
+                'Do not re-run the older Drive &amp; Go! files for this. ' +
+                'Participle phrases Single Player and tenses / agreement / articles / indefinite pronouns multiplayer keep working without it.</div>';
+        }
         if (kind === 'scene') {
             return '<div class="dg-note warn text-left"><b>Multiplayer needs an updated SQL file.</b><br>' +
                 'The teacher must run <code>supabase/drive_and_go_scenes_and_boards.sql</code> in the Supabase SQL editor ' +
@@ -368,7 +375,9 @@
         const topic = DG.normalizeTopic(DG.readSettings().topic);
         const kind = (DG.mpClassRoom && DG.mpIsClassRoomSqlMissing(error)) ? 'class'
             : (DG.mpIsAgreementSqlMissing(error)
-                ? (topic === 'articles' ? 'articles' : (topic === 'indefinite_pronouns' ? 'indefinite_pronouns' : 'agreement'))
+                ? (topic === 'articles' ? 'articles'
+                    : (topic === 'indefinite_pronouns' ? 'indefinite_pronouns'
+                        : (topic === 'participle_phrases' ? 'participle_phrases' : 'agreement')))
                 : (DG.mpIsSceneSqlMissing(error) ? 'scene'
                     : (DG.mpIsQuestionCountSqlMissing(error) ? 'question_count' : '')));
         const content = DG.menuContent();
@@ -383,11 +392,13 @@
                         ? 'Run supabase/drive_and_go_articles_topic.sql in the Supabase SQL editor.'
                         : (kind === 'indefinite_pronouns'
                             ? 'Run supabase/drive_and_go_indefinite_pronouns_topic.sql in the Supabase SQL editor.'
-                            : (kind === 'scene'
-                                ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
-                                : (kind === 'question_count'
-                                    ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
-                                    : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.'))))));
+                            : (kind === 'participle_phrases'
+                                ? 'Run supabase/drive_and_go_participle_phrases_topic.sql in the Supabase SQL editor.'
+                                : (kind === 'scene'
+                                    ? 'Run supabase/drive_and_go_scenes_and_boards.sql in the Supabase SQL editor.'
+                                    : (kind === 'question_count'
+                                        ? 'Run supabase/drive_and_go_question_count.sql in the Supabase SQL editor.'
+                                        : 'Run supabase/drive_and_go.sql in the Supabase SQL editor.')))))));
         }
     };
 
@@ -477,9 +488,10 @@
         }, DG.mpLookArgs());
         // Tenses rooms deliberately omit p_topic so the existing 7-argument
         // function keeps working before the new SQL is pasted. Agreement,
-        // Articles and Indefinite Pronouns rooms send it so the room stores
-        // the right bank.
-        if (topic === 'agreement' || topic === 'articles' || topic === 'indefinite_pronouns') {
+        // Articles, Indefinite Pronouns and Participle phrases rooms send it
+        // so the room stores the right bank.
+        if (topic === 'agreement' || topic === 'articles' ||
+            topic === 'indefinite_pronouns' || topic === 'participle_phrases') {
             args.p_topic = topic;
         }
         if (DG.mpClassRoom) {

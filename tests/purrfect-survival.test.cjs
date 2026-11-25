@@ -1495,8 +1495,10 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the prize ceremony change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v107") !== -1, 'CACHE_NAME is v107');
+    assert.ok(sw.indexOf("learnity-pwa-v108") !== -1, 'CACHE_NAME is v108');
+    assert.equal(sw.indexOf("learnity-pwa-v107"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v106"), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf("learnity-pwa-v105"), -1, 'the old cache name is gone');
 });
 
 test('demo page exposes round count, metres, glass step and tug controls', () => {

@@ -26,7 +26,17 @@
 
         const structureData = {
             "conditionals": { title: "Conditionals (Type 0 - 3)", emoji: "⚖️", intro: "Conditional sentences describe the result of a certain condition.", sections: [{ tag: "Zero Conditional", rule: "If + Simple Present, ... Simple Present", example: "If you heat ice, it melts." }, { tag: "First Conditional", rule: "If + Simple Present, ... will + Verb", example: "If it rains, I will stay home." }, { tag: "Second Conditional", rule: "If + Simple Past, ... would + Verb", example: "If I won the lottery, I would travel." }, { tag: "Third Conditional", rule: "If + Past Perfect, ... would have + V3", example: "If I had studied, I would have passed." }] },
-            "participle_clauses": { title: "Participle Clauses", emoji: "🔗", intro: "Participle clauses provide extra info when the subject is shared.", sections: [{ tag: "Present Participle (Active)", rule: "V-ing ..., (Main Clause)", example: "Walking down the street, I saw a friend." }, { tag: "Past Participle (Passive)", rule: "V3 ..., (Main Clause)", example: "Shocked by the news, she couldn't speak." }] },
+            "participle_clauses": {
+                title: "Participle phrases",
+                emoji: "🔗",
+                backTo: "grammar-view",
+                intro: "A participle phrase is a reduced clause that adds information about the subject. Use the present participle (V-ing) for an action the subject does, and the past participle (V3) for an action done to the subject. A negative statement simply puts Not before the participle. Participle phrases can also sit after a noun as a reduced relative clause.",
+                sections: [
+                    { tag: "Present participle", rule: "V-ing ..., (main clause) — the subject does the action. Mid-sentence: noun + V-ing.", example: "Feeling tired, she went to bed early. / The man standing by the door is my uncle." },
+                    { tag: "Past participle (positive + negative)", rule: "V3 ..., (main clause) — often passive in meaning. A negative statement puts Not before the participle.", example: "Damaged in the storm, the roof began to leak. / Not invited to the party, he stayed at home. / Not knowing what to do, he asked for help." },
+                    { tag: "Participle as adjectives", rule: "noun + V-ing / V3 (reduced relative clause)", example: "The girl sitting next to me is very quiet. / The car parked outside belongs to the manager. / Books written by George Orwell are very famous." }
+                ]
+            },
             "not_only_but_also": { title: "Not only... but also", emoji: "➕", intro: "Used for emphasis with parallel structure.", sections: [{ tag: "Adjectives", rule: "not only [Adj] but also [Adj]", example: "He is not only smart but also kind." }, { tag: "Inverted", rule: "Not only did they lose...", example: "Not only did they lose the game, but also their pride." }] },
             "inversion": { title: "Inversion", emoji: "🔄", intro: "Reversing normal order for emphasis.", sections: [{ tag: "Only when...", rule: "Only when + [Clause], + [Inverted Clause]", example: "Only when the rain stopped did we go out." }] },
             "be_it_they": { title: "Be it / Be they", emoji: "🤔", intro: "Formal 'whether it is/they are'.", sections: [{ tag: "Singular", rule: "Be it A or B...", example: "Be it rain or shine, we will play." }, { tag: "Plural", rule: "Be they young or old...", example: "Everyone loves music, be they young or old." }] },
@@ -129,7 +139,7 @@
         function showStructureDetail(key) {
             const data = structureData[key];
             if (key === 'conditionals' || key === 'participle_clauses') {
-                recordGuestUsage('Grammar Quest', key === 'conditionals' ? 'Conditionals' : 'Participle Clauses');
+                recordGuestUsage('Grammar Quest', key === 'conditionals' ? 'Conditionals' : 'Participle phrases');
             } else if (key === 'articles') {
                 recordGuestUsage('Grammar Quest', 'Articles');
             } else if (key === 'indefinite_pronouns') {
@@ -364,7 +374,7 @@
             `;
         }
 
-        // ===== Participle Clauses Quiz =====
+        // ===== Participle phrases Quiz =====
         function renderPCTabs(content, data) {
             const tabs = [
                 { key: 'revision', label: '📖 Revision' },

@@ -1,10 +1,13 @@
 /* LearniTY Dictation — Drive & Go! Mario Kart-style grammar racing game.
    This file owns the pre-race flow (topic → challenge → cat → controls →
-   question count → course), the question banks for all three topics
+   question count → course), the question banks for all five topics
    (Tenses: tenses / Passives; Agreement: Agreement; Articles: local
-   200-question bank in articles-data.js), same-verb tense distractors,
-   Agreement Gap-fill / Choose gates, Articles a / an / the / X four-gate
-   race, local preferences and shared helpers. The canvas race engine lives
+   200-question bank in articles-data.js; Indefinite Pronouns: local
+   300-question bank; Participle phrases: local 250-question bank in
+   participle-phrases-data.js), same-verb tense distractors, Agreement
+   Gap-fill / Choose gates, Articles a / an / the / X four-gate race,
+   Participle phrases three-gate race (the bank's own choices), local
+   preferences and shared helpers. The canvas race engine lives
    in drive-and-go-race.js and the realtime 2–5 player lobby/race sync lives
    in drive-and-go-multiplayer.js.
    All three files are classic scripts: no modules, no defer/async. */
@@ -14,23 +17,26 @@ const DG = {
     BEST_SCORE_KEY: 'learniTY_dg_best_score',
     BEST_DISTANCE_KEY: 'learniTY_dg_best_distance',
     BEST_RUNS_KEY: 'learniTY_dg_best_runs',
-    // Four topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the
+    // Five topics share one Drive & Go! tile. `TAB_FOR_MODE` stays the
     // Tenses map so existing tests and cached links keep working; the
-    // Agreement tab is case-sensitive and lives on its own. Articles and
-    // Indefinite Pronouns are local banks (no Google Sheet tab) with four
-    // answer gates each.
-    TOPICS: ['tenses', 'agreement', 'articles', 'indefinite_pronouns'],
+    // Agreement tab is case-sensitive and lives on its own. Articles,
+    // Indefinite Pronouns and Participle phrases are local banks (no Google
+    // Sheet tab); Articles and Indefinite Pronouns use four answer gates,
+    // Participle phrases uses three gates taken from the bank's own choices.
+    TOPICS: ['tenses', 'agreement', 'articles', 'indefinite_pronouns', 'participle_phrases'],
     TOPIC_LABEL: {
         tenses: 'Tenses',
         agreement: 'Agreement',
         articles: 'Articles',
-        indefinite_pronouns: 'Indefinite Pronouns'
+        indefinite_pronouns: 'Indefinite Pronouns',
+        participle_phrases: 'Participle phrases'
     },
     MODES_FOR_TOPIC: {
         tenses: ['av', 'pv', 'mixed'],
         agreement: ['gapfill', 'choose', 'mixed'],
         articles: ['mixed'],
-        indefinite_pronouns: ['mixed']
+        indefinite_pronouns: ['mixed'],
+        participle_phrases: ['mixed']
     },
     AGREEMENT_TAB: 'Agreement',
     TAB_FOR_MODE: { av: ['tenses'], pv: ['Passives'], mixed: ['tenses', 'Passives'] },
@@ -42,6 +48,8 @@ const DG = {
     ARTICLE_MODE_SHORT: { mixed: 'a/an/the/X' },
     INDEFINITE_MODE_LABEL: { mixed: 'Indefinite Pronouns (4 options)' },
     INDEFINITE_MODE_SHORT: { mixed: '4 options' },
+    PARTICIPLE_MODE_LABEL: { mixed: 'Participle phrases (3 options)' },
+    PARTICIPLE_MODE_SHORT: { mixed: '3 options' },
     QUESTION_COUNTS: [10, 20, 25, 30, 35, 40, 50],
     // Three playable courses. The exact ids / names are stored in Supabase
     // (drive_and_go_rooms.scene) and remembered in learniTY_dg_settings.
@@ -145,7 +153,7 @@ const DG = {
         const list = DG.MODES_FOR_TOPIC[t] || DG.MODES_FOR_TOPIC.tenses;
         if (list.indexOf(id) !== -1) return id;
         if (t === 'agreement') return 'gapfill';
-        if (t === 'articles' || t === 'indefinite_pronouns') return 'mixed';
+        if (t === 'articles' || t === 'indefinite_pronouns' || t === 'participle_phrases') return 'mixed';
         return 'av';
     },
 
@@ -159,6 +167,7 @@ const DG = {
         if (t === 'agreement') return DG.AGREEMENT_MODE_LABEL[id];
         if (t === 'articles') return DG.ARTICLE_MODE_LABEL[id] || 'Articles';
         if (t === 'indefinite_pronouns') return DG.INDEFINITE_MODE_LABEL[id] || 'Indefinite Pronouns';
+        if (t === 'participle_phrases') return DG.PARTICIPLE_MODE_LABEL[id] || 'Participle phrases';
         return DG.MODE_LABEL[id];
     },
 
@@ -168,6 +177,7 @@ const DG = {
         if (t === 'agreement') return DG.AGREEMENT_MODE_SHORT[id];
         if (t === 'articles') return DG.ARTICLE_MODE_SHORT[id] || 'a/an/the/X';
         if (t === 'indefinite_pronouns') return DG.INDEFINITE_MODE_SHORT[id] || '4 options';
+        if (t === 'participle_phrases') return DG.PARTICIPLE_MODE_SHORT[id] || '3 options';
         return DG.MODE_SHORT[id];
     },
 
@@ -187,6 +197,7 @@ const DG = {
         if (DG.normalizeTopic(topic) === 'agreement') return [DG.AGREEMENT_TAB];
         if (DG.normalizeTopic(topic) === 'articles') return ['Articles'];
         if (DG.normalizeTopic(topic) === 'indefinite_pronouns') return ['Indefinite Pronouns'];
+        if (DG.normalizeTopic(topic) === 'participle_phrases') return ['Participle phrases'];
         return DG.TAB_FOR_MODE[DG.normalizeBankMode(topic, mode)] || [];
     },
 
@@ -469,7 +480,9 @@ const DG = {
     },
 
     /* Local banks live in their own generated data files, so they never need
-       a Google Sheet tab. Both use the same {id, q, a} rows and four gates. */
+       a Google Sheet tab. Articles / Indefinite Pronouns use the same
+       {id, q, a} rows and four gates; Participle phrases adds a `choices`
+       array and races three gates. */
     localBankSpec(topic) {
         const t = DG.normalizeTopic(topic);
         if (t === 'articles') {
@@ -477,6 +490,9 @@ const DG = {
         }
         if (t === 'indefinite_pronouns') {
             return { globalName: 'DG_INDEFINITE_PRONOUNS', label: 'Indefinite Pronouns' };
+        }
+        if (t === 'participle_phrases') {
+            return { globalName: 'DG_PARTICIPLE_PHRASES', label: 'Participle phrases' };
         }
         return null;
     },
@@ -501,6 +517,9 @@ const DG = {
                 prompt: row.q,
                 primary: row.a,
                 variants: [],
+                // Participle phrases carries its three choices; Articles /
+                // Indefinite Pronouns rows have none, so this stays [].
+                options: Array.isArray(row.choices) ? row.choices.slice() : [],
                 section: local.label,
                 sheet: local.label,
                 sectionKey: t,
@@ -1268,6 +1287,49 @@ const DG = {
         return gates.map((g, lane) => ({ label: g.label, lane, correct: g.correct }));
     },
 
+    /* Participle phrases: three gates straight from the bank's own `choices`
+       (the official participle form plus two same-verb distractors). The
+       correct gate keeps the bank's capitalisation; the two distractors stay
+       exactly as written. Never invents a replacement official answer. */
+    participleGates(question, rng) {
+        const rnd = rng || Math.random;
+        const q = question || {};
+        const primary = String(q.primary || '').trim();
+        const correctKey = DG.normAnswer(primary);
+        const raw = (typeof window !== 'undefined' && Array.isArray(window.DG_PARTICIPLE_PHRASES))
+            ? window.DG_PARTICIPLE_PHRASES
+            : [];
+        // Prefer the loaded question's choices, then the same row in the bank
+        // (a caller may pass a bare {primary} object).
+        let source = (Array.isArray(q.options) && q.options.length)
+            ? q.options
+            : (Array.isArray(q.choices) ? q.choices : []);
+        if (!source.length && raw.length) {
+            const idNum = Number(String(q.id || '').split('-').pop());
+            const row = (idNum && raw.find(r => Number(r && r.id) === idNum)) ||
+                raw.find(r => DG.normAnswer(r && r.a) === correctKey);
+            if (row && Array.isArray(row.choices)) source = row.choices;
+        }
+        const labels = [];
+        const seen = {};
+        source.forEach((choice) => {
+            const text = String(choice == null ? '' : choice).trim();
+            const key = DG.normAnswer(text);
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            // Keep the official capitalisation on the correct gate even if
+            // the choice array happens to be lower-cased.
+            labels.push(key === correctKey && primary ? primary : text);
+        });
+        if (!labels.length) return [];
+        const gates = labels.slice(0, 3).map((label) => ({
+            label,
+            correct: DG.normAnswer(label) === correctKey
+        }));
+        DG.shuffleInPlace(gates, rnd);
+        return gates.map((g, lane) => ({ label: g.label, lane, correct: g.correct }));
+    },
+
     // The HUD sentence. Tenses is untouched; Agreement strips the bank label
     // ("1. Gap-fill:") and, for Choose, the options that are already on the
     // gates so the sentence does not repeat them.
@@ -1320,6 +1382,7 @@ const DG = {
         const t = DG.normalizeTopic(topic);
         if (t === 'articles') return DG.articleGates(question, rng);
         if (t === 'indefinite_pronouns') return DG.indefiniteGates(question, rng);
+        if (t === 'participle_phrases') return DG.participleGates(question, rng);
         const key = DG.bankKey(t, mode);
         const pools = DG.bankPoolCache[key] || { bySection: {}, bySheet: {} };
         if (t === 'agreement' || (question && question.qType)) {
@@ -1606,6 +1669,7 @@ const DG = {
             card('agreement', '🤝', 'Agreement', 'Gap-fill, Choose, or both from the Agreement bank') +
             card('articles', '📘', 'Articles', 'a / an / the / X — four answer gates') +
             card('indefinite_pronouns', '🙋', 'Indefinite Pronouns', 'everyone / anyone / no one / none of …') +
+            card('participle_phrases', '🔗', 'Participle phrases', 'Present / past participle phrases — three answer gates') +
             '</div>' +
             '<div class="flex gap-3 justify-center flex-wrap mt-6">' +
             '<button type="button" class="dg-menu-button" onclick="' + back + '">← Back</button>' +
@@ -1646,9 +1710,11 @@ const DG = {
                 ? card('mixed', '📘', 'Articles', 'a / an / the / X — four gates, one correct article')
                 : topic === 'indefinite_pronouns'
                     ? card('mixed', '🙋', 'Indefinite Pronouns', 'everyone / anyone / no one / none of — four related options')
-                    : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
-                       card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
-                       card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
+                    : topic === 'participle_phrases'
+                        ? card('mixed', '🔗', 'Participle phrases', 'Present / past participle — three gates from the question bank')
+                        : (card('av', '🟢', 'Active Voice', 'AV — tenses tab') +
+                           card('pv', '🔵', 'Passive Voice', 'PV — Passives tab') +
+                           card('mixed', '🌈', 'Mixed', 'Both tabs shuffled together'));
         content.innerHTML =
             '<div class="text-center mb-6"><div class="text-7xl mb-2">🏎️</div>' +
             '<h2 class="text-4xl font-bold text-orange-600">Drive & Go!</h2>' +
@@ -2145,8 +2211,10 @@ const DG = {
             elapsed_ms: Math.max(0, Math.round((Number(r.elapsed) || 0) * 1000))
         };
         // Tenses must still insert into the current schema (no topic column
-        // yet). Agreement, Articles and Indefinite Pronouns runs send it.
-        if (topic === 'agreement' || topic === 'articles' || topic === 'indefinite_pronouns') row.topic = topic;
+        // yet). Agreement, Articles, Indefinite Pronouns and Participle
+        // phrases runs send it.
+        if (topic === 'agreement' || topic === 'articles' ||
+            topic === 'indefinite_pronouns' || topic === 'participle_phrases') row.topic = topic;
         if (extra && extra.room_id) {
             row.room_id = extra.room_id;
             row.place = extra.place == null ? null : Math.max(1, Math.floor(extra.place));
@@ -2185,7 +2253,9 @@ const DG = {
                     ? 'Leaderboard not saved — run supabase/drive_and_go_articles_topic.sql.'
                     : (DG.normalizeTopic(topic) === 'indefinite_pronouns'
                         ? 'Leaderboard not saved — run supabase/drive_and_go_indefinite_pronouns_topic.sql.'
-                        : 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.'))
+                        : (DG.normalizeTopic(topic) === 'participle_phrases'
+                            ? 'Leaderboard not saved — run supabase/drive_and_go_participle_phrases_topic.sql.'
+                            : 'Leaderboard not saved — run supabase/drive_and_go_agreement_topic.sql.')))
                 : 'Leaderboard not saved — run supabase/drive_and_go_scenes_and_boards.sql.');
         }
     },

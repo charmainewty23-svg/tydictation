@@ -4511,7 +4511,8 @@
         .ps-badge,
         .ps-alive,
         .ps-phase,
-        .ps-timer {
+        .ps-timer,
+        .ps-place {
             display: inline-flex;
             align-items: center;
             min-height: 30px;
@@ -4534,6 +4535,234 @@
         .ps-phase-glass { background: #0369a1; color: #e0f2fe; }
         .ps-phase-tug { background: #b45309; color: #fef3c7; }
         .ps-phase-done { background: #374151; color: #e5e7eb; }
+        .ps-place { background: rgba(251, 191, 36, .24); color: #fef3c7; }
+
+        /* ---------- teacher / projector live progress list ---------- */
+        .ps-progress {
+            position: absolute;
+            top: calc(74px + env(safe-area-inset-top));
+            right: 10px;
+            z-index: 7;
+            display: flex;
+            flex-direction: column;
+            width: min(310px, 30vw);
+            max-height: calc(100% - 110px);
+            border-radius: .9rem;
+            background: rgba(8, 15, 30, .8);
+            border: 1px solid rgba(255, 255, 255, .18);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+            color: #f8fafc;
+            pointer-events: auto;
+            backdrop-filter: blur(6px);
+            overscroll-behavior: contain;
+        }
+        .ps-progress.hidden { display: none; }
+        .ps-progress-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 7px 9px 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, .12);
+        }
+        .ps-progress-title {
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            color: #fde68a;
+        }
+        .ps-progress-count {
+            font-size: 9.5px;
+            font-weight: 700;
+            white-space: nowrap;
+            color: rgba(248, 250, 252, .65);
+        }
+        .ps-progress-list {
+            display: grid;
+            gap: 3px;
+            min-height: 0;
+            padding: 5px;
+            overflow-y: auto;
+        }
+        .ps-progress-row {
+            display: grid;
+            grid-template-columns: 20px minmax(0, 1fr) auto auto;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 5px;
+            border-radius: .45rem;
+            background: rgba(255, 255, 255, .05);
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .ps-progress-near {
+            background: rgba(251, 191, 36, .14);
+            box-shadow: inset 0 0 0 1px rgba(251, 191, 36, .55);
+        }
+        .ps-progress-place {
+            text-align: right;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #fde68a;
+        }
+        .ps-progress-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ps-progress-detail {
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            color: rgba(248, 250, 252, .66);
+        }
+        .ps-progress-status {
+            padding: 1px 5px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .12);
+            font-size: 8.5px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .ps-progress-finished .ps-progress-status,
+        .ps-progress-crossed .ps-progress-status { background: rgba(34, 197, 94, .35); color: #dcfce7; }
+        .ps-progress-jumping .ps-progress-status,
+        .ps-progress-answering .ps-progress-status,
+        .ps-progress-running .ps-progress-status { background: rgba(14, 165, 233, .35); color: #e0f2fe; }
+        .ps-progress-frozen .ps-progress-status { background: rgba(239, 68, 68, .4); color: #fee2e2; }
+        .ps-progress-out .ps-progress-status,
+        .ps-progress-fell .ps-progress-status { background: rgba(120, 113, 108, .35); color: #e7e5e4; }
+        .ps-progress-team {
+            display: inline-block;
+            margin-left: 5px;
+            padding: 0 5px;
+            border-radius: 999px;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .05em;
+            vertical-align: middle;
+        }
+        .ps-progress-team-red { background: rgba(239, 68, 68, .4); color: #fee2e2; }
+        .ps-progress-team-blue { background: rgba(59, 130, 246, .42); color: #dbeafe; }
+
+        /* ---------- qualifier beat between rounds ---------- */
+        .ps-qualifier {
+            position: absolute;
+            inset: 0;
+            z-index: 13;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background: rgba(8, 5, 18, .66);
+            backdrop-filter: blur(3px);
+        }
+        .ps-qualifier.hidden { display: none; }
+        .ps-qualifier-card {
+            width: min(620px, 94%);
+            max-height: calc(100% - 20px);
+            overflow: auto;
+            padding: 16px 18px 14px;
+            border-radius: 1.2rem;
+            background: rgba(17, 10, 30, .96);
+            border: 2px solid rgba(251, 191, 36, .55);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
+            color: #f8fafc;
+        }
+        .ps-qualifier-kicker {
+            margin: 0;
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: .18em;
+            color: #fbbf24;
+        }
+        .ps-qualifier-card h2 {
+            margin: 3px 0 4px;
+            font-size: clamp(19px, 4.2vw, 26px);
+            font-weight: 800;
+            color: #fef3c7;
+        }
+        .ps-qualifier-sub {
+            margin: 0 0 9px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.4;
+            color: rgba(248, 250, 252, .72);
+        }
+        .ps-qualifier-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+        .ps-qualifier-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            padding: 4px 6px;
+            border-radius: .5rem;
+            background: rgba(255, 255, 255, .06);
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .ps-qualifier-place {
+            flex: 0 0 auto;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #fde68a;
+        }
+        .ps-qualifier-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ps-qualifier-detail {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            font-size: 9.5px;
+            font-weight: 600;
+            color: rgba(248, 250, 252, .62);
+        }
+        .ps-qualifier-team {
+            display: inline-block;
+            margin-left: 5px;
+            padding: 0 5px;
+            border-radius: 999px;
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: .05em;
+            vertical-align: middle;
+        }
+        .ps-qualifier-team-red { background: rgba(239, 68, 68, .4); color: #fee2e2; }
+        .ps-qualifier-team-blue { background: rgba(59, 130, 246, .42); color: #dbeafe; }
+        .ps-qualifier-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .ps-qualifier-timer {
+            margin-right: auto;
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(248, 250, 252, .6);
+        }
+        .ps-qualifier-count {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #fde68a;
+        }
+        .ps-qualifier-actions .ps-primary {
+            max-width: none;
+            min-height: 44px;
+            padding: 0 18px;
+        }
         @keyframes psRedPulse {
             from { box-shadow: 0 0 0 0 rgba(239, 68, 68, .5); }
             to { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
@@ -4730,7 +4959,7 @@
         .ps-ceremony-card {
             pointer-events: auto;
             width: min(720px, 100%);
-            max-height: 58%;
+            max-height: 46%;
             overflow: auto;
             padding: 14px 16px 16px;
             border-radius: 1.25rem;
@@ -4831,6 +5060,52 @@
             line-height: 1.35;
             color: rgba(248, 250, 252, .58);
         }
+        .ps-mistake-report {
+            margin: 0 0 9px;
+            padding: 8px 9px;
+            border-radius: .75rem;
+            background: rgba(244, 63, 94, .08);
+            border: 1px solid rgba(244, 63, 94, .28);
+            max-height: 30vh;
+            overflow-y: auto;
+        }
+        .ps-mistake-title {
+            margin: 0 0 2px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #fecdd3;
+        }
+        .ps-mistake-sub {
+            margin: 0 0 6px;
+            font-size: 9.5px;
+            font-weight: 600;
+            color: rgba(254, 205, 211, .72);
+        }
+        .ps-mistake-list { display: grid; gap: 6px; }
+        .ps-mistake-student {
+            padding: 5px 7px;
+            border-radius: .6rem;
+            background: rgba(255, 255, 255, .04);
+        }
+        .ps-mistake-name {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #fecdd3;
+            margin-bottom: 2px;
+        }
+        .ps-mistake-items { margin: 0; padding-left: 16px; }
+        .ps-mistake-item {
+            font-size: 10px;
+            line-height: 1.35;
+            color: rgba(248, 250, 252, .78);
+        }
+        .ps-mistake-empty,
+        .ps-mistake-none {
+            margin: 0;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #bbf7d0;
+        }
         .ps-ceremony-card .ps-primary { max-width: 260px; margin: 0 auto; }
 
         /* ---------- landscape / projector ---------- */
@@ -4851,17 +5126,50 @@
             .ps-rule { max-width: 62vw; font-size: 9.5px; }
             .ps-feedback { font-size: 11px; }
             .ps-hud { padding: 5px 9px 8px; }
-            .ps-badge, .ps-alive, .ps-phase, .ps-timer { min-height: 26px; font-size: 10.5px; padding: 3px 8px; }
+            .ps-badge, .ps-alive, .ps-phase, .ps-timer, .ps-place { min-height: 26px; font-size: 10.5px; padding: 3px 8px; }
             .ps-host-btn, .ps-icon-btn { min-height: 27px; font-size: 10px; }
             .ps-ceremony {
                 align-items: center;
                 justify-content: flex-end;
                 padding-right: max(14px, env(safe-area-inset-right));
             }
-            .ps-ceremony-card { width: min(460px, 46vw); max-height: calc(100% - 18px); }
+            /* Slim right-hand card; the 3D podium group is also shifted
+               left in drawCeremony so all three stands stay in the clear. */
+            .ps-ceremony-card { width: min(420px, 34vw); max-height: calc(100% - 18px); }
+            .ps-progress {
+                top: calc(58px + env(safe-area-inset-top));
+                right: 8px;
+                width: min(280px, 26vw);
+                max-height: calc(100% - 72px);
+            }
+            .ps-progress-row { font-size: 9px; padding: 2px 4px; gap: 4px; }
+            .ps-progress-detail { font-size: 8.5px; }
+            .ps-progress-status { font-size: 8px; }
+            .ps-qualifier-list { grid-template-columns: 1fr 1fr; }
+            .ps-qualifier-card { width: min(720px, 78vw); padding: 12px 16px; }
+            .ps-qualifier-card h2 { font-size: 20px; }
+            .ps-qualifier-row { font-size: 10px; padding: 3px 5px; }
+        }
+        @media (orientation: portrait) {
+            .ps-progress {
+                top: calc(96px + env(safe-area-inset-top));
+                right: 6px;
+                width: min(210px, 52vw);
+                max-height: calc(100% - 190px);
+            }
+            .ps-progress-detail { display: none; }
+            .ps-qualifier-list { grid-template-columns: 1fr; }
         }
         @media (max-height: 560px) and (orientation: landscape) {
             .ps-hud-row { gap: 5px; }
+            .ps-progress { top: calc(52px + env(safe-area-inset-top)); width: min(230px, 24vw); max-height: calc(100% - 62px); }
+            .ps-progress-head { padding: 4px 6px; }
+            .ps-progress-row { font-size: 8.5px; padding: 1px 4px; }
+            .ps-qualifier-card { padding: 9px 12px; }
+            .ps-qualifier-list { gap: 3px; margin-bottom: 5px; }
+            .ps-qualifier-row { font-size: 9px; padding: 2px 4px; }
+            .ps-qualifier-sub { font-size: 9.5px; margin-bottom: 5px; }
+            .ps-qualifier-actions .ps-primary { min-height: 40px; }
             .ps-rule {
                 display: block;
                 max-width: 56vw;
@@ -4891,6 +5199,10 @@
             .ps-ceremony-detail { font-size: 9px; }
             .ps-ceremony-paws { font-size: 10px; }
             .ps-ceremony-note { margin-bottom: 6px; font-size: 9px; }
+            .ps-mistake-report { max-height: 21vh; padding: 5px 7px; margin-bottom: 5px; }
+            .ps-mistake-title { font-size: 10px; }
+            .ps-mistake-sub { font-size: 8.5px; margin-bottom: 4px; }
+            .ps-mistake-item { font-size: 8.5px; }
         }
         @media (max-width: 430px) {
             .ps-lobby { padding: 14px 12px 24px; }
@@ -4900,7 +5212,7 @@
             .ps-question { width: calc(100% - 12px); padding: 8px 9px 10px; }
             .ps-opt { min-height: 46px; font-size: 13px; }
             .ps-hud { padding: 6px 7px 9px; }
-            .ps-badge, .ps-alive, .ps-phase, .ps-timer { font-size: 10.5px; padding: 4px 8px; }
+            .ps-badge, .ps-alive, .ps-phase, .ps-timer, .ps-place { font-size: 10.5px; padding: 4px 8px; }
             .ps-rule { font-size: 9.5px; }
         }
         @media (max-width: 360px) {
@@ -6088,6 +6400,7 @@
                                     <span id="ps-hud-round" class="ps-badge">ROUND 1</span>
                                     <span id="ps-hud-alive" class="ps-alive">Alive: 0 / 0</span>
                                     <span id="ps-hud-you" class="ps-timer">You: 0 m</span>
+                                    <span id="ps-hud-place" class="ps-place hidden">🏅 1st / 0</span>
                                     <span id="ps-hud-phase" class="ps-phase ps-phase-green">🟢 GREEN — RUN!</span>
                                     <span id="ps-hud-timer" class="ps-timer">3:00</span>
                                     <button id="ps-host-end" type="button" class="ps-host-btn hidden" onclick="PS.endRound1Now()">⏹ End round 1</button>
@@ -6096,6 +6409,14 @@
                                     <button type="button" class="ps-icon-btn" onclick="PS.backToHub()" aria-label="Back to Hub">✕</button>
                                 </div>
                                 <p id="ps-hud-rule" class="ps-rule"></p>
+                            </div>
+
+                            <div id="ps-progress" class="ps-progress hidden" data-ps-safe="1" aria-live="polite">
+                                <div class="ps-progress-head">
+                                    <span id="ps-progress-title" class="ps-progress-title">Live class progress</span>
+                                    <span id="ps-progress-count" class="ps-progress-count"></span>
+                                </div>
+                                <div id="ps-progress-list" class="ps-progress-list"></div>
                             </div>
 
                             <div id="ps-round-cue" class="ps-round-cue hidden" aria-live="polite"></div>
@@ -6115,6 +6436,20 @@
                                 </div>
                             </div>
 
+                            <div id="ps-qualifier" class="ps-qualifier hidden" data-ps-safe="1" role="dialog" aria-label="Advancing players">
+                                <div class="ps-qualifier-card">
+                                    <p class="ps-qualifier-kicker">ROUND COMPLETE</p>
+                                    <h2 id="ps-qualifier-title">Advancing to Glass Stepping Stones</h2>
+                                    <p id="ps-qualifier-sub" class="ps-qualifier-sub"></p>
+                                    <div id="ps-qualifier-list" class="ps-qualifier-list"></div>
+                                    <div class="ps-qualifier-actions">
+                                        <span id="ps-qualifier-timer" class="ps-qualifier-timer"></span>
+                                        <span id="ps-qualifier-count" class="ps-qualifier-count"></span>
+                                        <button id="ps-qualifier-continue" type="button" class="ps-primary" onclick="PS.dismissQualifier()">Continue →</button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div id="ps-ceremony" class="ps-ceremony hidden" role="dialog" aria-label="Prize ceremony">
                                 <div class="ps-ceremony-card">
                                     <header class="ps-ceremony-head">
@@ -6124,6 +6459,11 @@
                                     </header>
                                     <div id="ps-ceremony-summary" class="ps-ceremony-summary"></div>
                                     <div id="ps-ceremony-list" class="ps-ceremony-list"></div>
+                                    <section id="ps-mistake-report" class="ps-mistake-report" aria-label="Mistake report">
+                                        <h3 id="ps-mistake-title" class="ps-mistake-title">📕 Your mistakes</h3>
+                                        <p id="ps-mistake-sub" class="ps-mistake-sub"></p>
+                                        <div id="ps-mistake-list" class="ps-mistake-list"></div>
+                                    </section>
                                     <p id="ps-ceremony-note" class="ps-ceremony-note"></p>
                                     <button type="button" class="ps-primary" onclick="PS.backToHub()">← Back to Hub</button>
                                 </div>

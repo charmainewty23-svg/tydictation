@@ -226,6 +226,17 @@ function loadMainWithDom(options) {
     add('ps-wait-msg', 'p');
     add('ps-host-end', 'button');
     add('ps-canvas', 'canvas');
+    add('ps-progress', 'div').classList.add('hidden');
+    add('ps-progress-title', 'span');
+    add('ps-progress-count', 'span');
+    add('ps-progress-list', 'div');
+    add('ps-qualifier', 'div').classList.add('hidden');
+    add('ps-qualifier-title', 'h2');
+    add('ps-qualifier-sub', 'p');
+    add('ps-qualifier-list', 'div');
+    add('ps-qualifier-count', 'span');
+    add('ps-qualifier-timer', 'span');
+    add('ps-hud-place', 'span').classList.add('hidden');
     add('purrfect-survival-view', 'div');
     add('login-view', 'div');
     add('app', 'div');
@@ -1493,9 +1504,12 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the prize ceremony change', () => {
+test('service worker cache is bumped for the round-2 report change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v109") !== -1, 'CACHE_NAME is v109');
+    assert.ok(sw.indexOf("learnity-pwa-v112") !== -1, 'CACHE_NAME is v112');
+    assert.equal(sw.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v107"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v106"), -1, 'the old cache name is gone');
@@ -2086,7 +2100,7 @@ test('drawCeremony paints a podium in portrait and landscape without bitmaps', (
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
-    assert.match(RENDERER.VERSION, /^2\.2\./);
+    assert.match(RENDERER.VERSION, /^2\.4\./);
 });
 
 test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
@@ -2099,4 +2113,475 @@ test('the demo victory path builds a finished ceremony room for 1, 2 and 3 round
         assert.equal(state.room.status, 'finished');
         assert.equal(state.room.current_round, count === 1 ? 1 : (count === 2 ? 2 : 3));
     });
+});
+
+/* ---------------------------------------------------------------- */
+/* Teacher overhead view, live progress, student ranks, qualifier     */
+/* ---------------------------------------------------------------- */
+
+test('host cameras are clearly overhead while student cameras stay close', () => {
+    const host = RENDERER.layout(1280, 720, 'host');
+    const player = RENDERER.layout(1280, 720, 'player');
+    assert.ok(host.cam1.eye[1] >= 6, 'landscape host cam1 is a high overhead eye');
+    assert.ok(host.cam1.eye[1] > player.cam1.eye[1], 'host cam1 is higher than player cam1');
+    assert.ok(host.cam2.eye[1] > player.cam2.eye[1], 'host cam2 sees the whole bridge from above');
+    assert.ok(host.cam3.eye[1] > player.cam3.eye[1], 'host cam3 sees both tug platforms from above');
+
+    const portraitHost = RENDERER.layout(390, 844, 'host');
+    const portraitPlayer = RENDERER.layout(390, 844, 'player');
+    assert.ok(portraitHost.cam1.eye[1] > portraitPlayer.cam1.eye[1], 'portrait host cam1 is still higher');
+    ['cam1', 'cam2', 'cam3'].forEach(key => {
+        [host, player, portraitHost, portraitPlayer].forEach(L => {
+            assert.equal(L[key].eye.length, 3, key + ' eye is a 3D point');
+            assert.equal(L[key].target.length, 3, key + ' target is a 3D point');
+            assert.ok(L[key].fov > 0, key + ' fov is valid');
+        });
+    });
+});
+
+test('drawRound1/2/3 paint host and player cameras in portrait and landscape', () => {
+    const sizes = [[1280, 720], [390, 844]];
+    sizes.forEach(size => {
+        ['host', 'player'].forEach(role => {
+            const ctx = mockContext({ width: size[0], height: size[1] });
+            const base = { w: size[0], h: size[1], role: role };
+            assert.doesNotThrow(() => RENDERER.drawRound1(ctx, sampleState(1, base)),
+                'round 1 ' + role + ' @' + size.join('x'));
+            assert.doesNotThrow(() => RENDERER.drawRound2(ctx, sampleState(2, base)),
+                'round 2 ' + role + ' @' + size.join('x'));
+            assert.doesNotThrow(() => RENDERER.drawRound3(ctx, sampleState(3, Object.assign({}, base, {
+                tug: { phase: 'playing', redPull: 3, bluePull: 4, position: 1, redCombo: 2, blueCombo: 1 }
+            }))), 'round 3 ' + role + ' @' + size.join('x'));
+        });
+    });
+});
+
+test('raceOrder, formatPlace and nearbyRunners are stable and ordinal', () => {
+    const list = [
+        player('a', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:02Z' }),
+        player('b', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        player('c', 70),
+        player('d', 30),
+        player('e', 0, { status: 'eliminated', ghost: true })
+    ];
+    const order = PS.raceOrder(list, { finishDistance: 100 });
+    assert.deepEqual(order.map(PS.userKey), ['b', 'a', 'c', 'd']);
+    assert.equal(PS.formatPlace(1, 12), '1st / 12');
+    assert.equal(PS.formatPlace(2, 12), '2nd / 12');
+    assert.equal(PS.formatPlace(3, 12), '3rd / 12');
+    assert.equal(PS.formatPlace(11, 12), '11th / 12');
+    assert.equal(PS.formatPlace(12, 12), '12th / 12');
+    assert.equal(PS.formatPlace(13, 12), '13th / 12');
+    assert.equal(PS.formatPlace(21, 30), '21st / 30');
+
+    const nearby = PS.nearbyRunners(list, 'c', { finishDistance: 100, ahead: 1, behind: 1 });
+    assert.deepEqual(nearby.map(PS.userKey), ['a', 'c', 'd']);
+    const alone = PS.nearbyRunners(list, 'e', { finishDistance: 100 });
+    assert.deepEqual(alone.map(PS.userKey), ['e'], 'an eliminated student still gets their own label slot');
+});
+
+test('teacherProgress orders leaders first and labels every round from live fields', () => {
+    const r1 = [
+        player('a', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        player('b', 70),
+        player('c', 40, { status: 'eliminated', ghost: true }),
+        player('d', 90)
+    ];
+    const rows1 = PS.teacherProgress(r1, { round: 1, finishDistance: 100, phase: 'red' });
+    assert.deepEqual(rows1.map(r => r.user_id), ['a', 'd', 'b', 'c']);
+    assert.equal(rows1[0].status, 'Finished');
+    assert.equal(rows1[1].status, 'Frozen');
+    assert.equal(rows1[2].detail, '70 / 100 m');
+    assert.equal(rows1[3].status, 'Out');
+    assert.equal(rows1[1].near, true, 'a runner over 80% of the way is highlighted');
+    assert.equal(rows1[2].near, false);
+
+    const r2 = [
+        player('a', 0, { status: 'advanced', crossed_glass: true, glass_step: 9, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        player('b', 0, { glass_active: true, glass_step: 4 }),
+        player('c', 0, { glass_step: 0 }),
+        player('d', 0, { status: 'eliminated', ghost: true, glass_step: 6 })
+    ];
+    const rows2 = PS.teacherProgress(r2, { round: 2, stepCount: 9 });
+    assert.deepEqual(rows2.map(r => r.status), ['Crossed', 'Jumping', 'Queued', 'Fell']);
+    assert.equal(rows2[0].detail, 'Step 9 / 9');
+    assert.equal(rows2[1].detail, 'Step 4 / 9');
+    assert.equal(rows2[3].detail, 'Step 6 / 9');
+
+    const r3 = [
+        player('a', 0, { tug_team: 'red' }),
+        player('b', 0, { tug_team: 'blue' }),
+        player('c', 0, { tug_team: null }),
+        player('d', 0, { status: 'eliminated', ghost: true, tug_team: 'red' })
+    ];
+    const rows3 = PS.teacherProgress(r3, {
+        round: 3,
+        tug: { phase: 'playing', redCombo: 3, blueCombo: 2 }
+    });
+    assert.deepEqual(rows3.map(r => r.user_id), ['a', 'd', 'b', 'c']);
+    assert.equal(rows3[0].team, 'Red');
+    assert.equal(rows3[0].status, 'Answering');
+    assert.equal(rows3[0].combo, 3);
+    assert.equal(rows3[1].status, 'Out');
+    assert.equal(rows3[2].team, 'Blue');
+    assert.equal(rows3[3].team, 'Watching');
+    assert.equal(rows3[3].detail, 'Watching');
+});
+
+test('qualifierRoster lists the Round 1 advancers and the glass survivors', () => {
+    const r1 = [];
+    for (let i = 0; i < 20; i++) {
+        r1.push(player('p' + String(i).padStart(2, '0'), 100 - i * 4, {
+            nickname: '4C ' + String(i + 1).padStart(2, '0') + ' Student',
+            reached_finish: i < 3,
+            finished_at: i < 3 ? '2026-11-25T10:00:0' + (i + 1) + 'Z' : null
+        }));
+    }
+    const from1 = PS.qualifierRoster(r1, { fromRound: 1, finishDistance: 100 });
+    assert.equal(from1.length, 15);
+    assert.deepEqual(from1.slice(0, 3).map(r => r.user_id), ['p00', 'p01', 'p02']);
+    assert.equal(from1[0].detail, 'Finished');
+    assert.equal(from1[0].place, 1);
+
+    const r2 = [
+        player('a', 0, { status: 'advanced', crossed_glass: true, round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z', tug_team: 'red' }),
+        player('b', 0, { status: 'advanced', crossed_glass: true, round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        player('c', 0, { status: 'eliminated', ghost: true, glass_step: 3 })
+    ];
+    const from2 = PS.qualifierRoster(r2, { fromRound: 2 });
+    assert.deepEqual(from2.map(r => r.user_id), ['b', 'a']);
+    assert.equal(from2[0].detail, 'Crossed the glass bridge');
+    assert.equal(from2[1].team, 'red');
+    assert.equal(PS.qualifierTitle(1), 'Advancing to Glass Stepping Stones');
+    assert.equal(PS.qualifierTitle(2), 'Advancing to Tug of War');
+});
+
+test('live markup exposes the progress list, place chip and qualifier board', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['id="ps-progress"', 'id="ps-progress-list"', 'id="ps-qualifier"', 'id="ps-qualifier-list"',
+        'id="ps-hud-place"'].forEach(token => {
+        assert.ok(html.indexOf(token) !== -1, token + ' exists in index.html');
+    });
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('renderTeacherProgress') !== -1, 'teacher progress renderer is wired');
+    assert.ok(main.indexOf('PSEngine.teacherProgress') !== -1, 'progress rows come from the pure engine');
+    assert.ok(main.indexOf('PSEngine.formatPlace') !== -1, 'student place uses formatPlace');
+    assert.ok(main.indexOf("setText('ps-hud-place'") !== -1, 'place HUD is rendered');
+    assert.ok(main.indexOf('renderQualifier') !== -1, 'qualifier board renderer is wired');
+    assert.ok(main.indexOf("demoRole === 'teacher'") !== -1, 'demo teacher gets host role');
+
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    const fnStart = render.indexOf('function drawRound1Players');
+    const fnEnd = render.indexOf('function drawRound2Players', fnStart);
+    const fn = render.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 8000);
+    assert.ok(fn.indexOf('nearby') !== -1, 'Round 1 labels only nearby runners');
+    assert.ok(fn.indexOf("rank + ' · '") !== -1, 'nearby cats show their place before the name');
+    assert.ok(render.indexOf('L.host') !== -1, 'host keeps extra portrait labels');
+});
+
+test('demo sequential advance shows the qualifier before glass or tug play', () => {
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = main.indexOf('function demoAdvanceToRound2');
+    const end = main.indexOf('function demoFinishRound1Victory', start);
+    const fn = main.slice(start, end);
+    assert.ok(fn.indexOf('demoReleaseGlass') === -1, 'sequential advance does not release the glass under the board');
+    assert.ok(fn.indexOf('qualifierDismissed') === -1, 'sequential advance does not skip the board');
+
+    const tickStart = main.indexOf('function demoTickRound2');
+    const tickEnd = main.indexOf('function demoTick()', tickStart);
+    const tick = main.slice(tickStart, tickEnd);
+    assert.ok(tick.indexOf('qualifierInfo()') !== -1, 'glass release waits for the qualifier');
+    assert.ok(tick.indexOf('demoReleaseGlass') > tick.indexOf('qualifierInfo()'), 'release runs after the guard');
+
+    const finish = main.indexOf('function demoFinishRound2');
+    const finishEnd = main.indexOf('function demoPrepareTugSurvivors', finish);
+    assert.ok(main.slice(finish, finishEnd).indexOf('resetQualifierState') !== -1,
+        'moving to round 3 re-arms the survivor board');
+
+    assert.ok(main.indexOf('if (qualifierInfo()) return;') !== -1, 'the demo cannot start the tug under the board');
+    assert.ok(main.indexOf("show('ps-tug-start-btn', host && isR3 && briefing && !qualifying)") !== -1,
+        'host start button is hidden until the board ends');
+});
+
+test('demo teacher/projector renders the live side progress list', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], isGuestUser: function () { return false; } });
+    assert.doesNotThrow(() => dom.PS.startDemo({ role: 'teacher', scene: 'round1' }));
+    const panel = dom.el('ps-progress');
+    assert.ok(panel, 'progress panel element exists');
+    assert.equal(panel.classList.contains('hidden'), false, 'teacher view shows the progress list');
+    const list = dom.el('ps-progress-list');
+    assert.ok(list && /demo-\d\d/.test(list.innerHTML) === false, 'the list does not leak raw ids');
+    assert.ok(list && /4C/.test(list.innerHTML), 'the list shows the demo classmates by name');
+    const title = dom.el('ps-progress-title');
+    assert.ok(title && /ROUND 1/.test(title.textContent), 'the list is labelled for the live round');
+});
+
+test('ceremony card no longer covers the podium in landscape or portrait', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.equal(html.indexOf('min(460px, 46vw)'), -1, 'the old wide right-hand card is gone');
+    assert.ok(html.indexOf('width: min(420px, 34vw)') !== -1, 'landscape card is a slim column');
+    assert.ok(html.indexOf('max-height: 46%') !== -1, 'portrait card leaves the stands visible above it');
+    assert.ok(/\.ps-ceremony-card\s*\{[^}]*overflow:\s*auto/s.test(html), 'the full list scrolls inside the card');
+
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(render.indexOf('groupShift') !== -1, 'the 3D podium group shifts away from the card');
+    assert.ok(render.indexOf('const spread = L.landscape ? 4.3 : 3.1') !== -1, 'portrait podium stays on screen');
+    assert.ok(render.indexOf('id="ps-ceremony-list"') === -1);
+    assert.ok(html.indexOf('id="ps-ceremony-list"') !== -1, 'the full ranking list still exists');
+});
+
+test('qualifier SQL is a safe, teacher-run incremental', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_qualifier.sql');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_release_glass') !== -1, 'redefines the glass release');
+    assert.ok(/interval '7 seconds'/.test(sql), 'waits the qualifier duration');
+    assert.ok(sql.indexOf('round2_started_at') !== -1, 'uses the existing round-2 timestamp');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf("interval '7 seconds'") !== -1,
+        'fresh installs also wait for the qualifier before releasing glass');
+});
+
+/* ---------------------------------------------------------------- */
+/* Follow-up: longer host track, glass lights/order, reports, audio   */
+/* ---------------------------------------------------------------- */
+
+test('host Round 1 track is clearly longer than the student track', () => {
+    const host = RENDERER.layout(1280, 720, 'host');
+    const player = RENDERER.layout(1280, 720, 'player');
+    assert.equal(player.round1StartZ, 5.0, 'student start stays at 5.0');
+    assert.equal(player.round1FinishZ, 9.8, 'student finish stays at 9.8');
+    assert.ok(host.round1StartZ < player.round1StartZ, 'host course starts nearer the camera');
+    assert.ok(host.round1FinishZ >= player.round1FinishZ, 'host keeps the finish at the far end');
+    const hostSpan = host.round1FinishZ - host.round1StartZ;
+    const playerSpan = player.round1FinishZ - player.round1StartZ;
+    assert.ok(hostSpan > playerSpan * 1.5, 'host track is substantially longer');
+
+    const portraitHost = RENDERER.layout(390, 844, 'host');
+    const portraitPlayer = RENDERER.layout(390, 844, 'player');
+    assert.ok(portraitHost.round1StartZ < portraitPlayer.round1StartZ);
+    assert.equal(portraitPlayer.round1StartZ, 5.0);
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(src.indexOf('round1StartZ') !== -1, 'layout exposes the track extents');
+    assert.ok(src.indexOf('r1Z(m, L)') !== -1, 'metre marks use the host extents');
+    assert.ok(src.indexOf('r1Z(dist, L)') !== -1, 'cats use the host extents');
+    assert.ok(src.indexOf('L.round1FinishZ') !== -1, 'finish strip uses the host extents');
+    assert.ok(src.indexOf('L.round1DollZ') !== -1, 'the doll uses the host extents');
+    assert.ok(src.indexOf("'playground:' + (s.role || 'player') + ':'") !== -1,
+        'static cache key includes the host track identity');
+});
+
+test('drawRound1 paints the 1280x720 host track and the student track', () => {
+    [[1280, 720], [390, 844], [844, 390]].forEach(size => {
+        ['host', 'player'].forEach(role => {
+            const ctx = mockContext({ width: size[0], height: size[1] });
+            assert.doesNotThrow(() => RENDERER.drawRound1(ctx, sampleState(1, {
+                w: size[0], h: size[1], role: role
+            })), 'round 1 ' + role + ' @' + size.join('x'));
+        });
+    });
+    assert.match(RENDERER.VERSION, /^2\.4\./);
+});
+
+test('glass panes are lights only: no vocab text on the 3D bridge', () => {
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const start = src.indexOf('function drawPane3D(');
+    const end = src.indexOf('function drawBridgePanes(', start);
+    assert.ok(start !== -1 && end > start);
+    const fn = src.slice(start, end);
+    assert.equal(fn.indexOf('fillText'), -1, 'drawPane3D never writes option text');
+    assert.equal(fn.indexOf('step.left'), -1, 'left option is not referenced in the pane painter');
+    assert.equal(fn.indexOf('step.right'), -1, 'right option is not referenced in the pane painter');
+    assert.ok(fn.indexOf('revealed_side') !== -1, 'correct panes still light up');
+    assert.ok(fn.indexOf('shattered_side') !== -1, 'broken panes still shatter');
+
+    const ctx = mockContext({ width: 1280, height: 720 });
+    assert.doesNotThrow(() => RENDERER.drawRound2(ctx, sampleState(2, { role: 'host', w: 1280, h: 720 })));
+});
+
+test('each student gets a different glass order from the same bank', () => {
+    const bank = PS.buildGlassSteps({
+        pairs: PS.buildGlassPairs({ words: PS.DEMO_VOCAB, seed: 99, count: 9 }),
+        seed: 99,
+        count: 9
+    });
+    const a = PS.glassStepsForPlayer(bank, 'student-a', 1234);
+    const b = PS.glassStepsForPlayer(bank, 'student-b', 1234);
+    const aAgain = PS.glassStepsForPlayer(bank, 'student-a', 1234);
+    assert.equal(a.length, 9);
+    assert.deepEqual(a.map(s => s.bank_index), aAgain.map(s => s.bank_index), 'same user + seed is stable');
+    assert.notDeepEqual(a.map(s => s.bank_index), b.map(s => s.bank_index), 'two classmates get different orders');
+    assert.deepEqual(a.map(s => s.bank_index).slice().sort((x, y) => x - y), [0, 1, 2, 3, 4, 5, 6, 7, 8],
+        'the order is a permutation of the same topic bank');
+    a.forEach(step => {
+        assert.equal(step.revealed, false);
+        assert.equal(step.revealed_side, null);
+        const src = bank[step.bank_index];
+        assert.equal(step.left, src.left);
+        assert.equal(step.right, src.right);
+        assert.equal(step.correct_side, src.correct_side);
+    });
+
+    // A reveal on the shared base array must not pre-mark B's phone.
+    bank[0].revealed = true;
+    bank[0].revealed_side = bank[0].correct_side;
+    const freshB = PS.glassStepsForPlayer(bank, 'student-b', 1234);
+    assert.ok(freshB.every(s => s.revealed === false && s.revealed_side === null),
+        'another student\'s revealed_side is stripped');
+
+    const p = { user_id: 'student-a', glass_step: 2, glass_order: a.map(s => s.bank_index) };
+    const step = PS.playerGlassStep(bank, p, 1234);
+    assert.equal(step.bank_index, a[2].bank_index, 'validation follows the student\'s own sequence');
+});
+
+test('the SQL glass-order mirror matches the JS order', () => {
+    function sqlOrder(seed, userId, len) {
+        const text = String(seed) + '|' + String(userId) + '|glass';
+        let hash = 2166136261n;
+        for (let i = 0; i < text.length; i++) {
+            hash = ((hash ^ BigInt(text.charCodeAt(i))) * 16777619n) & 0xFFFFFFFFn;
+        }
+        let a = hash;
+        const arr = [];
+        for (let i = 0; i < len; i++) arr.push(i);
+        for (let i = len - 1; i > 0; i--) {
+            a = (a + 1831565813n) & 0xFFFFFFFFn;
+            let t = (a ^ (a >> 15n)) & 0xFFFFFFFFn;
+            t = (t * ((1n | a) & 0xFFFFFFFFn)) & 0xFFFFFFFFn;
+            let u = (t ^ (t >> 7n)) & 0xFFFFFFFFn;
+            u = (u * ((61n | t) & 0xFFFFFFFFn)) & 0xFFFFFFFFn;
+            t = ((t + u) & 0xFFFFFFFFn) ^ t;
+            const r = Number(((t ^ (t >> 14n)) & 0xFFFFFFFFn)) / 4294967296;
+            const j = Math.floor(r * (i + 1));
+            const tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+    ['u-1', 'u-2', '4c16', 'student-abc'].forEach(user => {
+        [0, 20261125, 1234].forEach(seed => {
+            const js = PS.glassOrderForPlayer(user, 9, seed);
+            assert.deepEqual(js, sqlOrder(seed, user, 9), 'same order for ' + user + '/' + seed);
+        });
+    });
+});
+
+test('the queue view has no option buttons and the phone shows only its own step', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = src.indexOf('function renderGlassTurn()');
+    const end = src.indexOf('function renderTugTurn()', start);
+    assert.ok(start !== -1 && end > start);
+    const fn = src.slice(start, end);
+    assert.ok(fn.indexOf("if (!me.glass_active)") !== -1, 'queued students get a queue message');
+    assert.ok(/opts\.innerHTML = ''/.test(fn), 'queue clears the answer pad');
+    assert.equal(fn.indexOf('ps-glass-safe'), -1, 'no revealed answer highlighting on a student phone');
+    assert.ok(fn.indexOf('playerGlassSteps(me)') !== -1, 'the phone reads the student sequence');
+
+    assert.ok(src.indexOf('function demoGlassJump(') !== -1);
+    assert.ok(src.indexOf('playerGlassSteps(me)') !== -1, 'demo validation uses the per-student sequence');
+    assert.ok(src.indexOf('playerGlassSteps(p)') !== -1, 'demo bots also use their own sequence');
+});
+
+test('mistake reports are per-student for students and whole-class for teachers', () => {
+    const a = { user_id: 'a', nickname: '4C 01 Amy', is_playing: true, answer_log: [] };
+    const b = { user_id: 'b', nickname: '4C 02 Ben', is_playing: true, answer_log: [] };
+    const c = { user_id: 'c', nickname: '4C 03 Cal', is_playing: true, answer_log: [] };
+    PS.recordMistake(a, { round: 1, kind: 'answer', prompt: 'Charity?', choice: 'sleep', answer: 'help' });
+    PS.recordMistake(a, { round: 2, kind: 'glass_timeout', prompt: 'Pane', left: 'a', right: 'b', answer: 'b' });
+    PS.recordMistake(b, { round: 3, kind: 'tug', prompt: 'Past tense of go', choice: 'goed', answer: 'went' });
+
+    const mine = PS.mistakeReport([a, b, c], { meId: 'a', viewer: 'student' });
+    assert.equal(mine.viewer, 'student');
+    assert.equal(mine.rows.length, 1);
+    assert.equal(mine.rows[0].user_id, 'a');
+    assert.equal(mine.rows[0].mistakes.length, 2);
+    assert.equal(mine.total, 2);
+
+    const other = PS.mistakeReport([a, b, c], { meId: 'c', viewer: 'student' });
+    assert.equal(other.rows[0].user_id, 'c');
+    assert.deepEqual(other.rows[0].mistakes, [], 'a student with no mistakes sees an empty list');
+
+    const teacher = PS.mistakeReport([a, b, c], { viewer: 'teacher' });
+    assert.equal(teacher.viewer, 'teacher');
+    assert.deepEqual(teacher.rows.map(r => r.user_id), ['a', 'b']);
+    assert.equal(teacher.total, 3);
+
+    const empty = PS.mistakeReport([c], { viewer: 'teacher' });
+    assert.deepEqual(empty.rows, []);
+    assert.equal(empty.total, 0);
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['id="ps-mistake-report"', 'id="ps-mistake-title"', 'id="ps-mistake-list"'].forEach(token => {
+        assert.ok(html.indexOf(token) !== -1, token + ' exists in index.html');
+    });
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('renderMistakeReport()') !== -1, 'the ceremony renders the report');
+    assert.ok(main.indexOf('PSEngine.recordMistake') !== -1, 'demo play records mistakes');
+    assert.ok(main.indexOf('PSEngine.mistakeReport') !== -1, 'the report comes from the pure engine');
+});
+
+test('the demo iframe unlocks Survival audio and keeps the documented mute', () => {
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    assert.ok(demo.indexOf('allow="autoplay') !== -1, 'the iframe allows autoplay');
+    assert.ok(demo.indexOf('unlockAudio') !== -1, 'the demo bar calls PS.unlockAudio');
+
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('PS.unlockAudio') !== -1, 'PS exposes unlockAudio');
+    assert.ok(main.indexOf("learniTY_ps_sound") !== -1, 'the documented mute key is still honoured');
+    assert.ok(main.indexOf("src: '/music/survival_lobby_music.mp3'") !== -1, 'lobby BGM is the teacher lobby track');
+    assert.ok(main.indexOf("src: '/music/survival_music.mp3'") !== -1, 'gameplay BGM is the teacher Survival track');
+    assert.ok(main.indexOf("src: '/music/trophyMusic.mp3'") !== -1, 'the prize ceremony uses the site trophy music');
+    assert.equal(main.indexOf('/music/battlemusic.mp3'), -1, 'gameplay no longer uses battlemusic');
+    assert.ok(main.indexOf("room.status === 'waiting') return 'lobby'") !== -1, 'lobby track plays while waiting');
+    assert.ok(main.indexOf("room.status === 'finished') return 'ceremony'") !== -1, 'ceremony track plays when finished');
+    assert.ok(main.indexOf('function startBgm()') !== -1, 'BGM starts from gestures');
+    assert.ok(main.indexOf('stopBgm()') !== -1, 'BGM stops when leaving / muting');
+    assert.ok(main.indexOf('syncMusic()') !== -1, 'render syncs the track to the room status');
+    assert.equal(/soundOn\s*=\s*false/.test(main), false, 'demo mode does not hard-wire sound off');
+});
+
+test('Survival music files exist and are not precached by the service worker', () => {
+    const musicDir = path.join(__dirname, '..', 'music');
+    assert.ok(fs.existsSync(path.join(musicDir, 'survival_lobby_music.mp3')), 'lobby track is in music/');
+    assert.ok(fs.existsSync(path.join(musicDir, 'survival_music.mp3')), 'gameplay track is in music/');
+    assert.ok(fs.existsSync(path.join(musicDir, 'trophyMusic.mp3')), 'ceremony track is already in music/');
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    ['survival_lobby_music.mp3', 'survival_music.mp3', 'trophyMusic.mp3', 'battlemusic.mp3'].forEach(function (name) {
+        assert.equal(sw.indexOf(name), -1, name + ' must not be in the service-worker precache');
+    });
+});
+
+test('round-2 answer/order SQL is a safe teacher-run incremental', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_round2_answers.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Clear the editor/i.test(sql), 'tells the teacher to clear the editor');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('qualifier') !== -1, 'says to run after the qualifier incremental');
+    ['answer_log', 'glass_order', 'purrfect_survival_glass_order',
+        'glass_jump_purrfect_survival', 'submit_purrfect_survival_answer',
+        'purrfect_survival_begin_round2', 'purrfect_survival_release_glass'].forEach(token => {
+        assert.ok(sql.indexOf(token) !== -1, token + ' exists');
+    });
+    assert.ok(/interval '7 seconds'/.test(sql), 'keeps the qualifier glass delay');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    ['answer_log', 'glass_order', 'purrfect_survival_glass_order'].forEach(token => {
+        assert.ok(canonical.indexOf(token) !== -1, token + ' is in the canonical SQL');
+    });
+    assert.ok(canonical.indexOf('v_order := coalesce(') !== -1, 'canonical validates against the player order');
+    assert.equal(canonical.indexOf('set glass_steps = v_steps'), -1, 'canonical no longer writes shared reveals');
+
+    const copy = '/workspace/purrfect_survival_round2_answers.sql';
+    assert.ok(fs.existsSync(copy), 'workspace copy exists');
+    assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches the repo incremental');
 });

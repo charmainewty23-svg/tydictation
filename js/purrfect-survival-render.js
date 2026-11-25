@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.2.0';
+    R.VERSION = '2.4.0';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -705,7 +705,25 @@
         const landscape = width > height;
         const host = role === 'host';
         const hud = landscape ? Math.min(96, height * 0.18) : Math.min(130, height * 0.17);
-        const eye1 = landscape ? (host ? 2.05 : 1.82) : (host ? 1.62 : 1.48);
+        const eye1 = landscape ? (host ? 3.6 : 1.82) : (host ? 3.2 : 1.48);
+        /* The teacher / projector gets a true overhead view of each arena
+           so the whole class and the finish are visible at once. Students
+           keep the closer, lower, more cinematic camera. */
+        /* The projector course is longer (it starts nearer the camera) so
+           the host camera is pulled down/forward to frame it tightly. The
+           student camera and course are unchanged. */
+        const hostCam1 = landscape
+            ? { eye: [0, 7.5, -6.0], target: [0, 0.2, 9.0], fov: 60 }
+            : { eye: [0, 8.0, -4.0], target: [0, 0.2, 8.4], fov: 64 };
+        const r1Track = host
+            ? { startZ: 0.8, finishZ: 9.95, dollZ: 10.2 }
+            : { startZ: 5.0, finishZ: 9.8, dollZ: 10.15 };
+        const hostCam2 = landscape
+            ? { eye: [0, 11.0, -9.0], target: [0, 0.0, 7.6], fov: 58 }
+            : { eye: [0, 8.4, -4.4], target: [0, 0.0, 7.6], fov: 64 };
+        const hostCam3 = landscape
+            ? { eye: [0, 11.0, -8.0], target: [0, 0.4, 5.8], fov: 58 }
+            : { eye: [0, 8.4, -5.0], target: [0, 0.4, 5.8], fov: 60 };
         return {
             w: width,
             h: height,
@@ -718,32 +736,41 @@
             bridgeFarY: height * (landscape ? 0.24 : 0.28),
             bridgeNearY: height * (landscape ? 0.80 : 0.72),
             centerX: width * 0.5,
+            round1StartZ: r1Track.startZ,
+            round1FinishZ: r1Track.finishZ,
+            round1DollZ: r1Track.dollZ,
             // camera presets for the 3D sets
-            cam1: {
-                eye: [0, eye1, landscape ? -1.0 : -0.4],
-                target: [0, eye1, 9.0],
-                fov: landscape ? 58 : 62
-            },
-            cam2: (landscape && height < 560)
-                ? {
-                    eye: [0, 4.6, -4.0],
-                    target: [0, 0.4, 6.5],
-                    fov: 58
-                }
+            cam1: host
+                ? hostCam1
                 : {
-                    eye: [0, landscape ? 5.6 : 3.6, landscape ? -7.6 : -5.2],
-                    target: [0, landscape ? 0.35 : 0.5, landscape ? 6.8 : 7.0],
-                    fov: landscape ? 58 : 61
+                    eye: [0, eye1, landscape ? -1.0 : -0.4],
+                    target: [0, eye1, 9.0],
+                    fov: landscape ? 58 : 62
                 },
-            // Round 3 — the whole tug (host / landscape) or a closer,
-            // slightly angled view toward the student's own team.
-            cam3: {
-                eye: landscape
-                    ? [0, 4.2, host ? -13.0 : -12.0]
-                    : [0, 4.6, -17.5],
-                target: [0, 3.4, 6.0],
-                fov: landscape ? 58 : 52
-            }
+            cam2: host
+                ? hostCam2
+                : ((landscape && height < 560)
+                    ? {
+                        eye: [0, 4.6, -4.0],
+                        target: [0, 0.4, 6.5],
+                        fov: 58
+                    }
+                    : {
+                        eye: [0, landscape ? 5.6 : 3.6, landscape ? -7.6 : -5.2],
+                        target: [0, landscape ? 0.35 : 0.5, landscape ? 6.8 : 7.0],
+                        fov: landscape ? 58 : 61
+                    }),
+            // Round 3 — host overhead of both platforms; students keep a
+            // closer, slightly angled view toward their own team.
+            cam3: host
+                ? hostCam3
+                : {
+                    eye: landscape
+                        ? [0, 4.2, -12.0]
+                        : [0, 4.6, -17.5],
+                    target: [0, 3.4, 6.0],
+                    fov: landscape ? 58 : 52
+                }
         };
     };
 
@@ -1493,8 +1520,10 @@
         finishZ: 9.8
     };
 
-    function r1Z(metres) {
-        return lerp(PG.startZ, PG.finishZ, clamp(metres / 100, 0, 1));
+    function r1Z(metres, L) {
+        const start = L && L.round1StartZ != null ? L.round1StartZ : PG.startZ;
+        const finish = L && L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ;
+        return lerp(start, finish, clamp(metres / 100, 0, 1));
     }
 
     /* The phone shows a tighter, more cinematic crop of the same room; the
@@ -1788,7 +1817,7 @@
 
         // distance markers + finish line on the sand
         for (let m = 0; m <= 100; m += 20) {
-            const z = r1Z(m);
+            const z = r1Z(m, L);
             line3(ctx, cam, [-5.4, 0.012, z], [5.4, 0.012, z],
                 { stroke: m === 0 ? 'rgba(255,255,255,.55)' : 'rgba(120,88,44,.28)', lineWidth: m === 0 ? 2 : 1, dash: m === 0 ? null : [6, 8] });
             if (m % 20 === 0) {
@@ -1797,7 +1826,7 @@
             }
         }
         // checkered finish strip
-        const fz = PG.finishZ;
+        const fz = L && L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ;
         const cols = 14;
         for (let i = 0; i < cols; i++) {
             const x0 = -5.2 + (10.4 * i) / cols;
@@ -1889,7 +1918,9 @@
         const t = Number(s.now) || 0;
         const phase = s.phase || 'green';
 
-        drawCached(ctx, L, 'playground:' + (s.role || 'player'), c => {
+        drawCached(ctx, L, 'playground:' + (s.role || 'player') + ':' +
+            (L.round1StartZ != null ? L.round1StartZ : PG.startZ) + '-' +
+            (L.round1FinishZ != null ? L.round1FinishZ : PG.finishZ), c => {
             drawPlaygroundStatic(c, L, cam);
         });
 
@@ -1900,7 +1931,7 @@
         });
 
         // the mechanical cat doll at the finish line
-        const dollP = project(cam, 0, 0, PG.dollZ);
+        const dollP = project(cam, 0, 0, L.round1DollZ != null ? L.round1DollZ : PG.dollZ);
         if (dollP) {
             const turnBase = phase === 'red' || phase === 'done' ? 1 : 0;
             let turn = turnBase;
@@ -1933,33 +1964,78 @@
         ctx.restore();
     };
 
+    /* Local ranking mirror (the renderer can run without the engine in
+       unit tests). Finishers first by finish time, then distance. */
+    function round1RaceIds(players, finish) {
+        const list = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
+        const timeOf = (p) => {
+            const raw = p.finished_at != null ? p.finished_at : (p.finished_at_ms != null ? p.finished_at_ms : null);
+            if (raw == null || raw === '') return Infinity;
+            const n = typeof raw === 'number' ? raw : Date.parse(raw);
+            return isFinite(n) ? n : Infinity;
+        };
+        const alive = (p) => p.status !== 'eliminated' && p.status !== 'out' && p.status !== 'advanced' && p.ghost !== true;
+        const finished = (p) => p.reached_finish === true || (Number(p.distance) || 0) >= finish;
+        const id = (p) => String(p.user_id || p.id || '');
+        return list.slice().sort((a, b) => {
+            const aa = alive(a) ? 0 : 1;
+            const bb = alive(b) ? 0 : 1;
+            if (aa !== bb) return aa - bb;
+            const fa = finished(a) ? 0 : 1;
+            const fb = finished(b) ? 0 : 1;
+            if (fa !== fb) return fa - fb;
+            if (fa === 0) {
+                const ta = timeOf(a);
+                const tb = timeOf(b);
+                if (ta !== tb) return ta < tb ? -1 : 1;
+            }
+            const da = Number(a.distance) || 0;
+            const db = Number(b.distance) || 0;
+            if (da !== db) return db - da;
+            return id(a) < id(b) ? -1 : (id(a) > id(b) ? 1 : 0);
+        }).map(id);
+    }
+
     function drawRound1Players(ctx, L, cam, state) {
         const players = Array.isArray(state.players) ? state.players : [];
         const finish = Math.max(1, Number(state.finishDistance) || 100);
         const t = Number(state.elapsed) || 0;
         const meId = state.meId ? String(state.meId) : '';
 
+        const raceIds = round1RaceIds(players, finish);
+        const rankOf = {};
+        raceIds.forEach((id, i) => { rankOf[id] = i + 1; });
+        const myIndex = meId ? raceIds.indexOf(meId) : -1;
+        const nearby = new Set();
+        if (myIndex >= 0) {
+            for (let i = Math.max(0, myIndex - 2); i <= Math.min(raceIds.length - 1, myIndex + 2); i++) {
+                nearby.add(raceIds[i]);
+            }
+        }
+        if (meId) nearby.add(meId);
+
         const sorted = players.slice().sort((a, b) => (Number(b.distance) || 0) - (Number(a.distance) || 0));
         sorted.forEach(player => {
             if (!player) return;
             if (player.is_playing === false) return;
-            const alive = player.status !== 'eliminated' && player.status !== 'out' && player.ghost !== true;
+            const pid = String(player.user_id || player.id || '');
+            const alive = player.status !== 'eliminated' && player.status !== 'out' && player.status !== 'advanced' && player.ghost !== true;
             const dist = clamp(Number(player.distance) || 0, 0, finish);
-            const z = r1Z(dist);
-            const lane = Math.floor(mix01(String(player.user_id || player.id || 'x') + ':lane') * 9);
-            const jitter = (mix01('jx:' + (player.user_id || player.id)) - 0.5) * 0.9;
+            const z = r1Z(dist, L);
+            const lane = Math.floor(mix01(pid + ':lane') * 9);
+            const jitter = (mix01('jx:' + pid) - 0.5) * 0.9;
             // Lanes converge with depth like a real running field, which also
             // keeps the nearest cats inside a phone-sized frame.
             const ground = project(cam, 0, 0, z);
             const halfWorld = ground ? (L.w * 0.44) / ground.s : 3.4;
             const laneNorm = clamp((lane - 4 + jitter) / 4, -1, 1);
             const x = laneNorm * halfWorld;
-            const isMe = meId && String(player.user_id) === meId;
+            const isMe = meId && pid === meId;
             let y = 0.02;
             if (!alive) {
-                y -= 0.25 + Math.sin(t / 420 + mix01('g' + (player.user_id || player.id)) * 6) * 0.06;
+                y -= 0.25 + Math.sin(t / 420 + mix01('g' + pid) * 6) * 0.06;
             } else {
-                const bounce = Math.abs(Math.sin(t / 150 + mix01('b' + (player.user_id || player.id)) * 8));
+                const bounce = Math.abs(Math.sin(t / 150 + mix01('b' + pid) * 8));
                 y += bounce * 0.03;
             }
             const scaleWorld = (alive ? 0.92 : 0.86) * (isMe ? 1.16 : 1);
@@ -1971,11 +2047,13 @@
                 halo: !alive,
                 haloColor: '#9bd7f5'
             });
-            if (anchor && (isMe || L.landscape)) {
+            if (anchor && (isMe || L.landscape || L.host || nearby.has(pid))) {
                 const name = shortName(player);
                 if (name) {
+                    const rank = rankOf[pid];
+                    const label = (rank ? rank + ' · ' : '') + name;
                     const fs = Math.max(7, Math.min(12, anchor.scale * 15));
-                    pill(ctx, anchor.x, anchor.y - (isMe ? 152 : 140) * anchor.scale - 5, name, {
+                    pill(ctx, anchor.x, anchor.y - (isMe ? 152 : 140) * anchor.scale - 5, label, {
                         size: fs,
                         bg: isMe ? 'rgba(120,80,0,.8)' : 'rgba(8,12,24,.55)',
                         color: isMe ? '#fde68a' : '#e8eef8',
@@ -2012,7 +2090,7 @@
             ? state.players.find(p => String(p.user_id) === String(state.meId))
             : null;
         const steps = Math.max(1, Number(state && state.stepCount) || 9);
-        const myStep = me && me.glass_active ? clamp(Number(me.glass_step) || 0, 0, steps) : 0;
+        const myStep = (!L.host && me && me.glass_active) ? clamp(Number(me.glass_step) || 0, 0, steps) : 0;
         const eye = L.cam2.eye.slice();
         eye[2] = eye[2] + myStep * 0.26;
         eye[1] = eye[1] - myStep * 0.02;
@@ -2346,26 +2424,8 @@
             poly3(ctx, cam, corners, { stroke: '#fde047', lineWidth: 2.4, dash: [7, 5] });
         }
 
-        // option label on the glass
-        const label = side === 'left' ? step.left : step.right;
-        if (p && label) {
-            const fs = Math.max(7, Math.min(p.s * 0.20, 18));
-            ctx.save();
-            setFont(ctx, fs, 800);
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            let text = String(label);
-            const maxW = p.s * R2.paneHalf * 1.55;
-            if (ctx.measureText(text).width > maxW) {
-                while (text.length > 1 && ctx.measureText(text + '…').width > maxW) text = text.slice(0, -1);
-                text += '…';
-            }
-            ctx.fillStyle = isCorrect ? '#052e16' : '#f4f1ff';
-            ctx.shadowColor = 'rgba(0,0,0,.8)';
-            ctx.shadowBlur = isCorrect ? 2 : 6;
-            ctx.fillText(text, p.x, p.y + 0.5);
-            ctx.restore();
-        }
+        // Lights only: the pane choices live on the student's phone, never
+        // as text on the 3D bridge (two classmates see different orders).
     }
 
     function drawBridgePanes(ctx, cam, state, t) {
@@ -2401,7 +2461,8 @@
             const isMe = meId && String(player.user_id) === meId;
             // Portrait phones keep the shot clean: only my cat, the players
             // actually on the bridge and the survivors at the far stage.
-            if (!L.landscape && !isMe && !advanced && (!alive || !player.glass_active)) return;
+            // The teacher's portrait projector keeps the whole class.
+            if (!L.landscape && !L.host && !isMe && !advanced && (!alive || !player.glass_active)) return;
             let x;
             let y;
             let z;
@@ -2441,7 +2502,7 @@
                 halo: !alive,
                 haloColor: '#9bd7f5'
             });
-            if (anchor && (isMe || L.landscape)) {
+            if (anchor && (isMe || L.landscape || L.host)) {
                 const name = shortName(player);
                 if (name) {
                     const fs = Math.max(7, Math.min(12, anchor.scale * 15));
@@ -2534,7 +2595,7 @@
     function r3Cam(L, state) {
         const team = state && (state.myTeam === 'red' || state.myTeam === 'blue') ? state.myTeam : '';
         const eye = L.cam3.eye.slice();
-        if (team) eye[0] = (team === 'red' ? -1 : 1) * (L.landscape ? 0.9 : 1.7);
+        if (!L.host && team) eye[0] = (team === 'red' ? -1 : 1) * (L.landscape ? 0.9 : 1.7);
         return makeCam(L, { eye: eye, target: L.cam3.target, fov: L.cam3.fov });
     }
 
@@ -2825,7 +2886,7 @@
         const tug = state.tug || {};
         const meId = state.meId ? String(state.meId) : '';
         const winner = tug.winner === 'red' || tug.winner === 'blue' ? tug.winner : '';
-        const maxPerTeam = L.landscape ? 10 : 6;
+        const maxPerTeam = L.landscape ? 10 : (L.host ? 8 : 6);
         ['red', 'blue'].forEach(team => {
             const list = tugTeamList(players, team, meId).slice(0, maxPerTeam);
             list.forEach((player, i) => {
@@ -2853,7 +2914,7 @@
                     halo: ghost,
                     haloColor: '#fcd34d'
                 });
-                if (anchor && (isMe || L.landscape) && !losing) {
+                if (anchor && (isMe || L.landscape || L.host) && !losing) {
                     const name = shortName(player);
                     if (name) {
                         pill(ctx, anchor.x, anchor.y - 128 * anchor.scale - 4, name, {
@@ -3033,10 +3094,15 @@
             if (p && (p.user_id || p.id)) playersById[String(p.user_id || p.id)] = p;
         });
 
+        /* Keep all three stands clear of the HTML ranking card (which is
+           docked on the right in landscape). The group shifts left on wide
+           screens and is pulled in on phones so 2nd/3rd stay on screen. */
+        const groupShift = L.landscape ? -2.6 : 0;
+        const spread = L.landscape ? 4.3 : 3.1;
         const specs = [
-            { place: 2, x: -4.3, z: 5.0, height: 1.55, base: '#b7c2d0', top: '#e2e8f0', side: '#8f9bab' },
-            { place: 1, x: 0, z: 6.3, height: 2.35, base: '#d4a017', top: '#fde68a', side: '#b47c0b' },
-            { place: 3, x: 4.3, z: 5.0, height: 1.15, base: '#b9773a', top: '#f3c08a', side: '#8c5527' }
+            { place: 2, x: groupShift - spread, z: 5.0, height: 1.55, base: '#b7c2d0', top: '#e2e8f0', side: '#8f9bab' },
+            { place: 1, x: groupShift, z: 6.3, height: 2.35, base: '#d4a017', top: '#fde68a', side: '#b47c0b' },
+            { place: 3, x: groupShift + spread, z: 5.0, height: 1.15, base: '#b9773a', top: '#f3c08a', side: '#8c5527' }
         ];
 
         specs.forEach((spec, index) => {

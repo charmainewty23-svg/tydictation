@@ -836,6 +836,241 @@
     };
 
     /* ------------------------------------------------------------------ */
+    /* Live class presentation helpers                                    */
+    /*                                                                    */
+    /* Pure helpers for the teacher/projector side list, the student race  */
+    /* ranks and the qualifier board between rounds. They only read fields  */
+    /* the game already stores, so tests and the SQL mirror can reproduce   */
+    /* the same order without a DOM.                                        */
+    /* ------------------------------------------------------------------ */
+
+    PS.playerName = function (player) {
+        const nickname = String((player && player.nickname) || '').trim();
+        if (nickname) return nickname;
+        const email = String((player && player.email) || '').trim();
+        if (email) return email.split('@')[0];
+        return 'Player';
+    };
+
+    /* Playing students only, finishers first by finish time, then the rest
+       by distance (same spirit as round1Order). */
+    PS.raceOrder = function (players, opts) {
+        return PS.round1Order(players, opts).filter(p => p && p.is_playing !== false);
+    };
+
+    /* 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, then " / total". */
+    PS.formatPlace = function (place, total) {
+        const n = Math.max(0, Math.floor(Number(place) || 0));
+        const t = Math.floor(Number(total) || 0);
+        const mod100 = n % 100;
+        const suffix = (mod100 >= 11 && mod100 <= 13)
+            ? 'th'
+            : (n % 10 === 1 ? 'st' : (n % 10 === 2 ? 'nd' : (n % 10 === 3 ? 'rd' : 'th')));
+        return n + suffix + (t > 0 ? ' / ' + t : '');
+    };
+
+    /* The student plus a couple of runners ahead and behind by race place.
+       Always includes the student; returns an empty list only when the id is
+       not in the room at all. */
+    PS.nearbyRunners = function (players, meId, opts) {
+        const o = opts || {};
+        const list = Array.isArray(players) ? players : [];
+        const id = String(meId == null ? '' : meId);
+        const ordered = PS.raceOrder(list, o);
+        const ahead = Math.max(0, Math.floor(o.ahead == null ? 2 : Number(o.ahead) || 0));
+        const behind = Math.max(0, Math.floor(o.behind == null ? 2 : Number(o.behind) || 0));
+        const index = ordered.findIndex(p => PS.userKey(p) === id);
+        if (index === -1) {
+            const lone = list.find(p => p && PS.userKey(p) === id);
+            return lone ? [lone] : [];
+        }
+        return ordered.slice(Math.max(0, index - ahead), Math.min(ordered.length, index + behind + 1));
+    };
+
+    function teacherRound1Row(p, place, finish, phase) {
+        const alive = PS.isAlive(p);
+        const finished = PS.isRound1Finished(p, finish);
+        const status = !alive ? 'Out' : (finished ? 'Finished' : (phase === 'red' ? 'Frozen' : 'Running'));
+        return {
+            user_id: PS.userKey(p),
+            name: PS.playerName(p),
+            place: place,
+            detail: PS.round1Distance(p) + ' / ' + finish + ' m',
+            status: status,
+            team: '',
+            combo: 0,
+            near: alive && !finished && PS.round1Distance(p) >= finish * 0.8,
+            distance: PS.round1Distance(p),
+            step: 0
+        };
+    }
+
+    function teacherRound2Row(p, place, stepCount) {
+        const crossed = p.crossed_glass === true || String(p.status || '') === 'advanced';
+        const alive = PS.isAlive(p);
+        const active = alive && p.glass_active === true;
+        const status = crossed ? 'Crossed' : (!alive ? 'Fell' : (active ? 'Jumping' : 'Queued'));
+        const step = Math.max(0, Math.min(stepCount, Number(p.glass_step) || 0));
+        return {
+            user_id: PS.userKey(p),
+            name: PS.playerName(p),
+            place: place,
+            detail: 'Step ' + (crossed ? stepCount : step) + ' / ' + stepCount,
+            status: status,
+            team: '',
+            combo: 0,
+            near: !crossed && alive && active && step >= stepCount - 1,
+            distance: PS.round1Distance(p),
+            step: crossed ? stepCount : step
+        };
+    }
+
+    function teacherRound3Row(p, place, tug) {
+        const team = p.tug_team === 'red' || p.tug_team === 'blue' ? p.tug_team : '';
+        const out = !PS.isAlive(p) || p.ghost === true || String(p.status || '') === 'eliminated';
+        const status = out ? 'Out' : (tug.phase === 'playing' ? 'Answering' : 'Idle');
+        const combo = team === 'red' ? tug.redCombo : (team === 'blue' ? tug.blueCombo : 0);
+        return {
+            user_id: PS.userKey(p),
+            name: PS.playerName(p),
+            place: place,
+            detail: team ? 'Combo ' + combo + '/' + PS.ROUND3.COMBO : (out ? 'Out' : 'Watching'),
+            status: status,
+            team: team === 'red' ? 'Red' : (team === 'blue' ? 'Blue' : 'Watching'),
+            combo: combo,
+            near: false,
+            distance: PS.round1Distance(p),
+            step: Number(p.glass_step) || 0
+        };
+    }
+
+    /* Sorted rows for the teacher/projector side list. Round 1 and 2 put
+       the leaders first; round 3 groups Red, Blue, then watchers. */
+    PS.teacherProgress = function (players, opts) {
+        const o = opts || {};
+        const round = Math.max(1, Math.min(3, Math.floor(Number(o.round) || 1)));
+        const finish = o.finishDistance == null ? PS.ROUND1.FINISH_DISTANCE : Number(o.finishDistance);
+        const stepCount = Math.max(1, Number(o.stepCount) || PS.ROUND2.STEP_COUNT);
+        const list = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
+
+        if (round === 1) {
+            const ordered = list.slice().sort((a, b) => {
+                const aa = PS.isAlive(a) ? 0 : 1;
+                const bb = PS.isAlive(b) ? 0 : 1;
+                if (aa !== bb) return aa - bb;
+                if (aa === 0) {
+                    const fa = PS.isRound1Finished(a, finish) ? 0 : 1;
+                    const fb = PS.isRound1Finished(b, finish) ? 0 : 1;
+                    if (fa !== fb) return fa - fb;
+                    if (fa === 0) {
+                        const ca = compareFinish(a, b);
+                        if (ca !== 0) return ca;
+                    }
+                }
+                return compareFurthest(a, b);
+            });
+            const phase = String(o.phase || '');
+            return ordered.map((p, i) => teacherRound1Row(p, i + 1, finish, phase));
+        }
+
+        if (round === 2) {
+            const category = (p) => {
+                if (p.crossed_glass === true || String(p.status || '') === 'advanced') return 0;
+                if (PS.isAlive(p) && p.glass_active === true) return 1;
+                if (PS.isAlive(p)) return 2;
+                return 3;
+            };
+            const ordered = list.slice().sort((a, b) => {
+                const ca = category(a);
+                const cb = category(b);
+                if (ca !== cb) return ca - cb;
+                const sa = Number(a.glass_step) || 0;
+                const sb = Number(b.glass_step) || 0;
+                if (sa !== sb) return sb - sa;
+                const ra = a.round1_rank == null ? Infinity : Number(a.round1_rank);
+                const rb = b.round1_rank == null ? Infinity : Number(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                return compareFurthest(a, b);
+            });
+            return ordered.map((p, i) => teacherRound2Row(p, i + 1, stepCount));
+        }
+
+        const tug = PS.normalizeTugState(o.tug);
+        const teamRank = (p) => {
+            if (p.tug_team === 'red') return 0;
+            if (p.tug_team === 'blue') return 1;
+            return 2;
+        };
+        const ordered = list.slice().sort((a, b) => {
+            const ta = teamRank(a);
+            const tb = teamRank(b);
+            if (ta !== tb) return ta - tb;
+            const oa = PS.isAlive(a) ? 0 : 1;
+            const ob = PS.isAlive(b) ? 0 : 1;
+            if (oa !== ob) return oa - ob;
+            const ra = a.round1_rank == null ? Infinity : Number(a.round1_rank);
+            const rb = b.round1_rank == null ? Infinity : Number(b.round1_rank);
+            if (ra !== rb) return ra < rb ? -1 : 1;
+            return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+        });
+        return ordered.map((p, i) => teacherRound3Row(p, i + 1, tug));
+    };
+
+    /* Advancing players between rounds. fromRound 1 = the first 15 (or the
+       furthest living players) out of 1-2-3 Meow!; fromRound 2 = the class
+       that crossed the glass bridge. Stable order, no server fields. */
+    PS.qualifierRoster = function (players, opts) {
+        const o = opts || {};
+        const fromRound = Math.max(1, Math.min(2, Math.floor(Number(o.fromRound) || 1)));
+        const finish = o.finishDistance == null ? PS.ROUND1.FINISH_DISTANCE : Number(o.finishDistance);
+        const list = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
+
+        if (fromRound >= 2) {
+            const survivors = PS.tugSurvivors(list).slice().sort((a, b) => {
+                const fa = PS.timeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+                const fb = PS.timeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+                if (fa !== fb) return fa < fb ? -1 : 1;
+                const ra = a.round1_rank == null ? Infinity : Number(a.round1_rank);
+                const rb = b.round1_rank == null ? Infinity : Number(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+            });
+            return survivors.map((p, i) => {
+                const crossed = p.crossed_glass === true || String(p.status || '') === 'advanced';
+                return {
+                    user_id: PS.userKey(p),
+                    name: PS.playerName(p),
+                    place: i + 1,
+                    detail: crossed ? 'Crossed the glass bridge' : 'Advanced from Round 1',
+                    team: p.tug_team === 'red' || p.tug_team === 'blue' ? p.tug_team : '',
+                    distance: PS.round1Distance(p),
+                    step: Number(p.glass_step) || 0
+                };
+            });
+        }
+
+        const limit = Math.max(1, Number(o.limit) || PS.ROUND1.ADVANCE_LIMIT);
+        return PS.round1Order(list, { finishDistance: finish }).slice(0, limit).map((p, i) => {
+            const finished = PS.isRound1Finished(p, finish);
+            return {
+                user_id: PS.userKey(p),
+                name: PS.playerName(p),
+                place: i + 1,
+                detail: finished ? 'Finished' : PS.round1Distance(p) + ' m',
+                team: p.tug_team === 'red' || p.tug_team === 'blue' ? p.tug_team : '',
+                distance: PS.round1Distance(p),
+                step: 0
+            };
+        });
+    };
+
+    PS.qualifierTitle = function (fromRound) {
+        return Math.floor(Number(fromRound) || 1) >= 2
+            ? 'Advancing to Tug of War'
+            : 'Advancing to Glass Stepping Stones';
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Round 2 — glass bridge                                              */
     /* ------------------------------------------------------------------ */
 
@@ -891,6 +1126,145 @@
             });
         }
         return out;
+    };
+
+    /* Round 2 uses one shared topic bank (the same pairs for the whole
+       class) but every student gets their own deterministic order, so the
+       classmate ahead cannot hand the answers to the next jumper. The seed
+       mixes the room seed with the student id; the same inputs always give
+       the same order. */
+    PS.glassOrderSeed = function (seed, userId) {
+        return coerceSeed(String(seed == null ? 1 : seed) + '|' + String(userId == null ? '' : userId) + '|glass');
+    };
+
+    PS.glassOrderForPlayer = function (userId, stepCount, seed) {
+        const n = Math.max(1, Math.min(PS.ROUND2.MAX_STEPS, Math.floor(Number(stepCount) || PS.ROUND2.STEP_COUNT)));
+        const order = [];
+        for (let i = 0; i < n; i++) order.push(i);
+        PS.shuffleInPlace(order, PS.mulberry32(PS.glassOrderSeed(seed, userId)));
+        return order;
+    };
+
+    function validOrder(order, n) {
+        if (!Array.isArray(order) || order.length !== n) return null;
+        const seen = {};
+        const out = [];
+        for (let i = 0; i < order.length; i++) {
+            const idx = Math.floor(Number(order[i]));
+            if (!isFinite(idx) || idx < 0 || idx >= n || seen[idx]) return null;
+            seen[idx] = true;
+            out.push(idx);
+        }
+        return out;
+    }
+
+    /* Clone the shared bank into one student's sequence. Revealed/shattered
+       lights from anybody else are always stripped, so a queued student is
+       never handed a classmate's answer. */
+    PS.glassStepsForPlayer = function (baseSteps, userId, seed, orderOverride) {
+        const base = Array.isArray(baseSteps) ? baseSteps : [];
+        const n = base.length;
+        if (!n) return [];
+        const order = validOrder(orderOverride, n)
+            || PS.glassOrderForPlayer(userId, n, seed);
+        return order.map(function (idx, seq) {
+            const src = base[idx] || {};
+            return {
+                index: seq,
+                bank_index: idx,
+                prompt: src.prompt == null ? '' : String(src.prompt),
+                left: src.left == null ? '' : String(src.left),
+                right: src.right == null ? '' : String(src.right),
+                correct_side: src.correct_side === 'right' ? 'right' : 'left',
+                revealed: false,
+                revealed_side: null,
+                shattered_side: null
+            };
+        });
+    };
+
+    /* The step this student is standing on, taken from their own sequence.
+       Never reads the shared room array's reveal flags. */
+    PS.playerGlassStep = function (baseSteps, player, seed) {
+        if (!player) return null;
+        const steps = PS.glassStepsForPlayer(baseSteps, PS.userKey(player), seed, player.glass_order);
+        const idx = Math.max(0, Number(player.glass_step) || 0);
+        return steps[idx] || null;
+    };
+
+    /* Append-only mistake log. Safe to call with a plain player object in
+       the demo (no SQL required); live rooms get the same entries appended
+       by the server RPCs. */
+    PS.recordMistake = function (player, entry) {
+        if (!player || !entry) return player;
+        const list = Array.isArray(player.answer_log)
+            ? player.answer_log.slice()
+            : (Array.isArray(player.mistakes) ? player.mistakes.slice() : []);
+        const clean = {};
+        ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+            if (entry[key] != null) clean[key] = entry[key];
+        });
+        clean.correct = false;
+        list.push(clean);
+        player.answer_log = list;
+        player.mistakes = list;
+        return player;
+    };
+
+    function mistakeList(player) {
+        if (!player) return [];
+        const raw = Array.isArray(player.answer_log) ? player.answer_log
+            : (Array.isArray(player.mistakes) ? player.mistakes : []);
+        return raw.filter(function (entry) { return entry && typeof entry === 'object'; })
+            .map(function (entry) {
+                const clean = {};
+                ['round', 'kind', 'prompt', 'left', 'right', 'choice', 'answer', 'note', 'penalty'].forEach(function (key) {
+                    if (entry[key] != null) clean[key] = entry[key];
+                });
+                clean.correct = false;
+                return clean;
+            });
+    }
+
+    /* Student view: only their own rows. Teacher / projector: every player
+       with at least one mistake, grouped by student. */
+    PS.mistakeReport = function (players, opts) {
+        const o = opts || {};
+        const viewer = o.viewer === 'teacher' ? 'teacher' : 'student';
+        const list = (Array.isArray(players) ? players : []).filter(function (p) {
+            return p && p.is_playing !== false;
+        });
+        const rows = [];
+        if (viewer === 'student') {
+            const meId = String(o.meId == null ? '' : o.meId);
+            const p = list.find(function (x) { return PS.userKey(x) === meId; });
+            if (p) {
+                rows.push({
+                    user_id: PS.userKey(p),
+                    nickname: String(p.nickname || ''),
+                    mistakes: mistakeList(p)
+                });
+            }
+        } else {
+            list.forEach(function (p) {
+                const mistakes = mistakeList(p);
+                if (!mistakes.length) return;
+                rows.push({
+                    user_id: PS.userKey(p),
+                    nickname: String(p.nickname || ''),
+                    mistakes: mistakes
+                });
+            });
+            rows.sort(function (a, b) {
+                if (a.nickname !== b.nickname) return a.nickname < b.nickname ? -1 : 1;
+                return a.user_id < b.user_id ? -1 : (a.user_id > b.user_id ? 1 : 0);
+            });
+        }
+        return {
+            viewer: viewer,
+            rows: rows,
+            total: rows.reduce(function (n, row) { return n + row.mistakes.length; }, 0)
+        };
     };
 
     PS.revealGlassStep = function (step, outcome) {

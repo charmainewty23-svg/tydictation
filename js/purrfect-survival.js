@@ -25,6 +25,9 @@
     const VIEW_ID = 'purrfect-survival-view';
     const PS_ROUND_MS = 180000;
     const PS_INTRO_HOLD_MS = 15000;
+    /* Qualifier beat between rounds: long enough to read ~15–30 names,
+       auto-continues so a projector class is never stuck. */
+    const QUALIFIER_MS = 7000;
     const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,round3_started_at,round3_ends_at,phase_schedule,glass_steps,settings,tug_state,tug_questions,created_at,started_at,finished_at,server_now';
     const ROOM_COLUMNS_LIGHT = ROOM_COLUMNS.replace(',tug_questions', '');
 
@@ -50,6 +53,8 @@
     let lastAlive = 0;
     let audioCtx = null;
     let soundOn = true;
+    let musicTracks = { lobby: null, game: null, ceremony: null };
+    let musicKind = '';
     let liveOn = false;
     let clockOffset = 0;
     let lastTickAt = 0;
@@ -63,6 +68,10 @@
     let ceremonyCache = null;
     let ceremonyOfficial = null;
     let ceremonySaveState = '';
+    let progressSig = '';
+    let qualifierKeyRendered = '';
+    let qualifierShownAt = {};
+    let qualifierDismissed = {};
 
     /* ---- public demo (no login, no Supabase) -------------------------- */
     const DEMO_ROUND_MS = 120000;
@@ -155,6 +164,16 @@
 
     function isPlayingPlayer(p) {
         return !!(p && p.is_playing !== false);
+    }
+
+    /* Teacher / projector: the same identity the canvas uses for the host
+       camera. Demo teacher mode always counts as host. */
+    function isHostView() {
+        return (demoMode && demoRole === 'teacher') || (isHost() && (!me || !isPlayingPlayer(me)));
+    }
+
+    function roundIsPlayable() {
+        return !!room && (room.status === 'round1' || room.status === 'round2' || room.status === 'round3');
     }
 
     function alivePlayers() {
@@ -503,6 +522,102 @@
         [520, 660, 780, 1040].forEach((f, i) => tone(f, 0.16, 'sine', 0.07, i * 0.09));
     }
 
+    /* Three Survival tracks, shared by the live path and the official demo.
+       None of the mp3s are in the service-worker precache; the browser
+       caches them after the first play.
+         lobby     — waiting room, /music/survival_lobby_music.mp3
+         game      — rounds, the teacher's Survival track /music/survival_music.mp3
+         ceremony  — prize ceremony, same /music/trophyMusic.mp3 as Word Battle
+                     and Drive & Go! */
+    const MUSIC_SPEC = {
+        lobby: { src: '/music/survival_lobby_music.mp3', volume: 0.3, loop: true },
+        game: { src: '/music/survival_music.mp3', volume: 0.3, loop: true },
+        ceremony: { src: '/music/trophyMusic.mp3', volume: 0.45, loop: false }
+    };
+
+    function ensureTrack(kind) {
+        const spec = MUSIC_SPEC[kind];
+        if (!spec) return null;
+        if (musicTracks[kind]) return musicTracks[kind];
+        try {
+            const track = new Audio(spec.src);
+            track.loop = !!spec.loop;
+            track.volume = spec.volume;
+            track.preload = 'none';
+            musicTracks[kind] = track;
+        } catch (e) {
+            musicTracks[kind] = null;
+        }
+        return musicTracks[kind];
+    }
+
+    function stopTrack(kind) {
+        const track = musicTracks[kind];
+        if (!track) return;
+        try { track.pause(); track.currentTime = 0; } catch (e) { /* ignore */ }
+    }
+
+    function stopAllMusic() {
+        stopTrack('lobby');
+        stopTrack('game');
+        stopTrack('ceremony');
+        musicKind = '';
+    }
+
+    function desiredMusicKind() {
+        if (!soundOn || !room) return '';
+        if (room.status === 'waiting') return 'lobby';
+        if (room.status === 'finished') return 'ceremony';
+        if (room.status === 'round1' || room.status === 'round2' || room.status === 'round3') {
+            return 'game';
+        }
+        return '';
+    }
+
+    function startTrack(kind) {
+        if (!kind) {
+            stopAllMusic();
+            return;
+        }
+        if (musicKind && musicKind !== kind) {
+            stopTrack('lobby');
+            stopTrack('game');
+            stopTrack('ceremony');
+            musicKind = '';
+        }
+        const track = ensureTrack(kind);
+        if (!track) return;
+        musicKind = kind;
+        try {
+            const played = track.play();
+            if (played && typeof played.catch === 'function') played.catch(() => {});
+        } catch (e) { /* autoplay may still need a click */ }
+    }
+
+    function syncMusic() {
+        startTrack(desiredMusicKind());
+    }
+
+    function startBgm() {
+        syncMusic();
+    }
+
+    function stopBgm() {
+        stopAllMusic();
+    }
+
+    /* Called from the public demo's parent bar (a real user gesture) and
+       from the first in-iframe tap. Resumes the AudioContext and starts the
+       track that matches the current room (lobby, gameplay, or ceremony). */
+    PS.unlockAudio = function () {
+        const ctx = audio();
+        if (ctx && ctx.state === 'suspended') {
+            try { ctx.resume().catch(() => {}); } catch (e) { /* ignore */ }
+        }
+        startBgm();
+        return true;
+    };
+
     PS.toggleSound = function () {
         soundOn = !soundOn;
         try { localStorage.setItem('learniTY_ps_sound', soundOn ? '1' : '0'); } catch (e) { /* ignore */ }
@@ -511,7 +626,12 @@
             btn.textContent = soundOn ? '🔊' : '🔇';
             btn.setAttribute('aria-label', soundOn ? 'Mute sound' : 'Turn sound on');
         }
-        if (soundOn) tone(660, 0.1, 'sine', 0.06);
+        if (soundOn) {
+            tone(660, 0.1, 'sine', 0.06);
+            startBgm();
+        } else {
+            stopBgm();
+        }
     };
 
     /* ------------------------------------------------------------------ */
@@ -1088,6 +1208,159 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Teacher / projector side list                                      */
+    /* ------------------------------------------------------------------ */
+
+    function progressTitle(round) {
+        if (round === 3) return 'ROUND 3 · Tug of War';
+        if (round === 2) return 'ROUND 2 · Glass Stepping Stones';
+        return 'ROUND 1 · 1-2-3 Meow!';
+    }
+
+    function progressStatusClass(status) {
+        return String(status || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    }
+
+    function renderTeacherProgress() {
+        const panel = $('ps-progress');
+        if (!panel) return;
+        const active = !!room && roundIsPlayable() && isHostView();
+        show('ps-progress', active);
+        if (!active) {
+            progressSig = '';
+            return;
+        }
+        const round = roomRound();
+        const rows = (typeof PSEngine !== 'undefined' && PSEngine.teacherProgress)
+            ? PSEngine.teacherProgress(players, {
+                round: round,
+                finishDistance: room.finish_distance || finishDistance(),
+                stepCount: glassSteps.length || PSEngine.ROUND2.STEP_COUNT,
+                tug: round === 3 ? tugState() : null,
+                phase: round === 1 ? ((phaseInfo() || {}).phase || '') : ''
+            })
+            : [];
+        const sig = round + '|' + rows.map(r =>
+            [r.user_id, r.place, r.name, r.detail, r.status, r.team, r.combo, r.near ? 1 : 0].join(':')
+        ).join('|');
+        if (sig === progressSig) return;
+        progressSig = sig;
+        setText('ps-progress-title', progressTitle(round));
+        setText('ps-progress-count', rows.length + ' playing');
+        const list = $('ps-progress-list');
+        if (list) {
+            list.innerHTML = rows.map(row => {
+                const team = row.team && row.team !== 'Watching'
+                    ? '<span class="ps-progress-team ps-progress-team-' + progressStatusClass(row.team) + '">' + escapeText(row.team) + '</span>'
+                    : '';
+                return '<div class="ps-progress-row ps-progress-' + progressStatusClass(row.status) + (row.near ? ' ps-progress-near' : '') + '">' +
+                    '<span class="ps-progress-place">' + escapeText(row.place) + '</span>' +
+                    '<span class="ps-progress-name">' + escapeText(row.name) + team + '</span>' +
+                    '<span class="ps-progress-detail">' + escapeText(row.detail) + '</span>' +
+                    '<span class="ps-progress-status">' + escapeText(row.status) + '</span>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Qualifier beat between rounds                                      */
+    /* ------------------------------------------------------------------ */
+
+    function qualifierInfo() {
+        if (!room) return null;
+        if (room.status === 'round2' && roomRoundCount() > 1) {
+            const start = room.round2_started_at ? Date.parse(room.round2_started_at) : 0;
+            if (!start) return null;
+            const key = 'qualifier:1:' + room.id + ':' + String(room.round2_started_at);
+            if (qualifierDismissed[key]) return null;
+            const remaining = QUALIFIER_MS - Math.max(0, serverNow() - start);
+            if (remaining <= 0) return null;
+            return { key: key, fromRound: 1, remaining: remaining };
+        }
+        if (room.status === 'round3' && roomRoundCount() >= 3) {
+            const tug = tugState();
+            if (tug.phase !== 'briefing') return null;
+            const key = 'qualifier:2:' + room.id;
+            if (qualifierDismissed[key]) return null;
+            const now = Date.now();
+            if (!qualifierShownAt[key]) qualifierShownAt[key] = now;
+            const remaining = QUALIFIER_MS - (now - qualifierShownAt[key]);
+            if (remaining <= 0) return null;
+            return { key: key, fromRound: 2, remaining: remaining };
+        }
+        return null;
+    }
+
+    function qualifierRosterRows(fromRound) {
+        if (typeof PSEngine === 'undefined' || !PSEngine.qualifierRoster) return [];
+        return PSEngine.qualifierRoster(players, {
+            fromRound: fromRound,
+            finishDistance: room && room.finish_distance ? room.finish_distance : finishDistance()
+        });
+    }
+
+    function renderQualifier() {
+        const info = qualifierInfo();
+        const panel = $('ps-qualifier');
+        if (room && room.status === 'round3') {
+            /* The board auto-hides after QUALIFIER_MS; do not leave the
+               host's Start button hidden until the next poll. */
+            show('ps-tug-start-btn', isHost() && tugState().phase === 'briefing' && !info);
+        }
+        if (!info) {
+            if (panel) panel.classList.add('hidden');
+            qualifierKeyRendered = '';
+            return;
+        }
+        if (qualifierKeyRendered !== info.key) {
+            qualifierKeyRendered = info.key;
+            setText('ps-qualifier-title', (typeof PSEngine !== 'undefined' && PSEngine.qualifierTitle)
+                ? PSEngine.qualifierTitle(info.fromRound)
+                : 'Advancing players');
+            const roster = qualifierRosterRows(info.fromRound);
+            setText('ps-qualifier-sub', info.fromRound >= 2
+                ? 'These students crossed the glass bridge. The Tug of War briefing follows — no clock until the host starts.'
+                : 'These students are moving on to the glass bridge. The first pane opens after this board.');
+            setText('ps-qualifier-count', roster.length + ' player' + (roster.length === 1 ? '' : 's') + ' advancing');
+            const list = $('ps-qualifier-list');
+            if (list) {
+                list.innerHTML = roster.map(row => {
+                    const team = row.team === 'red' || row.team === 'blue'
+                        ? '<span class="ps-qualifier-team ps-qualifier-team-' + row.team + '">' + (row.team === 'red' ? 'RED' : 'BLUE') + '</span>'
+                        : '';
+                    return '<div class="ps-qualifier-row">' +
+                        '<span class="ps-qualifier-place">' + escapeText(row.place) + '</span>' +
+                        '<span class="ps-qualifier-name">' + escapeText(row.name) + team + '</span>' +
+                        '<span class="ps-qualifier-detail">' + escapeText(row.detail) + '</span>' +
+                        '</div>';
+                }).join('');
+            }
+        }
+        show('ps-qualifier', true);
+        setText('ps-qualifier-timer', 'Auto-continue in ' + Math.max(1, Math.ceil(info.remaining / 1000)) + 's');
+    }
+
+    PS.dismissQualifier = function () {
+        const info = qualifierInfo();
+        if (info) qualifierDismissed[info.key] = true;
+        if (info && info.fromRound === 1 && !demoMode) {
+            toast('The first glass pane opens when the 7-second qualifier window ends.');
+        }
+        qualifierKeyRendered = '';
+        renderQualifier();
+        renderTeacherProgress();
+    };
+
+    function resetQualifierState() {
+        qualifierKeyRendered = '';
+        qualifierShownAt = {};
+        qualifierDismissed = {};
+        progressSig = '';
+        show('ps-qualifier', false);
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Game rendering                                                     */
     /* ------------------------------------------------------------------ */
 
@@ -1096,16 +1369,24 @@
             setPanel('lobby');
             setLive(false);
             show('ps-code-chip', false);
+            show('ps-progress', false);
+            show('ps-qualifier', false);
             renderRejoin();
+            syncMusic();
             return;
         }
         if (room.status === 'waiting') {
             hideCeremony();
+            show('ps-progress', false);
+            show('ps-qualifier', false);
             renderWaiting();
+            syncMusic();
             return;
         }
         if (room.status === 'finished') {
             if (introPlaying) markIntroSeen(room.id);
+            show('ps-progress', false);
+            show('ps-qualifier', false);
             renderCeremony();
             return;
         }
@@ -1133,11 +1414,15 @@
         const host = isHost();
         const tug = isR3 ? tugState() : null;
         const briefing = !!(tug && tug.phase === 'briefing');
+        const qualifying = !!qualifierInfo();
         show('ps-host-end', host && !isR2 && !isR3);
-        show('ps-tug-start-btn', host && isR3 && briefing);
+        show('ps-tug-start-btn', host && isR3 && briefing && !qualifying);
         if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2, isR3);
         else renderSpectator(isR2, isR3);
+        renderTeacherProgress();
+        renderQualifier();
         checkMilestones();
+        syncMusic();
         requestAnimationFrame(() => startFrames());
     }
 
@@ -1217,6 +1502,53 @@
         if (opts) opts.classList.remove('ps-options-glass');
     }
 
+    /* One shared topic bank; each player gets their own sequence. Live rows
+       carry the server-generated glass_order so the phone and the jump RPC
+       always agree. Older rows (or the demo) fall back to the pure engine. */
+    function playerGlassSteps(p) {
+        if (!p) return [];
+        const seed = room ? room.seed : PSEngine.coerceSeed(0);
+        return PSEngine.glassStepsForPlayer(glassSteps, p.user_id, seed, p.glass_order);
+    }
+
+    function glassStepsForViewer() {
+        if (!glassSteps.length) return [];
+        const host = isHostView();
+        let who = null;
+        if (host) {
+            who = players.find(function (p) {
+                return p && p.is_playing !== false && p.glass_active === true && p.status === 'alive';
+            }) || null;
+        } else if (me && isPlayingPlayer(me)) {
+            who = me;
+        }
+        if (!who) {
+            return glassSteps.map(function (src, i) {
+                return {
+                    index: i,
+                    bank_index: i,
+                    prompt: src.prompt || '',
+                    left: src.left || '',
+                    right: src.right || '',
+                    correct_side: src.correct_side === 'right' ? 'right' : 'left',
+                    revealed: false,
+                    revealed_side: null,
+                    shattered_side: null
+                };
+            });
+        }
+        const steps = playerGlassSteps(who);
+        const done = Math.max(0, Number(who.glass_step) || 0);
+        for (let i = 0; i < Math.min(done, steps.length); i++) {
+            steps[i].revealed = true;
+            steps[i].revealed_side = steps[i].correct_side;
+        }
+        if (who.glass_shattered && done < steps.length && who.glass_side) {
+            steps[done].shattered_side = who.glass_side === 'right' ? 'right' : 'left';
+        }
+        return steps;
+    }
+
     function renderGlassTurn() {
         const steps = Math.max(1, Number(glassSteps.length) || PSEngine.ROUND2.STEP_COUNT);
         if (me.crossed_glass || me.status === 'advanced') {
@@ -1241,26 +1573,25 @@
             return;
         }
         const stepIndex = Math.max(0, Number(me.glass_step) || 0);
-        const step = glassSteps[stepIndex];
+        const mySteps = playerGlassSteps(me);
+        const step = mySteps[stepIndex];
         if (!step) {
             setText('ps-prompt', 'Waiting for the next pane…');
             const opts = $('ps-options');
             if (opts) opts.innerHTML = '';
             return;
         }
-        const key = 'r2:' + stepIndex + ':' + step.left + '|' + step.right + ':' + (step.revealed ? step.revealed_side : '');
+        const key = 'r2:' + stepIndex + ':' + step.left + '|' + step.right + ':' + String(me.glass_order ? me.glass_order.join(',') : '');
         if (key !== questionsKey) {
             questionsKey = key;
             setText('ps-prompt', (step.prompt ? step.prompt + '  ' : '') + 'Pick the tempered pane!');
             const opts = $('ps-options');
             if (opts) {
                 opts.classList.add('ps-options-glass');
-                const revealLeft = step.revealed_side === 'left';
-                const revealRight = step.revealed_side === 'right';
                 opts.innerHTML =
-                    '<button type="button" class="ps-opt ps-glass-opt' + (revealLeft ? ' ps-glass-safe' : '') + '" data-choice="0" onclick="PS.jump(\'left\')">' +
+                    '<button type="button" class="ps-opt ps-glass-opt" data-choice="0" onclick="PS.jump(\'left\')">' +
                     '<span class="ps-opt-key">←</span><span class="ps-opt-text">' + escapeText(step.left) + '</span></button>' +
-                    '<button type="button" class="ps-opt ps-glass-opt' + (revealRight ? ' ps-glass-safe' : '') + '" data-choice="1" onclick="PS.jump(\'right\')">' +
+                    '<button type="button" class="ps-opt ps-glass-opt" data-choice="1" onclick="PS.jump(\'right\')">' +
                     '<span class="ps-opt-key">1</span><span class="ps-opt-text">' + escapeText(step.right) + '</span></button>';
             }
         }
@@ -1376,6 +1707,7 @@
                 const info = (isR2 || isR3) ? null : phaseInfo();
                 const tug = isR3 ? tugState() : null;
                 const nowMs = serverNow();
+                const viewerGlass = isR2 ? glassStepsForViewer() : glassSteps;
                 const state = {
                     mode: waiting ? 'intro' : 'round',
                     status: room.status,
@@ -1383,7 +1715,7 @@
                     ceremonyElapsed: finished ? Math.max(0, Date.now() - (ceremonyStart || Date.now())) : 0,
                     ceremony: finished ? ceremonyRows() : null,
                     introElapsed: waiting ? introElapsedMs() : 0,
-                    role: (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
+                    role: (demoMode && demoRole === 'teacher') || (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
                     w: surface.w,
                     h: surface.h,
                     dpr: surface.dpr,
@@ -1396,8 +1728,8 @@
                     elapsed: room.round1_started_at ? Math.max(0, nowMs - Date.parse(room.round1_started_at)) : 0,
                     now: (root.performance && root.performance.now) ? root.performance.now() : Date.now(),
                     bang: Math.max(0, 1 - (Date.now() - lastBang) / 420),
-                    glassSteps: glassSteps,
-                    stepCount: glassSteps.length || PSEngine.ROUND2.STEP_COUNT,
+                    glassSteps: viewerGlass,
+                    stepCount: viewerGlass.length || glassSteps.length || PSEngine.ROUND2.STEP_COUNT,
                     myTeam: tugTeamOf(me),
                     tug: tug ? {
                         position: tug.position,
@@ -1440,6 +1772,16 @@
             setText('ps-hud-you', me && isPlayingPlayer(me)
                 ? (me.reached_finish ? '🏁 ' + finishDistance() + ' m' : 'You: ' + (Number(me.distance) || 0) + ' / ' + finishDistance() + ' m')
                 : 'Spectating');
+            const order = (typeof PSEngine !== 'undefined' && PSEngine.raceOrder)
+                ? PSEngine.raceOrder(players.filter(isPlayingPlayer), { finishDistance: finishDistance() })
+                : [];
+            const myPlace = me ? order.findIndex(p => String(p.user_id) === String(me.user_id)) : -1;
+            if (myPlace >= 0) {
+                setText('ps-hud-place', '🏅 ' + PSEngine.formatPlace(myPlace + 1, order.length));
+                show('ps-hud-place', true);
+            } else {
+                show('ps-hud-place', false);
+            }
             const labels = {
                 green: '🟢 GREEN — RUN!',
                 yellow: '🟡 YELLOW — HEADS TURNING',
@@ -1462,6 +1804,7 @@
                 delete prompt.dataset.red;
             }
         } else if (room.status === 'round2') {
+            show('ps-hud-place', false);
             setText('ps-hud-phase', '🧊 Glass Stepping Stones');
             const hudPhase = $('ps-hud-phase');
             if (hudPhase) hudPhase.className = 'ps-phase ps-phase-glass';
@@ -1478,6 +1821,7 @@
                 setText('ps-hud-timer', ends ? PSEngine.formatClock(ends - serverNow()) : '—');
             }
         } else if (room.status === 'round3') {
+            show('ps-hud-place', false);
             const tug = tugState();
             const nowMs = serverNow();
             const redRage = PSEngine.tugRageActive(tug, 'red', nowMs);
@@ -1508,6 +1852,8 @@
             const lead = tug.position === 0 ? 'Level' : (tug.position > 0 ? 'Blue +' + tug.position : 'Red +' + Math.abs(tug.position));
             setText('ps-hud-alive', 'Tug: ' + lead + (redRage || blueRage ? ' · RAGE' : ''));
         }
+        renderTeacherProgress();
+        renderQualifier();
     }
 
     function handlePhaseSound() {
@@ -1741,6 +2087,7 @@
                 }
             } else if (res.outcome === 'wrong') {
                 sfxShatter();
+                if (me) me.glass_shattered = true;
                 toast('💥 Normal glass! You fell — the correct pane is lit for the class.');
                 showGlassOutOverlay('💥 You fell', 'The pane shattered. The correct side is now lit for the classmates behind you.');
             } else if (res.outcome === 'timeout') {
@@ -1811,6 +2158,7 @@
             overlayAction = null;
             hideOverlay();
             markIntroSeen(room.id);
+            startBgm();
             render();
             retunePolling();
             poll(true);
@@ -1847,6 +2195,10 @@
         if (busy || !room || !isHost() || room.status !== 'round3') return;
         const state = tugState();
         if (state.phase !== 'briefing') return;
+        if (qualifierInfo()) {
+            toast('Read the advancing survivors first — the board continues in a moment.');
+            return;
+        }
         setError('');
         busy = true;
         const btn = $('ps-tug-start-btn');
@@ -2102,6 +2454,68 @@
         }).join('');
     }
 
+    function mistakeEntryText(entry) {
+        const e = entry || {};
+        const round = e.round ? 'R' + e.round : '';
+        if (e.kind === 'red') {
+            return round + ' · 🔴 ' + (e.note || 'Moved on red light')
+                + (e.penalty ? ' (' + e.penalty + ' m)' : '');
+        }
+        if (e.kind === 'glass_timeout') {
+            return round + ' · ⏱ Panes “' + (e.left || '?') + '” / “' + (e.right || '?') + '” — no jump'
+                + (e.answer ? ' · correct: ' + e.answer : '');
+        }
+        if (e.kind === 'glass') {
+            return round + ' · “' + (e.left || '?') + '” / “' + (e.right || '?') + '” — you chose '
+                + (e.choice || '?') + ' · correct: ' + (e.answer || '?');
+        }
+        if (e.kind === 'answer' || e.kind === 'tug') {
+            return round + ' · ' + (e.prompt || 'Question')
+                + ' — you chose “' + (e.choice || '?') + '” · answer “' + (e.answer || '?') + '”';
+        }
+        return round + ' · ' + (e.note || e.prompt || 'Mistake');
+    }
+
+    function renderMistakeReport() {
+        const host = isHostView();
+        const report = (typeof PSEngine !== 'undefined' && PSEngine.mistakeReport)
+            ? PSEngine.mistakeReport(players, {
+                meId: me ? me.user_id : '',
+                viewer: host ? 'teacher' : 'student'
+            })
+            : { viewer: host ? 'teacher' : 'student', rows: [], total: 0 };
+        const title = $('ps-mistake-title');
+        const sub = $('ps-mistake-sub');
+        const list = $('ps-mistake-list');
+        if (title) {
+            title.textContent = host ? '📕 Whole-class mistakes' : '📕 Your mistakes';
+        }
+        if (sub) {
+            sub.textContent = host
+                ? report.rows.length + ' student' + (report.rows.length === 1 ? '' : 's')
+                    + ' · ' + report.total + ' mistake' + (report.total === 1 ? '' : 's')
+                : 'Only your own answers are shown here.';
+        }
+        if (!list) return;
+        if (!report.rows.length) {
+            list.innerHTML = '<p class="ps-mistake-empty">' + (host
+                ? '✅ No mistakes logged — a clean class run!'
+                : '✅ No mistakes on your run — clean sweep!') + '</p>';
+            return;
+        }
+        list.innerHTML = report.rows.map(function (row) {
+            const items = row.mistakes.length
+                ? row.mistakes.map(function (entry) {
+                    return '<li class="ps-mistake-item">' + escapeText(mistakeEntryText(entry)) + '</li>';
+                }).join('')
+                : '<li class="ps-mistake-item ps-mistake-none">✅ No mistakes</li>';
+            return '<div class="ps-mistake-student">' +
+                '<div class="ps-mistake-name">' + escapeText(row.nickname || 'Player') + '</div>' +
+                '<ul class="ps-mistake-items">' + items + '</ul>' +
+                '</div>';
+        }).join('');
+    }
+
     function ceremonyNoteText() {
         if (demoMode) return 'Demo mode — these are the Paws the class would earn. Nothing is saved.';
         if (isGuest()) return 'Sign in with a school account to earn Paws.';
@@ -2151,9 +2565,11 @@
         if (summary) summary.innerHTML = ceremonySummaryHTML(localRows, count);
         const list = $('ps-ceremony-list');
         if (list) list.innerHTML = ceremonyRowsHTML(rows);
+        renderMistakeReport();
         setText('ps-ceremony-note', ceremonyNoteText());
 
         claimCeremonyPaws();
+        syncMusic();
         if (!rafId) startFrames();
     }
 
@@ -2412,6 +2828,7 @@
             }
             startPolling();
             poll(true);
+            startBgm();
         } else {
             setPanel('lobby');
             setLive(false);
@@ -2424,6 +2841,7 @@
         stopFrames();
         hideCeremony();
         setLive(false);
+        stopBgm();
         if (cueTimer) {
             clearTimeout(cueTimer);
             cueTimer = 0;
@@ -2479,6 +2897,7 @@
         introPlaying = false;
         clearResume();
         stopPolling();
+        stopBgm();
         setLive(false);
         setPanel('lobby');
         show('ps-code-chip', false);
@@ -2655,7 +3074,8 @@
             advanced_round2: false,
             tug_team: null,
             advanced_round3: false,
-            tug_attempts: 0
+            tug_attempts: 0,
+            answer_log: []
         };
     }
 
@@ -2777,6 +3197,7 @@
             finished_at: null
         };
         clockOffset = 0;
+        resetQualifierState();
         shownKeys = {};
         questionsKey = '';
         lastPhaseKey = '';
@@ -2814,6 +3235,7 @@
             p.advanced_round3 = false;
             p.tug_attempts = 0;
             p.eliminated_reason = null;
+            p.answer_log = [];
         });
         questionsKey = '';
         lastPhaseKey = '';
@@ -2850,6 +3272,7 @@
         room.phase_schedule = [];
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
+        resetQualifierState();
         shownKeys = {};
         questionsKey = '';
         me = myPlayer();
@@ -2882,6 +3305,7 @@
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
         room.questions = questions;
+        resetQualifierState();
         shownKeys = {};
         questionsKey = '';
         lastPhaseKey = '';
@@ -2943,6 +3367,10 @@
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
         room.questions = questions;
+        resetQualifierState();
+        /* Direct scene-picker jump: skip the qualifier beat so the teacher
+           can inspect the glass arena immediately. */
+        qualifierDismissed['qualifier:1:' + room.id + ':' + String(room.round2_started_at)] = true;
         shownKeys = {};
         shownKeys['intro2:' + room.id] = true;
         questionsKey = '';
@@ -2951,8 +3379,39 @@
         PS.hideOverlay();
     }
 
+    function demoSeedMistakes() {
+        const visitor = players.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+        const samples = [
+            { round: 1, kind: 'answer', prompt: 'Choose the correct meaning of “charity”.', choice: 'a place to sleep', answer: 'an organisation that helps people' },
+            { round: 1, kind: 'red', note: 'Moved on red light', penalty: -30 },
+            { round: 2, kind: 'glass', prompt: 'Pick the tempered pane!', left: 'borrow', right: 'lend', choice: 'left', answer: 'right' },
+            { round: 2, kind: 'glass_timeout', prompt: 'Pick the tempered pane!', left: 'quiet', right: 'quite', choice: null, answer: 'right' },
+            { round: 3, kind: 'tug', prompt: 'Choose the correct past tense of “go”.', choice: 'goed', answer: 'went' }
+        ];
+        const writes = players.filter(function (p) {
+            return p && p.is_playing !== false && p.user_id !== DEMO_VISITOR_ID;
+        }).slice(0, 6);
+        writes.forEach(function (p, i) {
+            if ((p.answer_log || []).length) return;
+            PSEngine.recordMistake(p, samples[i % samples.length]);
+        });
+        if (visitor && !(visitor.answer_log || []).length) {
+            PSEngine.recordMistake(visitor, samples[2]);
+            PSEngine.recordMistake(visitor, samples[4]);
+        }
+    }
+
     function demoJumpVictory() {
+        const savedLogs = {};
+        players.forEach(function (p) {
+            if (p && Array.isArray(p.answer_log)) savedLogs[p.user_id] = p.answer_log.slice();
+        });
         demoResetPlayers();
+        players.forEach(function (p) {
+            if (p && savedLogs[p.user_id] && savedLogs[p.user_id].length) {
+                p.answer_log = savedLogs[p.user_id];
+            }
+        });
         const now = Date.now();
         const playing = players.filter(isPlayingPlayer);
         const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
@@ -2987,9 +3446,11 @@
             room.round3_ends_at = null;
             room.tug_state = PSEngine.emptyTugState();
             room.finished_at = new Date(now).toISOString();
+            resetQualifierState();
             shownKeys = {};
             questionsKey = '';
             me = myPlayer();
+            demoSeedMistakes();
             PS.hideOverlay();
             return;
         }
@@ -3055,9 +3516,11 @@
         for (let i = 0; i < glassSteps.length; i++) PSEngine.revealGlassStep(glassSteps[i], 'correct');
         room.glass_steps = glassSteps;
         room.questions = questions;
+        resetQualifierState();
         shownKeys = {};
         questionsKey = '';
         me = myPlayer();
+        demoSeedMistakes();
         PS.hideOverlay();
     }
 
@@ -3068,6 +3531,7 @@
             return;
         }
         const now = Date.now();
+        resetQualifierState();
         const playing = players.filter(isPlayingPlayer);
         const picked = PSEngine.advanceRound1(playing, {
             limit: PSEngine.ROUND1.ADVANCE_LIMIT,
@@ -3112,7 +3576,9 @@
         questionsKey = '';
         me = myPlayer();
         PS.hideOverlay();
-        demoReleaseGlass(now);
+        /* Sequential advance deliberately does NOT release the first glass
+           jumper here: the qualifier board owns the next QUALIFIER_MS, then
+           demoTickRound2 releases the queue. */
     }
 
     function demoFinishRound1Victory(now) {
@@ -3143,6 +3609,7 @@
             room.finished_at = null;
             room.tug_state = PSEngine.emptyTugState();
             room.tug_questions = (questions.length ? questions : room.questions || []).slice();
+            resetQualifierState();
             questionsKey = '';
             return;
         }
@@ -3217,6 +3684,7 @@
         if (!room || room.status !== 'round3' || demoRoundCount < 3) return;
         const state = PSEngine.normalizeTugState(room.tug_state);
         if (state.phase !== 'briefing') return;
+        if (qualifierInfo()) return;
         const now = Date.now();
         demoPrepareTugSurvivors(now);
         room.tug_state = Object.assign(PSEngine.emptyTugState(), { phase: 'playing' });
@@ -3263,6 +3731,8 @@
             if (!p.tug_team) return;
             p.next_answer_at = now + 300 + demoHash01(p.user_id + ':tugjump') * 1500;
         });
+        resetQualifierState();
+        qualifierDismissed['qualifier:2:' + room.id] = true;
         shownKeys = {};
         questionsKey = '';
         me = myPlayer();
@@ -3312,6 +3782,13 @@
                 + ' — ' + (res.state.position === 0 ? 'Level' : (res.state.position > 0 ? 'Blue +' + res.state.position : 'Red +' + Math.abs(res.state.position))));
         } else {
             sfxWrong();
+            PSEngine.recordMistake(me, {
+                round: 3,
+                kind: 'tug',
+                prompt: q.prompt,
+                choice: (q.options || [])[Number(choice)] || '',
+                answer: (q.options || [])[Number(q.answer)] || ''
+            });
             const optsEl = $('ps-options');
             if (optsEl) {
                 optsEl.classList.add('ps-options-wrong');
@@ -3363,10 +3840,11 @@
     }
 
     function demoBotGlassJump(p, now) {
+        const steps = playerGlassSteps(p);
         const stepIndex = Math.max(0, Number(p.glass_step) || 0);
-        const step = glassSteps[stepIndex];
+        const step = steps[stepIndex];
         if (!step) { p.glass_active = false; return; }
-        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        const stepCount = Math.max(1, steps.length || PSEngine.ROUND2.STEP_COUNT);
         let side;
         if (step.revealed && step.revealed_side) {
             const wantCorrect = demoHash01(p.user_id + ':reveal:' + stepIndex) < 0.9;
@@ -3377,6 +3855,17 @@
             side = guessCorrect ? correctSide : (correctSide === 'left' ? 'right' : 'left');
         }
         const result = PSEngine.applyGlassJump(p, step, side, { stepCount: stepCount, at: now });
+        if (result.outcome === 'wrong') {
+            PSEngine.recordMistake(p, {
+                round: 2,
+                kind: 'glass',
+                prompt: step.prompt,
+                left: step.left,
+                right: step.right,
+                choice: side,
+                answer: step.correct_side
+            });
+        }
         if (result.outcome === 'correct' && !p.crossed_glass && p.status === 'alive') {
             // The live SQL keeps the same player on the bridge for the next
             // pane until they cross or fall; mirror that turn continuation.
@@ -3386,11 +3875,21 @@
     }
 
     function demoGlassTimeout(p, now) {
+        const steps = playerGlassSteps(p);
         const stepIndex = Math.max(0, Number(p.glass_step) || 0);
-        const step = glassSteps[stepIndex];
+        const step = steps[stepIndex];
         if (!step) { p.glass_active = false; return; }
-        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        const stepCount = Math.max(1, steps.length || PSEngine.ROUND2.STEP_COUNT);
         PSEngine.applyGlassJump(p, step, '', { stepCount: stepCount, timedOut: true, at: now });
+        PSEngine.recordMistake(p, {
+            round: 2,
+            kind: 'glass_timeout',
+            prompt: step.prompt,
+            left: step.left,
+            right: step.right,
+            choice: null,
+            answer: step.correct_side
+        });
         if (demoIsVisitor(p)) {
             sfxShatter();
             toast('⏱ Time up! No jump — you fell.');
@@ -3463,12 +3962,16 @@
     }
 
     function demoTickRound2(now) {
+        /* Sequential advance: the qualifier board owns the first
+           QUALIFIER_MS so no glass clock runs under it. */
+        if (qualifierInfo()) return;
         demoReleaseGlass(now);
         const playing = players.filter(isPlayingPlayer);
         playing.forEach(function (p) {
             if (!PSEngine.isAlive(p) || !p.glass_active) return;
+            const steps = playerGlassSteps(p);
             const stepIndex = Math.max(0, Number(p.glass_step) || 0);
-            const step = glassSteps[stepIndex];
+            const step = steps[stepIndex];
             if (!step) { p.glass_active = false; return; }
             if (PSEngine.glassWindowExpired(p.glass_started_at, now, PSEngine.ROUND2.WINDOW_MS)) {
                 demoGlassTimeout(p, now);
@@ -3522,6 +4025,12 @@
         lastBang = Date.now();
         const result = PSEngine.handleRound1Press(me, 'red');
         sfxRed();
+        PSEngine.recordMistake(me, {
+            round: 1,
+            kind: 'red',
+            note: result.action === 'eliminated' ? 'Eliminated on red light' : 'Moved on red light',
+            penalty: result.penalty || 0
+        });
         if (result.action === 'eliminated') {
             toast('🔴 Laser hit — you are out!');
             showEliminatedOverlay();
@@ -3558,6 +4067,13 @@
             if (me.reached_finish) showFinishOverlay();
         } else {
             PSEngine.applyGreenWrong(me);
+            PSEngine.recordMistake(me, {
+                round: 1,
+                kind: 'answer',
+                prompt: q.prompt,
+                choice: (q.options || [])[Number(choice)] || '',
+                answer: (q.options || [])[Number(q.answer)] || ''
+            });
             sfxWrong();
             const optsEl = $('ps-options');
             if (optsEl) {
@@ -3572,12 +4088,14 @@
 
     function demoGlassJump(side) {
         if (!room || room.status !== 'round2' || !me || !isPlayingPlayer(me)) return;
+        if (qualifierInfo()) return;
         if (!me.glass_active || me.status !== 'alive') return;
         if (side !== 'left' && side !== 'right') return;
         const stepIndex = Math.max(0, Number(me.glass_step) || 0);
-        const step = glassSteps[stepIndex];
+        const mySteps = playerGlassSteps(me);
+        const step = mySteps[stepIndex];
         if (!step) return;
-        const stepCount = Math.max(1, glassSteps.length || PSEngine.ROUND2.STEP_COUNT);
+        const stepCount = Math.max(1, mySteps.length || PSEngine.ROUND2.STEP_COUNT);
         const result = PSEngine.applyGlassJump(me, step, side, { stepCount: stepCount, at: Date.now() });
         if (result.outcome === 'correct') {
             sfxCorrect();
@@ -3591,10 +4109,19 @@
             }
         } else if (result.outcome === 'wrong') {
             sfxShatter();
+            me.glass_shattered = true;
+            PSEngine.recordMistake(me, {
+                round: 2, kind: 'glass', prompt: step.prompt,
+                left: step.left, right: step.right, choice: side, answer: step.correct_side
+            });
             toast('💥 Normal glass! You fell — the correct pane is lit for the class.');
             showGlassOutOverlay('💥 You fell', 'The pane shattered. The correct side is now lit for the classmates behind you.');
         } else if (result.outcome === 'timeout') {
             sfxShatter();
+            PSEngine.recordMistake(me, {
+                round: 2, kind: 'glass_timeout', prompt: step.prompt,
+                left: step.left, right: step.right, choice: null, answer: step.correct_side
+            });
             toast('⏱ Time up! No jump — you fell.');
             showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
         } else if (result.outcome !== 'ignored') {
@@ -3644,6 +4171,7 @@
         populateLobby();
         demoOpenView();
         demoStartLoop();
+        startBgm();
         if (o.scene) PS.demoJump(o.scene);
         else render();
         return true;
@@ -3709,6 +4237,7 @@
     document.addEventListener('keydown', handleKey);
     document.addEventListener('pointerdown', function (event) {
         if (typeof currentView === 'undefined' || currentView !== VIEW_ID) return;
+        PS.unlockAudio();
         if (!room || (room.status !== 'round1' && room.status !== 'round2')) return;
         handleTap(event);
     }, { passive: true });

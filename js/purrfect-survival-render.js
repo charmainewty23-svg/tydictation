@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.5.0';
+    R.VERSION = '2.5.1';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -3372,6 +3372,161 @@
         ctx.restore();
     }
 
+    /* Original stylised pseudo-3D cat-lick animation. All shapes are canvas
+       paths / gradients — no bitmaps, no external art. `t` is 0..1 across
+       the one-second lick: the tongue reaches down, swipes across the next
+       carved segment, then retracts. */
+    function drawCatLick(ctx, cx, cy, r, t) {
+        const p = Math.max(0, Math.min(1, Number(t) || 0));
+        const headY = cy - r * 1.12;
+        const hr = Math.max(16, r * 0.34);
+        const out = p < 0.30 ? smoothstep(p / 0.30)
+            : (p > 0.72 ? 1 - smoothstep((p - 0.72) / 0.28) : 1);
+        if (out <= 0.002) return;
+
+        ctx.save();
+
+        /* ---- cat head ---- */
+        const earY = headY - hr * 0.58;
+        [-1, 1].forEach(function (side) {
+            ctx.beginPath();
+            ctx.moveTo(cx + side * hr * 0.72, earY + hr * 0.18);
+            ctx.lineTo(cx + side * hr * 1.04, earY - hr * 0.58);
+            ctx.lineTo(cx + side * hr * 0.28, earY - hr * 0.34);
+            ctx.closePath();
+            ctx.fillStyle = '#f4a261';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx + side * hr * 0.74, earY + hr * 0.02);
+            ctx.lineTo(cx + side * hr * 0.94, earY - hr * 0.40);
+            ctx.lineTo(cx + side * hr * 0.45, earY - hr * 0.26);
+            ctx.closePath();
+            ctx.fillStyle = '#f9c0a0';
+            ctx.fill();
+        });
+        const head = ctx.createRadialGradient(cx - hr * 0.34, headY - hr * 0.40, hr * 0.10,
+            cx, headY, hr * 1.16);
+        head.addColorStop(0, '#fff8ee');
+        head.addColorStop(0.46, '#fbd7a8');
+        head.addColorStop(0.82, '#f2a45f');
+        head.addColorStop(1, '#c97a36');
+        ctx.beginPath();
+        ctx.arc(cx, headY, hr, 0, Math.PI * 2);
+        ctx.fillStyle = head;
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, hr * 0.06);
+        ctx.strokeStyle = 'rgba(120,62,18,.45)';
+        ctx.stroke();
+
+        /* happy closed eyes */
+        ctx.strokeStyle = '#4a2a10';
+        ctx.lineWidth = Math.max(1.6, hr * 0.09);
+        ctx.lineCap = 'round';
+        [-1, 1].forEach(function (side) {
+            ctx.beginPath();
+            ctx.arc(cx + side * hr * 0.34, headY - hr * 0.10, hr * 0.20, Math.PI * 0.18, Math.PI * 0.82);
+            ctx.stroke();
+        });
+        /* nose + mouth */
+        ctx.beginPath();
+        ctx.moveTo(cx - hr * 0.10, headY + hr * 0.16);
+        ctx.lineTo(cx + hr * 0.10, headY + hr * 0.16);
+        ctx.lineTo(cx, headY + hr * 0.30);
+        ctx.closePath();
+        ctx.fillStyle = '#e8798f';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(74,42,16,.7)';
+        ctx.lineWidth = Math.max(1, hr * 0.055);
+        ctx.beginPath();
+        ctx.moveTo(cx, headY + hr * 0.30);
+        ctx.quadraticCurveTo(cx - hr * 0.12, headY + hr * 0.48, cx - hr * 0.22, headY + hr * 0.42);
+        ctx.moveTo(cx, headY + hr * 0.30);
+        ctx.quadraticCurveTo(cx + hr * 0.12, headY + hr * 0.48, cx + hr * 0.22, headY + hr * 0.42);
+        ctx.stroke();
+        /* whiskers */
+        ctx.strokeStyle = 'rgba(90,52,18,.55)';
+        ctx.lineWidth = Math.max(1, hr * 0.045);
+        [-1, 1].forEach(function (side) {
+            for (let i = 0; i < 3; i++) {
+                const ay = headY + hr * (0.08 + i * 0.11);
+                ctx.beginPath();
+                ctx.moveTo(cx + side * hr * 0.28, ay);
+                ctx.lineTo(cx + side * hr * 1.18, ay - hr * (0.10 - i * 0.08));
+                ctx.stroke();
+            }
+        });
+
+        /* ---- tongue ---- */
+        const swipe = p < 0.34 ? -0.34
+            : (p >= 0.66 ? 0.34 : -0.34 + 0.68 * ((p - 0.34) / 0.32));
+        const baseX = cx;
+        const baseY = headY + hr * 0.52;
+        const targetX = cx + r * 0.40 * swipe;
+        const targetY = cy - r * 0.02;
+        const tipX = baseX + (targetX - baseX) * out;
+        const tipY = baseY + (targetY - baseY) * out;
+        const ctrlX = baseX + (tipX - baseX) * 0.32;
+        const ctrlY = baseY + (tipY - baseY) * 0.58;
+        const tongueW = Math.max(3, hr * 0.58 * (0.45 + out * 0.55));
+
+        const tongue = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
+        tongue.addColorStop(0, '#f472b6');
+        tongue.addColorStop(0.5, '#fb7185');
+        tongue.addColorStop(1, '#fda4af');
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = tongueW;
+        ctx.strokeStyle = tongue;
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+        ctx.stroke();
+        ctx.lineWidth = Math.max(1, tongueW * 0.30);
+        ctx.strokeStyle = 'rgba(255,255,255,.55)';
+        ctx.beginPath();
+        ctx.moveTo(baseX - tongueW * 0.16, baseY + tongueW * 0.2);
+        ctx.quadraticCurveTo(ctrlX - tongueW * 0.16, ctrlY, tipX - tongueW * 0.10, tipY - tongueW * 0.3);
+        ctx.stroke();
+        /* rounded tip */
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, tongueW * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#fda4af';
+        ctx.fill();
+
+        /* ---- sparkle + melt glints where the tongue touches the candy ---- */
+        const glint = Math.sin(Math.min(1, out) * Math.PI) * (p > 0.32 && p < 0.78 ? 1 : 0.55);
+        if (glint > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = 0.35 + glint * 0.55;
+            ctx.fillStyle = '#fffbe8';
+            for (let i = 0; i < 3; i++) {
+                const ang = -0.9 + i * 0.9;
+                const dx = tipX + Math.cos(ang) * r * 0.11;
+                const dy = tipY + Math.sin(ang) * r * 0.08;
+                ctx.beginPath();
+                ctx.arc(dx, dy, Math.max(1.2, r * 0.018), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            const sx = tipX + r * 0.13;
+            const sy = tipY - r * 0.10;
+            const sr = Math.max(3, r * 0.055) * (0.7 + glint * 0.6);
+            ctx.fillStyle = '#fff7c2';
+            ctx.beginPath();
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI / 4) * i;
+                const rad = i % 2 === 0 ? sr : sr * 0.32;
+                const x = sx + Math.cos(a) * rad;
+                const y = sy + Math.sin(a) * rad;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
     function drawRound4Player(ctx, L, s) {
         const r4 = s.round4 || {};
         const st = r4.me || {};
@@ -3380,37 +3535,35 @@
         const total = Math.max(1, Number(st.total) || Number(st.units && st.units.length) || 1);
         const progress = Math.max(0, Math.min(total, Number(st.progress) || 0));
         const cracks = Math.max(0, Number(st.cracks) || 0);
+        const lickAnim = (typeof st.lickAnim === 'number' && st.lickAnim >= 0 && st.lickAnim <= 1)
+            ? st.lickAnim : null;
+        /* While the cat's tongue is still swiping, the newest carved dash is
+           held back so the fill lands as the tongue passes it. */
+        const shownProgress = lickAnim != null && lickAnim < 0.55
+            ? Math.max(0, progress - 1) : progress;
         const cy = L.h * (L.landscape ? 0.52 : 0.46);
         const r = Math.max(60, Math.min(L.w * (L.landscape ? 0.20 : 0.36), L.h * 0.28, 210));
 
         ctx.save();
-        /* title + counter */
-        pill(ctx, L.w / 2, L.hud + 22, 'ROUND 4 · DALGONA CANDY CARVING', {
-            size: Math.max(9, Math.min(14, L.w * (L.landscape ? 0.014 : 0.031))),
-            bg: 'rgba(69,26,3,.82)', color: '#fde68a', border: 'rgba(251,191,36,.55)'
-        });
-        pill(ctx, L.w / 2, L.hud + 48, (st.pattern_label || '') + ' · ' + progress + ' / ' + total + ' carved', {
-            size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.013 : 0.029))),
-            bg: 'rgba(120,53,15,.66)', color: '#ffedd5', border: 'rgba(253,186,116,.4)'
-        });
-
-        /* soft spotlight on the tin */
+        /* Student phone view is deliberately text-light: the candy itself is
+           the HUD. No title pill, no counter pill, no long status caption. */
         glow(ctx, L.w / 2, cy, r * 2.1, '#fff3c4', 0.20);
-        paintDalgonaCandy(ctx, L.w / 2, cy, r, pattern, progress, total, cracks, status, {});
+        paintDalgonaCandy(ctx, L.w / 2, cy, r, pattern, shownProgress, total, cracks, status, {});
 
-        /* status captions */
-        const label = status === 'finished' ? '✅ Pattern complete — survivor!'
-            : (status === 'shattered' ? '💥 Candy split — spectating the class'
-                : (status === 'danger' ? '⚠️ One crack left — careful!'
-                    : '👅 One lick available · carve the next dash'));
-        const capY = cy + r * 1.46;
-        pill(ctx, L.w / 2, capY, label, {
-            size: Math.max(9, Math.min(14, L.w * (L.landscape ? 0.014 : 0.030))),
-            bg: status === 'shattered' ? 'rgba(69,10,10,.84)'
-                : (status === 'finished' ? 'rgba(6,78,59,.84)' : 'rgba(69,26,3,.78)'),
-            color: status === 'shattered' ? '#fecaca' : (status === 'finished' ? '#a7f3d0' : '#fde68a'),
-            border: status === 'shattered' ? 'rgba(248,113,113,.6)' : 'rgba(251,191,36,.5)'
-        });
+        if (lickAnim != null && status !== 'finished' && status !== 'shattered') {
+            drawCatLick(ctx, L.w / 2, cy, r, lickAnim);
+        }
+
+        /* At most one very short visual tag for the end states. */
+        if (status === 'finished' || status === 'shattered') {
+            const tag = status === 'finished' ? '✅' : '💥';
+            pill(ctx, L.w / 2, cy + r * 1.34, tag, {
+                size: Math.max(18, Math.min(30, L.w * (L.landscape ? 0.03 : 0.07))),
+                bg: status === 'finished' ? 'rgba(6,78,59,.84)' : 'rgba(69,10,10,.84)',
+                color: '#fff7ed',
+                border: status === 'finished' ? 'rgba(52,211,153,.65)' : 'rgba(248,113,113,.65)'
+            });
+        }
         if (status === 'shattered') {
             ctx.save();
             ctx.globalAlpha = 0.35;
@@ -3502,6 +3655,8 @@
         });
     }
 
+    R.drawCatLick = drawCatLick;
+
     R.drawRound4 = function (ctx, state) {
         if (!ctx) return;
         const s = state || {};
@@ -3524,11 +3679,13 @@
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, L.w, L.h);
 
-        ctx.save();
-        pill(ctx, 14, L.hud + 16, 'Dalgona Candy Carving', {
-            size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
-        });
-        ctx.restore();
+        if (host) {
+            ctx.save();
+            pill(ctx, 14, L.hud + 16, 'Dalgona Candy Carving', {
+                size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
+            });
+            ctx.restore();
+        }
     };
 
     /* ================================================================== */

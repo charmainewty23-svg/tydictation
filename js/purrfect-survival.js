@@ -57,6 +57,8 @@
     let overlayAction = null;
     let shownKeys = {};
     let questionsKey = '';
+    let lickAnimStart = 0;
+    let lickPending = false;
     let lastAlive = 0;
     let audioCtx = null;
     let soundOn = true;
@@ -315,6 +317,47 @@
         return (typeof PSEngine.teacherRound4Board === 'function')
             ? PSEngine.teacherRound4Board(players, {})
             : [];
+    }
+
+    /* Visual cat-lick window on the Hint button. The lick result itself is
+       applied immediately (demo) or by the server (live); the renderer masks
+       the newest carved dash until the tongue swipes past it. */
+    function reducedMotionPref() {
+        try {
+            const mq = root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)');
+            return !!(mq && mq.matches);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function lickAnimProgress() {
+        if (typeof PSEngine === 'undefined' || !PSEngine.lickAnimProgress) return null;
+        return PSEngine.lickAnimProgress(lickAnimStart, Date.now(), PSEngine.ROUND4.LICK_ANIM_MS);
+    }
+
+    function lickAnimActive() {
+        return lickAnimProgress() != null;
+    }
+
+    function beginLickAnim() {
+        if (reducedMotionPref()) {
+            lickAnimStart = 0;
+            return;
+        }
+        lickAnimStart = Date.now();
+        sfxLick();
+    }
+
+    function setLickButtonPending(pending) {
+        const btn = $('ps-lick-btn');
+        if (!btn) return;
+        if (pending) {
+            btn.disabled = true;
+            btn.classList.add('hidden');
+        } else {
+            btn.disabled = false;
+        }
     }
 
     function dalgonaQualifierActive() {
@@ -582,6 +625,12 @@
         tone(150, 0.12, 'square', 0.10);
         tone(90, 0.18, 'sawtooth', 0.09, 0.03);
         tone(1200, 0.05, 'square', 0.035, 0.01);
+    }
+
+    /* Soft, short "lick" blip for the Round 4 hint animation. */
+    function sfxLick() {
+        tone(480, 0.09, 'sine', 0.035);
+        tone(260, 0.08, 'triangle', 0.028, 0.05);
     }
 
     function sfxWin() {
@@ -1540,10 +1589,17 @@
             ? 'ROUND 4 · Dalgona Candy Carving'
             : (isR3 ? 'ROUND 3 · Tug of War'
                 : (isR2 ? 'ROUND 2 · Glass Stepping Stones' : 'ROUND 1 · 1-2-3 Meow!')));
-        setText('ps-hud-rule', isR4
-            ? PSEngine.RULE_TEXT.round4
-            : (isR3 ? PSEngine.RULE_TEXT.round3
-                : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1)));
+        /* Student phones get a deliberately text-light Round 4 card: the
+           long rule paragraph is hidden there, and restored for every other
+           round and for the teacher / projector view. */
+        const studentR4 = isR4 && !isHostView();
+        const ruleEl = $('ps-hud-rule');
+        setText('ps-hud-rule', studentR4
+            ? ''
+            : (isR4 ? PSEngine.RULE_TEXT.round4
+                : (isR3 ? PSEngine.RULE_TEXT.round3
+                    : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1))));
+        if (ruleEl) ruleEl.classList.toggle('hidden', studentR4);
         const alive = alivePlayers().length;
         const total = totalPlayers();
         setText('ps-hud-alive', 'Alive: ' + alive + ' / ' + total);
@@ -1578,11 +1634,12 @@
         }
         show('ps-question', true);
         show('ps-lick-btn', false);
+        setText('ps-carved', '');
         setText('ps-prompt', 'Live class view');
         const opts = $('ps-options');
         if (opts) opts.innerHTML = '';
         if (isR4) {
-            toast('Watching the class carve their dalgona candy.');
+            toast('👀 Watching Round 4.');
         } else if (isR3) {
             const t = tugState();
             toast(t.phase === 'briefing'
@@ -1601,14 +1658,16 @@
         box.classList.remove('hidden');
         if (me.status === 'eliminated' || me.ghost) {
             show('ps-lick-btn', false);
-            setText('ps-prompt', '👻 You are out — but you can watch your classmates.');
+            setText('ps-prompt', isR4 ? '💥' : '👻 You are out — but you can watch your classmates.');
+            setText('ps-carved', '');
             const opts = $('ps-options');
             if (opts) opts.innerHTML = '';
-            toast('Eliminated. Stay and watch the rest of the class.');
+            if (!isR4) toast('Eliminated. Stay and watch the rest of the class.');
             return;
         }
         if (isR4) renderDalgonaTurn();
         else {
+            setText('ps-carved', '');
             show('ps-lick-btn', false);
             if (isR3) renderTugTurn();
             else if (isR2) renderGlassTurn();
@@ -1821,44 +1880,51 @@
         }
         if (box) box.classList.remove('ps-danger-frame');
         if (!st.pattern || !st.units.length) {
-            setText('ps-prompt', '🍬 Waiting for your dalgona candy…');
+            setText('ps-prompt', '🍬');
+            setText('ps-carved', '');
             if (opts) opts.innerHTML = '';
             show('ps-lick-btn', false);
             return;
         }
         const total = st.units.length;
         const prog = Math.min(st.progress, total);
-        const label = PSEngine.dalgonaPatternLabel(st.pattern);
-        const icon = st.pattern === 'fishbone' ? '🐟' : (st.pattern === 'crown' ? '👑' : '🐾');
+        /* Hold back the newest dash while the cat's tongue is still swiping. */
+        const anim = lickAnimProgress();
+        const carvedProg = anim != null && anim < 0.55 ? Math.max(0, prog - 1) : prog;
 
         if (st.status === 'finished') {
-            setText('ps-prompt', '✅ ' + label + ' complete! Your candy is carved — stay for the ceremony.');
+            setText('ps-prompt', '✅');
+            setText('ps-carved', '');
             if (opts) opts.innerHTML = '';
             show('ps-lick-btn', false);
-            toast('🎉 Dalgona carved! You survived Round 4.');
             return;
         }
         if (st.status === 'shattered') {
-            setText('ps-prompt', '💥 Your candy split in half. You are spectating Round 4.');
+            setText('ps-prompt', '💥');
+            setText('ps-carved', '');
             if (opts) opts.innerHTML = '';
             show('ps-lick-btn', false);
             return;
         }
         if (dalgonaQualifierActive()) {
-            setText('ps-prompt', '🏁 Advancing to Dalgona Candy Carving — get ready…');
+            setText('ps-prompt', '🏁');
+            setText('ps-carved', '');
             if (opts) opts.innerHTML = '';
             show('ps-lick-btn', false);
             return;
         }
         if (box && st.status === 'danger') box.classList.add('ps-danger-frame');
-        const carved = st.units.slice(0, prog).join(st.pattern === 'fishbone' ? '' : ' ');
-        const carvedLine = prog > 0 ? ' · ✅ ' + carved : '';
+        /* Minimal question only: Chinese hint (fishbone) or the source
+           sentences (paw / crown). The carved answer lives on its own compact
+           line with no extra wording. */
         const prompt = st.pattern === 'fishbone'
-            ? (icon + ' ' + label + ' · spell the English for 「' + (st.prompt || '') + '」 · ' + prog + '/' + total + carvedLine)
-            : (icon + ' ' + label + ' · ' + (st.prompt || 'Build the answer') + ' · ' + prog + '/' + total + carvedLine);
+            ? (st.prompt ? '「' + st.prompt + '」' : '')
+            : (st.prompt || '');
         setText('ps-prompt', prompt);
+        const carved = st.units.slice(0, carvedProg).join(st.pattern === 'fishbone' ? '' : ' ');
+        setText('ps-carved', carved);
         if (lick) {
-            const canLick = !st.lickUsed && prog < total;
+            const canLick = !st.lickUsed && prog < total && !lickPending && !lickAnimActive();
             show('ps-lick-btn', canLick);
             lick.disabled = !canLick;
         }
@@ -1936,21 +2002,17 @@
             }
             if (res.correct) {
                 sfxScratch();
-                if (res.finished) {
-                    sfxWin();
-                    toast('✅ Pattern complete — you survived Round 4!');
-                } else {
-                    toast('🔪 Segment carved · ' + (Number(res.progress) || 0) + ' / ' + (Number(res.total) || 0));
-                }
+                if (res.finished) sfxWin();
+                toast('');
             } else if (res.eliminated) {
                 sfxShatter();
                 dalgonaShake();
-                toast('💥 咔嚓！The candy split — you are spectating.');
-                showGlassOutOverlay('💥 Candy split', 'Two mistakes shattered your dalgona. You can watch the class finish carving.');
+                toast('');
+                showGlassOutOverlay('💥 Candy split', 'You can watch the class.');
             } else {
                 sfxCrack();
                 dalgonaShake();
-                toast('⚡ 咔嚓！A black crack — one more mistake and the candy splits.');
+                toast('咔嚓！');
             }
             questionsKey = '';
             renderPlayerQuestion(false, false, true);
@@ -1961,27 +2023,42 @@
 
     PS.dalgonaLick = async function () {
         if (demoMode) { demoDalgonaLick(); return; }
-        if (busy || !room || room.status !== 'round4' || !me || !isPlayingPlayer(me)) return;
+        if (busy || lickPending || lickAnimActive() || !room || room.status !== 'round4' || !me || !isPlayingPlayer(me)) return;
         if (me.ghost || me.status === 'eliminated' || dalgonaQualifierActive()) return;
         const st = myDalgonaState();
         if (st.lickUsed || st.status === 'finished' || st.status === 'shattered') return;
+        lickPending = true;
         busy = true;
+        setLickButtonPending(true);
+        beginLickAnim();
+        let applied = false;
         try {
             const { data, error } = await sb.rpc('lick_purrfect_survival_dalgona', { p_room_id: room.id });
-            if (error) return setError(errorMessage(error));
+            if (error) {
+                lickAnimStart = 0;
+                return setError(errorMessage(error));
+            }
             const res = Array.isArray(data) ? data[0] : data;
-            if (!res || res.applied === false || res.ok === false) return;
+            if (!res || res.applied === false || res.ok === false) {
+                lickAnimStart = 0;
+                return;
+            }
             if (res.player) {
                 me = res.player;
                 const idx = players.findIndex(p => String(p.user_id) === String(me.user_id));
                 if (idx >= 0) players[idx] = me;
             }
-            sfxScratch();
-            toast('👅 Lick! The next segment is filled' + (res.finished ? ' — pattern complete!' : '.'));
+            applied = true;
+            /* No toast: the tongue and the newly filled dash are the feedback.
+               The animation keeps playing for its full window. */
+            toast('');
             questionsKey = '';
-            renderPlayerQuestion(false, false, true);
         } finally {
             busy = false;
+            lickPending = false;
+            if (!applied) lickAnimStart = 0;
+            setLickButtonPending(false);
+            if (room && room.status === 'round4') renderPlayerQuestion(false, false, true);
         }
     };
 
@@ -2094,6 +2171,7 @@
                             target: st.target,
                             cracks: st.cracks,
                             lickUsed: st.lickUsed,
+                            lickAnim: lickAnimProgress(),
                             status: st.status
                         } : null,
                         board: dalgonaBoard()
@@ -3421,8 +3499,15 @@
         return {
             room: room ? JSON.parse(JSON.stringify(room)) : null,
             players: players.map(p => Object.assign({}, p)),
-            me: me ? Object.assign({}, me) : null
+            me: me ? Object.assign({}, me) : null,
+            lickAnim: lickAnimProgress()
         };
+    };
+
+    /* Small test / renderer hook: true while the student's cat-lick window
+       is still playing, false before the tap and after LICK_ANIM_MS. */
+    PS.lickAnimActive = function () {
+        return lickAnimActive();
     };
 
     /* ------------------------------------------------------------------ */
@@ -4486,12 +4571,8 @@
         me.dalgona_attempts = (Number(me.dalgona_attempts) || 0) + 1;
         if (res.correct) {
             sfxScratch();
-            if (res.finished) {
-                sfxWin();
-                toast('✅ Pattern complete — you survived Round 4!');
-            } else {
-                toast('🔪 Segment carved · ' + res.state.progress + ' / ' + res.state.units.length);
-            }
+            if (res.finished) sfxWin();
+            toast('');
         } else {
             PSEngine.recordMistake(me, {
                 round: 4,
@@ -4505,13 +4586,13 @@
             if (res.eliminated) {
                 sfxShatter();
                 dalgonaShake();
-                toast('💥 咔嚓！The candy split — you are spectating.');
-                showGlassOutOverlay('💥 Candy split', 'Two mistakes shattered your dalgona. You can watch the class finish carving.');
+                toast('');
+                showGlassOutOverlay('💥 Candy split', 'You can watch the class.');
             } else {
                 sfxCrack();
                 dalgonaShake();
                 if (root.navigator && root.navigator.vibrate) { try { root.navigator.vibrate(90); } catch (e) { /* ignore */ } }
-                toast('⚡ 咔嚓！A black crack — one more mistake and the candy splits.');
+                toast('咔嚓！');
             }
         }
         questionsKey = '';
@@ -4520,15 +4601,25 @@
 
     function demoDalgonaLick() {
         if (!room || room.status !== 'round4' || !me || !isPlayingPlayer(me)) return;
+        if (lickPending || lickAnimActive()) return;
         if (qualifierInfo() || me.ghost || me.status === 'eliminated') return;
         const st = PSEngine.normalizeDalgonaState(me);
         if (st.lickUsed || st.status === 'finished' || st.status === 'shattered') return;
+        lickPending = true;
+        setLickButtonPending(true);
+        beginLickAnim();
         const res = PSEngine.dalgonaLick(st, { now: Date.now() });
-        if (!res.applied) return;
+        if (!res.applied) {
+            lickAnimStart = 0;
+            lickPending = false;
+            setLickButtonPending(false);
+            return;
+        }
         demoApplyDalgonaState(me, res);
-        sfxScratch();
-        toast('👅 Lick! The next segment is filled' + (res.finished ? ' — pattern complete!' : '.'));
+        toast('');
         questionsKey = '';
+        lickPending = false;
+        setLickButtonPending(false);
         renderPlayerQuestion(false, false, true);
     }
 

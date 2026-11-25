@@ -206,6 +206,16 @@ function loadMainWithDom(options) {
     add('ps-cine', 'div');
     add('ps-stage', 'div');
     add('ps-question', 'div');
+    add('ps-prompt', 'p');
+    add('ps-carved', 'p');
+    add('ps-options', 'div');
+    add('ps-feedback', 'p');
+    add('ps-lick-btn', 'button').classList.add('hidden');
+    add('ps-hud-rule', 'p');
+    add('ps-hud-round', 'span');
+    add('ps-hud-you', 'span');
+    add('ps-hud-phase', 'span');
+    add('ps-hud-timer', 'span');
     add('ps-round-overlay', 'div');
     add('ps-room-actions', 'div');
     add('ps-host-note', 'div');
@@ -2918,7 +2928,7 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
     assert.ok(render.indexOf('R.drawRound4(ctx, s)') !== -1, 'drawScene dispatches round 4');
     assert.equal(/\.drawImage\s*\(/.test(render), false, 'no drawImage');
     const R = loadRenderer();
-    assert.equal(R.VERSION, '2.5.0');
+    assert.equal(R.VERSION, '2.5.1');
     assert.equal(typeof R.drawRound4, 'function');
     const ctx = mockContext({ width: 390, height: 844 });
     R.drawRound4(ctx, {
@@ -3026,4 +3036,98 @@ test('demo Round 4 builds a live carving state with mixed patterns, lick and cra
     assert.equal(me.dalgona_cracks, 2, 'second wrong carve splits the candy');
     assert.equal(me.status, 'eliminated');
     assert.equal(me.eliminated_reason, 'dalgona');
+});
+
+test('lickAnimProgress is null outside the window and 0..1 inside it', () => {
+    assert.equal(PS.ROUND4.LICK_ANIM_MS, 1000);
+    assert.equal(PS.lickAnimProgress(0, 500, 1000), null, 'no start time');
+    assert.equal(PS.lickAnimProgress(1000, 999, 1000), null, 'before the tap');
+    assert.equal(PS.lickAnimProgress(1000, 1000, 1000), 0, 'first frame');
+    assert.equal(PS.lickAnimProgress(1000, 1500, 1000), 0.5, 'half way');
+    assert.equal(PS.lickAnimProgress(1000, 1999, 1000), 0.999, 'just before the end');
+    assert.equal(PS.lickAnimProgress(1000, 2000, 1000), 1, 'last frame is inclusive');
+    assert.equal(PS.lickAnimProgress(1000, 2001, 1000), null, 'after the window');
+    assert.equal(PS.lickAnimProgress(1000, 1500, 0), null, 'a zero duration has no window');
+});
+
+test('demo student Hint starts the cat lick, fills exactly one unit once, and disables the button', async () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round4' });
+    let state = dom.PS.state();
+    const visitor = state.players.find(p => p.user_id === 'demo-you');
+    assert.ok(visitor && visitor.dalgona_pattern && visitor.dalgona_units.length, 'the visitor is carving');
+    const before = visitor.dalgona_progress;
+    assert.equal(dom.PS.lickAnimActive(), false, 'no animation before the tap');
+    const btn = dom.el('ps-lick-btn');
+    assert.ok(!btn.classList.contains('hidden'), 'the Hint button is offered');
+
+    dom.PS.dalgonaLick();
+    assert.equal(dom.PS.lickAnimActive(), true, 'the cat-lick window opens on tap');
+    const anim = dom.PS.state().lickAnim;
+    assert.ok(typeof anim === 'number' && anim >= 0 && anim <= 1, 'state exposes the animation progress');
+    assert.ok(btn.classList.contains('hidden') || btn.disabled, 'the Hint button is hidden or disabled immediately');
+
+    await new Promise(resolve => setTimeout(resolve, 40));
+    state = dom.PS.state();
+    const afterLick = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(afterLick.dalgona_progress, before + 1, 'one lick fills one unit');
+    assert.equal(afterLick.dalgona_lick_used, true, 'the single lick is consumed');
+    assert.equal(afterLick.dalgona_cracks, 0, 'a lick never cracks the candy');
+
+    dom.PS.dalgonaLick();
+    state = dom.PS.state();
+    const second = state.players.find(p => p.user_id === 'demo-you');
+    assert.equal(second.dalgona_progress, before + 1, 'a second tap does nothing');
+    assert.equal(second.dalgona_lick_used, true);
+});
+
+test('drawCatLick paints original canvas art at t = 0, 0.5 and 1 without bitmaps', () => {
+    const R = loadRenderer();
+    assert.equal(typeof R.drawCatLick, 'function', 'the renderer exports the cat lick');
+    const ctx = mockContext({ width: 390, height: 844 });
+    [0, 0.5, 1].forEach(t => {
+        assert.doesNotThrow(() => R.drawCatLick(ctx, 195, 500, 120, t), 'drawCatLick t=' + t);
+    });
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const start = src.indexOf('function drawCatLick');
+    const end = src.indexOf('function drawRound4Player');
+    assert.ok(start !== -1 && end > start, 'cat lick is its own function');
+    const body = src.slice(start, end);
+    assert.equal(/drawImage/.test(body), false, 'the cat lick never blits bitmaps');
+    assert.ok(body.indexOf('createRadialGradient') !== -1, 'the cat head uses radial-gradient shading');
+    assert.ok(body.indexOf('createLinearGradient') !== -1, 'the tongue uses a gradient');
+});
+
+test('Round 4 student phone view is decluttered while the host grid keeps its labels', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round4' });
+    const prompt = String(dom.el('ps-prompt').textContent || '');
+    assert.ok(prompt.length > 0, 'the student still sees the question');
+    const lower = prompt.toLowerCase();
+    ['spell the english', 'carved', 'dalgona candy carving'].forEach(token => {
+        assert.equal(lower.indexOf(token), -1, 'the prompt has no "' + token + '"');
+    });
+    assert.equal(/\d+\s*\/\s*\d+/.test(prompt), false, 'no x / y progress counter in the prompt');
+
+    const rule = dom.el('ps-hud-rule');
+    assert.ok(rule.textContent === '' || rule.classList.contains('hidden'), 'the long Round 4 rule is hidden for students');
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    const player = src.slice(src.indexOf('function drawRound4Player'), src.indexOf('function drawRound4Host'));
+    assert.equal(player.indexOf('One lick available'), -1, 'the long lick caption is gone');
+    assert.equal(player.indexOf('DALGONA CANDY CARVING'), -1, 'the big student title pill is gone');
+    assert.ok(src.indexOf("'ROUND 4 · ' + n + ' CARVERS · LIVE CLASS GRID'") !== -1,
+        'the teacher grid title is unchanged');
+    assert.ok(src.indexOf("'✅ Finished'") !== -1 && src.indexOf("'💥 Shattered'") !== -1,
+        'the teacher grid still labels every student');
+
+    dom.PS.demoJump('round1');
+    const r1Rule = dom.el('ps-hud-rule');
+    assert.ok(r1Rule.textContent.length > 0, 'round 1 keeps its rule');
+    assert.equal(r1Rule.classList.contains('hidden'), false, 'round 1 has no hidden rule');
+
+    dom.PS.startDemo({ role: 'teacher', scene: 'round4' });
+    const hostRule = dom.el('ps-hud-rule');
+    assert.ok(hostRule.textContent.length > 0, 'the teacher / projector keeps the Round 4 rule');
+    assert.equal(hostRule.classList.contains('hidden'), false);
 });

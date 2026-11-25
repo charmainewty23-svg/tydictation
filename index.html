@@ -4819,6 +4819,17 @@
             line-height: 1.28;
             color: #172554;
         }
+        .ps-carved {
+            margin: -2px 0 7px;
+            text-align: center;
+            font-size: clamp(15px, 4vw, 20px);
+            font-weight: 900;
+            letter-spacing: .04em;
+            line-height: 1.2;
+            color: #b45309;
+            overflow-wrap: anywhere;
+        }
+        .ps-carved:empty { display: none; }
         .ps-options {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -6495,6 +6506,7 @@
 
                             <div id="ps-question" class="ps-question">
                                 <p id="ps-prompt" class="ps-prompt"></p>
+                                <p id="ps-carved" class="ps-carved"></p>
                                 <div id="ps-options" class="ps-options"></div>
                                 <button id="ps-lick-btn" type="button" class="ps-lick hidden" onclick="PS.dalgonaLick()">[ 👅 舔一口椪糖 (Hint) ]</button>
                                 <p id="ps-feedback" class="ps-feedback"></p>

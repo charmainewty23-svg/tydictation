@@ -73,7 +73,25 @@
         CRACKS_TO_BREAK: 2,
         LICKS: 1,
         QUALIFIER_MS: 7000,
-        PATTERNS: ['fishbone', 'paw', 'crown']
+        PATTERNS: ['fishbone', 'paw', 'crown'],
+        /* Student cat-lick animation on the Hint button. Purely visual; the
+           lick result is applied immediately and the renderer masks the new
+           segment until the tongue has swiped past it. */
+        LICK_ANIM_MS: 1000
+    };
+
+    /* Pure helper for the visual cat-lick window. Returns null outside the
+       window, otherwise a 0..1 progress value. The window is inclusive at
+       both ends so a renderer never sees a gap between clear frames. */
+    PS.lickAnimProgress = function (startMs, nowMs, durationMs) {
+        const start = Number(startMs);
+        const now = Number(nowMs);
+        const duration = Number(durationMs);
+        if (!isFinite(start) || !isFinite(now) || !isFinite(duration)) return null;
+        if (start <= 0 || duration <= 0) return null;
+        const p = (now - start) / duration;
+        if (p < 0 || p > 1) return null;
+        return p;
     };
 
     /* Host settings are extensible by design. Rounds 1–4 are implemented;

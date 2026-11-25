@@ -282,7 +282,8 @@ test('the old gap hint incremental file is gone', () => {
     assert.equal(fs.existsSync(path.join(ROOT, 'supabase/quizzykitty_gap_hint.sql')), false);
 });
 
-test('service worker cache stays on v109', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v109';/);
-    assert.doesNotMatch(sw, /learnity-pwa-v110|learnity-pwa-v111/);
+test('service worker cache stays on v112 from main', () => {
+    // This PR does not change precached assets, so it keeps main's cache name.
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v112';/);
+    assert.doesNotMatch(sw, /learnity-pwa-v109|learnity-pwa-v110|learnity-pwa-v111/);
 });

@@ -142,7 +142,7 @@
 </div>
 
 <div id="demo-stage">
-    <iframe id="demo-app" src="/index.html?psdemo=1" title="Purr-fect Survival demo"></iframe>
+    <iframe id="demo-app" src="/index.html?psdemo=1" allow="autoplay; fullscreen" title="Purr-fect Survival demo"></iframe>
     <div id="demo-note">Round 1: 1-2-3 Meow! · Round 2: Glass Stepping Stones · Round 3: Tug of War. Public demo · no login · no saved scores · about 25 cats</div>
 </div>
 
@@ -248,6 +248,7 @@
             setTimeout(function () { setup(token); }, 220);
             return;
         }
+        try { if (typeof w.PS.unlockAudio === 'function') w.PS.unlockAudio(); } catch (e) { /* ignore */ }
         applyFrame();
         focusFrame();
     }
@@ -285,7 +286,13 @@
     function callFrame(fn) {
         try {
             var w = frame.contentWindow;
-            if (w && w.PS && typeof fn === 'function') fn(w.PS);
+            if (w && w.PS) {
+                // The demo bar click is a real user gesture: use it to resume
+                // the iframe AudioContext so the Survival SFX / BGM are not
+                // silently suspended by the autoplay policy.
+                if (typeof w.PS.unlockAudio === 'function') w.PS.unlockAudio();
+                if (typeof fn === 'function') fn(w.PS);
+            }
         } catch (e) { /* ignore */ }
     }
 

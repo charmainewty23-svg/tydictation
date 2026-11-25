@@ -42,10 +42,16 @@ create policy "guest reads new vocab" on public.new_vocab_words
 grant select on public.new_vocab_words to anon;
 
 -- Allow Unassigned hosts to freeze every form into one battle snapshot.
+alter table public.battle_rooms
+    add column if not exists vocab_scope text default 'all';
+
+drop function if exists public.set_battle_vocab(uuid, text, boolean, text);
+drop function if exists public.set_battle_vocab(uuid, text, boolean);
 create or replace function public.set_battle_vocab(
     p_room_id    uuid,
     p_form       text,
-    p_today_only boolean default false
+    p_today_only boolean default false,
+    p_scope      text default null
 ) returns setof public.battle_rooms
 language plpgsql
 security definer
@@ -55,6 +61,7 @@ declare
     v_room  public.battle_rooms;
     v_form  text := nullif(btrim(coalesce(p_form, '')), '');
     v_all   boolean;
+    v_scope text;
     v_words jsonb;
     v_count int;
 begin
@@ -67,6 +74,11 @@ begin
     v_all := (v_form is not null and upper(v_form) = 'ALL');
     if v_form is null or (not v_all and v_form !~ '^[A-Za-z0-9][A-Za-z0-9 ._-]{0,11}$') then
         raise exception 'invalid form';
+    end if;
+
+    v_scope := lower(btrim(coalesce(p_scope, '')));
+    if v_scope not in ('all', 'today', 'yesterday') then
+        v_scope := case when coalesce(p_today_only, false) then 'today' else 'all' end;
     end if;
 
     select * into v_room from public.battle_rooms where id = p_room_id;
@@ -87,14 +99,17 @@ begin
      where (v_all or w.form = v_form)
        and btrim(coalesce(w.en, '')) <> ''
        and (
-            not coalesce(p_today_only, false)
+            v_scope = 'all'
             or (w.created_at at time zone 'Asia/Hong_Kong')::date
-               = (now() at time zone 'Asia/Hong_Kong')::date
+               = ((now() at time zone 'Asia/Hong_Kong')::date
+                  - case when v_scope = 'yesterday' then 1 else 0 end)
        );
 
     if v_count = 0 then
-        if coalesce(p_today_only, false) then
+        if v_scope = 'today' then
             raise exception 'NO_VOCAB_TODAY';
+        elsif v_scope = 'yesterday' then
+            raise exception 'NO_VOCAB_YESTERDAY';
         end if;
         raise exception 'NO_VOCAB';
     end if;
@@ -102,7 +117,8 @@ begin
     update public.battle_rooms
        set topic = 'New Vocab',
            vocab_form = case when v_all then 'ALL' else v_form end,
-           vocab_today = coalesce(p_today_only, false),
+           vocab_scope = v_scope,
+           vocab_today = (v_scope = 'today'),
            vocab_words = v_words,
            question_count = least(question_count, v_count)
      where id = p_room_id
@@ -112,5 +128,5 @@ begin
 end;
 $$;
 
-revoke all on function public.set_battle_vocab(uuid, text, boolean) from public, anon;
-grant execute on function public.set_battle_vocab(uuid, text, boolean) to authenticated;
+revoke all on function public.set_battle_vocab(uuid, text, boolean, text) from public, anon;
+grant execute on function public.set_battle_vocab(uuid, text, boolean, text) to authenticated;

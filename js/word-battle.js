@@ -248,9 +248,31 @@
             return normalizeForm(myFormValue || ownDisplayedForm() || '') || '';
         }
 
-        function battleVocabToday() {
+        function battleVocabScope() {
             const sel = document.getElementById('battle-vocab-scope');
-            return !!(sel && sel.value === 'today');
+            const raw = sel ? sel.value : 'all';
+            const scope = typeof normalizeVocabDateScope === 'function'
+                ? normalizeVocabDateScope(raw)
+                : (raw === 'today' ? raw : 'all');
+            // Word Battle only offers All and Added today.
+            return scope === 'today' ? 'today' : 'all';
+        }
+
+        function battleRoomVocabScope(room) {
+            if (!room) return 'all';
+            if (room.vocab_scope != null && String(room.vocab_scope).trim()) {
+                return typeof normalizeVocabDateScope === 'function'
+                    ? normalizeVocabDateScope(room.vocab_scope)
+                    : (String(room.vocab_scope).trim() === 'yesterday' ? 'yesterday'
+                        : (String(room.vocab_scope).trim() === 'today' ? 'today' : 'all'));
+            }
+            // Legacy rooms only stored the today flag.
+            return room.vocab_today ? 'today' : 'all';
+        }
+
+        function battleScopeSuffix(scope) {
+            const s = typeof normalizeVocabDateScope === 'function' ? normalizeVocabDateScope(scope) : scope;
+            return s === 'today' ? ' · today' : (s === 'yesterday' ? ' · yesterday' : '');
         }
 
         function battleBuildVocabQuestions(room) {
@@ -266,7 +288,7 @@
                 const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
             }
             const n = Math.min(Number(room.question_count) || arr.length, arr.length);
-            const label = 'New Vocab' + (room.vocab_form ? ' ' + room.vocab_form : '') + (room.vocab_today ? ' · today' : '');
+            const label = 'New Vocab' + (room.vocab_form ? ' ' + room.vocab_form : '') + battleScopeSuffix(battleRoomVocabScope(room));
             return { topic: label, words: arr.slice(0, n) };
         }
 
@@ -277,12 +299,20 @@
                 return battleSetError('Your form is not set yet, so you cannot start a New Vocab battle.');
             }
             const asked = battleQuestionCount();
-            const todayOnly = battleVocabToday();
-            const { data, error } = await sb.rpc('set_battle_vocab', { p_room_id: room.id, p_form: form, p_today_only: todayOnly });
+            const scope = battleVocabScope();
+            const baseArgs = { p_room_id: room.id, p_form: form, p_today_only: scope === 'today' };
+            let { data, error } = await sb.rpc('set_battle_vocab', Object.assign({}, baseArgs, { p_scope: scope }));
+            // Older servers only know the 3-argument shape. All / today keep
+            // working there through p_today_only, so no new SQL is needed.
+            if (error && isMissingSchema(error.message)) {
+                const retry = await sb.rpc('set_battle_vocab', baseArgs);
+                data = retry.data;
+                error = retry.error;
+            }
             if (error) {
                 try { await sb.rpc('leave_battle', { p_room_id: room.id }); } catch (e) {}
                 const m = error.message || '';
-                if (m.includes('NO_VOCAB_TODAY')) return battleSetError('No English New Vocab words were added today for ' + form + '. Use the full bank, or add the English first.');
+                if (m.includes('NO_VOCAB_TODAY')) return battleSetError('No English New Vocab words were added today for ' + form + '. Switch to All, or add the English first.');
                 if (m.includes('NO_VOCAB')) return battleSetError('New Vocab for ' + form + ' has no English words yet. Chinese-only cards stay in the bank until you add the English.');
                 if (isMissingSchema(m) || m.includes('BATTLE_SQL_MISSING')) return battleSetError('New Vocab battles need supabase/new_vocab.sql (re-run it after the battle SQL).');
                 return battleSetError(battleErrorMessage(error));
@@ -290,7 +320,8 @@
             const updated = Array.isArray(data) ? data[0] : data;
             battleAdoptRoom(updated || room);
             if (updated && updated.question_count < asked) {
-                updateMascot('This room uses all ' + updated.question_count + ' ' + form + (todayOnly ? ' words added today.' : ' New Vocab words.'));
+                updateMascot('This room uses all ' + updated.question_count + ' ' + form
+                    + (scope === 'today' ? ' words added today.' : ' New Vocab words.'));
             }
             return true;
         }

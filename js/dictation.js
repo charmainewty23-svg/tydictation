@@ -574,7 +574,9 @@
             if (!allWords || allWords.length === 0) {
                 if (currentTopic === NEW_VOCAB) {
                     const visible = nvPracticeRows();
-                    if (!visible.length && nvScope === 'today' && nvRows.length) updateMascot("Nothing was added today. Switch to All words to practise the bank.");
+                    if (!visible.length && nvScope !== 'all' && nvRows.length) {
+                        updateMascot('Nothing was added ' + (nvScope === 'yesterday' ? 'yesterday' : 'today') + '. Switch to All to practise the bank.');
+                    }
                     else if (visible.length) updateMascot("These words don't have English yet. You can still read them in Revision.");
                     else updateMascot("This form's word bank is empty.");
                 } else if (quizSource === 'errorbook') {
@@ -947,8 +949,8 @@
                 : catName === NEW_VOCAB ? nvPracticeRows().map(w => ({ en: String(w.en || '').trim(), zh: String(w.zh || '').trim() }))
                 : categories[catName];
             if (!words || words.length === 0) {
-                updateMascot(catName === NEW_VOCAB && nvScope === 'today' && nvRows.length
-                    ? "Nothing was added today. Switch to All words."
+                updateMascot(catName === NEW_VOCAB && nvScope !== 'all' && nvRows.length
+                    ? ('Nothing was added ' + (nvScope === 'yesterday' ? 'yesterday' : 'today') + '. Switch to All.')
                     : (catName === NEW_VOCAB ? "This form's word bank is empty." : "No words to revise yet."));
                 return;
             }

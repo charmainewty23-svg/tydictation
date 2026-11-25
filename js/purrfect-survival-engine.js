@@ -27,6 +27,10 @@
         RED_MS: 3000,
         DEFAULT_ROUND_MS: 180000,
         FINISH_DISTANCE: 100,
+        MIN_FINISH_DISTANCE: 30,
+        MAX_FINISH_DISTANCE: 300,
+        FINISH_DISTANCE_STEP: 10,
+        MIN_ROUND_MS: 60000,
         SPRINT_METERS: 10,
         ADVANCE_LIMIT: 15,
         PENALTY_FIRST: 30,
@@ -35,8 +39,28 @@
 
     PS.ROUND2 = {
         STEP_COUNT: 9,
+        MIN_STEPS: 3,
+        MAX_STEPS: 15,
         WINDOW_MS: 5000,
         DEFAULT_ROUND_MS: 600000
+    };
+
+    /* Host settings are extensible by design. Rounds 3–5 (tug of war, a
+       second glass bridge, Squid Circle) are NOT playable yet; when each
+       one is implemented, that game AND its host settings must ship in the
+       same change. The lobby / settings model already exposes a roundCount
+       plus a per-round entry, so adding a round only means adding a kind
+       here and one settings block in the lobby. */
+    PS.HOST = {
+        MAX_IMPLEMENTED: 2,
+        MAX_PLANNED: 5,
+        KINDS: {
+            1: 'meow',
+            2: 'glass',
+            3: 'tug',
+            4: 'glass2',
+            5: 'squid'
+        }
     };
 
     PS.LIMITS = {
@@ -162,9 +186,12 @@
         return teacherPlays === false ? PS.LIMITS.STUDENTS : PS.LIMITS.PLAYERS;
     };
 
-    /* One room is either vocab or grammar. The helper both validates that
-       and strips the fields that belong to the other subject, so callers
-       cannot accidentally mix a vocab bank with a grammar topic. */
+    /* A single round is either vocab or grammar. (A ROOM may use vocab in
+       round 1 and grammar in round 2 — that is validated by
+       validateHostSettings, not here.) The helper both validates that a
+       round does not mix fields and strips the fields that belong to the
+       other subject, so callers cannot accidentally pass a vocab bank with
+       a grammar topic. */
     PS.isOneSubject = function (setup) {
         const s = setup || {};
         const hasVocab = !!(s.vocabSource || s.vocab_source || s.topic && PS.normalizeSubject(s.subject) === 'vocab');
@@ -218,6 +245,270 @@
                 vocabSource: source,
                 vocabForm: String(raw.vocabForm || raw.vocab_form || raw.form || '').trim().toUpperCase()
             }
+        };
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Host settings (roundCount + per-round configuration)               */
+    /*                                                                    */
+    /* The room settings JSON is versioned and shaped like:                */
+    /* { version: 1, roundCount: 2, rounds: [ ...round 1..., ...round 2... ] } */
+    /* Each round entry stores subject + topic but round-specific options  */
+    /* hang off that entry (finishDistance / roundMs on round 1,           */
+    /* glassSteps on round 2, and later tug duration etc.).                */
+    /* ------------------------------------------------------------------ */
+
+    function settingsObject(value) {
+        if (!value) return {};
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                return parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (e) {
+                return {};
+            }
+        }
+        return typeof value === 'object' ? value : {};
+    }
+
+    PS.settingsObject = settingsObject;
+
+    /* Finish distance: default 100 m, clamped to 30–300 m on a 10 m step. */
+    PS.normalizeFinishDistance = function (value) {
+        if (value == null || value === '') return PS.ROUND1.FINISH_DISTANCE;
+        let n = Number(value);
+        if (!isFinite(n)) return PS.ROUND1.FINISH_DISTANCE;
+        n = Math.round(n / PS.ROUND1.FINISH_DISTANCE_STEP) * PS.ROUND1.FINISH_DISTANCE_STEP;
+        return Math.max(PS.ROUND1.MIN_FINISH_DISTANCE, Math.min(PS.ROUND1.MAX_FINISH_DISTANCE, n));
+    };
+
+    /* Glass bridge length: default 9, clamped to 3–15. */
+    PS.normalizeGlassSteps = function (value) {
+        if (value == null || value === '') return PS.ROUND2.STEP_COUNT;
+        let n = Number(value);
+        if (!isFinite(n)) return PS.ROUND2.STEP_COUNT;
+        n = Math.round(n);
+        return Math.max(PS.ROUND2.MIN_STEPS, Math.min(PS.ROUND2.MAX_STEPS, n));
+    };
+
+    function clampRoundMs(value) {
+        const n = Number(value);
+        if (!isFinite(n) || n <= 0) return PS.ROUND1.DEFAULT_ROUND_MS;
+        return Math.max(PS.ROUND1.MIN_ROUND_MS, Math.min(600000, Math.round(n)));
+    }
+
+    /* Linear scale from the 100 m / 180 s default; never below 60 s.
+       50 m -> 90 s, 100 m -> 180 s, 200 m -> 360 s, 300 m -> 540 s. */
+    PS.scaleRound1Ms = function (distance) {
+        const metres = PS.normalizeFinishDistance(distance);
+        const ms = Math.round(PS.ROUND1.DEFAULT_ROUND_MS * (metres / PS.ROUND1.FINISH_DISTANCE));
+        return Math.max(PS.ROUND1.MIN_ROUND_MS, ms);
+    };
+
+    /* Single-round validator. Kept separate from validateRoomSetup so the
+       existing single-round tests keep their meaning and a host settings
+       round entry can be validated on its own. */
+    PS.validateRoundSetup = function (input) {
+        const raw = input || {};
+        const result = PS.validateRoomSetup(raw);
+        if (!result.ok) return result;
+        const roundNo = Math.floor(Number(raw.round) || 0);
+        result.setup.round = roundNo > 0 ? roundNo : 0;
+        result.setup.kind = result.setup.round ? (PS.HOST.KINDS[result.setup.round] || '') : '';
+        return result;
+    };
+
+    function legacySetupInput(raw) {
+        const subject = PS.normalizeSubject(raw.subject);
+        return {
+            subject: raw.subject,
+            topic: raw.topic,
+            vocabSource: raw.vocabSource || raw.vocab_source || raw.source
+                || (subject === 'vocab' ? (raw.topic || '') : ''),
+            vocabForm: raw.vocabForm || raw.vocab_form || raw.form || '',
+            grammarTopic: raw.grammarTopic || raw.grammar_topic
+                || (subject === 'grammar' ? (raw.topic || '') : ''),
+            bankMode: raw.bankMode || raw.bank_mode || ''
+        };
+    }
+
+    /* Room round count: 1 or 2 today. Old rooms default to 2 (today's
+       behaviour) and anything above the implemented maximum is clamped. */
+    PS.roomRoundCount = function (settings) {
+        const s = settingsObject(settings);
+        if (!Object.prototype.hasOwnProperty.call(s, 'roundCount')) return PS.HOST.MAX_IMPLEMENTED;
+        const n = Number(s.roundCount);
+        if (!isFinite(n)) return PS.HOST.MAX_IMPLEMENTED;
+        if (n < 1) return 1;
+        return Math.max(1, Math.min(PS.HOST.MAX_IMPLEMENTED, Math.floor(n)));
+    };
+
+    PS.shouldPlayRound2 = function (settings) {
+        return PS.roomRoundCount(settings) > 1;
+    };
+
+    /* 'bridge' when round 1 advances into the glass bridge, 'finish' when
+       this class only selected 1-2-3 Meow! and survivors win immediately. */
+    PS.round1EndAction = function (settings) {
+        return PS.shouldPlayRound2(settings) ? 'bridge' : 'finish';
+    };
+
+    /* Config for round n (1-based) with old-room fallback: missing or
+       legacy settings read the flat room-level subject/source/topic and
+       behave like the previous shared bank. */
+    PS.roundConfig = function (settings, n, room) {
+        const s = settingsObject(settings);
+        const r = settingsObject(room);
+        const roundNo = Math.max(1, Math.floor(Number(n) || 1));
+        const entries = Array.isArray(s.rounds) ? s.rounds : (Array.isArray(r.rounds) ? r.rounds : []);
+        const entry = entries.find(item => item && Number(item.round) === roundNo) || {};
+        const hasEntry = Object.keys(entry).length > 0;
+
+        const flatSubject = PS.normalizeSubject(s.subject || r.subject)
+            || (s.grammarTopic || s.bankMode ? 'grammar' : 'vocab');
+        const flatSource = String(
+            s.vocabSource || s.vocab_source || s.source || r.source
+            || (flatSubject === 'vocab' ? (s.topic || r.topic || '') : '') || ''
+        ).trim();
+        const flatForm = String(s.vocabForm || s.vocab_form || s.form || r.vocabForm || '').trim().toUpperCase();
+        const flatGrammarTopic = String(
+            s.grammarTopic || s.grammar_topic
+            || (flatSubject === 'grammar' ? (s.topic || r.topic || 'tenses') : '')
+            || ''
+        ).trim().toLowerCase();
+        const flatMode = String(s.bankMode || s.bank_mode || r.bank_mode || '').trim().toLowerCase();
+
+        let subject = flatSubject;
+        let topic = subject === 'grammar' ? (flatGrammarTopic || 'tenses') : (flatSource || String(s.topic || r.topic || ''));
+        let vocabSource = subject === 'vocab' ? flatSource : '';
+        let vocabForm = subject === 'vocab' ? flatForm : '';
+        let bankMode = subject === 'grammar' ? flatMode : '';
+
+        if (hasEntry) {
+            const entrySubject = PS.normalizeSubject(entry.subject);
+            if (entrySubject) {
+                subject = entrySubject;
+                if (subject === 'grammar') {
+                    topic = String(entry.topic || flatGrammarTopic || 'tenses').trim().toLowerCase();
+                    bankMode = String(entry.bankMode || entry.bank_mode || flatMode || '').trim().toLowerCase();
+                    vocabSource = '';
+                    vocabForm = '';
+                } else {
+                    vocabSource = String(entry.vocabSource || entry.vocab_source || entry.topic || flatSource || '').trim();
+                    topic = vocabSource;
+                    vocabForm = String(entry.vocabForm || entry.vocab_form || entry.form || flatForm || '').trim().toUpperCase();
+                    bankMode = '';
+                }
+            }
+        }
+
+        const finishRaw = entry.finishDistance != null ? entry.finishDistance
+            : (s.finishDistance != null ? s.finishDistance
+                : (r.finish_distance != null ? r.finish_distance : undefined));
+        const finishDistance = PS.normalizeFinishDistance(finishRaw);
+        const msRaw = entry.roundMs != null ? entry.roundMs : s.roundMs;
+        const roundMs = msRaw != null ? clampRoundMs(msRaw) : PS.scaleRound1Ms(finishDistance);
+        const stepsRaw = entry.glassSteps != null ? entry.glassSteps : s.glassSteps;
+        const glassSteps = PS.normalizeGlassSteps(stepsRaw);
+
+        return {
+            round: roundNo,
+            kind: PS.HOST.KINDS[roundNo] || String(entry.kind || ''),
+            subject: subject,
+            topic: topic,
+            vocabSource: vocabSource,
+            vocabForm: vocabForm,
+            bankMode: bankMode,
+            finishDistance: finishDistance,
+            roundMs: roundMs,
+            glassSteps: glassSteps
+        };
+    };
+
+    /* Validate the full host config. A room-level mix is allowed (round 1
+       vocab, round 2 grammar), but each individual round must not mix the
+       two subjects. Returns the normalized settings plus the room-level
+       round-1 summary columns. */
+    PS.validateHostSettings = function (input) {
+        const raw = input || {};
+        const rawRounds = Array.isArray(raw.rounds) ? raw.rounds : [];
+        let roundCount = raw.roundCount;
+        if (roundCount == null || roundCount === '') roundCount = PS.HOST.MAX_IMPLEMENTED;
+        roundCount = Number(roundCount);
+        if (!isFinite(roundCount) || Math.floor(roundCount) !== roundCount || roundCount < 1) {
+            return { ok: false, error: 'INVALID_ROUND_COUNT' };
+        }
+        if (roundCount > PS.HOST.MAX_IMPLEMENTED) {
+            return { ok: false, error: 'ROUNDS_NOT_IMPLEMENTED' };
+        }
+
+        const finishDistance = PS.normalizeFinishDistance(
+            raw.finishDistance != null ? raw.finishDistance
+                : (raw.finish_distance != null ? raw.finish_distance : undefined)
+        );
+        const glassSteps = PS.normalizeGlassSteps(
+            raw.glassSteps != null ? raw.glassSteps
+                : (raw.glass_steps != null ? raw.glass_steps : undefined)
+        );
+
+        const rounds = [];
+        let previous = null;
+        for (let n = 1; n <= roundCount; n++) {
+            const entry = rawRounds.find(item => item && Number(item.round) === n);
+            let setupInput;
+            if (entry) setupInput = entry;
+            else if (previous) setupInput = previous; // old rooms shared one bank
+            else setupInput = legacySetupInput(raw);
+
+            const validated = PS.validateRoundSetup(setupInput);
+            if (!validated.ok) return { ok: false, error: validated.error };
+
+            const cfg = {
+                round: n,
+                kind: PS.HOST.KINDS[n] || '',
+                subject: validated.setup.subject,
+                topic: validated.setup.topic,
+                bankMode: validated.setup.bankMode,
+                vocabSource: validated.setup.vocabSource,
+                vocabForm: validated.setup.vocabForm
+            };
+
+            if (n === 1) {
+                const distRaw = entry && entry.finishDistance != null ? entry.finishDistance : finishDistance;
+                cfg.finishDistance = PS.normalizeFinishDistance(distRaw);
+                const msRaw = entry && entry.roundMs != null ? entry.roundMs : raw.roundMs;
+                cfg.roundMs = msRaw != null ? clampRoundMs(msRaw) : PS.scaleRound1Ms(cfg.finishDistance);
+            }
+            if (n === 2) {
+                const stepsRaw = entry && entry.glassSteps != null ? entry.glassSteps : glassSteps;
+                cfg.glassSteps = PS.normalizeGlassSteps(stepsRaw);
+            }
+            rounds.push(cfg);
+            previous = cfg;
+        }
+
+        const r1 = rounds[0];
+        const settings = {
+            version: 1,
+            roundCount: roundCount,
+            rounds: rounds.map(item => Object.assign({}, item)),
+            roundMs: r1.roundMs,
+            finishDistance: r1.finishDistance,
+            glassSteps: rounds[1] ? rounds[1].glassSteps : null
+        };
+
+        return {
+            ok: true,
+            error: '',
+            settings: settings,
+            roundCount: roundCount,
+            rounds: rounds,
+            subject: r1.subject,
+            source: r1.subject === 'vocab' ? r1.vocabSource : '',
+            topic: r1.topic,
+            bankMode: r1.bankMode,
+            finishDistance: r1.finishDistance,
+            roundMs: r1.roundMs
         };
     };
 
@@ -986,8 +1277,8 @@
     ];
 
     /* Build a complete demo question paper from the built-in banks.
-       One subject per room: subject defaults to vocab; grammar is used
-       only when explicitly requested. Every builder receives the same
+       One subject per demo paper: subject defaults to vocab; grammar is
+       used only when explicitly requested. Every builder receives the same
        seed, so the public demo replays identically. */
     PS.buildDemoQuestionSet = function (opts) {
         const o = opts || {};

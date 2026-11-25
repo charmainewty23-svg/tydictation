@@ -883,7 +883,7 @@ test('index.html hosts the cinematic waiting overlay, rules cards and skip contr
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
     assert.ok(html.indexOf('玻璃橋') !== -1, 'Traditional Chinese copy is used');
-    assert.ok(html.indexOf('木頭貓') !== -1);
+    assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
 });
 
 test('bilingual rules are faithful to the English engine copy', () => {

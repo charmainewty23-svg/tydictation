@@ -414,7 +414,22 @@ set search_path = public
 as $$
 declare
     v_blocked int;
+    v_status text;
+    v_started timestamptz;
 begin
+    -- The client qualifier board owns the first 7 seconds of round 2. Do not
+    -- start the first 5 s glass window while that board is still on screen.
+    select status, round2_started_at
+      into v_status, v_started
+      from public.purrfect_survival_rooms
+     where id = p_room_id;
+
+    if v_status = 'round2'
+       and v_started is not null
+       and now() < v_started + interval '7 seconds' then
+        return;
+    end if;
+
     select count(*) into v_blocked
     from public.purrfect_survival_players
     where room_id = p_room_id

@@ -259,8 +259,9 @@ test('end-of-quiz review explains wrong items only', () => {
 
 /* ------------------------- service worker ------------------------- */
 
-test('service worker is v109', () => {
-    assert.ok(swSource.indexOf("learnity-pwa-v109") !== -1, 'CACHE_NAME is v109');
+test('service worker is v110', () => {
+    assert.ok(swSource.indexOf("learnity-pwa-v110") !== -1, 'CACHE_NAME is v110');
+    assert.equal(swSource.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');
     assert.ok(swSource.indexOf("'/js/grammar-quest.js'") !== -1,
         'grammar-quest.js stays in CORE_ASSETS');

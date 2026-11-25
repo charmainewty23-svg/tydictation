@@ -226,6 +226,17 @@ function loadMainWithDom(options) {
     add('ps-wait-msg', 'p');
     add('ps-host-end', 'button');
     add('ps-canvas', 'canvas');
+    add('ps-progress', 'div').classList.add('hidden');
+    add('ps-progress-title', 'span');
+    add('ps-progress-count', 'span');
+    add('ps-progress-list', 'div');
+    add('ps-qualifier', 'div').classList.add('hidden');
+    add('ps-qualifier-title', 'h2');
+    add('ps-qualifier-sub', 'p');
+    add('ps-qualifier-list', 'div');
+    add('ps-qualifier-count', 'span');
+    add('ps-qualifier-timer', 'span');
+    add('ps-hud-place', 'span').classList.add('hidden');
     add('purrfect-survival-view', 'div');
     add('login-view', 'div');
     add('app', 'div');
@@ -1495,7 +1506,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the prize ceremony change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v109") !== -1, 'CACHE_NAME is v109');
+    assert.ok(sw.indexOf("learnity-pwa-v110") !== -1, 'CACHE_NAME is v110');
+    assert.equal(sw.indexOf("learnity-pwa-v109"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v108"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v107"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v106"), -1, 'the old cache name is gone');
@@ -2086,7 +2098,7 @@ test('drawCeremony paints a podium in portrait and landscape without bitmaps', (
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
-    assert.match(RENDERER.VERSION, /^2\.2\./);
+    assert.match(RENDERER.VERSION, /^2\.3\./);
 });
 
 test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
@@ -2099,4 +2111,234 @@ test('the demo victory path builds a finished ceremony room for 1, 2 and 3 round
         assert.equal(state.room.status, 'finished');
         assert.equal(state.room.current_round, count === 1 ? 1 : (count === 2 ? 2 : 3));
     });
+});
+
+/* ---------------------------------------------------------------- */
+/* Teacher overhead view, live progress, student ranks, qualifier     */
+/* ---------------------------------------------------------------- */
+
+test('host cameras are clearly overhead while student cameras stay close', () => {
+    const host = RENDERER.layout(1280, 720, 'host');
+    const player = RENDERER.layout(1280, 720, 'player');
+    assert.ok(host.cam1.eye[1] >= 6, 'landscape host cam1 is a high overhead eye');
+    assert.ok(host.cam1.eye[1] > player.cam1.eye[1], 'host cam1 is higher than player cam1');
+    assert.ok(host.cam2.eye[1] > player.cam2.eye[1], 'host cam2 sees the whole bridge from above');
+    assert.ok(host.cam3.eye[1] > player.cam3.eye[1], 'host cam3 sees both tug platforms from above');
+
+    const portraitHost = RENDERER.layout(390, 844, 'host');
+    const portraitPlayer = RENDERER.layout(390, 844, 'player');
+    assert.ok(portraitHost.cam1.eye[1] > portraitPlayer.cam1.eye[1], 'portrait host cam1 is still higher');
+    ['cam1', 'cam2', 'cam3'].forEach(key => {
+        [host, player, portraitHost, portraitPlayer].forEach(L => {
+            assert.equal(L[key].eye.length, 3, key + ' eye is a 3D point');
+            assert.equal(L[key].target.length, 3, key + ' target is a 3D point');
+            assert.ok(L[key].fov > 0, key + ' fov is valid');
+        });
+    });
+});
+
+test('drawRound1/2/3 paint host and player cameras in portrait and landscape', () => {
+    const sizes = [[1280, 720], [390, 844]];
+    sizes.forEach(size => {
+        ['host', 'player'].forEach(role => {
+            const ctx = mockContext({ width: size[0], height: size[1] });
+            const base = { w: size[0], h: size[1], role: role };
+            assert.doesNotThrow(() => RENDERER.drawRound1(ctx, sampleState(1, base)),
+                'round 1 ' + role + ' @' + size.join('x'));
+            assert.doesNotThrow(() => RENDERER.drawRound2(ctx, sampleState(2, base)),
+                'round 2 ' + role + ' @' + size.join('x'));
+            assert.doesNotThrow(() => RENDERER.drawRound3(ctx, sampleState(3, Object.assign({}, base, {
+                tug: { phase: 'playing', redPull: 3, bluePull: 4, position: 1, redCombo: 2, blueCombo: 1 }
+            }))), 'round 3 ' + role + ' @' + size.join('x'));
+        });
+    });
+});
+
+test('raceOrder, formatPlace and nearbyRunners are stable and ordinal', () => {
+    const list = [
+        player('a', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:02Z' }),
+        player('b', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        player('c', 70),
+        player('d', 30),
+        player('e', 0, { status: 'eliminated', ghost: true })
+    ];
+    const order = PS.raceOrder(list, { finishDistance: 100 });
+    assert.deepEqual(order.map(PS.userKey), ['b', 'a', 'c', 'd']);
+    assert.equal(PS.formatPlace(1, 12), '1st / 12');
+    assert.equal(PS.formatPlace(2, 12), '2nd / 12');
+    assert.equal(PS.formatPlace(3, 12), '3rd / 12');
+    assert.equal(PS.formatPlace(11, 12), '11th / 12');
+    assert.equal(PS.formatPlace(12, 12), '12th / 12');
+    assert.equal(PS.formatPlace(13, 12), '13th / 12');
+    assert.equal(PS.formatPlace(21, 30), '21st / 30');
+
+    const nearby = PS.nearbyRunners(list, 'c', { finishDistance: 100, ahead: 1, behind: 1 });
+    assert.deepEqual(nearby.map(PS.userKey), ['a', 'c', 'd']);
+    const alone = PS.nearbyRunners(list, 'e', { finishDistance: 100 });
+    assert.deepEqual(alone.map(PS.userKey), ['e'], 'an eliminated student still gets their own label slot');
+});
+
+test('teacherProgress orders leaders first and labels every round from live fields', () => {
+    const r1 = [
+        player('a', 100, { reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        player('b', 70),
+        player('c', 40, { status: 'eliminated', ghost: true }),
+        player('d', 90)
+    ];
+    const rows1 = PS.teacherProgress(r1, { round: 1, finishDistance: 100, phase: 'red' });
+    assert.deepEqual(rows1.map(r => r.user_id), ['a', 'd', 'b', 'c']);
+    assert.equal(rows1[0].status, 'Finished');
+    assert.equal(rows1[1].status, 'Frozen');
+    assert.equal(rows1[2].detail, '70 / 100 m');
+    assert.equal(rows1[3].status, 'Out');
+    assert.equal(rows1[1].near, true, 'a runner over 80% of the way is highlighted');
+    assert.equal(rows1[2].near, false);
+
+    const r2 = [
+        player('a', 0, { status: 'advanced', crossed_glass: true, glass_step: 9, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        player('b', 0, { glass_active: true, glass_step: 4 }),
+        player('c', 0, { glass_step: 0 }),
+        player('d', 0, { status: 'eliminated', ghost: true, glass_step: 6 })
+    ];
+    const rows2 = PS.teacherProgress(r2, { round: 2, stepCount: 9 });
+    assert.deepEqual(rows2.map(r => r.status), ['Crossed', 'Jumping', 'Queued', 'Fell']);
+    assert.equal(rows2[0].detail, 'Step 9 / 9');
+    assert.equal(rows2[1].detail, 'Step 4 / 9');
+    assert.equal(rows2[3].detail, 'Step 6 / 9');
+
+    const r3 = [
+        player('a', 0, { tug_team: 'red' }),
+        player('b', 0, { tug_team: 'blue' }),
+        player('c', 0, { tug_team: null }),
+        player('d', 0, { status: 'eliminated', ghost: true, tug_team: 'red' })
+    ];
+    const rows3 = PS.teacherProgress(r3, {
+        round: 3,
+        tug: { phase: 'playing', redCombo: 3, blueCombo: 2 }
+    });
+    assert.deepEqual(rows3.map(r => r.user_id), ['a', 'd', 'b', 'c']);
+    assert.equal(rows3[0].team, 'Red');
+    assert.equal(rows3[0].status, 'Answering');
+    assert.equal(rows3[0].combo, 3);
+    assert.equal(rows3[1].status, 'Out');
+    assert.equal(rows3[2].team, 'Blue');
+    assert.equal(rows3[3].team, 'Watching');
+    assert.equal(rows3[3].detail, 'Watching');
+});
+
+test('qualifierRoster lists the Round 1 advancers and the glass survivors', () => {
+    const r1 = [];
+    for (let i = 0; i < 20; i++) {
+        r1.push(player('p' + String(i).padStart(2, '0'), 100 - i * 4, {
+            nickname: '4C ' + String(i + 1).padStart(2, '0') + ' Student',
+            reached_finish: i < 3,
+            finished_at: i < 3 ? '2026-11-25T10:00:0' + (i + 1) + 'Z' : null
+        }));
+    }
+    const from1 = PS.qualifierRoster(r1, { fromRound: 1, finishDistance: 100 });
+    assert.equal(from1.length, 15);
+    assert.deepEqual(from1.slice(0, 3).map(r => r.user_id), ['p00', 'p01', 'p02']);
+    assert.equal(from1[0].detail, 'Finished');
+    assert.equal(from1[0].place, 1);
+
+    const r2 = [
+        player('a', 0, { status: 'advanced', crossed_glass: true, round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z', tug_team: 'red' }),
+        player('b', 0, { status: 'advanced', crossed_glass: true, round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        player('c', 0, { status: 'eliminated', ghost: true, glass_step: 3 })
+    ];
+    const from2 = PS.qualifierRoster(r2, { fromRound: 2 });
+    assert.deepEqual(from2.map(r => r.user_id), ['b', 'a']);
+    assert.equal(from2[0].detail, 'Crossed the glass bridge');
+    assert.equal(from2[1].team, 'red');
+    assert.equal(PS.qualifierTitle(1), 'Advancing to Glass Stepping Stones');
+    assert.equal(PS.qualifierTitle(2), 'Advancing to Tug of War');
+});
+
+test('live markup exposes the progress list, place chip and qualifier board', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['id="ps-progress"', 'id="ps-progress-list"', 'id="ps-qualifier"', 'id="ps-qualifier-list"',
+        'id="ps-hud-place"'].forEach(token => {
+        assert.ok(html.indexOf(token) !== -1, token + ' exists in index.html');
+    });
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf('renderTeacherProgress') !== -1, 'teacher progress renderer is wired');
+    assert.ok(main.indexOf('PSEngine.teacherProgress') !== -1, 'progress rows come from the pure engine');
+    assert.ok(main.indexOf('PSEngine.formatPlace') !== -1, 'student place uses formatPlace');
+    assert.ok(main.indexOf("setText('ps-hud-place'") !== -1, 'place HUD is rendered');
+    assert.ok(main.indexOf('renderQualifier') !== -1, 'qualifier board renderer is wired');
+    assert.ok(main.indexOf("demoRole === 'teacher'") !== -1, 'demo teacher gets host role');
+
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    const fnStart = render.indexOf('function drawRound1Players');
+    const fnEnd = render.indexOf('function drawRound2Players', fnStart);
+    const fn = render.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 8000);
+    assert.ok(fn.indexOf('nearby') !== -1, 'Round 1 labels only nearby runners');
+    assert.ok(fn.indexOf("rank + ' · '") !== -1, 'nearby cats show their place before the name');
+    assert.ok(render.indexOf('L.host') !== -1, 'host keeps extra portrait labels');
+});
+
+test('demo sequential advance shows the qualifier before glass or tug play', () => {
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = main.indexOf('function demoAdvanceToRound2');
+    const end = main.indexOf('function demoFinishRound1Victory', start);
+    const fn = main.slice(start, end);
+    assert.ok(fn.indexOf('demoReleaseGlass') === -1, 'sequential advance does not release the glass under the board');
+    assert.ok(fn.indexOf('qualifierDismissed') === -1, 'sequential advance does not skip the board');
+
+    const tickStart = main.indexOf('function demoTickRound2');
+    const tickEnd = main.indexOf('function demoTick()', tickStart);
+    const tick = main.slice(tickStart, tickEnd);
+    assert.ok(tick.indexOf('qualifierInfo()') !== -1, 'glass release waits for the qualifier');
+    assert.ok(tick.indexOf('demoReleaseGlass') > tick.indexOf('qualifierInfo()'), 'release runs after the guard');
+
+    const finish = main.indexOf('function demoFinishRound2');
+    const finishEnd = main.indexOf('function demoPrepareTugSurvivors', finish);
+    assert.ok(main.slice(finish, finishEnd).indexOf('resetQualifierState') !== -1,
+        'moving to round 3 re-arms the survivor board');
+
+    assert.ok(main.indexOf('if (qualifierInfo()) return;') !== -1, 'the demo cannot start the tug under the board');
+    assert.ok(main.indexOf("show('ps-tug-start-btn', host && isR3 && briefing && !qualifying)") !== -1,
+        'host start button is hidden until the board ends');
+});
+
+test('demo teacher/projector renders the live side progress list', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], isGuestUser: function () { return false; } });
+    assert.doesNotThrow(() => dom.PS.startDemo({ role: 'teacher', scene: 'round1' }));
+    const panel = dom.el('ps-progress');
+    assert.ok(panel, 'progress panel element exists');
+    assert.equal(panel.classList.contains('hidden'), false, 'teacher view shows the progress list');
+    const list = dom.el('ps-progress-list');
+    assert.ok(list && /demo-\d\d/.test(list.innerHTML) === false, 'the list does not leak raw ids');
+    assert.ok(list && /4C/.test(list.innerHTML), 'the list shows the demo classmates by name');
+    const title = dom.el('ps-progress-title');
+    assert.ok(title && /ROUND 1/.test(title.textContent), 'the list is labelled for the live round');
+});
+
+test('ceremony card no longer covers the podium in landscape or portrait', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.equal(html.indexOf('min(460px, 46vw)'), -1, 'the old wide right-hand card is gone');
+    assert.ok(html.indexOf('width: min(420px, 34vw)') !== -1, 'landscape card is a slim column');
+    assert.ok(html.indexOf('max-height: 46%') !== -1, 'portrait card leaves the stands visible above it');
+    assert.ok(/\.ps-ceremony-card\s*\{[^}]*overflow:\s*auto/s.test(html), 'the full list scrolls inside the card');
+
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.ok(render.indexOf('groupShift') !== -1, 'the 3D podium group shifts away from the card');
+    assert.ok(render.indexOf('const spread = L.landscape ? 4.3 : 3.1') !== -1, 'portrait podium stays on screen');
+    assert.ok(render.indexOf('id="ps-ceremony-list"') === -1);
+    assert.ok(html.indexOf('id="ps-ceremony-list"') !== -1, 'the full ranking list still exists');
+});
+
+test('qualifier SQL is a safe, teacher-run incremental', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_qualifier.sql');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_release_glass') !== -1, 'redefines the glass release');
+    assert.ok(/interval '7 seconds'/.test(sql), 'waits the qualifier duration');
+    assert.ok(sql.indexOf('round2_started_at') !== -1, 'uses the existing round-2 timestamp');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf("interval '7 seconds'") !== -1,
+        'fresh installs also wait for the qualifier before releasing glass');
 });

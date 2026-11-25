@@ -763,6 +763,13 @@
     align-items: center; justify-content: center; text-align: center; padding: 10px;
   }
   .sr-prompt.sentence { font-size: 14px; line-height: 1.35; }
+  .hint-chip {
+    margin: 0 auto 8px; width: fit-content; max-width: 100%;
+    padding: 5px 12px; border-radius: 999px; border: 2px dashed var(--yellow-deep);
+    background: var(--yellow-soft); color: #7a5b00;
+    font-size: 12px; font-weight: 900; letter-spacing: .02em; text-align: center;
+  }
+  .sq-hint { margin: 0 0 6px; }
   .sr-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
   .sr-answers.short { grid-template-columns: 1fr; }
   .sr-feedback {
@@ -897,11 +904,14 @@
           <span class="timer" id="timer">--</span>
         </div>
         <h1 class="question" id="qprompt">Ready to quiz?</h1>
+        <div class="hint-chip hidden" id="hintChip"></div>
         <div class="choices" id="choices"></div>
         <div class="controls">
           <button type="button" id="revealBtn" class="ghost" disabled>👀 Reveal</button>
+          <button type="button" id="hintBtn" class="ghost" hidden disabled>💡 First letter</button>
           <button type="button" id="nextBtn" class="ghost" disabled>Next →</button>
         </div>
+        <p class="setup-note hidden" id="hintNote"></p>
       </div>
 
       <div id="roomLobby" class="hidden">
@@ -933,6 +943,7 @@
         <span class="you-delta" id="youDelta"></span>
       </div>
       <div class="sq" id="sprompt">Waiting for the teacher…</div>
+      <div class="hint-chip sq-hint hidden" id="shint"></div>
       <div class="sanswers" id="sanswers"></div>
       <div class="sfeedback" id="sfeedback">Join in when the quiz starts.</div>
       <div class="srank" id="srank" aria-live="polite"></div>
@@ -1019,6 +1030,7 @@
       </div>
       <div class="sr-status" id="srStatus">Waiting for the teacher…</div>
       <div class="sr-prompt" id="srPrompt"></div>
+      <div class="sr-hint hint-chip hidden" id="srHint"></div>
       <div class="sr-answers" id="srAnswers"></div>
       <div class="sr-feedback" id="srFeedback"></div>
       <div class="sr-rankcard hidden" id="srRankCard"></div>
@@ -1692,6 +1704,28 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Type-the-word first-letter hint helpers (pure)                      */
+  /* ------------------------------------------------------------------ */
+  /* hint-helpers:start */
+  function qkShortAnswerWord(q) {
+    if (!q || q.type !== 'short') return '';
+    if (Array.isArray(q.accept)) {
+      const first = q.accept[0];
+      if (typeof first === 'string' && first.trim()) return first.trim();
+    }
+    const en = String(q.en == null ? '' : q.en);
+    return en.split('/')[0].trim();
+  }
+
+  function qkFirstLetter(word) {
+    const match = String(word == null ? '' : word).match(/[A-Za-z]/);
+    return match ? match[0].toUpperCase() : '';
+  }
+  /* hint-helpers:end */
+  window.qkShortAnswerWord = qkShortAnswerWord;
+  window.qkFirstLetter = qkFirstLetter;
+
+  /* ------------------------------------------------------------------ */
   /* Game state                                                          */
   /* ------------------------------------------------------------------ */
   const players = [
@@ -1712,6 +1746,7 @@
   let bank = DEMO_WORDS.slice();
   let wrongBook = [];
   let roundStats = [];
+  let hintOn = false;
   let music = null;
   let musicOn = true;
 
@@ -1980,6 +2015,7 @@
   function showSetup() {
     phase = 'setup';
     clearTimers();
+    hintOn = false;
     $('trophy').classList.add('hidden');
     stopTrophyMusic();
     $('roomLobby').classList.add('hidden');
@@ -1992,6 +2028,7 @@
     $('sprompt').textContent = 'Waiting for the teacher…';
     $('sfeedback').textContent = 'Join in when the quiz starts.';
     renderSetup();
+    updateHintUI();
   }
 
   /* ------------------------------------------------------------------ */
@@ -2128,6 +2165,8 @@
 
     $('setup').classList.add('hidden');
     $('quizBody').classList.remove('hidden');
+    hintOn = false;
+    room.hintLetter = '';
     qIndex = -1;
     buildPlayers();
     resetPlayers();
@@ -2152,6 +2191,7 @@
   function nextQuestion() {
     clearTimers();
     stopRevealSting();
+    hintOn = false;
     qIndex += 1;
     if (qIndex >= questions.length) { finish(); return; }
     phase = 'question';
@@ -2238,6 +2278,82 @@
     renderReveal(before, youBefore);
   }
 
+  function hintContext() {
+    const live = !!room.id;
+    const q = live ? (room.questions[room.qIndex] || null) : currentQ();
+    const nowPhase = live ? room.phase : phase;
+    const playing = live ? room.status === 'playing' : true;
+    const isShort = !!q && q.type === 'short';
+    const letter = live
+      ? String(room.hintLetter || '')
+      : (hintOn ? qkFirstLetter(qkShortAnswerWord(q)) : '');
+    return {
+      live: live,
+      letter: letter,
+      canShow: isShort && playing && nowPhase === 'question'
+    };
+  }
+
+  function updateHintUI() {
+    const ctx = hintContext();
+    const btn = $('hintBtn');
+    if (btn) {
+      btn.hidden = !ctx.canShow;
+      btn.disabled = !ctx.canShow || !!ctx.letter;
+      btn.textContent = ctx.letter ? '💡 Hint shown: ' + ctx.letter : '💡 First letter';
+    }
+    const chip = $('hintChip');
+    if (chip) {
+      chip.classList.toggle('hidden', !(ctx.canShow && ctx.letter));
+      chip.textContent = ctx.canShow && ctx.letter ? '💡 Hint: starts with ' + ctx.letter : '';
+    }
+    const demoChip = $('shint');
+    if (demoChip) {
+      const show = ctx.canShow && ctx.letter && !ctx.live;
+      demoChip.classList.toggle('hidden', !show);
+      demoChip.textContent = show ? '💡 Hint: starts with ' + ctx.letter : '';
+    }
+  }
+
+  function demoHint() {
+    const q = currentQ();
+    if (phase !== 'question' || !q || q.type !== 'short') return;
+    if (hintOn) return;
+    hintOn = true;
+    updateHintUI();
+  }
+
+  function showHintNote(text) {
+    const note = $('hintNote');
+    if (!note) return;
+    note.textContent = text || '';
+    note.classList.toggle('hidden', !text);
+  }
+
+  async function liveHint() {
+    const q = room.questions[room.qIndex];
+    if (room.phase !== 'question' || !q || q.type !== 'short') return;
+    if (room.hintLetter) return;
+    const btn = $('hintBtn');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await qkRpc('quizzykitty_hint', {
+        p_room: room.id, p_host_key: room.hostKey
+      });
+      room.hintLetter = String((res && res.hint_letter) ||
+        qkFirstLetter(qkShortAnswerWord(q))).toUpperCase().slice(0, 1);
+      showHintNote('');
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      const note = /does not exist|Could not find|PGRST|schema/i.test(msg)
+        ? 'First-letter hints in class rooms need supabase/quizzykitty_type_hint.sql. Run it in the Supabase SQL editor, then refresh.'
+        : ('Could not show the hint: ' + msg);
+      showHintNote(note);
+      $('setupNote').textContent = note;
+    }
+    updateHintUI();
+  }
+
   function renderQuestion() {
     const q = currentQ();
     $('qnum').textContent = 'Question ' + (qIndex + 1) + ' / ' + questions.length;
@@ -2285,6 +2401,7 @@
     if (chip) { chip.className = 'you-delta'; chip.textContent = ''; }
     const rankCard = $('srank');
     if (rankCard) { rankCard.className = 'srank'; rankCard.innerHTML = ''; }
+    updateHintUI();
   }
 
   function renderStudentAnswers(q) {
@@ -2366,6 +2483,7 @@
 
   function renderReveal(before, youBefore) {
     playRevealSting();
+    updateHintUI();
     const q = currentQ();
     let right = 0, wrong = 0, none = 0;
     const counts = {};
@@ -2785,7 +2903,9 @@
   function finish() {
     phase = 'finished';
     clearTimers();
+    hintOn = false;
     stopMusic();
+    updateHintUI();
     $('sprompt').textContent = 'Final results';
     $('sfeedback').textContent = 'Check the prize ceremony →';
     renderStudentHead();
@@ -3016,7 +3136,8 @@
   /* ------------------------------------------------------------------ */
   const room = {
     id: '', code: '', hostKey: '', questions: [], qIndex: 0, phase: '',
-    seconds: 15, status: '', before: [], pollTimer: 0, timerId: 0
+    seconds: 15, status: '', before: [], pollTimer: 0, timerId: 0,
+    hintLetter: ''
   };
   let roomPlayers = [];
   let roomCeremony = false;
@@ -3215,6 +3336,7 @@
       room.phase = 'question';
       room.status = 'waiting';
       room.before = [];
+      room.hintLetter = '';
       roomPlayers = [];
       roomCeremony = false;
       document.body.classList.add('room-mode');
@@ -3260,6 +3382,7 @@
       room.status = st.room.status;
       roomPlayers = roomPlayerList(st);
       updateRoomChipRoom();
+      if (st.room.status === 'playing') applyRoomHint(st);
       if (st.room.status === 'waiting') {
         renderRoomLobby();
       } else if (st.room.status === 'playing' && room.phase === 'question') {
@@ -3269,6 +3392,19 @@
         roomFinish(st);
       }
     } catch (e) { /* ignore transient errors */ }
+  }
+
+  function applyRoomHint(st) {
+    if (!st || !st.room) return;
+    if (Number(st.room.q_index) !== Number(room.qIndex)) return;
+    const letter = String(st.room.hint_letter || '').toUpperCase().slice(0, 1);
+    // A poll that left before quizzykitty_hint committed can come back
+    // empty; do not wipe a letter already shown for this question.
+    if (!letter && room.hintLetter && st.room.status === 'playing' &&
+        st.room.phase === 'question') return;
+    if (letter === room.hintLetter) return;
+    room.hintLetter = letter;
+    updateHintUI();
   }
 
   function renderRoomLobby() {
@@ -3333,6 +3469,9 @@
     $('revealBtn').disabled = false;
     $('nextBtn').hidden = true;
     $('nextBtn').disabled = true;
+    room.hintLetter = '';
+    showHintNote('');
+    updateHintUI();
 
     if (q.type === 'short') {
       choicesEl.className = 'choices';
@@ -3393,6 +3532,7 @@
 
   function renderRoomReveal(st) {
     playRevealSting();
+    updateHintUI();
     const q = room.questions[room.qIndex];
     if (!q) return;
     const counts = st.counts || {};
@@ -3514,6 +3654,8 @@
     $('timer').textContent = '🏁';
     $('revealBtn').hidden = true;
     $('nextBtn').hidden = true;
+    showHintNote('');
+    updateHintUI();
     updateRoomChipRoom();
     showTrophy(roomPlayers);
   }
@@ -3536,8 +3678,10 @@
     room.phase = '';
     room.status = '';
     room.before = [];
+    room.hintLetter = '';
     roomPlayers = [];
     roomCeremony = false;
+    showHintNote('');
     document.body.classList.remove('room-mode');
     $('roomLobby').classList.add('hidden');
     $('quizBody').classList.add('hidden');
@@ -3690,8 +3834,28 @@
     return { list: list, me: me, rank: me ? list.indexOf(me) + 1 : 0, total: list.length };
   }
 
+  /* Polled every second while the question is open. Only paints the chip, so
+     a mid-question hint never rebuilds #srAnswers or wipes a picked answer. */
+  function studentApplyHint(st) {
+    const chip = $('srHint');
+    if (!chip) return;
+    const q = st && st.question;
+    const letter = (st && st.room && st.room.status === 'playing' &&
+      st.room.phase === 'question' && q && q.type === 'short')
+      ? String(st.room.hint_letter || '').toUpperCase().slice(0, 1)
+      : '';
+    if (letter) {
+      chip.textContent = '💡 Hint: starts with ' + letter;
+      chip.classList.remove('hidden');
+    } else {
+      chip.textContent = '';
+      chip.classList.add('hidden');
+    }
+  }
+
   function studentRender(st) {
     joining.state = st;
+    studentApplyHint(st);
     const info = studentRankInfo(st);
     $('srScore').textContent = (info.me ? info.me.score : 0).toLocaleString('en-US') + ' pts';
     $('srRank').textContent = info.rank ? '#' + info.rank : '#–';
@@ -3966,6 +4130,8 @@
     joining.state = null;
     joining.lastKey = '';
     joining.mine = null;
+    const hint = $('srHint');
+    if (hint) { hint.textContent = ''; hint.classList.add('hidden'); }
     $('studentRoom').classList.add('hidden');
   }
 
@@ -3984,6 +4150,10 @@
   $('revealBtn').addEventListener('click', function () {
     if (room.id) { if (room.phase === 'question') roomReveal(); return; }
     if (phase === 'question') reveal();
+  });
+  $('hintBtn').addEventListener('click', function () {
+    if (room.id) { liveHint(); return; }
+    demoHint();
   });
   $('nextBtn').addEventListener('click', function () {
     if (room.id) { if (room.phase === 'reveal') roomNext(); return; }

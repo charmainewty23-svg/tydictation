@@ -2191,6 +2191,17 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   Reveal 時學生揀錯嘅選項同正確答案都會 `opacity: 1`，其餘 0.5。
 - **真班際房間（2026-11 加）**：設定畫面有 **🏫 Create Room**；學生可以撳
   右上角 **🙋** 或設定下面「Student? Join a class」入房。詳見 §10.17a。
+- **Type the word 首字母提示（2026-11 加，2026-11 由 Fill the gap 移過嚟）**：
+  老師／host 專用，只限 `type === 'short'`（⌨️ Type the word）而且未 Reveal
+  嘅問題。**Fill the gap 冇提示掣**；gap 同 fallback MC 都唔會出。老師
+  `.controls` 多一粒 **💡 First letter**；撳完老師 panel（`#hintChip`）同
+  demo 學生電話（`#shint`）會即刻顯示「💡 Hint: starts with P」，真班際房就
+  經現有 `quizzykitty_state` poll 令每部學生電話（`#srHint`）出現同一句。
+  **只會傳一個大楷字母，唔會傳完整答案**（`accept[0]`／`en` 第一個
+  slash 分隔寫法）。每題只可以開一次；`nextQuestion()`／`quizzykitty_next`／
+  `quizzykitty_start` 會 reset，下一題由零開始。學生電話、join UI、學生
+  room overlay 都冇任何掣可以觸發。Demo 唔使 SQL；真班際房要老師跑
+  `supabase/quizzykitty_type_hint.sql`（見 §10.17a）。
 - 其餘「Class battle · 30 students」「Quick demo · 5」仍然係本機 bot 示範，
   方便冇 Supabase 時試玩法。
 
@@ -2227,6 +2238,15 @@ Sheet 載入完成後 `loadAllCategoriesFromSheet()` 會 call `WJ.populateTopics
   `roundStats`（每題 correct／wrong／none／top wrong）。
 - **貓**：join 時傳 `p_look`（cat／hat／glasses／outfit…），host trophy
   用 `showTrophy(roomPlayers)` 畫；30 人會有 class photo。
+- **首字母提示 SQL（2026-11 加）**：真班際房要老師喺 Supabase SQL editor 貼
+  `supabase/quizzykitty_type_hint.sql`（可重跑；**唔好**用 plugin／agent 跑）。
+  就算之前已經跑過 `quizzykitty_gap_hint.sql`，都要再跑呢份：佢會取代
+  gap-only 版本，改成 Type the word。佢加 `quizzykitty_rooms.hint_on`、
+  host-only `quizzykitty_hint()` RPC（只限 `type === 'short'`），並更新
+  `quizzykitty_start/next/state`（`hint_letter` 只喺 `hint_on`、
+  Type-the-word 問題同 question phase 回傳單一字母；gap 就算有舊
+  `hint_on` 都唔會漏字母）。Canonical `supabase/quizzykitty.sql` 已包含同一套。
+  未跑 SQL 時 demo 照用，真房撳提示只會顯示跑 SQL 嘅提示，房間唔會壞。
 - **未跑 SQL**：Create Room 會顯示 `Run supabase/quizzykitty.sql` 提示，
   唔會整壞 demo。UI 流程用 mock RPC 測過（create→join→start→reveal→
   submit→next→finish→trophy／student podium），**未用真 Supabase 房測試**；

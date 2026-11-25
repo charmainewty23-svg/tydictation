@@ -17,10 +17,15 @@ create table if not exists public.quizzykitty_rooms (
     q_index int not null default 0,
     seconds int not null default 15 check (seconds between 5 and 120),
     questions jsonb not null default '[]'::jsonb,
+    hint_on boolean not null default false,
     created_at timestamptz not null default now(),
     started_at timestamptz,
     finished_at timestamptz
 );
+
+-- Older installs may predate the first-letter hint column.
+alter table public.quizzykitty_rooms
+    add column if not exists hint_on boolean not null default false;
 
 create table if not exists public.quizzykitty_players (
     room_id uuid not null references public.quizzykitty_rooms(id) on delete cascade,
@@ -70,6 +75,47 @@ as $$
 $$;
 revoke all on function public.qz_norm(text) from public;
 revoke all on function public.qz_norm(text) from anon, authenticated;
+
+-- First A-Z letter of a word, uppercased. Mirrors qkFirstLetter() on the
+-- client: leading spaces, punctuation and digits are skipped.
+create or replace function public.qz_first_letter(p_word text)
+returns text
+language sql
+immutable
+as $$
+    select upper(substring(coalesce(p_word, '') from '[A-Za-z]'));
+$$;
+revoke all on function public.qz_first_letter(text) from public;
+revoke all on function public.qz_first_letter(text) from anon, authenticated;
+
+-- The official short answer students must type: accept[0]. Returns '' for
+-- every other question type (gap and fallback MC included).
+create or replace function public.qz_short_answer_word(p_question jsonb)
+returns text
+language sql
+immutable
+as $$
+    select case
+        when p_question is null then ''
+        when coalesce(p_question ->> 'type', '') <> 'short' then ''
+        when jsonb_typeof(p_question -> 'accept') <> 'array' then ''
+        when jsonb_array_length(p_question -> 'accept') = 0 then ''
+        else trim(coalesce((p_question -> 'accept') ->> 0, ''))
+    end;
+$$;
+revoke all on function public.qz_short_answer_word(jsonb) from public;
+revoke all on function public.qz_short_answer_word(jsonb) from anon, authenticated;
+
+-- Only the single letter is ever returned; never the full answer.
+create or replace function public.qz_short_first_letter(p_question jsonb)
+returns text
+language sql
+immutable
+as $$
+    select coalesce(public.qz_first_letter(public.qz_short_answer_word(p_question)), '');
+$$;
+revoke all on function public.qz_short_first_letter(jsonb) from public;
+revoke all on function public.qz_short_first_letter(jsonb) from anon, authenticated;
 
 create or replace function public.quizzykitty_new_code()
 returns text
@@ -235,7 +281,7 @@ begin
     if not public.quizzykitty_is_host(p_room, p_host_key) then raise exception 'NOT_HOST'; end if;
     update public.quizzykitty_rooms
     set status = 'playing', phase = 'question', q_index = 0,
-        started_at = now(), finished_at = null
+        started_at = now(), finished_at = null, hint_on = false
     where id = p_room and status = 'waiting';
     return jsonb_build_object('ok', true);
 end;
@@ -278,18 +324,53 @@ begin
     v_next := v_room.q_index + 1;
     if v_next >= v_total then
         update public.quizzykitty_rooms
-        set status = 'finished', finished_at = now(), phase = 'reveal'
+        set status = 'finished', finished_at = now(), phase = 'reveal', hint_on = false
         where id = p_room;
         return jsonb_build_object('finished', true, 'q_index', v_next);
     end if;
     update public.quizzykitty_rooms
-    set q_index = v_next, phase = 'question', started_at = now()
+    set q_index = v_next, phase = 'question', started_at = now(), hint_on = false
     where id = p_room;
     return jsonb_build_object('finished', false, 'q_index', v_next);
 end;
 $$;
 revoke all on function public.quizzykitty_next(uuid, text) from public;
 grant execute on function public.quizzykitty_next(uuid, text) to anon, authenticated;
+
+-- Teacher shows the first letter of the current Type-the-word answer.
+-- Only valid during the question phase of a real short question; the full
+-- answer is never returned. Students only ever see the single letter.
+create or replace function public.quizzykitty_hint(p_room uuid, p_host_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_room public.quizzykitty_rooms;
+    v_question jsonb;
+    v_letter text;
+begin
+    if not public.quizzykitty_is_host(p_room, p_host_key) then raise exception 'NOT_HOST'; end if;
+    select * into v_room from public.quizzykitty_rooms where id = p_room for update;
+    if v_room.id is null then raise exception 'ROOM_NOT_FOUND'; end if;
+    if v_room.status <> 'playing' or v_room.phase <> 'question' then
+        raise exception 'NOT_ACCEPTING';
+    end if;
+    v_question := v_room.questions -> v_room.q_index;
+    if v_question is null or coalesce(v_question ->> 'type', '') <> 'short' then
+        raise exception 'NOT_SHORT';
+    end if;
+    v_letter := public.qz_short_first_letter(v_question);
+    if coalesce(v_letter, '') = '' then raise exception 'NOT_SHORT'; end if;
+    update public.quizzykitty_rooms
+    set hint_on = true
+    where id = p_room;
+    return jsonb_build_object('ok', true, 'hint_letter', v_letter);
+end;
+$$;
+revoke all on function public.quizzykitty_hint(uuid, text) from public;
+grant execute on function public.quizzykitty_hint(uuid, text) to anon, authenticated;
 
 create or replace function public.quizzykitty_finish(p_room uuid, p_host_key text)
 returns jsonb
@@ -331,6 +412,7 @@ declare
     v_counts jsonb;
     v_answer jsonb;
     v_correct text;
+    v_hint text := '';
 begin
     select * into v_room from public.quizzykitty_rooms where id = p_room;
     if v_room.id is null then return null; end if;
@@ -367,6 +449,18 @@ begin
         end if;
     else
         v_question := null;
+    end if;
+
+    -- Reveal the first letter only while a Type-the-word question is open and
+    -- the teacher has switched the hint on. Never send the full answer here.
+    -- The gate is repeated here so an old room with a stale hint_on flag from
+    -- a gap question can never leak a letter.
+    if v_room.status = 'playing'
+       and v_room.phase = 'question'
+       and v_room.hint_on
+       and v_room.q_index < v_total
+       and coalesce((v_questions -> v_room.q_index) ->> 'type', '') = 'short' then
+        v_hint := public.qz_short_first_letter(v_questions -> v_room.q_index);
     end if;
 
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -411,6 +505,7 @@ begin
             'question_count', v_total,
             'started_ms', coalesce((extract(epoch from v_room.started_at) * 1000)::bigint, 0),
             'now_ms', (extract(epoch from now()) * 1000)::bigint,
+            'hint_letter', coalesce(v_hint, ''),
             'host', v_host
         ),
         'question', v_question,

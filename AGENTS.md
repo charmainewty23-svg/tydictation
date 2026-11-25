@@ -3632,7 +3632,7 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - Canvas：`PSRender.drawCeremony()` 畫原創 3D podium（2nd｜1st｜3rd），
     用 `DG.drawCatAvatar` 畫每位得獎者隻貓，配合金／銀／銅台階、
     聚光燈同彩帶；`R.drawScene` 見到 `mode === 'ceremony'` 或
-    `status === 'finished'` 就畫呢個 scene。`R.VERSION` 已升到 `2.2.0`。
+    `status === 'finished'` 就畫呢個 scene。`R.VERSION` 已升到 `2.4.0`（見 10.18d／10.18e）。
   - HTML：`#ps-ceremony` panel 顯示 ceremony title、每回合 summary（R1
     距離／過橋／Tug 勝方）同完整 ranking，每行有 per-round 小字同
     `+20 🐾` 等 Paws。Back to Hub 仍然喺 panel 底部。
@@ -3672,3 +3672,98 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 - **測試**：`node --test tests/purrfect-survival.test.cjs` 覆蓋 1／2／3 回合
   （含 Tug skip）ranking、Paws 表、idempotent award、英文標題、guest／demo
   保護、`drawCeremony` portrait／landscape，以及 incremental SQL 檢查。
+
+### 10.18d Teacher overhead view／student ranks／qualifier beat（2026-11 加）
+
+- **Render `R.VERSION = 2.3.0`**。
+- **老師／projector 鏡頭**：`R.layout(w,h,role)` 嘅 `role === 'host'` 用真正高位
+  俯視（landscape `cam1.eye.y 11.5`、`cam2 11.0`、`cam3 11.0`；portrait
+  8.0／8.4／8.4），所以整塊沙地、全條玻璃橋（連 queued／active／finish arch）
+  同兩邊 tug 平台、繩、兩隊都一次過見到。學生仍然用原本較低、較近鏡頭；
+  `r2Cam` 只跟學生 step、`r3Cam` 只按學生隊偏移（`L.host` 時兩者都唔偏移）。
+  `frame()` 傳 `role: 'host'` 除咗老師 host-only，亦包括
+  `demoMode && demoRole === 'teacher'`。靜態場景 cache key 已含 `role`。
+- **老師側邊 live 進度列表**：`#ps-progress`（HTML overlay，可 scroll），
+  只喺 host view + round 1/2/3 顯示，lobby 同 ceremony 收埋。
+  `PSEngine.teacherProgress(players, { round, finishDistance, stepCount, tug, phase })`
+  回傳已排序 rows：
+  - R1：name、place、`70 / 100 m`、`Running／Finished／Frozen（紅燈）／Out`，leader 先。
+  - R2：`Step N / total`、`Queued／Jumping／Crossed／Fell`，過橋者先。
+  - R3：team（Red／Blue／Watching）、`Answering／Idle／Out`、`Combo N/5`。
+  列表嚟自現有 fields（distance／status／glass_step／tug_team／tug_state），
+  冇新 server 欄位。Demo teacher/projector 一樣見到（同樣 role host）。
+- **學生 Round 1 名次**：
+  - Canvas 上附近（自己 ±2 名）嘅貓有 `3 · 4C 16 Demo` 名次標籤；
+    landscape／host 會顯示多啲，portrait 學生唔會標晒全班。
+  - HUD `#ps-hud-place` 顯示 `🏅 3rd / 12`，只喺 Round 1 出現。
+  - Engine 新 helper：`raceOrder`、`formatPlace`（1st／2nd／3rd／11th…）、
+    `nearbyRunners`（me + ahead/behind）。
+- **Qualifier beat**：`#ps-qualifier` overlay 喺每回合之間列出晉級學生
+  （`PSEngine.qualifierRoster`；R1 → glass 頭 15／最遠生存者，R2 → glass survivors
+  連 team 如有）。顯示 `QUALIFIER_MS = 7000`，有 Continue，時間到自動收，
+  學生睇同一個 board。
+  - Live R1→R2：room 一入 round2 就顯示，直到 `round2_started_at + 7s`。
+  - Live R2→R3：喺 tug `briefing` 顯示（briefing 本身冇鐘），host
+    **Start Tug of War** 喺 board 未完之前隱藏／被擋。
+  - Demo sequential advance：`demoAdvanceToRound2` **唔再**即刻
+    `demoReleaseGlass`；`demoTickRound2` 喺 qualifier 未完之前唔 release／唔 timeout。
+    `demoFinishRound2` 入 round3 briefing 前會 reset qualifier，board 完才可
+    start tug。Direct scene-picker（Round 2／3 按鈕）會 dismiss board，
+    方便老師即刻 inspect arena。
+  - SQL（live glass clock）：`supabase/purrfect_survival_qualifier.sql`
+    （可重跑，喺 ceremony／tug／host-settings 增量之後貼）。`purrfect_survival_release_glass`
+    會等 `round2_started_at + 7 seconds` 才放第一個 jumper，所以 board 下面
+    唔會有 5 秒鐘偷跑。未跑 SQL 時 board 仍顯示，但 live 第一個玻璃計時器
+    可能已經開始（demo 唔受影響）。
+- **Ceremony 唔遮頒獎台**：portrait `.ps-ceremony-card` `max-height` 由 58% 降
+  到 46%；landscape card 由 `min(460px, 46vw)` 改為 `min(420px, 34vw)`
+  （仍然右邊），`drawCeremony` 將成個 podium group 向左移 2.6 world units，
+  portrait 就收窄 spread 到 ±3.1，所以 1st／2nd／3rd 台、貓同名牌都喺
+  card 以外；名單太長就 card 內部 scroll，唔會只出 top 3。
+- **Cache**：`sw.js` `CACHE_NAME` 升到 `learnity-pwa-v110`（喺 PR #55 嘅 v109 之上；index.html＋3 個 PS JS 改咗）。
+
+### 10.18e Host track／glass lights／mistake report／demo audio（2026-11 加）
+
+- **Teacher-only longer Round 1 track**：`R.layout()` 依 `role === 'host'` 回傳
+  `round1StartZ = 0.8`、`round1FinishZ = 9.95`、`round1DollZ = 10.2`；學生仍然係
+  `5.0`／`9.8`／`10.15`。Landscape host `cam1` 改為 `eye [0,7.5,-6]`、
+  `target [0,0.2,9.0]`、`fov 60`，令跑道由畫面下緣填到終點。`r1Z()`、米線、
+  起跑／終點線、貓同 doll 都讀 layout 的 extents；static cache key 已包 host
+  track 數字，學生同老師唔會共用過期背景。`R.VERSION = 2.4.0`。
+- **Glass 只顯示燈光**：`drawPane3D` 已刪除 `step.left`／`step.right` 的
+  `fillText`，只保留綠燈（正確 pane）、碎裂、黃框。每題的兩個答案只在學生
+  自己電話、而且只喺 `me.glass_active`（輪到佢）時出現；排隊時 `ps-options`
+  清空。Host 唔會出答案 pad。
+- **每人不同順序**：`PSEngine.glassOrderForPlayer(userId, stepCount, seed)` 用
+  FNV-1a + mulberry32 + Fisher-Yates 產生 permutation；
+  `PSEngine.glassStepsForPlayer(baseSteps, userId, seed, orderOverride)` 由同一個
+  shared topic bank 抽成該學生 sequence，並**清走**任何 `revealed_side`。
+  Live 由 SQL `purrfect_survival_glass_order()` 喺 `begin_round2` 寫入
+  `purrfect_survival_players.glass_order`；`glass_jump_purrfect_survival()`
+  用該 order 驗證，**唔再**把 `revealed_side` 寫返 `room.glass_steps`。
+  Demo 的 bot／visitor jump 全部改用 `playerGlassSteps()`，所以排隊後不會
+  被派上一手答案。5 秒窗口同 single active jumper 不變。
+- **Post-ceremony mistake report**：`index.html` 的 `#ps-mistake-report` 喺
+  ceremony ranking 下面。`PSEngine.recordMistake(player, entry)` append 落
+  `answer_log`（append-only）；`PSEngine.mistakeReport(players, {meId, viewer})`
+  學生只回自己，老師回全班有錯的學生。Cover R1 wrong answer／紅燈 note、
+  R2 wrong/timeout pane、R3 wrong tug answer。Live SQL 喺
+  `submit_purrfect_survival_answer()`、`glass_jump_purrfect_survival()` 同 tug
+  分支 append `answer_log`；demo 直接寫 player object。
+- **Audio（live＋demo）**：三條 track，live 同 official demo 共用，全部唔入
+  `sw.js` CORE_ASSETS。Waiting lobby 播 `/music/survival_lobby_music.mp3`
+  （loop、volume 0.3）；rounds 播老師提供嘅 `/music/survival_music.mp3`
+  （loop、volume 0.3）；頒獎典禮停 gameplay／lobby，改播網站慣用嘅
+  `/music/trophyMusic.mp3`（volume 0.45，唔 loop，同 Word Battle／Drive & Go!
+  同一檔）。`syncMusic()`／`startBgm()` 跟 `room.status` 切歌；
+  `PS.unlockAudio()` resume iframe AudioContext 後播而家呢條。
+  `PS.startDemo()`／`PS.startRound1()`／`PS.enter()`（包括 waiting）會試播；
+  `PS.stop()`／離開房／🔇 會停晒。Demo iframe 加咗 `allow="autoplay; fullscreen"`，
+  parent demo-bar 每次 `callFrame()` 都先 call `PS.unlockAudio()`，iframe 內
+  pointerdown 亦會 unlock。`learniTY_ps_sound === '0'` 仍然係唯一 mute。
+- **SQL**：`supabase/purrfect_survival_round2_answers.sql`（可重跑；老師喺
+  live project `mggnwzirjmibreimrwiq` SQL editor 自己貼；唔好用 plugin／agent）。
+  要喺 host-settings／tug／ceremony／qualifier incrementals 之後跑；
+  `purrfect_survival_qualifier.sql` 仍然需要保留 live 7 秒玻璃延遲。Canonical
+  `supabase/purrfect_survival.sql` 已同步；`/workspace/` 亦有一份副本。
+- **Cache**：`sw.js` `CACHE_NAME` 升到 `learnity-pwa-v112`（JS 有改；mp3 唔入 precache）。

@@ -60,6 +60,13 @@
         round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.'
     };
 
+    /* Traditional Chinese (Hong Kong) sibling of RULE_TEXT. The English
+       strings above stay untouched because the in-game HUD uses them. */
+    PS.RULE_TEXT_ZH = {
+        round1: '綠燈：作答向前衝 +10 米。黃燈：2 秒警告，作答仍然計分。紅燈：3 秒——唔好作答。紅燈時撳會扣 30 米，再撳扣 15 米，第三次出局。跑到 100 米，最先 15 位生存者過橋。',
+        round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。'
+    };
+
     /* ------------------------------------------------------------------ */
     /* Small deterministic helpers                                         */
     /* ------------------------------------------------------------------ */

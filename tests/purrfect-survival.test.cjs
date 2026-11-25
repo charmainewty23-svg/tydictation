@@ -233,6 +233,7 @@ function loadMainWithDom(options) {
     add('ps-code', 'span');
     add('ps-code-chip', 'div');
     add('ps-room-meta', 'div');
+    add('ps-cine-rules', 'div');
     add('ps-player-list', 'div');
     add('ps-start-btn', 'button');
     add('ps-wait-msg', 'p');
@@ -963,6 +964,57 @@ test('demo entry paths call populateLobby', () => {
     assert.ok(jumpLobby.indexOf('populateLobby();') !== -1, 'demoJumpLobby calls populateLobby');
 });
 
+test('3-round and 4-round waiting lobbies use compact chips, not rule paragraphs', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'teacher', scene: 'lobby' });
+
+    const longEnglish = [
+        'Pressing in red costs 30 m',
+        'lights the correct pane',
+        'losing team falls into the abyss',
+        'One lick per player'
+    ];
+    const longChinese = ['紅燈時撳會扣 30 米', '舔一口椪糖'];
+
+    function waitingText() {
+        return [
+            dom.el('ps-cine').innerHTML,
+            dom.el('ps-cine').textContent,
+            dom.el('ps-room-meta').textContent,
+            dom.el('ps-cine-rules').innerHTML
+        ].join('\n');
+    }
+
+    [1, 2, 3, 4].forEach(count => {
+        dom.PS.setDemoSettings({ roundCount: count });
+        const chips = dom.el('ps-cine-rules').innerHTML;
+        assert.ok(chips.indexOf('1-2-3 Meow') !== -1, count + ' rounds keeps the R1 chip');
+        assert.equal(chips.indexOf('Glass') !== -1, count >= 2, count + ' rounds shows Glass only when selected');
+        assert.equal(chips.indexOf('Tug') !== -1, count >= 3, count + ' rounds shows Tug only when selected');
+        assert.equal(chips.indexOf('Dalgona') !== -1, count >= 4, count + ' rounds shows Dalgona only when selected');
+        const text = waitingText();
+        longEnglish.concat(longChinese).forEach(snippet => {
+            assert.equal(text.indexOf(snippet), -1, count + '-round waiting lobby must not dump: ' + snippet);
+        });
+        assert.ok(dom.el('ps-room-meta').textContent.length < 80, 'meta line stays short');
+        assert.ok(dom.el('ps-code').textContent === 'DEMO', 'room code stays visible');
+        assert.ok(dom.el('ps-cine').classList.contains('hidden') === false, 'waiting overlay is visible');
+        assert.ok(dom.el('ps-player-list').innerHTML.length > 0, 'player list stays visible');
+        assert.ok(dom.el('ps-start-btn').classList.contains('hidden') === false, 'host still sees Start');
+    });
+
+    // Student phones keep the same compact chips but no host Start button.
+    const student = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    student.PS.startDemo({ role: 'student', scene: 'lobby' });
+    student.PS.setDemoSettings({ roundCount: 4 });
+    const studentChips = student.el('ps-cine-rules').innerHTML;
+    ['1-2-3 Meow', 'Glass', 'Tug', 'Dalgona'].forEach(name => {
+        assert.ok(studentChips.indexOf(name) !== -1, 'student sees the ' + name + ' chip');
+    });
+    assert.ok(student.el('ps-start-btn').classList.contains('hidden'), 'students do not get the host Start button');
+    assert.ok(student.el('ps-code').textContent === 'DEMO', 'student still sees the room code');
+});
+
 /* 3D renderer: exports, drawing safety and original artwork         */
 /* ---------------------------------------------------------------- */
 
@@ -1132,13 +1184,13 @@ test('the waiting room goes full-stage with the live canvas and keeps the Start 
     assert.ok(src.indexOf('showRoundCue') !== -1, 'a non-blocking round cue exists');
 });
 
-test('index.html hosts the cinematic waiting overlay, rules cards and skip control', () => {
+test('index.html hosts the cinematic waiting overlay, compact round chips and skip control', () => {
     const html = fs.readFileSync(INDEX_PATH, 'utf8');
-    ['ps-cine', 'ps-cine-rule1', 'ps-cine-rule2', 'ps-cine-rule1-zh', 'ps-cine-rule2-zh',
-        'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
+    ['ps-cine', 'ps-cine-rules', 'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
-    assert.ok(html.indexOf('id="ps-cine-rule2-zh"') !== -1, 'Traditional Chinese rule chrome is present');
+    assert.equal(html.indexOf('id="ps-cine-rule1"'), -1, 'the long rule cards are gone');
+    assert.equal(html.indexOf('id="ps-cine-rule1-zh"'), -1, 'the bilingual rule cards are gone');
     assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
     assert.equal(html.indexOf('玻璃橋'), -1, 'the Chinese bridge title is gone');
     assert.equal(html.indexOf('貓咪拔河大賽'), -1, 'the Chinese tug title is gone');
@@ -1192,6 +1244,26 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.round3EndAction({ roundCount: 3 }), 'finish');
     assert.equal(PS.round3EndAction({ roundCount: 4 }), 'dalgona');
     assert.equal(PS.round4EndAction({ roundCount: 4 }), 'finish');
+});
+
+test('lobbyRoundChips lists only the selected rounds with short names and settings', () => {
+    assert.deepEqual(PS.lobbyRoundChips({ roundCount: 1 }).map(c => c.short), ['1-2-3 Meow']);
+    assert.deepEqual(PS.lobbyRoundChips(2).map(c => c.short), ['1-2-3 Meow', 'Glass']);
+    assert.deepEqual(PS.lobbyRoundChips({ roundCount: 3 }).map(c => c.short), ['1-2-3 Meow', 'Glass', 'Tug']);
+    const four = PS.lobbyRoundChips({ roundCount: 4 });
+    assert.deepEqual(four.map(c => c.n), [1, 2, 3, 4]);
+    assert.deepEqual(four.map(c => c.short), ['1-2-3 Meow', 'Glass', 'Tug', 'Dalgona']);
+    assert.deepEqual(four.map(c => c.note), ['100m', '9 steps', '60s', '180s']);
+
+    const custom = PS.lobbyRoundChips({
+        roundCount: 4,
+        finishDistance: 200,
+        glassSteps: 12,
+        tugDuration: 90000,
+        dalgonaDuration: 240000
+    });
+    assert.deepEqual(custom.map(c => c.note), ['200m', '12 steps', '90s', '240s']);
+    assert.deepEqual(PS.lobbyRoundChips({ roundCount: 9 }).map(c => c.n), [1, 2, 3, 4], 'clamped to implemented rounds');
 });
 
 test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
@@ -1428,6 +1500,20 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
     assert.ok(html.indexOf('value="5" disabled') !== -1, 'round 5 still coming soon');
     assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
+    assert.ok(html.indexOf('1 round · 1-2-3 Meow!') !== -1, 'short 1-round label');
+    assert.ok(html.indexOf('2 rounds · Meow + Glass') !== -1, 'short 2-round label');
+    assert.ok(html.indexOf('3 rounds · Meow + Glass + Tug') !== -1, 'short 3-round label');
+    assert.ok(html.indexOf('4 rounds · Meow + Glass + Tug + Dalgona') !== -1, 'short 4-round label');
+
+    const noteMatch = html.match(/<div id="ps-host-note"[^>]*>([\s\S]*?)<\/div>/);
+    assert.ok(noteMatch, 'host note exists');
+    const noteText = noteMatch[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    assert.ok(noteText.length < 280, 'host note is short');
+    ['a press costs 30 m', 'every jump lights the correct pane', 'losing team falls into the abyss',
+        'one lick per player', '紅燈時撳會扣 30 米', '舔一口椪糖'].forEach(snippet => {
+        assert.equal(noteText.toLowerCase().indexOf(snippet.toLowerCase()), -1,
+            'host note no longer repeats the long rules: ' + snippet);
+    });
 });
 
 test('New Vocab lobby pickers offer All / Added today / Added yesterday for every round', () => {
@@ -1530,9 +1616,10 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the round-2 report change', () => {
+test('service worker cache is bumped for the compact lobby', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v113") !== -1, 'CACHE_NAME is v113');
+    assert.ok(sw.indexOf("learnity-pwa-v114") !== -1, 'CACHE_NAME is v114');
+    assert.equal(sw.indexOf("learnity-pwa-v113"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v112"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v110"), -1, 'the old cache name is gone');
@@ -2951,7 +3038,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v113') !== -1, 'cache is v113');
+    assert.ok(sw.indexOf('learnity-pwa-v114') !== -1, 'cache is v114');
+    assert.equal(sw.indexOf('learnity-pwa-v113'), -1, 'the old cache name is gone');
     const assets = sw.slice(sw.indexOf('const CORE_ASSETS'), sw.indexOf('];', sw.indexOf('const CORE_ASSETS')));
     assert.equal(/\.mp3/.test(assets), false, 'no mp3 in CORE_ASSETS');
 

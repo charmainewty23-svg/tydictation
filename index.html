@@ -4265,38 +4265,39 @@
             text-align: center;
         }
         .ps-cine-rules {
-            display: grid;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
             gap: 8px;
             width: 100%;
             max-width: 760px;
             margin: 0 auto;
         }
-        .ps-rule-card {
-            display: none;
-            padding: 10px 12px;
-            border-radius: 14px;
+        .ps-round-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
             background: rgba(9, 13, 24, .86);
             border: 1px solid rgba(255, 255, 255, .16);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, .34);
+            font-size: 12px;
+            font-weight: 800;
+            color: #f8fafc;
+            white-space: nowrap;
         }
-        .ps-rule-card.is-in {
-            display: block;
+        .ps-cine-rules.is-in .ps-round-chip {
             animation: psCueFade .5s ease both;
         }
+        .ps-cine-rules.is-in .ps-round-chip:nth-child(2) { animation-delay: .07s; }
+        .ps-cine-rules.is-in .ps-round-chip:nth-child(3) { animation-delay: .14s; }
+        .ps-cine-rules.is-in .ps-round-chip:nth-child(4) { animation-delay: .21s; }
         @keyframes psCueFade {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: none; }
         }
-        .ps-rule-card h3 {
-            margin: 0 0 5px;
-            font-size: 13px;
-            font-weight: 800;
-            letter-spacing: .02em;
-            color: #fdf2f8;
-        }
-        .ps-rule-tag {
-            display: inline-block;
-            margin-right: 6px;
+        .ps-round-chip-n {
             padding: 2px 7px;
             border-radius: 999px;
             background: rgba(236, 72, 153, .28);
@@ -4304,19 +4305,13 @@
             font-size: 9px;
             letter-spacing: .12em;
         }
-        .ps-rule-en {
-            margin: 0;
-            font-size: 12px;
-            font-weight: 600;
-            line-height: 1.42;
-            color: #e2e8f0;
+        .ps-round-chip-name {
+            letter-spacing: .01em;
         }
-        .ps-rule-zh {
-            margin: 4px 0 0;
-            font-size: 11.5px;
-            font-weight: 600;
-            line-height: 1.5;
-            color: #f5d0e4;
+        .ps-round-chip-note {
+            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: 700;
         }
         .ps-cine-bottom {
             margin-top: auto;
@@ -4414,7 +4409,7 @@
                 align-items: flex-start;
             }
             .ps-cine > * { width: min(540px, 56vw); }
-            .ps-cine-rules { grid-template-columns: 1fr 1fr; }
+            .ps-cine-rules { justify-content: flex-start; }
             .ps-cine-top { flex-wrap: nowrap; }
             .ps-cine-count { margin-left: 0; }
             .ps-cine-mid { margin-top: auto; }
@@ -4422,17 +4417,13 @@
             .ps-cine .ps-player-list,
             .ps-cine .ps-wait-note { justify-content: flex-start; text-align: left; }
             .ps-cine .ps-wait-actions { justify-content: flex-start; }
-            .ps-rule-en { font-size: 11px; }
-            .ps-rule-zh { font-size: 10.5px; }
         }
         @media (max-height: 560px) and (orientation: landscape) {
             .ps-cine { gap: 6px; padding: 6px 10px; }
             .ps-cine-code { font-size: 19px; }
             .ps-cine-kicker { display: none; }
-            .ps-rule-card { padding: 7px 9px; }
-            .ps-rule-card h3 { font-size: 11.5px; margin-bottom: 3px; }
-            .ps-rule-en { font-size: 10.5px; line-height: 1.32; }
-            .ps-rule-zh { font-size: 10px; line-height: 1.4; margin-top: 2px; }
+            .ps-round-chip { padding: 5px 10px; font-size: 11px; }
+            .ps-round-chip-note { font-size: 10px; }
             .ps-cine .ps-player-list { max-height: 58px; }
             .ps-cine .ps-wait-actions .ps-primary { min-height: 40px; padding: 0 16px; }
             .ps-cine .ps-leave, .ps-intro-skip { min-height: 36px; font-size: 11px; }
@@ -6243,7 +6234,7 @@
                             <div class="ps-hero-icon">🦑</div>
                             <div>
                                 <h1>Purr-fect Survival</h1>
-                                <p>One class, one survival game. Round 1: 1-2-3 Meow! (Red Light, Green Light). Round 2: Glass Stepping Stones. Round 3: Tug of War. Round 4: Dalgona Candy Carving. Round 5 is still coming soon.</p>
+                                <p>One class, one survival game. Choose 1–4 rounds.</p>
                             </div>
                         </div>
 
@@ -6266,9 +6257,9 @@
                                     <label for="ps-round-count">Rounds to play</label>
                                     <select id="ps-round-count" onchange="PS.syncRoundCount()">
                                         <option value="1">1 round · 1-2-3 Meow!</option>
-                                        <option value="2" selected>2 rounds · 1-2-3 Meow! + Glass Stepping Stones</option>
-                                        <option value="3">3 rounds · 1-2-3 Meow! + Glass Stepping Stones + Tug of War</option>
-                                        <option value="4">4 rounds · 1-2-3 Meow! + Glass Stepping Stones + Tug of War + Dalgona Candy Carving</option>
+                                        <option value="2" selected>2 rounds · Meow + Glass</option>
+                                        <option value="3">3 rounds · Meow + Glass + Tug</option>
+                                        <option value="4">4 rounds · Meow + Glass + Tug + Dalgona</option>
                                         <option value="5" disabled>5 rounds · coming soon</option>
                                     </select>
                                 </div>
@@ -6437,7 +6428,7 @@
                                     <span>Join as a player too (teacher host otherwise spectates)</span>
                                 </label>
                                 <button id="ps-create-btn" type="button" class="ps-primary" onclick="PS.createRoom()">Create room</button>
-                                <p class="ps-hint">Each round can use a different subject and topic. The host sets the rounds, finish distance, glass steps, tug time limit and dalgona carving time for the whole class; every round may use a different bank.</p>
+                                <p class="ps-hint">Each round can use a different subject and bank. The host sets the rounds, distance, glass steps and timers for the whole class.</p>
                             </section>
 
                             <section class="ps-card ps-card-join">
@@ -6452,7 +6443,7 @@
                         </div>
 
                         <div id="ps-host-note" class="ps-note">
-                            <b>Class survival rules.</b> The host chooses 1–4 rounds, a subject and topic for each round, the round-1 finish distance, the number of glass steps, the round-3 tug time limit and the round-4 carving time limit. Round 1 (1-2-3 Meow!): answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). With 2–4 rounds the first 15 living students to reach the finish cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you. Round 3 (Tug of War): survivors are split into red and blue teams, both answer at the same time, every correct answer pulls +1, five in a row trigger 爆走拉力 2x, and the losing team falls into the abyss. Round 4 (Dalgona Candy Carving): the tug winners each get a golden candy with a fishbone, cat-paw or crown-cat pattern; carve every dash before the clock — one wrong carve is a crack, a second splits the candy, and one lick per player auto-fills the next segment. With 1 round the class ends in a survivor victory as soon as time is up or every living student finishes.
+                            <b>Class survival rules.</b> The host sets the rounds, finish distance, glass steps and timers for the whole class. Each round can use a different subject and bank.
                         </div>
 
                     </div>
@@ -6476,28 +6467,7 @@
 
                                 <div class="ps-cine-mid">
                                     <p id="ps-room-meta" class="ps-cine-meta"></p>
-                                    <div id="ps-cine-rules" class="ps-cine-rules">
-                                        <div id="ps-cine-rule1" class="ps-rule-card">
-                                            <h3><span class="ps-rule-tag">ROUND 1</span> 1-2-3 Meow!</h3>
-                                            <p id="ps-cine-rule1-en" class="ps-rule-en"></p>
-                                            <p id="ps-cine-rule1-zh" class="ps-rule-zh"></p>
-                                        </div>
-                                        <div id="ps-cine-rule2" class="ps-rule-card">
-                                            <h3><span class="ps-rule-tag">ROUND 2</span> Glass Stepping Stones</h3>
-                                            <p id="ps-cine-rule2-en" class="ps-rule-en"></p>
-                                            <p id="ps-cine-rule2-zh" class="ps-rule-zh"></p>
-                                        </div>
-                                        <div id="ps-cine-rule3" class="ps-rule-card hidden">
-                                            <h3><span class="ps-rule-tag">ROUND 3</span> Tug of War</h3>
-                                            <p id="ps-cine-rule3-en" class="ps-rule-en"></p>
-                                            <p id="ps-cine-rule3-zh" class="ps-rule-zh"></p>
-                                        </div>
-                                        <div id="ps-cine-rule4" class="ps-rule-card hidden">
-                                            <h3><span class="ps-rule-tag">ROUND 4</span> Dalgona Candy Carving</h3>
-                                            <p id="ps-cine-rule4-en" class="ps-rule-en"></p>
-                                            <p id="ps-cine-rule4-zh" class="ps-rule-zh"></p>
-                                        </div>
-                                    </div>
+                                    <div id="ps-cine-rules" class="ps-cine-rules" aria-label="Rounds in this room"></div>
                                 </div>
 
                                 <div class="ps-cine-bottom">

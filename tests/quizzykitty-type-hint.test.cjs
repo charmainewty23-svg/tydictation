@@ -1,7 +1,7 @@
-// QuizzyKitty › Fill the gap — teacher first-letter hint.
+// QuizzyKitty › Type the word — teacher first-letter hint.
 // No browser, no network, no database. The pure helpers are extracted from
 // the demo page and the rest is source/SQL contract checking.
-// Run: node --test tests/quizzykitty-gap-hint.test.cjs
+// Run: node --test tests/quizzykitty-type-hint.test.cjs
 'use strict';
 
 const test = require('node:test');
@@ -12,17 +12,21 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'quizzykitty-demo.html'), 'utf8');
 const canonicalSql = fs.readFileSync(path.join(ROOT, 'supabase/quizzykitty.sql'), 'utf8');
-const hintSql = fs.readFileSync(path.join(ROOT, 'supabase/quizzykitty_gap_hint.sql'), 'utf8');
+const hintSql = fs.readFileSync(path.join(ROOT, 'supabase/quizzykitty_type_hint.sql'), 'utf8');
 const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 
 /* --------------------------- helpers --------------------------- */
 
-function loadHelpers() {
+function helperBlock() {
     const match = html.match(/\/\* hint-helpers:start \*\/([\s\S]*?)\/\* hint-helpers:end \*\//);
     assert.ok(match, 'the hint helper block is present in quizzykitty-demo.html');
+    return match[1];
+}
+
+function loadHelpers() {
     return new Function(
-        match[1] +
-        '\nreturn { qkGapAnswerWord: qkGapAnswerWord, qkFirstLetter: qkFirstLetter };'
+        helperBlock() +
+        '\nreturn { qkShortAnswerWord: qkShortAnswerWord, qkFirstLetter: qkFirstLetter };'
     )();
 }
 
@@ -76,38 +80,42 @@ test('qkFirstLetter returns the first A-Z letter, uppercased', () => {
     assert.equal(qkFirstLetter(undefined), '');
 });
 
-test('qkGapAnswerWord uses choices[answer], not the bare en spelling', () => {
-    const { qkGapAnswerWord } = loadHelpers();
-    const q = {
-        type: 'gap',
-        en: 'protect',
-        choices: ['protects', 'protecting', 'protect', 'protected'],
-        answer: 1
-    };
-    assert.equal(qkGapAnswerWord(q), 'protecting');
-    assert.equal(qkGapAnswerWord({
-        type: 'gap', en: 'colour', choices: ['  colour', 'color', 'colours', 'colourful'], answer: 0
-    }), '  colour');
+test('qkShortAnswerWord prefers accept[0] when present', () => {
+    const { qkShortAnswerWord } = loadHelpers();
+    assert.equal(qkShortAnswerWord({
+        type: 'short', en: 'protect', accept: ['protecting', 'protected']
+    }), 'protecting');
+    assert.equal(qkShortAnswerWord({
+        type: 'short', en: 'colour', accept: ['  colour  ', 'color']
+    }), 'colour');
 });
 
-test('qkGapAnswerWord returns empty for non-gap / malformed questions', () => {
-    const { qkGapAnswerWord } = loadHelpers();
-    assert.equal(qkGapAnswerWord({ type: 'mc', choices: ['a', 'b'], answer: 0 }), '');
-    assert.equal(qkGapAnswerWord({ type: 'tf', answer: true }), '');
-    assert.equal(qkGapAnswerWord({ type: 'short', en: 'apple' }), '');
-    assert.equal(qkGapAnswerWord({ type: 'gap', answer: 0 }), '');
-    assert.equal(qkGapAnswerWord({ type: 'gap', choices: ['a'], answer: -1 }), '');
-    assert.equal(qkGapAnswerWord({ type: 'gap', choices: ['a'], answer: 4 }), '');
-    assert.equal(qkGapAnswerWord(null), '');
+test('qkShortAnswerWord falls back to the first slash-separated en token', () => {
+    const { qkShortAnswerWord } = loadHelpers();
+    assert.equal(qkShortAnswerWord({ type: 'short', en: 'colour / color' }), 'colour');
+    assert.equal(qkShortAnswerWord({ type: 'short', en: 'protecting' }), 'protecting');
+    assert.equal(qkShortAnswerWord({ type: 'short', en: '  apple  ' }), 'apple');
 });
 
-test('helper pipeline gives the letter students should see', () => {
-    const { qkGapAnswerWord, qkFirstLetter } = loadHelpers();
-    const q = { type: 'gap', en: 'protect', choices: ['protect', 'protecting', 'protects', 'protected'], answer: 1 };
-    assert.equal(qkFirstLetter(qkGapAnswerWord(q)), 'P');
+test('qkShortAnswerWord returns empty for empty / non-short questions', () => {
+    const { qkShortAnswerWord } = loadHelpers();
+    assert.equal(qkShortAnswerWord({ type: 'short', en: '' }), '');
+    assert.equal(qkShortAnswerWord({ type: 'short' }), '');
+    assert.equal(qkShortAnswerWord({ type: 'short', accept: [] }), '');
+    assert.equal(qkShortAnswerWord({ type: 'short', accept: ['   '] }), '');
+    assert.equal(qkShortAnswerWord({ type: 'gap', en: 'apple', accept: ['apple'] }), '');
+    assert.equal(qkShortAnswerWord({ type: 'mc', choices: ['a', 'b'], answer: 0 }), '');
+    assert.equal(qkShortAnswerWord({ type: 'tf', answer: true }), '');
+    assert.equal(qkShortAnswerWord(null), '');
+    assert.equal(qkShortAnswerWord(undefined), '');
+});
 
-    const fallback = { type: 'mc', fallback: true, en: 'protect', choices: ['protect'], answer: 0 };
-    assert.equal(qkFirstLetter(qkGapAnswerWord(fallback)), '');
+test('helper block is self-contained and gives the letter students should see', () => {
+    assert.doesNotMatch(helperBlock(), /primaryAnswer/);
+    const { qkShortAnswerWord, qkFirstLetter } = loadHelpers();
+    assert.equal(qkFirstLetter(qkShortAnswerWord({ type: 'short', en: 'protecting' })), 'P');
+    assert.equal(qkFirstLetter(qkShortAnswerWord({ type: 'short', en: 'colour/color' })), 'C');
+    assert.equal(qkFirstLetter(qkShortAnswerWord({ type: 'gap', en: 'protect' })), '');
 });
 
 /* ------------------------- demo wiring ------------------------- */
@@ -124,22 +132,22 @@ test('hint button is wired to the teacher handler only', () => {
     assert.match(html, /\$\('hintBtn'\)\.addEventListener\('click', function \(\) \{\s*if \(room\.id\) \{ liveHint\(\); return; \}\s*demoHint\(\);\s*\}\);/);
 });
 
-test('hint is gated on a real gap question and not fallback MC', () => {
+test('hint is gated on Type the word, not Fill the gap', () => {
     const context = sliceFunction(html, 'function hintContext()');
-    assert.match(context, /q\.type === 'gap'/);
-    assert.match(context, /!q\.fallback/);
+    assert.match(context, /q\.type === 'short'/);
+    assert.doesNotMatch(context, /q\.type === 'gap'/);
     assert.match(context, /nowPhase === 'question'/);
 
     const update = sliceFunction(html, 'function updateHintUI()');
     assert.match(update, /ctx\.canShow/);
 
     const demo = sliceFunction(html, 'function demoHint()');
-    assert.match(demo, /q\.type !== 'gap'/);
-    assert.match(demo, /q\.fallback/);
+    assert.match(demo, /q\.type !== 'short'/);
+    assert.doesNotMatch(demo, /q\.type !== 'gap'/);
 
     const live = sliceFunction(html, 'async function liveHint()');
-    assert.match(live, /q\.type !== 'gap'/);
-    assert.match(live, /q\.fallback/);
+    assert.match(live, /q\.type !== 'short'/);
+    assert.doesNotMatch(live, /q\.type !== 'gap'/);
     assert.match(live, /quizzykitty_hint/);
 });
 
@@ -151,11 +159,13 @@ test('demo hint shows on the teacher panel and the demo student phone', () => {
     assert.match(update, /💡 Hint shown: /);
 });
 
-test('next question and a new quiz reset the hint', () => {
+test('next question, new quiz, room start and finish reset the hint', () => {
     assert.match(sliceFunction(html, 'function nextQuestion()'), /hintOn = false;/);
     assert.match(sliceFunction(html, 'function startQuiz()'), /hintOn = false;/);
     assert.match(sliceFunction(html, 'function showSetup()'), /hintOn = false;/);
+    assert.match(sliceFunction(html, 'function finish()'), /hintOn = false;/);
     assert.match(sliceFunction(html, 'function renderRoomQuestion()'), /room\.hintLetter = '';/);
+    assert.match(sliceFunction(html, 'function leaveRoomHost()'), /room\.hintLetter = '';/);
 });
 
 test('live room polls paint hint_letter without rebuilding student answers', () => {
@@ -175,7 +185,8 @@ test('live room polls paint hint_letter without rebuilding student answers', () 
 
     const hint = sliceFunction(html, 'function studentApplyHint(st)');
     assert.match(hint, /st\.room\.hint_letter/);
-    assert.match(hint, /q\.type === 'gap'/);
+    assert.match(hint, /q\.type === 'short'/);
+    assert.doesNotMatch(hint, /q\.type === 'gap'/);
     assert.doesNotMatch(hint, /srAnswers/);
     assert.doesNotMatch(hint, /innerHTML/);
 });
@@ -187,9 +198,10 @@ test('stale empty host poll must not clear a letter already shown', () => {
     assert.match(fn, /phase === 'question'/);
 });
 
-test('live hint failure points teachers at the incremental SQL', () => {
+test('live hint failure points teachers at the Type-the-word incremental SQL', () => {
     const live = sliceFunction(html, 'async function liveHint()');
-    assert.match(live, /quizzykitty_gap_hint\.sql/);
+    assert.match(live, /quizzykitty_type_hint\.sql/);
+    assert.doesNotMatch(live, /quizzykitty_gap_hint\.sql/);
     assert.match(live, /showHintNote\(/);
     assert.match(html, /id="hintNote"/);
 });
@@ -214,17 +226,18 @@ for (const [label, sql] of [['canonical', canonicalSql], ['incremental', hintSql
     test(label + ' SQL has the hint column, helpers and RPC', () => {
         assert.match(sql, /add column if not exists hint_on boolean not null default false;/);
         assert.match(sql, /create or replace function public\.qz_first_letter\(p_word text\)/);
-        assert.match(sql, /create or replace function public\.qz_gap_answer_word\(p_question jsonb\)/);
-        assert.match(sql, /create or replace function public\.qz_gap_first_letter\(p_question jsonb\)/);
+        assert.match(sql, /create or replace function public\.qz_short_answer_word\(p_question jsonb\)/);
+        assert.match(sql, /create or replace function public\.qz_short_first_letter\(p_question jsonb\)/);
         assert.match(sql, /create or replace function public\.quizzykitty_hint\(p_room uuid, p_host_key text\)/);
         assert.match(sql, /grant execute on function public\.quizzykitty_hint\(uuid, text\) to anon, authenticated;/);
         assert.match(sql, /notify pgrst, 'reload schema';/);
     });
 
-    test(label + ' SQL only returns the single letter', () => {
+    test(label + ' SQL only returns the single letter for short questions', () => {
         const hint = sqlFunction(sql, 'quizzykitty_hint');
         assert.match(hint, /quizzykitty_is_host/);
-        assert.match(hint, /raise exception 'NOT_GAP';/);
+        assert.match(hint, /<> 'short'/);
+        assert.match(hint, /raise exception 'NOT_SHORT';/);
         assert.match(hint, /set hint_on = true/);
         assert.match(hint, /'hint_letter', v_letter/);
         assert.doesNotMatch(hint, /'answer'/);
@@ -238,21 +251,35 @@ for (const [label, sql] of [['canonical', canonicalSql], ['incremental', hintSql
             'both the finished and the advance path reset the hint');
     });
 
-    test(label + ' state exposes hint_letter only while the hint is on', () => {
+    test(label + ' state exposes hint_letter only for short + hint_on', () => {
         const state = sqlFunction(sql, 'quizzykitty_state');
         assert.match(state, /v_room\.hint_on/);
         assert.match(state, /v_room\.phase = 'question'/);
-        assert.match(state, /v_hint := public\.qz_gap_first_letter/);
+        assert.match(state, /qz_short_first_letter/);
+        assert.match(state, /=\s*'short' then/);
         assert.match(state, /'hint_letter', coalesce\(v_hint, ''\)/);
         assert.match(state, /v_question - 'answer' - 'accept'/);
         assert.doesNotMatch(state, /hint_letter', .*answer/);
     });
 }
 
-test('gap answer helper uses choices[answer] and skips other types', () => {
-    const helper = sqlFunction(canonicalSql, 'qz_gap_answer_word');
-    assert.match(helper, /coalesce\(p_question ->> 'type', ''\) <> 'gap'/);
-    assert.match(helper, /p_question -> 'choices'\) ->> \(\(p_question ->> 'answer'\)::int\)/);
+test('canonical SQL no longer keeps gap-only hint helpers', () => {
+    assert.doesNotMatch(canonicalSql, /qz_gap_answer_word/);
+    assert.doesNotMatch(canonicalSql, /qz_gap_first_letter/);
+    const helper = sqlFunction(canonicalSql, 'qz_short_answer_word');
+    assert.match(helper, /coalesce\(p_question ->> 'type', ''\) <> 'short'/);
+    assert.match(helper, /\(p_question -> 'accept'\) ->> 0/);
+});
+
+test('incremental SQL replaces the old gap install and drops its helpers', () => {
+    assert.match(hintSql, /project mggnwzirjmibreimrwiq/);
+    assert.match(hintSql, /quizzykitty_gap_hint\.sql/);
+    assert.match(hintSql, /drop function if exists public\.qz_gap_first_letter\(jsonb\);/);
+    assert.match(hintSql, /drop function if exists public\.qz_gap_answer_word\(jsonb\);/);
+});
+
+test('the old gap hint incremental file is gone', () => {
+    assert.equal(fs.existsSync(path.join(ROOT, 'supabase/quizzykitty_gap_hint.sql')), false);
 });
 
 test('service worker cache stays on v109', () => {

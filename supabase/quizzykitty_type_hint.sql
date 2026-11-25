@@ -1,7 +1,11 @@
--- QuizzyKitty › Fill the gap: teacher first-letter hint (live class rooms).
+-- QuizzyKitty › Type the word: teacher first-letter hint (live class rooms).
 --
--- Run this once in the Supabase SQL editor for project mggnwzirjmibreimrwiq.
+-- Paste this in the Supabase SQL editor for project mggnwzirjmibreimrwiq.
 -- Agents must NOT run it. Safe to re-run.
+--
+-- If you already ran quizzykitty_gap_hint.sql, still run THIS file: it
+-- replaces the gap-only RPC with Type-the-word behaviour. It is also safe on
+-- a fresh project that only has the original quizzykitty.sql.
 --
 -- Adds rooms.hint_on, a host-only quizzykitty_hint() RPC, resets the flag in
 -- start/next, and exposes only the single letter (hint_letter) through
@@ -22,34 +26,34 @@ $$;
 revoke all on function public.qz_first_letter(text) from public;
 revoke all on function public.qz_first_letter(text) from anon, authenticated;
 
--- The official gap answer as students see it: choices[answer]. Returns ''
--- for every other question type (including fallback MC).
-create or replace function public.qz_gap_answer_word(p_question jsonb)
+-- The official short answer students must type: accept[0]. Returns '' for
+-- every other question type (gap and fallback MC included).
+create or replace function public.qz_short_answer_word(p_question jsonb)
 returns text
 language sql
 immutable
 as $$
     select case
         when p_question is null then ''
-        when coalesce(p_question ->> 'type', '') <> 'gap' then ''
-        when jsonb_typeof(p_question -> 'choices') <> 'array' then ''
-        when coalesce(p_question ->> 'answer', '') !~ '^[0-9]+$' then ''
-        else coalesce((p_question -> 'choices') ->> ((p_question ->> 'answer')::int), '')
+        when coalesce(p_question ->> 'type', '') <> 'short' then ''
+        when jsonb_typeof(p_question -> 'accept') <> 'array' then ''
+        when jsonb_array_length(p_question -> 'accept') = 0 then ''
+        else trim(coalesce((p_question -> 'accept') ->> 0, ''))
     end;
 $$;
-revoke all on function public.qz_gap_answer_word(jsonb) from public;
-revoke all on function public.qz_gap_answer_word(jsonb) from anon, authenticated;
+revoke all on function public.qz_short_answer_word(jsonb) from public;
+revoke all on function public.qz_short_answer_word(jsonb) from anon, authenticated;
 
 -- Only the single letter is ever returned; never the full answer.
-create or replace function public.qz_gap_first_letter(p_question jsonb)
+create or replace function public.qz_short_first_letter(p_question jsonb)
 returns text
 language sql
 immutable
 as $$
-    select coalesce(public.qz_first_letter(public.qz_gap_answer_word(p_question)), '');
+    select coalesce(public.qz_first_letter(public.qz_short_answer_word(p_question)), '');
 $$;
-revoke all on function public.qz_gap_first_letter(jsonb) from public;
-revoke all on function public.qz_gap_first_letter(jsonb) from anon, authenticated;
+revoke all on function public.qz_short_first_letter(jsonb) from public;
+revoke all on function public.qz_short_first_letter(jsonb) from anon, authenticated;
 
 -- Starting a room clears any hint from a previous run.
 create or replace function public.quizzykitty_start(p_room uuid, p_host_key text)
@@ -102,8 +106,8 @@ $$;
 revoke all on function public.quizzykitty_next(uuid, text) from public;
 grant execute on function public.quizzykitty_next(uuid, text) to anon, authenticated;
 
--- Teacher shows the first letter of the current Fill-the-gap answer.
--- Only valid during the question phase of a real gap question; the full
+-- Teacher shows the first letter of the current Type-the-word answer.
+-- Only valid during the question phase of a real short question; the full
 -- answer is never returned. Students only ever see the single letter.
 create or replace function public.quizzykitty_hint(p_room uuid, p_host_key text)
 returns jsonb
@@ -123,11 +127,11 @@ begin
         raise exception 'NOT_ACCEPTING';
     end if;
     v_question := v_room.questions -> v_room.q_index;
-    if v_question is null or coalesce(v_question ->> 'type', '') <> 'gap' then
-        raise exception 'NOT_GAP';
+    if v_question is null or coalesce(v_question ->> 'type', '') <> 'short' then
+        raise exception 'NOT_SHORT';
     end if;
-    v_letter := public.qz_gap_first_letter(v_question);
-    if coalesce(v_letter, '') = '' then raise exception 'NOT_GAP'; end if;
+    v_letter := public.qz_short_first_letter(v_question);
+    if coalesce(v_letter, '') = '' then raise exception 'NOT_SHORT'; end if;
     update public.quizzykitty_rooms
     set hint_on = true
     where id = p_room;
@@ -140,7 +144,7 @@ grant execute on function public.quizzykitty_hint(uuid, text) to anon, authentic
 -- Host or a joined student reads the room. Students get the current question
 -- without answer/accept, plus the correct text once the teacher reveals.
 -- hint_letter is the only extra pre-Reveal information: one uppercase A-Z
--- letter, and only while hint_on is true on an open gap question.
+-- letter, and only while hint_on is true on an open Type-the-word question.
 create or replace function public.quizzykitty_state(
     p_room uuid,
     p_client_id text,
@@ -201,13 +205,16 @@ begin
         v_question := null;
     end if;
 
-    -- Reveal the first letter only while a gap question is open and the
-    -- teacher has switched the hint on. Never send the full answer here.
+    -- Reveal the first letter only while a Type-the-word question is open and
+    -- the teacher has switched the hint on. Never send the full answer here.
+    -- The gate is repeated here so an old room with a stale hint_on flag from
+    -- a gap question can never leak a letter.
     if v_room.status = 'playing'
        and v_room.phase = 'question'
        and v_room.hint_on
-       and v_room.q_index < v_total then
-        v_hint := public.qz_gap_first_letter(v_questions -> v_room.q_index);
+       and v_room.q_index < v_total
+       and coalesce((v_questions -> v_room.q_index) ->> 'type', '') = 'short' then
+        v_hint := public.qz_short_first_letter(v_questions -> v_room.q_index);
     end if;
 
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -264,5 +271,9 @@ end;
 $$;
 revoke all on function public.quizzykitty_state(uuid, text, text) from public;
 grant execute on function public.quizzykitty_state(uuid, text, text) to anon, authenticated;
+
+-- Leave a clean schema if the earlier gap-only helpers were installed.
+drop function if exists public.qz_gap_first_letter(jsonb);
+drop function if exists public.qz_gap_answer_word(jsonb);
 
 notify pgrst, 'reload schema';

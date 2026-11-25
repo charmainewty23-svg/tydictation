@@ -1704,15 +1704,17 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Fill-the-gap first-letter hint helpers (pure)                       */
+  /* Type-the-word first-letter hint helpers (pure)                      */
   /* ------------------------------------------------------------------ */
   /* hint-helpers:start */
-  function qkGapAnswerWord(q) {
-    if (!q || q.type !== 'gap') return '';
-    if (!Array.isArray(q.choices)) return '';
-    const at = Number(q.answer);
-    if (!Number.isInteger(at) || at < 0 || at >= q.choices.length) return '';
-    return String(q.choices[at] == null ? '' : q.choices[at]);
+  function qkShortAnswerWord(q) {
+    if (!q || q.type !== 'short') return '';
+    if (Array.isArray(q.accept)) {
+      const first = q.accept[0];
+      if (typeof first === 'string' && first.trim()) return first.trim();
+    }
+    const en = String(q.en == null ? '' : q.en);
+    return en.split('/')[0].trim();
   }
 
   function qkFirstLetter(word) {
@@ -1720,7 +1722,7 @@
     return match ? match[0].toUpperCase() : '';
   }
   /* hint-helpers:end */
-  window.qkGapAnswerWord = qkGapAnswerWord;
+  window.qkShortAnswerWord = qkShortAnswerWord;
   window.qkFirstLetter = qkFirstLetter;
 
   /* ------------------------------------------------------------------ */
@@ -2281,14 +2283,14 @@
     const q = live ? (room.questions[room.qIndex] || null) : currentQ();
     const nowPhase = live ? room.phase : phase;
     const playing = live ? room.status === 'playing' : true;
+    const isShort = !!q && q.type === 'short';
     const letter = live
       ? String(room.hintLetter || '')
-      : (hintOn ? qkFirstLetter(qkGapAnswerWord(q)) : '');
-    const gap = !!q && q.type === 'gap' && !q.fallback;
+      : (hintOn ? qkFirstLetter(qkShortAnswerWord(q)) : '');
     return {
       live: live,
       letter: letter,
-      canShow: gap && playing && nowPhase === 'question'
+      canShow: isShort && playing && nowPhase === 'question'
     };
   }
 
@@ -2315,7 +2317,7 @@
 
   function demoHint() {
     const q = currentQ();
-    if (phase !== 'question' || !q || q.type !== 'gap' || q.fallback) return;
+    if (phase !== 'question' || !q || q.type !== 'short') return;
     if (hintOn) return;
     hintOn = true;
     updateHintUI();
@@ -2330,7 +2332,7 @@
 
   async function liveHint() {
     const q = room.questions[room.qIndex];
-    if (room.phase !== 'question' || !q || q.type !== 'gap' || q.fallback) return;
+    if (room.phase !== 'question' || !q || q.type !== 'short') return;
     if (room.hintLetter) return;
     const btn = $('hintBtn');
     if (btn) btn.disabled = true;
@@ -2339,12 +2341,12 @@
         p_room: room.id, p_host_key: room.hostKey
       });
       room.hintLetter = String((res && res.hint_letter) ||
-        qkFirstLetter(qkGapAnswerWord(q))).toUpperCase().slice(0, 1);
+        qkFirstLetter(qkShortAnswerWord(q))).toUpperCase().slice(0, 1);
       showHintNote('');
     } catch (e) {
       const msg = String(e && e.message || e);
       const note = /does not exist|Could not find|PGRST|schema/i.test(msg)
-        ? 'First-letter hints in class rooms need supabase/quizzykitty_gap_hint.sql. Run it in the Supabase SQL editor, then refresh.'
+        ? 'First-letter hints in class rooms need supabase/quizzykitty_type_hint.sql. Run it in the Supabase SQL editor, then refresh.'
         : ('Could not show the hint: ' + msg);
       showHintNote(note);
       $('setupNote').textContent = note;
@@ -3839,7 +3841,7 @@
     if (!chip) return;
     const q = st && st.question;
     const letter = (st && st.room && st.room.status === 'playing' &&
-      st.room.phase === 'question' && q && q.type === 'gap' && !q.fallback)
+      st.room.phase === 'question' && q && q.type === 'short')
       ? String(st.room.hint_letter || '').toUpperCase().slice(0, 1)
       : '';
     if (letter) {

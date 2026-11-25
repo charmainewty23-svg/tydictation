@@ -9,6 +9,14 @@
 -- Round 2 (Glass Stepping Stones). `current_round` and `status` are
 -- deliberately extensible for later rounds.
 --
+-- Host settings (2026-11): the host picks 1 or 2 rounds, an independent
+-- subject/topic per round, the round-1 finish distance (30-300 m) and the
+-- round-2 glass step count (3-15). They are stored in the versioned
+-- `settings` JSON: { version, roundCount, rounds: [ ... ] }.
+-- Rounds 3-5 (tug of war, second glass bridge, Squid Circle) are NOT
+-- playable yet; when each one ships, its host settings must ship in the
+-- same change.
+--
 -- Guests are anonymous, so auth.uid() is null for them: every RPC here
 -- raises NOT_AUTHENTICATED. The frontend also blocks guest mode.
 -- ============================================================
@@ -150,6 +158,94 @@ begin
 end;
 $$;
 
+-- Reads the host settings round count. Old rooms default to 2 (today's
+-- behaviour) and the value is clamped to the implemented rounds (1 or 2).
+-- Rounds 3-5 are NOT playable yet; when they ship, their host settings must
+-- ship in the same change.
+create or replace function public.purrfect_survival_round_count(p_settings jsonb)
+returns int
+language plpgsql
+immutable
+as $$
+declare
+    v_raw text;
+begin
+    if p_settings is null or jsonb_typeof(p_settings) <> 'object' then
+        return 2;
+    end if;
+    v_raw := p_settings ->> 'roundCount';
+    if v_raw is null or v_raw !~ '^[0-9]+$' then
+        return 2;
+    end if;
+    return least(2, greatest(1, v_raw::int));
+end;
+$$;
+
+-- Rounds-1 finish distance from settings: default 100 m, clamped to
+-- 30-300 m on the 10 m step used by the lobby.
+create or replace function public.purrfect_survival_finish_value(p_settings jsonb, p_default int default 100)
+returns int
+language plpgsql
+immutable
+as $$
+declare
+    v_raw text;
+    v_num numeric;
+begin
+    if p_settings is null or jsonb_typeof(p_settings) <> 'object' then
+        return coalesce(p_default, 100);
+    end if;
+    v_raw := p_settings ->> 'finishDistance';
+    if v_raw is null then
+        v_raw := p_settings ->> 'finish_distance';
+    end if;
+    if v_raw is null
+       and jsonb_typeof(p_settings -> 'rounds') = 'array'
+       and jsonb_array_length(p_settings -> 'rounds') > 0 then
+        v_raw := p_settings -> 'rounds' -> 0 ->> 'finishDistance';
+    end if;
+    if v_raw is null or v_raw !~ '^[0-9]+([.][0-9]+)?$' then
+        return coalesce(p_default, 100);
+    end if;
+    v_num := round((v_raw::numeric) / 10) * 10;
+    return least(300, greatest(30, v_num::int));
+end;
+$$;
+
+-- Round-2 glass step count: default 9, clamped to 3-15.
+create or replace function public.purrfect_survival_glass_count(p_settings jsonb, p_default int default 9)
+returns int
+language plpgsql
+immutable
+as $$
+declare
+    v_raw text;
+    v_idx int;
+    v_round jsonb;
+begin
+    if p_settings is null or jsonb_typeof(p_settings) <> 'object' then
+        return coalesce(p_default, 9);
+    end if;
+    v_raw := p_settings ->> 'glassSteps';
+    if v_raw is null then
+        v_raw := p_settings ->> 'glass_steps';
+    end if;
+    if v_raw is null and jsonb_typeof(p_settings -> 'rounds') = 'array' then
+        for v_idx in 0..jsonb_array_length(p_settings -> 'rounds') - 1 loop
+            v_round := p_settings -> 'rounds' -> v_idx;
+            if coalesce(v_round ->> 'round', '') = '2' then
+                v_raw := v_round ->> 'glassSteps';
+                exit;
+            end if;
+        end loop;
+    end if;
+    if v_raw is null or v_raw !~ '^[0-9]+$' then
+        return coalesce(p_default, 9);
+    end if;
+    return least(15, greatest(3, v_raw::int));
+end;
+$$;
+
 -- Releases exactly one queued player onto step 0 once nobody living is
 -- still standing on step 0. A player who moved to step 1+ or fell
 -- unblocks the classmate behind them.
@@ -262,6 +358,46 @@ begin
 end;
 $$;
 
+-- Ends round 1 correctly for the selected round count. A 2-round class
+-- advances the first 15 survivors to the glass bridge; a 1-round class
+-- finishes immediately and every living player (still status='alive')
+-- wins. No top-15 cut is applied to a 1-round room.
+create or replace function public.purrfect_survival_complete_round1(p_room_id uuid)
+returns public.purrfect_survival_rooms
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_room public.purrfect_survival_rooms;
+begin
+    select * into v_room
+    from public.purrfect_survival_rooms
+    where id = p_room_id
+    for update;
+
+    if not found then
+        raise exception 'ROOM_NOT_FOUND';
+    end if;
+    if v_room.status <> 'round1' then
+        return v_room;
+    end if;
+    if public.purrfect_survival_round_count(v_room.settings) > 1 then
+        return public.purrfect_survival_begin_round2(p_room_id);
+    end if;
+
+    update public.purrfect_survival_rooms
+    set status = 'finished',
+        current_round = 1,
+        finished_at = coalesce(finished_at, now()),
+        server_now = now()
+    where id = p_room_id
+    returning * into v_room;
+
+    return v_room;
+end;
+$$;
+
 create or replace function public.purrfect_survival_finish_if_done(p_room_id uuid)
 returns public.purrfect_survival_rooms
 language plpgsql
@@ -348,6 +484,10 @@ declare
     v_plays boolean;
     v_max int;
     v_look jsonb;
+    v_settings jsonb;
+    v_finish int;
+    v_round jsonb;
+    v_idx int;
     i int;
 begin
     if auth.uid() is null then
@@ -356,6 +496,40 @@ begin
 
     if coalesce(p_subject, '') not in ('vocab', 'grammar') then
         raise exception 'INVALID_SUBJECT';
+    end if;
+
+    -- Host settings are a versioned JSON blob. Missing/legacy settings keep
+    -- today's defaults (2 rounds, 100 m, 9 glass steps). Mixed subjects are
+    -- allowed ACROSS rounds; each individual round is still one subject.
+    v_settings := coalesce(p_settings, '{}'::jsonb);
+    if jsonb_typeof(v_settings) <> 'object' then
+        v_settings := '{}'::jsonb;
+    end if;
+    if coalesce(v_settings ->> 'roundCount', '') ~ '^[0-9]+$'
+       and (v_settings ->> 'roundCount')::int > 2 then
+        raise exception 'ROUNDS_NOT_IMPLEMENTED';
+    end if;
+    v_finish := public.purrfect_survival_finish_value(v_settings, 100);
+    v_settings := jsonb_set(v_settings, '{finishDistance}', to_jsonb(v_finish), true);
+    if public.purrfect_survival_round_count(v_settings) > 1 then
+        v_settings := jsonb_set(
+            v_settings,
+            '{glassSteps}',
+            to_jsonb(public.purrfect_survival_glass_count(v_settings, 9)),
+            true
+        );
+    end if;
+
+    if v_settings ? 'rounds' and jsonb_typeof(v_settings -> 'rounds') = 'array' then
+        for v_idx in 0..jsonb_array_length(v_settings -> 'rounds') - 1 loop
+            v_round := v_settings -> 'rounds' -> v_idx;
+            if coalesce(v_round ->> 'subject', '') not in ('vocab', 'grammar') then
+                raise exception 'INVALID_SUBJECT';
+            end if;
+            if coalesce(v_round ->> 'topic', '') = '' then
+                raise exception 'INVALID_TOPIC';
+            end if;
+        end loop;
     end if;
 
     -- Housekeeping: stale rooms from earlier lessons.
@@ -384,10 +558,10 @@ begin
 
     insert into public.purrfect_survival_rooms (
         code, host_id, subject, source, topic, bank_mode, seed,
-        max_players, settings
+        max_players, finish_distance, settings
     ) values (
         v_code, auth.uid(), p_subject, coalesce(p_source, ''), coalesce(p_topic, ''),
-        coalesce(p_bank_mode, ''), v_seed, v_max, coalesce(p_settings, '{}'::jsonb)
+        coalesce(p_bank_mode, ''), v_seed, v_max, v_finish, v_settings
     ) returning * into v_room;
 
     if v_plays then
@@ -520,6 +694,7 @@ declare
     v_count int;
     v_item jsonb;
     v_glass jsonb := '[]'::jsonb;
+    v_round_count int;
     i int;
 begin
     if auth.uid() is null then
@@ -541,6 +716,8 @@ begin
         raise exception 'ROOM_ALREADY_STARTED';
     end if;
 
+    v_round_count := public.purrfect_survival_round_count(v_room.settings);
+
     select count(*) into v_count
     from public.purrfect_survival_players
     where room_id = p_room_id and is_playing;
@@ -559,10 +736,12 @@ begin
        or jsonb_array_length(p_schedule) = 0 then
         raise exception 'NO_SCHEDULE';
     end if;
-    if p_glass is null
-       or jsonb_typeof(p_glass) <> 'array'
-       or jsonb_array_length(p_glass) = 0 then
-        raise exception 'NO_GLASS';
+    if v_round_count > 1 then
+        if p_glass is null
+           or jsonb_typeof(p_glass) <> 'array'
+           or jsonb_array_length(p_glass) = 0 then
+            raise exception 'NO_GLASS';
+        end if;
     end if;
 
     for i in 0..jsonb_array_length(p_schedule) - 1 loop
@@ -573,18 +752,22 @@ begin
         end if;
     end loop;
 
-    for i in 0..jsonb_array_length(p_glass) - 1 loop
-        v_item := p_glass -> i;
-        if coalesce(v_item ->> 'left', '') = ''
-           or coalesce(v_item ->> 'right', '') = ''
-           or coalesce(v_item ->> 'correct_side', '') not in ('left', 'right') then
-            raise exception 'INVALID_GLASS';
-        end if;
-        v_item := jsonb_set(v_item, '{revealed}', 'false'::jsonb, true);
-        v_item := jsonb_set(v_item, '{revealed_side}', 'null'::jsonb, true);
-        v_item := jsonb_set(v_item, '{shattered_side}', 'null'::jsonb, true);
-        v_glass := v_glass || jsonb_build_array(v_item);
-    end loop;
+    if p_glass is not null
+       and jsonb_typeof(p_glass) = 'array'
+       and jsonb_array_length(p_glass) > 0 then
+        for i in 0..jsonb_array_length(p_glass) - 1 loop
+            v_item := p_glass -> i;
+            if coalesce(v_item ->> 'left', '') = ''
+               or coalesce(v_item ->> 'right', '') = ''
+               or coalesce(v_item ->> 'correct_side', '') not in ('left', 'right') then
+                raise exception 'INVALID_GLASS';
+            end if;
+            v_item := jsonb_set(v_item, '{revealed}', 'false'::jsonb, true);
+            v_item := jsonb_set(v_item, '{revealed_side}', 'null'::jsonb, true);
+            v_item := jsonb_set(v_item, '{shattered_side}', 'null'::jsonb, true);
+            v_glass := v_glass || jsonb_build_array(v_item);
+        end loop;
+    end if;
 
     update public.purrfect_survival_players
     set distance = 0,
@@ -644,7 +827,7 @@ begin
     if v_room.host_id <> auth.uid() then
         raise exception 'NOT_HOST';
     end if;
-    return public.purrfect_survival_begin_round2(p_room_id);
+    return public.purrfect_survival_complete_round1(p_room_id);
 end;
 $$;
 
@@ -666,6 +849,16 @@ begin
     end if;
     if v_room.host_id <> auth.uid() then
         raise exception 'NOT_HOST';
+    end if;
+    if v_room.status = 'finished' then
+        return v_room;
+    end if;
+    -- A 1-round class never crosses to the bridge: finish instead.
+    if public.purrfect_survival_round_count(v_room.settings) <= 1 then
+        if v_room.status = 'round1' then
+            return public.purrfect_survival_complete_round1(p_room_id);
+        end if;
+        return v_room;
     end if;
     return public.purrfect_survival_begin_round2(p_room_id);
 end;
@@ -704,6 +897,12 @@ begin
     end if;
 
     if v_room.status = 'round1' then
+        select count(*) into v_alive
+        from public.purrfect_survival_players
+        where room_id = p_room_id
+          and status = 'alive'
+          and is_playing;
+
         select count(*) into v_finished
         from public.purrfect_survival_players
         where room_id = p_room_id
@@ -711,9 +910,19 @@ begin
           and is_playing
           and (distance >= v_room.finish_distance or reached_finish);
 
-        if v_finished >= 15
-           or (v_room.round1_ends_at is not null and v_now >= v_room.round1_ends_at) then
-            v_room := public.purrfect_survival_begin_round2(p_room_id);
+        if public.purrfect_survival_round_count(v_room.settings) > 1 then
+            -- 2 rounds: first 15 finishers (or time up) cross to the bridge.
+            if v_finished >= 15
+               or (v_room.round1_ends_at is not null and v_now >= v_room.round1_ends_at) then
+                v_room := public.purrfect_survival_complete_round1(p_room_id);
+            end if;
+        else
+            -- 1 round: no top-15 cut. Finish when every living player has
+            -- reached the finish, or when the scaled time cap is reached.
+            if v_finished >= v_alive
+               or (v_room.round1_ends_at is not null and v_now >= v_room.round1_ends_at) then
+                v_room := public.purrfect_survival_complete_round1(p_room_id);
+            end if;
         end if;
     end if;
 
@@ -1149,8 +1358,12 @@ grant execute on function public.leave_purrfect_survival(uuid) to authenticated;
 revoke all on function public.is_purrfect_survival_teacher() from public, anon;
 revoke all on function public.is_purrfect_survival_member(uuid) from public, anon;
 revoke all on function public.purrfect_survival_phase(jsonb, bigint) from public, anon;
+revoke all on function public.purrfect_survival_round_count(jsonb) from public, anon, authenticated;
+revoke all on function public.purrfect_survival_finish_value(jsonb, int) from public, anon, authenticated;
+revoke all on function public.purrfect_survival_glass_count(jsonb, int) from public, anon, authenticated;
 revoke all on function public.purrfect_survival_release_glass(uuid) from public, anon, authenticated;
 revoke all on function public.purrfect_survival_begin_round2(uuid) from public, anon, authenticated;
+revoke all on function public.purrfect_survival_complete_round1(uuid) from public, anon, authenticated;
 revoke all on function public.purrfect_survival_finish_if_done(uuid) from public, anon, authenticated;
 
 grant execute on function public.is_purrfect_survival_teacher() to authenticated;

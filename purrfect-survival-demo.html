@@ -45,6 +45,26 @@
     #demo-bar button.active { background: #ec4899; color: #fff; }
     #demo-bar button.mode.active { background: #22c55e; }
     #demo-bar button[data-scene].active { background: #0ea5e9; }
+    #demo-bar .demo-num {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #cbd5e1;
+        font: 800 11px Fredoka, system-ui, sans-serif;
+        white-space: nowrap;
+    }
+    #demo-bar .demo-num input,
+    #demo-bar .demo-num select {
+        min-height: 34px;
+        width: 66px;
+        border: 0;
+        border-radius: 10px;
+        padding: 0 6px;
+        background: rgba(255,255,255,.12);
+        color: #f8fafc;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        text-align: center;
+    }
 
     #demo-stage {
         position: relative;
@@ -99,6 +119,19 @@
     <button type="button" id="demo-round1" data-scene="round1" class="active">🟢 Round 1</button>
     <button type="button" id="demo-round2" data-scene="round2">🧊 Round 2</button>
     <button type="button" id="demo-victory" data-scene="victory">🎉 Mid-victory</button>
+    <span class="demo-sep"></span>
+    <label class="demo-num" for="demo-round-count">Rounds
+        <select id="demo-round-count">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+        </select>
+    </label>
+    <label class="demo-num" for="demo-finish-distance">Metres
+        <input id="demo-finish-distance" type="number" min="30" max="300" step="10" value="100" inputmode="numeric">
+    </label>
+    <label class="demo-num" for="demo-glass-steps">Steps
+        <input id="demo-glass-steps" type="number" min="3" max="15" step="1" value="9" inputmode="numeric">
+    </label>
     <span class="demo-sep"></span>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
@@ -172,6 +205,14 @@
         return !!(w && d && w.PS && w.PS.startDemo && d.getElementById('purrfect-survival-view'));
     }
 
+    function demoSettings() {
+        return {
+            roundCount: Number(document.getElementById('demo-round-count').value) || 2,
+            finishDistance: Number(document.getElementById('demo-finish-distance').value) || 100,
+            glassSteps: Number(document.getElementById('demo-glass-steps').value) || 9
+        };
+    }
+
     function setup(serial) {
         var token = serial == null ? loadSerial : serial;
         if (setupDoneSerial === token) return;
@@ -194,7 +235,7 @@
                 // a round the visitor is already playing.
                 w.PS.setDemoRole(mode);
             } else {
-                w.PS.startDemo({ role: mode, scene: scene });
+                w.PS.startDemo(Object.assign({ role: mode, scene: scene }, demoSettings()));
             }
         } catch (e) {
             setupDoneSerial = -1;
@@ -269,6 +310,19 @@
     document.getElementById('demo-round1').addEventListener('click', function () { goScene('round1'); });
     document.getElementById('demo-round2').addEventListener('click', function () { goScene('round2'); });
     document.getElementById('demo-victory').addEventListener('click', function () { goScene('victory'); });
+
+    function applyDemoSettings() {
+        var settings = demoSettings();
+        callFrame(function (PS) {
+            if (typeof PS.setDemoSettings === 'function') PS.setDemoSettings(settings);
+            PS.demoJump(scene);
+        });
+        focusFrame();
+    }
+
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps'].forEach(function (id) {
+        document.getElementById(id).addEventListener('change', applyDemoSettings);
+    });
 
     document.getElementById('demo-replay').addEventListener('click', function () {
         scene = 'round1';

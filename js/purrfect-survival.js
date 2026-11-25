@@ -4,8 +4,10 @@
  * -> Round 2 (Glass Stepping Stones) -> mid-victory / spectator screen.
  *
  * Rooms use short polling (no Realtime publication), exactly like Drive &
- * Go!. The host creates the room, picks the subject and starts it. Students
- * join with a 4-character code and follow the host's settings.
+ * Go!. The host creates the room, picks 1-2 rounds with an independent
+ * subject/topic per round (plus round-1 metres and round-2 glass steps) and
+ * starts it. Students join with a 4-character code and follow the host's
+ * settings.
  */
 (function (root) {
     'use strict';
@@ -65,6 +67,9 @@
     let demoMode = false;
     let demoRole = 'student';
     let demoSubject = 'vocab';
+    let demoRoundCount = 2;
+    let demoFinishDistance = 100;
+    let demoGlassStepCount = 9;
     let demoLoopTimer = 0;
     let demoClassmates = [];
     let demoGlassPairs = [];
@@ -203,8 +208,35 @@
 
     function resolveRoundMs() {
         const settings = (room && room.settings) || {};
-        const value = Number(settings.roundMs) || PS_ROUND_MS;
+        const cfg = (typeof PSEngine !== 'undefined' && PSEngine.roundConfig)
+            ? PSEngine.roundConfig(settings, 1, room)
+            : null;
+        const value = Number(cfg && cfg.roundMs) || Number(settings.roundMs) || PS_ROUND_MS;
         return Math.max(30000, Math.min(600000, value));
+    }
+
+    function roomRoundCount() {
+        if (!room) return PSEngine.HOST.MAX_IMPLEMENTED;
+        return PSEngine.roomRoundCount(room.settings || {});
+    }
+
+    function roundConfig(n) {
+        if (!room) return null;
+        return PSEngine.roundConfig(room.settings || {}, n, room);
+    }
+
+    function finishDistance() {
+        const cfg = roundConfig(1);
+        return cfg ? cfg.finishDistance : PSEngine.ROUND1.FINISH_DISTANCE;
+    }
+
+    function roundConfigLabel(cfg) {
+        if (!cfg) return '';
+        if (cfg.subject === 'grammar') {
+            const topic = String(cfg.topic || 'tenses').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+            return 'Grammar · ' + topic + (cfg.bankMode ? ' · ' + cfg.bankMode : '');
+        }
+        return 'Vocab · ' + (cfg.vocabSource || cfg.topic || 'Vocab') + (cfg.vocabForm ? ' · ' + cfg.vocabForm : '');
     }
 
     function asArray(value) {
@@ -332,7 +364,7 @@
     }
 
     function sqlHint() {
-        return 'Run supabase/purrfect_survival.sql in the Supabase SQL editor first (project mggnwzirjmibreimrwiq), then reload this page.';
+        return 'Run supabase/purrfect_survival_host_settings.sql in the Supabase SQL editor first (project mggnwzirjmibreimrwiq). Clear the editor first and do not re-run older incrementals, then reload this page.';
     }
 
     function errorMessage(error) {
@@ -347,10 +379,12 @@
         if (m.includes('NOT_HOST')) return 'Only the room host can do that.';
         if (m.includes('CANNOT_START')) return 'Wait for at least two players before starting.';
         if (m.includes('NO_QUESTIONS') || m.includes('NO_SCHEDULE') || m.includes('NO_GLASS') || m.includes('INVALID_SCHEDULE') || m.includes('INVALID_GLASS')) return 'The question set could not be built. Reload and try again.';
-        if (m.includes('INVALID_SUBJECT')) return 'Pick Vocab or Grammar for this room.';
-        if (m.includes('ONE_SUBJECT_ONLY')) return 'One subject per room — do not mix Vocab and Grammar.';
-        if (m.includes('MISSING_VOCAB_SOURCE')) return 'Choose the word bank for this room.';
-        if (m.includes('INVALID_TOPIC')) return 'Choose a grammar topic for this room.';
+        if (m.includes('ROUNDS_NOT_IMPLEMENTED')) return 'Rounds 3–5 are not available yet. Choose 1 or 2 rounds.';
+        if (m.includes('INVALID_ROUND_COUNT')) return 'Choose 1 or 2 rounds for this class.';
+        if (m.includes('INVALID_SUBJECT')) return 'Pick Vocab or Grammar for that round.';
+        if (m.includes('ONE_SUBJECT_ONLY')) return 'One subject per round — do not mix Vocab and Grammar inside the same round.';
+        if (m.includes('MISSING_VOCAB_SOURCE')) return 'Choose the word bank for that round.';
+        if (m.includes('INVALID_TOPIC')) return 'Choose a grammar topic for that round.';
         if (typeof isMissingSchema === 'function' && isMissingSchema(m)) return sqlHint();
         if (/does not exist|Could not find|PGRST20|42P01|schema cache/i.test(m)) return sqlHint();
         return m;
@@ -456,8 +490,17 @@
     /* Lobby setup                                                        */
     /* ------------------------------------------------------------------ */
 
-    function populateVocabSources() {
-        const sel = $('ps-vocab-source');
+    function roundId(round, name) {
+        return 'ps-r' + (Number(round) || 1) + '-' + name;
+    }
+
+    function roundField(round, name) {
+        return $(roundId(round, name));
+    }
+
+    function populateVocabSources(round) {
+        const r = Number(round) || 1;
+        const sel = roundField(r, 'vocab-source') || (r === 1 ? $('ps-vocab-source') : null);
         if (!sel) return;
         const keep = sel.value;
         const names = (typeof SHEET_NAMES !== 'undefined' ? SHEET_NAMES : [])
@@ -473,13 +516,15 @@
         }
         sel.innerHTML = opts.join('');
         if (keep && Array.from(sel.options).some(o => o.value === keep)) sel.value = keep;
-        syncVocabForm();
+        syncVocabForm(r);
     }
 
-    function syncVocabForm() {
-        const source = $('ps-vocab-source') ? $('ps-vocab-source').value : 'New Vocab';
-        show('ps-vocab-form-wrap', source === 'New Vocab');
-        const sel = $('ps-vocab-form');
+    function syncVocabForm(round) {
+        const r = Number(round) || 1;
+        const sourceSel = roundField(r, 'vocab-source') || (r === 1 ? $('ps-vocab-source') : null);
+        const source = sourceSel ? sourceSel.value : 'New Vocab';
+        show(roundId(r, 'vocab-form-wrap'), source === 'New Vocab');
+        const sel = roundField(r, 'vocab-form') || (r === 1 ? $('ps-vocab-form') : null);
         if (!sel) return;
         const admin = typeof isAdmin === 'function' && isAdmin();
         if (admin) {
@@ -511,9 +556,11 @@
         };
     }
 
-    function syncGrammarModes() {
-        const topic = $('ps-grammar-topic') ? $('ps-grammar-topic').value : 'tenses';
-        const sel = $('ps-grammar-mode');
+    function syncGrammarModes(round) {
+        const r = Number(round) || 1;
+        const topicSel = roundField(r, 'grammar-topic') || (r === 1 ? $('ps-grammar-topic') : null);
+        const topic = topicSel ? topicSel.value : 'tenses';
+        const sel = roundField(r, 'grammar-mode') || (r === 1 ? $('ps-grammar-mode') : null);
         if (!sel) return;
         const modes = (PSEngine.GRAMMAR_MODES[topic] || ['mixed']).slice();
         const labels = {
@@ -526,13 +573,25 @@
         sel.innerHTML = modes.map(m => '<option value="' + escapeText(m) + '">' + escapeText(labels[m] || m) + '</option>').join('');
     }
 
-    function syncSubjectFields() {
-        const subject = $('ps-subject') ? $('ps-subject').value : 'vocab';
-        show('ps-vocab-wrap', subject === 'vocab');
-        show('ps-grammar-wrap', subject === 'grammar');
-        if (subject === 'vocab') syncVocabForm();
-        else syncGrammarModes();
-        syncTeacherPlays();
+    function syncSubjectFields(round) {
+        const r = Number(round) || 1;
+        const subjectSel = roundField(r, 'subject') || (r === 1 ? $('ps-subject') : null);
+        const subject = subjectSel ? subjectSel.value : 'vocab';
+        show(roundId(r, 'vocab-wrap'), subject === 'vocab');
+        show(roundId(r, 'grammar-wrap'), subject === 'grammar');
+        if (subject === 'vocab') syncVocabForm(r);
+        else syncGrammarModes(r);
+        if (r === 1) syncTeacherPlays();
+    }
+
+    function syncRoundCount() {
+        const sel = $('ps-round-count');
+        let count = Number(sel && sel.value);
+        if (!isFinite(count)) count = PSEngine.HOST.MAX_IMPLEMENTED;
+        count = Math.max(1, Math.min(PSEngine.HOST.MAX_IMPLEMENTED, Math.floor(count)));
+        if (sel && String(sel.value) !== String(count)) sel.value = String(count);
+        show('ps-round2-card', count >= 2);
+        return count;
     }
 
     function syncTeacherPlays() {
@@ -543,9 +602,12 @@
     }
 
     function populateLobby() {
-        populateVocabSources();
-        syncGrammarModes();
-        syncSubjectFields();
+        for (let r = 1; r <= PSEngine.HOST.MAX_IMPLEMENTED; r++) {
+            populateVocabSources(r);
+            syncGrammarModes(r);
+            syncSubjectFields(r);
+        }
+        syncRoundCount();
         const soundBtn = $('ps-sound-btn');
         if (soundBtn) {
             soundBtn.textContent = soundOn ? '🔊' : '🔇';
@@ -595,28 +657,42 @@
         return el && el.value ? el.value : (fallback || '');
     }
 
+    function readRoundSetup(round) {
+        const r = Number(round) || 1;
+        const subject = selectValue(roundId(r, 'subject'), 'vocab');
+        if (subject === 'grammar') {
+            return {
+                round: r,
+                subject: 'grammar',
+                topic: selectValue(roundId(r, 'grammar-topic'), 'tenses'),
+                bankMode: selectValue(roundId(r, 'grammar-mode'), 'mixed')
+            };
+        }
+        return {
+            round: r,
+            subject: 'vocab',
+            vocabSource: selectValue(roundId(r, 'vocab-source'), 'New Vocab'),
+            vocabForm: selectValue(roundId(r, 'vocab-form'), '')
+        };
+    }
+
     PS.createRoom = async function () {
         if (demoMode) { PS.demoJump('round1'); return; }
         if (busy || !assertCanPlay()) return;
         setError('');
-        const subject = selectValue('ps-subject', 'vocab');
-        let setupInput;
-        if (subject === 'grammar') {
-            setupInput = {
-                subject: 'grammar',
-                topic: selectValue('ps-grammar-topic', 'tenses'),
-                bankMode: selectValue('ps-grammar-mode', 'mixed')
-            };
-        } else {
-            setupInput = {
-                subject: 'vocab',
-                vocabSource: selectValue('ps-vocab-source', 'New Vocab'),
-                vocabForm: selectValue('ps-vocab-form', '')
-            };
-        }
-        const validated = PSEngine.validateRoomSetup(setupInput);
+        const roundCount = syncRoundCount();
+        const rounds = [];
+        for (let r = 1; r <= roundCount; r++) rounds.push(readRoundSetup(r));
+
+        const validated = PSEngine.validateHostSettings({
+            roundCount: roundCount,
+            finishDistance: selectValue('ps-finish-distance', '100'),
+            glassSteps: selectValue('ps-glass-steps', '9'),
+            rounds: rounds
+        });
         if (!validated.ok) return setError(errorMessage(validated.error));
 
+        const r1 = validated.rounds[0];
         busy = true;
         const btn = $('ps-create-btn');
         if (btn) btn.disabled = true;
@@ -624,18 +700,17 @@
             const teacher = typeof isAdmin === 'function' && isAdmin();
             const teacherPlays = teacher ? !!(el => el && el.checked)($('ps-teacher-plays')) : true;
             const seed = Math.floor(Math.random() * 2000000000) + 1;
-            const settings = {
-                roundMs: PS_ROUND_MS,
-                vocabForm: validated.setup.vocabForm || '',
-                vocabSource: validated.setup.vocabSource || '',
-                grammarTopic: validated.setup.topic || '',
-                bankMode: validated.setup.bankMode || ''
-            };
+            const settings = Object.assign({}, validated.settings, {
+                vocabForm: r1.vocabForm || '',
+                vocabSource: r1.vocabSource || '',
+                grammarTopic: r1.subject === 'grammar' ? r1.topic : '',
+                bankMode: r1.bankMode || ''
+            });
             const { data, error } = await sb.rpc('create_purrfect_survival', {
-                p_subject: validated.setup.subject,
-                p_source: validated.setup.subject === 'vocab' ? validated.setup.vocabSource : '',
-                p_topic: validated.setup.subject === 'grammar' ? validated.setup.topic : validated.setup.vocabSource,
-                p_bank_mode: validated.setup.bankMode || '',
+                p_subject: r1.subject,
+                p_source: r1.subject === 'vocab' ? r1.vocabSource : '',
+                p_topic: r1.subject === 'grammar' ? r1.topic : r1.vocabSource,
+                p_bank_mode: r1.bankMode || '',
                 p_seed: seed,
                 p_settings: settings,
                 p_teacher_plays: teacherPlays,
@@ -893,8 +968,12 @@
         const revealAll = !introPlaying;
         const r1 = $('ps-cine-rule1');
         const r2 = $('ps-cine-rule2');
+        const playRound2 = roomRoundCount() > 1;
         if (r1) r1.classList.toggle('is-in', revealAll || elapsed >= 6800);
-        if (r2) r2.classList.toggle('is-in', revealAll || elapsed >= 10800);
+        if (r2) {
+            r2.classList.toggle('hidden', !playRound2);
+            r2.classList.toggle('is-in', playRound2 && (revealAll || elapsed >= 10800));
+        }
         const skip = $('ps-intro-skip');
         if (skip) skip.classList.toggle('hidden', !introPlaying);
         const cine = $('ps-cine');
@@ -914,12 +993,14 @@
         setText('ps-code', room.code || '----');
         const total = totalPlayers();
         setText('ps-player-count', total + ' player' + (total === 1 ? '' : 's') + ' joined');
-        const subject = room.subject === 'grammar' ? 'Grammar' : 'Vocab';
-        const topic = room.subject === 'grammar'
-            ? (String(room.topic || '').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) || 'Grammar')
-            : (room.source || room.topic || 'Vocab');
-        const mode = room.bank_mode ? ' · ' + room.bank_mode : '';
-        setText('ps-room-meta', subject + ' · ' + topic + mode);
+        const count = roomRoundCount();
+        const r1 = roundConfig(1);
+        const r2 = roundConfig(2);
+        const meta = count === 1
+            ? '1 round · ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
+            : '2 rounds · R1 ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
+                + ' · R2 ' + roundConfigLabel(r2) + ' · ' + r2.glassSteps + ' steps';
+        setText('ps-room-meta', meta);
         const list = $('ps-player-list');
         if (list) {
             list.innerHTML = players.filter(isPlayingPlayer).map((p) => {
@@ -1029,10 +1110,13 @@
             return;
         }
         if (me.reached_finish) {
-            setText('ps-prompt', '🏁 You reached 100 m! You are through to the glass bridge.');
+            setText('ps-prompt', '🏁 You reached ' + finishDistance() + ' m!'
+                + (roomRoundCount() > 1 ? ' You are through to the glass bridge.' : ''));
             const opts = $('ps-options');
             if (opts) opts.innerHTML = '';
-            toast('Wait for the round to end — first 15 survivors cross.');
+            toast(roomRoundCount() > 1
+                ? 'Wait for the round to end — first 15 survivors cross.'
+                : 'Wait for the round to end — every survivor wins this class.');
             return;
         }
         const key = 'r1:' + qIndex + ':' + (q.options || []).join('|');
@@ -1160,7 +1244,7 @@
                     dpr: surface.dpr,
                     players: players,
                     meId: me ? me.user_id : '',
-                    finishDistance: room.finish_distance || 100,
+                    finishDistance: room.finish_distance || finishDistance(),
                     phase: info && !info.done ? info.phase : (isR2 ? 'green' : 'done'),
                     phaseElapsed: info ? info.elapsed_ms : 0,
                     phaseDuration: info ? info.duration_ms : 2000,
@@ -1195,7 +1279,7 @@
             const info = phaseInfo();
             const phase = info && !info.done ? info.phase : 'done';
             setText('ps-hud-you', me && isPlayingPlayer(me)
-                ? (me.reached_finish ? '🏁 100 m' : 'You: ' + (Number(me.distance) || 0) + ' m')
+                ? (me.reached_finish ? '🏁 ' + finishDistance() + ' m' : 'You: ' + (Number(me.distance) || 0) + ' / ' + finishDistance() + ' m')
                 : 'Spectating');
             const labels = {
                 green: '🟢 GREEN — RUN!',
@@ -1342,7 +1426,7 @@
             }
             if (res && res.correct) {
                 sfxCorrect();
-                toast('✅ +10 m! (' + (me ? me.distance : 0) + ' / ' + (room.finish_distance || 100) + ' m)');
+                toast('✅ +10 m! (' + (me ? me.distance : 0) + ' / ' + (room.finish_distance || finishDistance()) + ' m)');
                 if (me && me.reached_finish) showFinishOverlay();
             } else if (res && res.ok === false) {
                 toast('Too early — the round is not running.');
@@ -1439,11 +1523,13 @@
             if (!built) return;
             const seed = Number(room.seed) || 1;
             const roundMs = resolveRoundMs();
-            const glass = PSEngine.buildGlassSteps({
-                pairs: built.glassPairs,
-                seed: seed + 17,
-                count: PSEngine.ROUND2.STEP_COUNT
-            });
+            const glass = built.roundCount > 1
+                ? PSEngine.buildGlassSteps({
+                    pairs: built.glassPairs,
+                    seed: seed + 17,
+                    count: PSEngine.normalizeGlassSteps(built.round2.glassSteps)
+                })
+                : [];
             const phaseSchedule = PSEngine.buildPhaseSchedule(seed, { roundMs: roundMs });
             const { data, error } = await sb.rpc('start_purrfect_survival', {
                 p_room_id: room.id,
@@ -1473,10 +1559,13 @@
     };
 
     PS.endRound1Now = async function () {
-        if (demoMode) { demoAdvanceToRound2(); render(); return; }
+        if (demoMode) { demoEndRound1(); render(); return; }
         if (busy || !room || !isHost() || room.status !== 'round1') return;
-        if (typeof window.confirm === 'function' &&
-            !window.confirm('End Round 1 now and move the first 15 survivors to the glass bridge?')) return;
+        const count = roomRoundCount();
+        const message = count === 1
+            ? 'End 1-2-3 Meow! now? The game will finish and every surviving student wins.'
+            : 'End Round 1 now and move the first 15 survivors to the glass bridge?';
+        if (typeof window.confirm === 'function' && !window.confirm(message)) return;
         busy = true;
         try {
             const { data, error } = await sb.rpc('end_purrfect_survival_round1', { p_room_id: room.id });
@@ -1507,25 +1596,25 @@
         });
     }
 
-    async function loadVocabWords() {
-        const source = room.source || room.topic || '';
-        const settings = room.settings || {};
-        const looksNew = source === 'New Vocab' || source === 'new_vocab' || settings.vocabSource === 'New Vocab';
+    async function loadVocabWords(source, form) {
+        const src = String(source || (room && (room.source || room.topic)) || '').trim();
+        const looksNew = src === 'New Vocab' || src === 'new_vocab';
         if (!looksNew) {
-            if (typeof categories === 'undefined' || !(categories[source] || []).length) {
+            if (typeof categories === 'undefined' || !(categories[src] || []).length) {
                 if (typeof loadAllCategoriesFromSheet === 'function') loadAllCategoriesFromSheet();
                 await waitForSheet(15000);
             }
-            const rows = (typeof categories !== 'undefined' && categories[source]) ? categories[source] : [];
+            const rows = (typeof categories !== 'undefined' && categories[src]) ? categories[src] : [];
             return rows.map(w => ({ en: String(w.en || '').trim(), zh: String(w.zh || '').trim() })).filter(w => w.en && w.zh);
         }
 
-        let form = String(settings.vocabForm || '').trim().toUpperCase();
-        if (!form && typeof myFormValue !== 'undefined' && myFormValue) form = myFormValue;
-        if (!form && typeof ownDisplayedForm === 'function') form = ownDisplayedForm() || '';
+        let resolvedForm = String(form || '').trim().toUpperCase();
+        if (resolvedForm === 'ALL') resolvedForm = '';
+        if (!resolvedForm && typeof myFormValue !== 'undefined' && myFormValue) resolvedForm = myFormValue;
+        if (!resolvedForm && typeof ownDisplayedForm === 'function') resolvedForm = ownDisplayedForm() || '';
         try {
             let query = sb.from('new_vocab_words').select('en,zh,form').order('id');
-            if (form && form !== 'ALL') query = query.eq('form', form);
+            if (resolvedForm && resolvedForm !== 'ALL') query = query.eq('form', resolvedForm);
             else if (typeof FORM_LEVELS !== 'undefined') query = query.in('form', FORM_LEVELS.map(f => f.id));
             const { data, error } = await query;
             if (error) {
@@ -1539,21 +1628,20 @@
         }
     }
 
-    async function buildQuestionSet() {
-        const seed = Number(room.seed) || 1;
-        const subject = room.subject === 'grammar' ? 'grammar' : 'vocab';
-        const count = 160;
-
-        if (subject === 'grammar') {
-            const topic = String(room.topic || room.settings && room.settings.grammarTopic || 'tenses').toLowerCase();
-            const mode = String(room.bank_mode || room.settings && room.settings.bankMode || 'mixed').toLowerCase();
+    /* Load the bank described by one round's config (vocab or grammar). */
+    async function loadRoundBank(config) {
+        if (!config) {
+            setError('That round has no question bank.');
+            return null;
+        }
+        if (config.subject === 'grammar') {
             if (typeof DG === 'undefined' || typeof DG.loadBank !== 'function') {
                 setError('Grammar Quest could not load. Reload the page and try again.');
                 return null;
             }
             let bank;
             try {
-                bank = await DG.loadBank(topic, mode);
+                bank = await DG.loadBank(config.topic, config.bankMode);
             } catch (e) {
                 setError((e && e.message) || 'Could not load that grammar bank.');
                 return null;
@@ -1562,19 +1650,55 @@
                 setError('That grammar bank is empty.');
                 return null;
             }
-            const questions = PSEngine.buildGrammarMC({ questions: bank, seed: seed, count: count });
-            const pairs = PSEngine.buildGlassPairs({ questions: bank, seed: seed + 3, count: PSEngine.ROUND2.STEP_COUNT });
-            return { questions: questions, glassPairs: pairs };
+            return { subject: 'grammar', grammar: bank };
         }
-
-        const words = await loadVocabWords();
+        const words = await loadVocabWords(config.vocabSource || config.topic, config.vocabForm);
         if (!words.length) {
             setError('No usable words in that vocab bank. New Vocab cards need both English and Chinese.');
             return null;
         }
-        const questions = PSEngine.buildVocabMC({ words: words, seed: seed, count: count });
-        const pairs = PSEngine.buildGlassPairs({ words: words, seed: seed + 3, count: PSEngine.ROUND2.STEP_COUNT });
-        return { questions: questions, glassPairs: pairs };
+        return { subject: 'vocab', words: words };
+    }
+
+    function sameRoundBank(a, b) {
+        if (!a || !b) return false;
+        return a.subject === b.subject
+            && String(a.topic || '') === String(b.topic || '')
+            && String(a.vocabSource || '') === String(b.vocabSource || '')
+            && String(a.vocabForm || '') === String(b.vocabForm || '')
+            && String(a.bankMode || '') === String(b.bankMode || '');
+    }
+
+    async function buildQuestionSet() {
+        const seed = Number(room.seed) || 1;
+        const count = 160;
+        const roundCount = roomRoundCount();
+        const r1 = roundConfig(1);
+        const r2 = roundConfig(2);
+
+        const bank1 = await loadRoundBank(r1);
+        if (!bank1) return null;
+        const questions = bank1.subject === 'grammar'
+            ? PSEngine.buildGrammarMC({ questions: bank1.grammar, seed: seed, count: count })
+            : PSEngine.buildVocabMC({ words: bank1.words, seed: seed, count: count });
+
+        let glassPairs = [];
+        if (roundCount > 1) {
+            const bank2 = sameRoundBank(r1, r2) ? bank1 : await loadRoundBank(r2);
+            if (!bank2) return null;
+            const steps = PSEngine.normalizeGlassSteps(r2.glassSteps);
+            glassPairs = bank2.subject === 'grammar'
+                ? PSEngine.buildGlassPairs({ questions: bank2.grammar, seed: seed + 3, count: steps })
+                : PSEngine.buildGlassPairs({ words: bank2.words, seed: seed + 3, count: steps });
+        }
+
+        return {
+            questions: questions,
+            glassPairs: glassPairs,
+            roundCount: roundCount,
+            round1: r1,
+            round2: r2
+        };
     }
 
     /* ------------------------------------------------------------------ */
@@ -1644,7 +1768,15 @@
 
     function showFinishOverlay() {
         if (!once('finish:' + room.id + ':' + me.user_id)) return;
-        PS.showOverlay('🏁 You reached the finish!', 'You are one of the first 15 through. Wait for the round to end — the bridge is next.', '🏁', 'Watch the class');
+        const bridge = roomRoundCount() > 1;
+        PS.showOverlay(
+            '🏁 You reached ' + finishDistance() + ' m!',
+            bridge
+                ? 'You are one of the first 15 through. Wait for the round to end — the bridge is next.'
+                : 'You finished 1-2-3 Meow! Wait for the round to end — every survivor wins this class.',
+            '🏁',
+            'Watch the class'
+        );
     }
 
     function showSurvivedOverlay() {
@@ -1664,13 +1796,24 @@
             showEliminatedOverlay();
         }
         if (room.status === 'finished') {
-            const survived = me && (me.crossed_glass || me.status === 'advanced');
+            const onlyRound1 = roomRoundCount() === 1;
+            const survived = onlyRound1
+                ? !!(me && me.status !== 'eliminated' && me.ghost !== true)
+                : !!(me && (me.crossed_glass || me.status === 'advanced'));
             if (survived) {
                 if (once('final-win:' + room.id)) {
-                    PS.showOverlay('🎉 Mid-victory!', 'You survived the glass bridge. Round 3 and the Squid Circle finale are coming soon. You can go back to the Hub.', '🎉', 'Back to Hub', () => PS.backToHub());
+                    if (onlyRound1) {
+                        PS.showOverlay('🎉 Victory in 1-2-3 Meow!', 'You survived Red Light, Green Light. Round 2 was not selected for this class — every student still standing wins. You can go back to the Hub.', '🎉', 'Back to Hub', () => PS.backToHub());
+                    } else {
+                        PS.showOverlay('🎉 Mid-victory!', 'You survived the glass bridge. Round 3 and the Squid Circle finale are coming soon. You can go back to the Hub.', '🎉', 'Back to Hub', () => PS.backToHub());
+                    }
                 }
             } else if (once('final-out:' + room.id)) {
-                PS.showOverlay('The bridge is over', 'Your class finished Round 2. You can go back to the Hub — later rounds are coming soon.', '🧊', 'Back to Hub', () => PS.backToHub());
+                if (onlyRound1) {
+                    PS.showOverlay('1-2-3 Meow! is over', 'Your class finished Round 1. Later rounds are coming soon. You can go back to the Hub.', '🏁', 'Back to Hub', () => PS.backToHub());
+                } else {
+                    PS.showOverlay('The bridge is over', 'Your class finished Round 2. You can go back to the Hub — later rounds are coming soon.', '🧊', 'Back to Hub', () => PS.backToHub());
+                }
             }
         }
     }
@@ -1845,6 +1988,7 @@
     PS.syncSubjectFields = syncSubjectFields;
     PS.syncVocabForm = syncVocabForm;
     PS.syncGrammarModes = syncGrammarModes;
+    PS.syncRoundCount = syncRoundCount;
     PS.state = function () {
         return {
             room: room ? JSON.parse(JSON.stringify(room)) : null,
@@ -2007,11 +2151,49 @@
         };
     }
 
+    function demoRoundMs() {
+        return Math.max(PS.ROUND1.MIN_ROUND_MS, Math.round(DEMO_ROUND_MS * (demoFinishDistance / PS.ROUND1.FINISH_DISTANCE)));
+    }
+
+    function demoSettings() {
+        const isGrammar = demoSubject === 'grammar';
+        return {
+            version: 1,
+            roundCount: demoRoundCount,
+            rounds: [
+                {
+                    round: 1,
+                    kind: 'meow',
+                    subject: demoSubject,
+                    topic: isGrammar ? 'demo' : 'Demo Vocab',
+                    vocabSource: isGrammar ? '' : 'Demo Vocab',
+                    vocabForm: '',
+                    bankMode: '',
+                    finishDistance: demoFinishDistance,
+                    roundMs: demoRoundMs()
+                },
+                {
+                    round: 2,
+                    kind: 'glass',
+                    subject: demoSubject,
+                    topic: isGrammar ? 'demo' : 'Demo Vocab',
+                    vocabSource: isGrammar ? '' : 'Demo Vocab',
+                    vocabForm: '',
+                    bankMode: '',
+                    glassSteps: demoGlassStepCount
+                }
+            ],
+            roundMs: demoRoundMs(),
+            finishDistance: demoFinishDistance,
+            glassSteps: demoGlassStepCount
+        };
+    }
+
     function demoBuildGlassSteps() {
         return PSEngine.buildGlassSteps({
             pairs: demoGlassPairs,
             seed: PSEngine.coerceSeed(DEMO_SEED) + 17,
-            count: PSEngine.ROUND2.STEP_COUNT
+            count: demoGlassStepCount
         });
     }
 
@@ -2019,7 +2201,7 @@
         const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
         questions = built.questions.slice();
         demoGlassPairs = built.glassPairs.slice();
-        glassSteps = (built.glassSteps || demoBuildGlassSteps()).slice();
+        glassSteps = demoBuildGlassSteps();
         demoClassmates = PSEngine.buildDemoClassmates({ count: DEMO_BOT_COUNT, seed: DEMO_SEED });
         players = demoClassmates.map(demoPlayerRow);
         players.push(demoPlayerRow({
@@ -2053,7 +2235,7 @@
             bank_mode: '',
             seed: DEMO_SEED,
             max_players: 30,
-            finish_distance: 100,
+            finish_distance: demoFinishDistance,
             current_round: 1,
             round1_started_at: null,
             round1_ends_at: null,
@@ -2062,7 +2244,7 @@
             phase_schedule: [],
             glass_steps: glassSteps,
             questions: questions,
-            settings: { roundMs: DEMO_ROUND_MS },
+            settings: demoSettings(),
             server_now: new Date().toISOString(),
             created_at: new Date().toISOString(),
             started_at: null,
@@ -2150,10 +2332,11 @@
             demoGlassPairs = built.glassPairs.slice();
         }
         const now = Date.now();
-        const roundMs = DEMO_ROUND_MS;
+        const roundMs = demoRoundMs();
         room.status = 'round1';
         room.current_round = 1;
-        room.settings = Object.assign({}, room.settings, { roundMs: roundMs });
+        room.finish_distance = demoFinishDistance;
+        room.settings = demoSettings();
         room.round1_started_at = new Date(now).toISOString();
         room.round1_ends_at = new Date(now + roundMs).toISOString();
         room.round2_started_at = null;
@@ -2199,7 +2382,7 @@
             p.round1_rank = i + 1;
             p.status = 'alive';
             p.ghost = false;
-            p.distance = 100;
+            p.distance = demoFinishDistance;
         });
         playing.forEach(function (p) {
             if (kept[p.user_id]) return;
@@ -2238,7 +2421,7 @@
             p.crossed_glass = true;
             p.survived_round2 = true;
             p.advanced_round2 = true;
-            p.glass_step = PSEngine.ROUND2.STEP_COUNT;
+            p.glass_step = demoGlassStepCount;
             p.glass_active = false;
             p.round1_rank = i + 1;
         });
@@ -2247,7 +2430,7 @@
             visitor.crossed_glass = true;
             visitor.survived_round2 = true;
             visitor.advanced_round2 = true;
-            visitor.glass_step = PSEngine.ROUND2.STEP_COUNT;
+            visitor.glass_step = demoGlassStepCount;
             visitor.glass_active = false;
             visitor.round1_rank = 1;
         }
@@ -2276,6 +2459,10 @@
 
     function demoAdvanceToRound2() {
         if (!room || room.status !== 'round1') return;
+        if (demoRoundCount <= 1) {
+            demoFinishRound1Victory(Date.now());
+            return;
+        }
         const now = Date.now();
         const playing = players.filter(isPlayingPlayer);
         const picked = PSEngine.advanceRound1(playing, {
@@ -2316,6 +2503,22 @@
         me = myPlayer();
         PS.hideOverlay();
         demoReleaseGlass(now);
+    }
+
+    function demoFinishRound1Victory(now) {
+        if (!room || room.status !== 'round1') return;
+        room.status = 'finished';
+        room.current_round = 1;
+        room.finished_at = new Date(now || Date.now()).toISOString();
+        shownKeys = {};
+        questionsKey = '';
+        me = myPlayer();
+    }
+
+    function demoEndRound1() {
+        if (!room || room.status !== 'round1') return;
+        if (demoRoundCount <= 1) demoFinishRound1Victory(Date.now());
+        else demoAdvanceToRound2();
     }
 
     function demoFinishRound2(now) {
@@ -2377,7 +2580,7 @@
         // skip the visitor straight to the glass bridge.
         if (!info) return;
         if (info.done) {
-            demoAdvanceToRound2();
+            demoEndRound1();
             return;
         }
         const phase = info;
@@ -2422,7 +2625,12 @@
             return PSEngine.isAlive(p) && PSEngine.isRound1Finished(p, room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE);
         });
         const ends = room.round1_ends_at ? Date.parse(room.round1_ends_at) : 0;
-        if (finishers.length >= PSEngine.ROUND1.ADVANCE_LIMIT || (ends && now >= ends)) {
+        if (demoRoundCount <= 1) {
+            const living = playing.filter(PSEngine.isAlive);
+            if ((ends && now >= ends) || finishers.length >= living.length) {
+                demoFinishRound1Victory(now);
+            }
+        } else if (finishers.length >= PSEngine.ROUND1.ADVANCE_LIMIT || (ends && now >= ends)) {
             demoAdvanceToRound2();
         }
     }
@@ -2518,7 +2726,7 @@
                 finishDistance: room.finish_distance || PSEngine.ROUND1.FINISH_DISTANCE
             });
             sfxCorrect();
-            toast('✅ +10 m! (' + (Number(me.distance) || 0) + ' / ' + (room.finish_distance || 100) + ' m)');
+            toast('✅ +10 m! (' + (Number(me.distance) || 0) + ' / ' + (room.finish_distance || finishDistance()) + ' m)');
             if (me.reached_finish) showFinishOverlay();
         } else {
             PSEngine.applyGreenWrong(me);
@@ -2574,11 +2782,28 @@
         return demoMode;
     };
 
+    function demoApplyConfig(o) {
+        const cfg = o || {};
+        if (cfg.roundCount != null) {
+            const n = Number(cfg.roundCount);
+            if (isFinite(n)) demoRoundCount = Math.max(1, Math.min(PSEngine.HOST.MAX_IMPLEMENTED, Math.floor(n)));
+        }
+        if (cfg.finishDistance != null) demoFinishDistance = PSEngine.normalizeFinishDistance(cfg.finishDistance);
+        if (cfg.glassSteps != null) demoGlassStepCount = PSEngine.normalizeGlassSteps(cfg.glassSteps);
+        if (room) {
+            room.finish_distance = demoFinishDistance;
+            room.settings = demoSettings();
+            glassSteps = demoBuildGlassSteps();
+            room.glass_steps = glassSteps;
+        }
+    }
+
     PS.startDemo = function (opts) {
         const o = opts || {};
         demoMode = true;
         if (o.subject) demoSubject = PSEngine.normalizeSubject(o.subject) || 'vocab';
         if (o.role) demoRole = o.role === 'teacher' ? 'teacher' : 'student';
+        demoApplyConfig(o);
         demoInstallShield();
         demoEnsureUser();
         if (!room) demoInit();
@@ -2588,6 +2813,15 @@
         demoStartLoop();
         if (o.scene) PS.demoJump(o.scene);
         else render();
+        return true;
+    };
+
+    PS.setDemoSettings = function (opts) {
+        if (!demoMode) return false;
+        demoApplyConfig(opts || {});
+        me = myPlayer();
+        questionsKey = '';
+        render();
         return true;
     };
 
@@ -2608,6 +2842,12 @@
         const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
         questions = built.questions.slice();
         demoGlassPairs = built.glassPairs.slice();
+        if (room) {
+            room.finish_distance = demoFinishDistance;
+            room.settings = demoSettings();
+            glassSteps = demoBuildGlassSteps();
+            room.glass_steps = glassSteps;
+        }
         PS.demoJump('round1');
         return true;
     };

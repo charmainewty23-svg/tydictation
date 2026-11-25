@@ -3934,6 +3934,23 @@
             margin-bottom: 10px;
         }
         .ps-card-join h2 { color: #075985; }
+        .ps-round-config {
+            margin: 0 0 12px;
+            padding: 10px 12px 4px;
+            border-radius: .9rem;
+            border: 2px dashed #fbcfe8;
+            background: rgba(253, 242, 248, .55);
+        }
+        .ps-round-title {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #9d174d;
+            margin-bottom: 8px;
+        }
+        .ps-round-config .ps-field { margin-bottom: 9px; }
+        .ps-round-config .ps-hint { margin-top: 4px; }
         .ps-field { margin-bottom: 12px; }
         .ps-field label {
             display: block;
@@ -5692,43 +5709,104 @@
                             <section class="ps-card ps-card-create">
                                 <h2>Create a room</h2>
                                 <div class="ps-field">
-                                    <label for="ps-subject">Subject</label>
-                                    <select id="ps-subject" onchange="PS.syncSubjectFields()">
-                                        <option value="vocab">📚 Vocab</option>
-                                        <option value="grammar">📜 Grammar</option>
+                                    <label for="ps-round-count">Rounds to play</label>
+                                    <select id="ps-round-count" onchange="PS.syncRoundCount()">
+                                        <option value="1">1 round · 1-2-3 Meow!</option>
+                                        <option value="2" selected>2 rounds · 1-2-3 Meow! + Glass Bridge</option>
+                                        <option value="3" disabled>3 rounds · coming soon</option>
+                                        <option value="4" disabled>4 rounds · coming soon</option>
+                                        <option value="5" disabled>5 rounds · coming soon</option>
                                     </select>
                                 </div>
-                                <div id="ps-vocab-wrap">
+
+                                <section id="ps-round1-card" class="ps-round-config">
+                                    <h3 class="ps-round-title">Round 1 · 1-2-3 Meow!</h3>
                                     <div class="ps-field">
-                                        <label for="ps-vocab-source">Word bank</label>
-                                        <select id="ps-vocab-source" onchange="PS.syncVocabForm()"></select>
-                                    </div>
-                                    <div id="ps-vocab-form-wrap" class="ps-field">
-                                        <label for="ps-vocab-form">New Vocab form</label>
-                                        <select id="ps-vocab-form"></select>
-                                    </div>
-                                </div>
-                                <div id="ps-grammar-wrap" class="hidden">
-                                    <div class="ps-field">
-                                        <label for="ps-grammar-topic">Grammar topic</label>
-                                        <select id="ps-grammar-topic" onchange="PS.syncGrammarModes()">
-                                            <option value="tenses">Tenses</option>
-                                            <option value="agreement">Agreement</option>
-                                            <option value="articles">Articles</option>
-                                            <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                        <label for="ps-r1-subject">Subject</label>
+                                        <select id="ps-r1-subject" onchange="PS.syncSubjectFields(1)">
+                                            <option value="vocab">📚 Vocab</option>
+                                            <option value="grammar">📜 Grammar</option>
                                         </select>
                                     </div>
-                                    <div class="ps-field">
-                                        <label for="ps-grammar-mode">Question type</label>
-                                        <select id="ps-grammar-mode"></select>
+                                    <div id="ps-r1-vocab-wrap">
+                                        <div class="ps-field">
+                                            <label for="ps-r1-vocab-source">Word bank</label>
+                                            <select id="ps-r1-vocab-source" onchange="PS.syncVocabForm(1)"></select>
+                                        </div>
+                                        <div id="ps-r1-vocab-form-wrap" class="ps-field">
+                                            <label for="ps-r1-vocab-form">New Vocab form</label>
+                                            <select id="ps-r1-vocab-form"></select>
+                                        </div>
                                     </div>
-                                </div>
+                                    <div id="ps-r1-grammar-wrap" class="hidden">
+                                        <div class="ps-field">
+                                            <label for="ps-r1-grammar-topic">Grammar topic</label>
+                                            <select id="ps-r1-grammar-topic" onchange="PS.syncGrammarModes(1)">
+                                                <option value="tenses">Tenses</option>
+                                                <option value="agreement">Agreement</option>
+                                                <option value="articles">Articles</option>
+                                                <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                            </select>
+                                        </div>
+                                        <div class="ps-field">
+                                            <label for="ps-r1-grammar-mode">Question type</label>
+                                            <select id="ps-r1-grammar-mode"></select>
+                                        </div>
+                                    </div>
+                                    <div class="ps-field">
+                                        <label for="ps-finish-distance">Finish distance (metres)</label>
+                                        <input id="ps-finish-distance" type="number" min="30" max="300" step="10" value="100" inputmode="numeric">
+                                        <p class="ps-hint">30–300 m, in steps of 10. Every correct answer still sprints +10 m and the time cap scales with the distance.</p>
+                                    </div>
+                                </section>
+
+                                <section id="ps-round2-card" class="ps-round-config">
+                                    <h3 class="ps-round-title">Round 2 · Glass Bridge</h3>
+                                    <div class="ps-field">
+                                        <label for="ps-r2-subject">Subject</label>
+                                        <select id="ps-r2-subject" onchange="PS.syncSubjectFields(2)">
+                                            <option value="vocab">📚 Vocab</option>
+                                            <option value="grammar">📜 Grammar</option>
+                                        </select>
+                                    </div>
+                                    <div id="ps-r2-vocab-wrap">
+                                        <div class="ps-field">
+                                            <label for="ps-r2-vocab-source">Word bank</label>
+                                            <select id="ps-r2-vocab-source" onchange="PS.syncVocabForm(2)"></select>
+                                        </div>
+                                        <div id="ps-r2-vocab-form-wrap" class="ps-field">
+                                            <label for="ps-r2-vocab-form">New Vocab form</label>
+                                            <select id="ps-r2-vocab-form"></select>
+                                        </div>
+                                    </div>
+                                    <div id="ps-r2-grammar-wrap" class="hidden">
+                                        <div class="ps-field">
+                                            <label for="ps-r2-grammar-topic">Grammar topic</label>
+                                            <select id="ps-r2-grammar-topic" onchange="PS.syncGrammarModes(2)">
+                                                <option value="tenses">Tenses</option>
+                                                <option value="agreement">Agreement</option>
+                                                <option value="articles">Articles</option>
+                                                <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                            </select>
+                                        </div>
+                                        <div class="ps-field">
+                                            <label for="ps-r2-grammar-mode">Question type</label>
+                                            <select id="ps-r2-grammar-mode"></select>
+                                        </div>
+                                    </div>
+                                    <div class="ps-field">
+                                        <label for="ps-glass-steps">Glass steps</label>
+                                        <input id="ps-glass-steps" type="number" min="3" max="15" step="1" value="9" inputmode="numeric">
+                                        <p class="ps-hint">3–15 steps. 5 seconds per step; a wrong or missed pane still drops you out.</p>
+                                    </div>
+                                </section>
+
                                 <label id="ps-teacher-row" class="ps-check">
                                     <input id="ps-teacher-plays" type="checkbox">
                                     <span>Join as a player too (teacher host otherwise spectates)</span>
                                 </label>
                                 <button id="ps-create-btn" type="button" class="ps-primary" onclick="PS.createRoom()">Create room</button>
-                                <p class="ps-hint">One subject per room: either Vocab or Grammar, never mixed. The host's question set and light schedule are shared by everyone.</p>
+                                <p class="ps-hint">Each round can use a different subject and topic. The host sets the rounds, finish distance and glass steps for the whole class; round 1 questions and round 2 panes may use different banks.</p>
                             </section>
 
                             <section class="ps-card ps-card-join">
@@ -5743,7 +5821,7 @@
                         </div>
 
                         <div id="ps-host-note" class="ps-note">
-                            <b>Class survival rules.</b> Round 1: answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). The first 15 living students to reach 100 m cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you.
+                            <b>Class survival rules.</b> The host chooses 1 or 2 rounds, a subject and topic for each round, the round-1 finish distance and the number of glass steps. Round 1 (1-2-3 Meow!): answer on green to sprint +10 m, freeze on red (a press costs 30 m, then 15 m, then you are out). With 2 rounds the first 15 living students to reach the finish cross to the glass bridge. Round 2: pick the tempered pane in 5 seconds; every jump lights the correct pane for the students behind you. With 1 round the class ends in a survivor victory as soon as time is up or every living student finishes.
                         </div>
 
                     </div>

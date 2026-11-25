@@ -895,3 +895,302 @@ test('bilingual rules are faithful to the English engine copy', () => {
     assert.equal(typeof PS.RULE_TEXT.round1, 'string');
     assert.ok(PS.RULE_TEXT.round1.indexOf('+10 m') !== -1);
 });
+
+/* ---------------------------------------------------------------- */
+/* Host settings (roundCount + per-round configuration)              */
+/* ---------------------------------------------------------------- */
+
+test('host settings expose an extensible round map and default to two rounds', () => {
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 2);
+    assert.equal(PS.HOST.MAX_PLANNED, 5);
+    assert.equal(PS.HOST.KINDS[1], 'meow');
+    assert.equal(PS.HOST.KINDS[2], 'glass');
+    assert.equal(PS.HOST.KINDS[3], 'tug');
+    assert.equal(PS.HOST.KINDS[4], 'glass2');
+    assert.equal(PS.HOST.KINDS[5], 'squid');
+
+    assert.equal(PS.roomRoundCount({}), 2, 'old rooms default to 2 rounds');
+    assert.equal(PS.roomRoundCount({ roundCount: 1 }), 1);
+    assert.equal(PS.roomRoundCount({ roundCount: 2 }), 2);
+    assert.equal(PS.roomRoundCount({ roundCount: 0 }), 1, 'below 1 clamps to 1');
+    assert.equal(PS.roomRoundCount({ roundCount: 3 }), 2, 'above the implemented max clamps to 2');
+    assert.equal(PS.roomRoundCount(JSON.stringify({ roundCount: 1 })), 1, 'JSON strings are accepted');
+
+    assert.equal(PS.shouldPlayRound2({ roundCount: 1 }), false);
+    assert.equal(PS.shouldPlayRound2({}), true);
+    assert.equal(PS.round1EndAction({ roundCount: 1 }), 'finish');
+    assert.equal(PS.round1EndAction({ roundCount: 2 }), 'bridge');
+});
+
+test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
+    const result = PS.validateHostSettings({
+        roundCount: 2,
+        finishDistance: 200,
+        glassSteps: 12,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food', vocabForm: 'F4' },
+            { round: 2, subject: 'grammar', topic: 'agreement', bankMode: 'choose' }
+        ]
+    });
+
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.settings.version, 1);
+    assert.equal(result.settings.roundCount, 2);
+    assert.equal(result.settings.rounds.length, 2);
+    assert.equal(result.rounds[0].subject, 'vocab');
+    assert.equal(result.rounds[0].topic, 'Food');
+    assert.equal(result.rounds[0].vocabSource, 'Food');
+    assert.equal(result.rounds[0].vocabForm, 'F4');
+    assert.equal(result.rounds[0].finishDistance, 200);
+    assert.equal(result.rounds[0].roundMs, 360000);
+    assert.equal(result.rounds[1].subject, 'grammar');
+    assert.equal(result.rounds[1].topic, 'agreement');
+    assert.equal(result.rounds[1].bankMode, 'choose');
+    assert.equal(result.rounds[1].glassSteps, 12);
+
+    // Room-level columns summarise round 1, not a mixed subject string.
+    assert.equal(result.subject, 'vocab');
+    assert.equal(result.source, 'Food');
+    assert.equal(result.topic, 'Food');
+    assert.equal(result.bankMode, '');
+    assert.equal(result.finishDistance, 200);
+    assert.equal(result.roundMs, 360000);
+});
+
+test('a single round still cannot mix vocab and grammar fields', () => {
+    const bad = PS.validateHostSettings({
+        roundCount: 1,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food', grammarTopic: 'tenses' }]
+    });
+    assert.equal(bad.ok, false);
+    assert.equal(bad.error, 'ONE_SUBJECT_ONLY');
+
+    assert.equal(PS.isOneSubject({ subject: 'vocab', vocabSource: 'Food' }), true);
+    assert.equal(PS.isOneSubject({ subject: 'grammar', grammarTopic: 'tenses' }), true);
+    assert.equal(PS.isOneSubject({ subject: 'vocab', vocabSource: 'Food', bankMode: 'mixed' }), false);
+
+    const round = PS.validateRoundSetup({ round: 1, subject: 'grammar', topic: 'tenses', bankMode: 'mixed' });
+    assert.equal(round.ok, true);
+    assert.equal(round.setup.subject, 'grammar');
+    assert.equal(round.setup.round, 1);
+    assert.equal(round.setup.kind, 'meow');
+});
+
+test('finish distance defaults to 100 m and clamps to 30–300 m on a 10 m step', () => {
+    assert.equal(PS.normalizeFinishDistance(), 100);
+    assert.equal(PS.normalizeFinishDistance(''), 100);
+    assert.equal(PS.normalizeFinishDistance('nope'), 100);
+    assert.equal(PS.normalizeFinishDistance(50), 50);
+    assert.equal(PS.normalizeFinishDistance(200), 200);
+    assert.equal(PS.normalizeFinishDistance(300), 300);
+    assert.equal(PS.normalizeFinishDistance(20), 30, 'below the range clamps up');
+    assert.equal(PS.normalizeFinishDistance(500), 300, 'above the range clamps down');
+    assert.equal(PS.normalizeFinishDistance(137), 140, 'rounds to the nearest 10 m step');
+
+    const clamped = PS.validateHostSettings({
+        roundCount: 1,
+        finishDistance: 20,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    });
+    assert.equal(clamped.ok, true);
+    assert.equal(clamped.finishDistance, 30);
+    assert.equal(clamped.settings.rounds[0].finishDistance, 30);
+});
+
+test('round-1 time cap scales with distance and never drops below 60 s', () => {
+    assert.equal(PS.scaleRound1Ms(50), 90000);
+    assert.equal(PS.scaleRound1Ms(100), 180000);
+    assert.equal(PS.scaleRound1Ms(200), 360000);
+    assert.equal(PS.scaleRound1Ms(300), 540000);
+    assert.equal(PS.scaleRound1Ms(30), 60000, 'minimum cap is 60 s');
+
+    const result = PS.validateHostSettings({
+        roundCount: 1,
+        finishDistance: 50,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.roundMs, 90000);
+    assert.equal(result.settings.rounds[0].roundMs, 90000);
+});
+
+test('glass step count defaults to 9, clamps to 3–15 and builders honour it', () => {
+    assert.equal(PS.normalizeGlassSteps(), 9);
+    assert.equal(PS.normalizeGlassSteps(''), 9);
+    assert.equal(PS.normalizeGlassSteps('nope'), 9);
+    assert.equal(PS.normalizeGlassSteps(3), 3);
+    assert.equal(PS.normalizeGlassSteps(15), 15);
+    assert.equal(PS.normalizeGlassSteps(1), 3, 'below the range clamps up');
+    assert.equal(PS.normalizeGlassSteps(99), 15, 'above the range clamps down');
+
+    const pairs = [
+        { prompt: 'q1', correct: 'is', wrong: 'are' },
+        { prompt: 'q2', correct: 'has', wrong: 'have' }
+    ];
+    assert.equal(PS.buildGlassSteps({ pairs: pairs, seed: 5, count: 3 }).length, 3);
+    assert.equal(PS.buildGlassSteps({ pairs: pairs, seed: 5, count: 15 }).length, 15);
+    assert.equal(PS.buildGlassPairs({
+        questions: [
+            { prompt: 'a', primary: 'is', sectionKey: 's' },
+            { prompt: 'b', primary: 'are', sectionKey: 's' }
+        ],
+        seed: 2,
+        count: 5
+    }).length, 5);
+
+    const result = PS.validateHostSettings({
+        roundCount: 2,
+        glassSteps: 15,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food' },
+            { round: 2, subject: 'vocab', vocabSource: 'Food' }
+        ]
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.rounds[1].glassSteps, 15);
+    assert.equal(result.settings.glassSteps, 15);
+});
+
+test('legacy settings behave as 2 rounds, 100 m and 9 glass steps', () => {
+    const legacy = PS.roundConfig({ vocabSource: 'Food', roundMs: 180000 }, 1);
+    assert.equal(legacy.subject, 'vocab');
+    assert.equal(legacy.topic, 'Food');
+    assert.equal(legacy.finishDistance, 100);
+    assert.equal(legacy.roundMs, 180000);
+    assert.equal(legacy.glassSteps, 9);
+
+    const second = PS.roundConfig({ vocabSource: 'Food', roundMs: 180000 }, 2);
+    assert.equal(second.subject, 'vocab', 'old rooms share one bank');
+    assert.equal(second.topic, 'Food');
+    assert.equal(second.glassSteps, 9);
+
+    const flat = PS.validateHostSettings({ roundCount: 2, subject: 'vocab', vocabSource: 'Food' });
+    assert.equal(flat.ok, true, flat.error);
+    assert.equal(flat.rounds.length, 2);
+    assert.equal(flat.rounds[1].vocabSource, 'Food', 'missing round 2 falls back to round 1');
+    assert.equal(flat.finishDistance, 100);
+    assert.equal(flat.rounds[1].glassSteps, 9);
+});
+
+test('roundConfig reads per-round entries and room-level fallback', () => {
+    const settings = {
+        roundCount: 2,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food', finishDistance: 150, roundMs: 270000 },
+            { round: 2, subject: 'grammar', topic: 'articles', bankMode: 'mixed', glassSteps: 6 }
+        ]
+    };
+    const r1 = PS.roundConfig(settings, 1);
+    const r2 = PS.roundConfig(settings, 2);
+    assert.equal(r1.kind, 'meow');
+    assert.equal(r1.finishDistance, 150);
+    assert.equal(r1.roundMs, 270000);
+    assert.equal(r2.kind, 'glass');
+    assert.equal(r2.subject, 'grammar');
+    assert.equal(r2.topic, 'articles');
+    assert.equal(r2.bankMode, 'mixed');
+    assert.equal(r2.glassSteps, 6);
+
+    // Old room row only: room-level summary fields are used.
+    assert.equal(PS.roundConfig({}, 1, { subject: 'grammar', topic: 'tenses', bank_mode: 'pv' }).topic, 'tenses');
+    assert.equal(PS.roundConfig({}, 1, { subject: 'grammar', topic: 'tenses', bank_mode: 'pv' }).bankMode, 'pv');
+    assert.equal(PS.roundConfig({}, 1, { subject: 'vocab', source: 'Shopping' }).vocabSource, 'Shopping');
+});
+
+test('host settings reject unimplemented rounds and invalid subjects/topics', () => {
+    assert.equal(PS.validateHostSettings({
+        roundCount: 3,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    }).error, 'ROUNDS_NOT_IMPLEMENTED');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 5,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    }).error, 'ROUNDS_NOT_IMPLEMENTED');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 0,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
+    }).error, 'INVALID_ROUND_COUNT');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 1,
+        rounds: [{ round: 1, subject: 'maths', topic: 'algebra' }]
+    }).error, 'INVALID_SUBJECT');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 1,
+        rounds: [{ round: 1, subject: 'grammar', topic: 'nope' }]
+    }).error, 'INVALID_TOPIC');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 1,
+        rounds: [{ round: 1, subject: 'vocab' }]
+    }).error, 'MISSING_VOCAB_SOURCE');
+});
+
+/* ---------------------------------------------------------------- */
+/* Host settings wiring (static files, no browser)                   */
+/* ---------------------------------------------------------------- */
+
+test('lobby HTML has the new host-setting controls and no old one-subject rule', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['ps-round-count', 'ps-finish-distance', 'ps-glass-steps',
+        'ps-r1-subject', 'ps-r1-vocab-source', 'ps-r1-grammar-topic',
+        'ps-r2-subject', 'ps-r2-vocab-source', 'ps-r2-grammar-topic',
+        'ps-round1-card', 'ps-round2-card'].forEach(id => {
+        assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists');
+    });
+    assert.ok(html.indexOf('min="30" max="300" step="10"') !== -1, 'distance input range 30–300 step 10');
+    assert.ok(html.indexOf('min="3" max="15" step="1"') !== -1, 'glass steps input range 3–15');
+    assert.ok(html.indexOf('value="3" disabled') !== -1, 'round 3 is shown as coming soon');
+    assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
+    assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
+});
+
+test('main module reads and sends the host settings without the old room-level rule', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    ['validateHostSettings', 'roomRoundCount', 'roundConfig', 'syncRoundCount',
+        'ps-round-count', 'ps-finish-distance', 'ps-glass-steps',
+        'ROUNDS_NOT_IMPLEMENTED', 'demoGlassStepCount'].forEach(token => {
+        assert.ok(src.indexOf(token) !== -1, token + ' is wired');
+    });
+    assert.equal(src.indexOf('One subject per room — do not mix Vocab and Grammar.'), -1,
+        'the old user-facing one-subject error is gone');
+    assert.ok(src.indexOf('One subject per round') !== -1, 'the error now mentions a single round');
+    assert.ok(src.indexOf("demoRoundCount") !== -1, 'demo accepts a round count');
+});
+
+test('incremental host-settings SQL exists with teacher instructions and new functions', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_host_settings.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    ['purrfect_survival_round_count', 'purrfect_survival_finish_value',
+        'purrfect_survival_glass_count', 'purrfect_survival_complete_round1',
+        'create_purrfect_survival', 'start_purrfect_survival',
+        'end_purrfect_survival_round1', 'start_purrfect_survival_round2',
+        'tick_purrfect_survival'].forEach(fn => {
+        assert.ok(sql.indexOf(fn) !== -1, fn + ' exists');
+    });
+    assert.ok(sql.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1);
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf('purrfect_survival_complete_round1') !== -1, 'canonical SQL has the new helper');
+    assert.ok(canonical.indexOf('purrfect_survival_round_count') !== -1, 'canonical SQL has the round count helper');
+    assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
+});
+
+test('service worker cache is bumped for the host-settings change', () => {
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    assert.ok(sw.indexOf("learnity-pwa-v103") !== -1, 'CACHE_NAME is v103');
+    assert.equal(sw.indexOf("learnity-pwa-v102"), -1, 'the old cache name is gone');
+});
+
+test('demo page exposes round count, metres and glass step controls', () => {
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps'].forEach(id => {
+        assert.ok(demo.indexOf('id="' + id + '"') !== -1, id + ' control exists');
+    });
+    assert.ok(demo.indexOf('applyDemoSettings') !== -1, 'controls re-apply the demo settings');
+    assert.ok(demo.indexOf('setDemoSettings') !== -1, 'main demo API is used');
+});

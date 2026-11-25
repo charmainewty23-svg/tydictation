@@ -375,11 +375,83 @@
         }
 
         // ===== Participle phrases Quiz =====
+        // Official answers come from the local 1–250 bank; questions 251+
+        // (sentence combining) must never reach this quiz.
+        function participleBankRows() {
+            const bank = (typeof window !== 'undefined' && Array.isArray(window.DG_PARTICIPLE_PHRASES))
+                ? window.DG_PARTICIPLE_PHRASES : [];
+            return bank
+                .filter(row => row && typeof row.q === 'string' && typeof row.a === 'string')
+                .map(row => {
+                    const item = { q: row.q, a: row.a };
+                    const id = Number(row.id);
+                    if (Number.isFinite(id) && id > 0) item.id = id;
+                    return item;
+                });
+        }
+
+        function syncPCDataFromBank() {
+            const rows = participleBankRows();
+            if (!rows.length) return false;
+            pcData = rows;
+            return true;
+        }
+
+        function participleStemKey(text) {
+            return String(text == null ? '' : text)
+                .replace(/^\s*Q?\s*\d+\s*[.):]\s*/i, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        }
+
+        function stripParticipleNumber(text) {
+            return String(text == null ? '' : text).replace(/^\s*Q?\s*\d+\s*[.):]\s*/i, '').trim();
+        }
+
+        // Short English explanation of why the official participle is correct.
+        // Pure helper (also exposed on window for tests). Uses the bank id when
+        // available; otherwise falls back to morphology (V-ing vs V3).
+        function explainParticipleAnswer(item) {
+            const data = item || {};
+            const answer = String(data.a == null ? '' : data.a).trim();
+            if (!answer) return '';
+            const stem = String(data.q == null ? '' : data.q);
+            const negative = /^not\s+/i.test(answer);
+            const bare = negative ? answer.replace(/^not\s+/i, '') : answer;
+            const id = Number(data.id);
+            let present;
+            if (Number.isFinite(id) && id >= 1 && id <= 125) {
+                present = true;
+            } else if (Number.isFinite(id) && id >= 126 && id <= 250) {
+                present = false;
+            } else {
+                present = /ing$/i.test(bare);
+            }
+            const fronted = /^\s*_{2,}/.test(stem);
+            const adjective = !fronted;
+            const quoted = '"' + answer + '"';
+            const kind = present ? 'present participle (V-ing)' : 'past participle (V3)';
+            if (negative) {
+                return present
+                    ? 'Use ' + quoted + ', a negative ' + kind + ': put Not before the V-ing form because the subject does not do that action.'
+                    : 'Use ' + quoted + ', a negative ' + kind + ': put Not before the past participle (V3) because the action is done to the subject (often passive in meaning).';
+            }
+            if (adjective) {
+                return present
+                    ? 'Use ' + quoted + ', the present participle (V-ing) as an adjective after the noun. It describes the person or thing doing the action.'
+                    : 'Use ' + quoted + ', the past participle (V3) as an adjective after the noun. It describes the person or thing that the action was done to.';
+            }
+            return present
+                ? 'Use ' + quoted + ', the present participle (V-ing), because the subject does the action.'
+                : 'Use ' + quoted + ', the past participle (V3), because the action is done to the subject (often passive in meaning).';
+        }
+        window.explainParticipleAnswer = explainParticipleAnswer;
+
         function renderPCTabs(content, data) {
             const tabs = [
                 { key: 'revision', label: '📖 Revision' },
-                { key: 'quiz', label: '✏️ Quiz' },
-                { key: 'record', label: '📋 My Record' }
+                { key: 'quiz', label: '✏️ Quiz' }
             ];
             content.innerHTML = `
                 <div class="text-center mb-6"><div class="text-8xl mb-4">${data.emoji}</div><h2 class="text-4xl font-bold text-green-600">${data.title}</h2></div>
@@ -402,30 +474,36 @@
             renderPCTabContent(structureData['participle_clauses']);
         }
 
+        function renderPCRevision(container, data) {
+            container.innerHTML = `
+                <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Explanation</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.intro}</p></div>
+                <div class="space-y-6">
+                    <h3 class="text-2xl font-bold text-green-700">✍️ Examples</h3>
+                    ${data.sections.map(sec => `
+                        <div class="grammar-card">
+                            <span class="grammar-tag bg-green-100 text-green-600">${sec.tag}</span>
+                            <p class="font-bold text-2xl text-gray-800 mb-2">${sec.rule}</p>
+                            <p class="text-gray-600 text-lg italic bg-gray-50 p-4 rounded-xl border-dashed border-2 border-gray-200">${sec.example}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         function renderPCTabContent(data) {
             const container = document.getElementById('pc-tab-content');
-            if (pcTab === 'revision') {
-                container.innerHTML = `
-                    <div class="mb-10"><h3 class="text-2xl font-bold text-green-700 mb-4">💡 Explanation</h3><p class="text-gray-700 text-xl leading-relaxed bg-green-50 p-6 rounded-2xl border-l-8 border-green-400">${data.intro}</p></div>
-                    <div class="space-y-6">
-                        <h3 class="text-2xl font-bold text-green-700">✍️ Examples</h3>
-                        ${data.sections.map(sec => `
-                            <div class="grammar-card">
-                                <span class="grammar-tag bg-green-100 text-green-600">${sec.tag}</span>
-                                <p class="font-bold text-2xl text-gray-800 mb-2">${sec.rule}</p>
-                                <p class="text-gray-600 text-lg italic bg-gray-50 p-4 rounded-xl border-dashed border-2 border-gray-200">${sec.example}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            } else if (pcTab === 'quiz') {
+            // 'record' is no longer offered for this quiz; send it back to Revision.
+            if (pcTab === 'record') pcTab = 'revision';
+            if (pcTab === 'quiz') {
                 startPCQuiz(container);
-            } else if (pcTab === 'record') {
-                renderPCRecord(container);
+            } else {
+                renderPCRevision(container, data);
             }
         }
 
         function startPCQuiz(container) {
+            // Always prefer the official 1–250 bank when it is available.
+            syncPCDataFromBank();
             if (!pcData || pcData.length === 0) {
                 container.innerHTML = '<p class="text-gray-400 text-center py-10">No quiz data available. Please try again later.</p>';
                 return;
@@ -467,7 +545,7 @@
             const correct = q.a.toLowerCase();
 
             if (userVal === correct) {
-                pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, correct: true });
+                pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, id: q.id, correct: true });
                 pcQuizScore += 10;
                 showEncouragement();
                 pcQuizIdx++;
@@ -490,13 +568,13 @@
                     document.getElementById('pc-answer').value = "";
                     document.getElementById('pc-answer').focus();
                 } else {
-                    pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, correct: false });
+                    pcQuizResults.push({ q: q.q, userA: userVal, a: q.a, id: q.id, correct: false });
                     const container = document.getElementById('pc-tab-content');
                     const existingBtn = container.querySelector('button');
                     if (existingBtn) existingBtn.style.display = 'none';
                     const ansBox = document.createElement('div');
                     ansBox.className = 'mt-4 p-4 bg-red-50 rounded-2xl border-2 border-red-200 text-center';
-                    ansBox.innerHTML = `<p class="text-red-500 font-bold mb-1">Correct answer:</p><p class="text-green-700 font-bold text-xl">${q.a}</p>`;
+                    ansBox.innerHTML = `<p class="text-red-500 font-bold mb-1">Correct answer:</p><p class="text-green-700 font-bold text-xl">${q.a}</p><p class="text-gray-600 text-sm mt-2">${explainParticipleAnswer(q)}</p>`;
                     container.appendChild(ansBox);
                     setTimeout(() => {
                         pcQuizIdx++;
@@ -529,7 +607,7 @@
                                 <p class="font-bold text-gray-700 mb-2">${i + 1}. ${r.q}</p>
                                 ${r.correct
                                     ? `<p class="text-green-600 text-sm">✓ ${r.a}</p>`
-                                    : `<p class="text-red-500 text-sm">Your answer: ${r.userA || '-'}</p><p class="text-green-600 text-sm">Correct: ${r.a}</p>`
+                                    : `<p class="text-red-500 text-sm">Your answer: ${r.userA || '-'}</p><p class="text-green-600 text-sm">Correct: ${r.a}</p><p class="text-gray-600 text-sm mt-1">${explainParticipleAnswer(r)}</p>`
                                 }
                             </div>
                         `).join('')}
@@ -664,17 +742,38 @@
         }
 
         async function loadPCData() {
+            // Prefer the local 1–250 bank so official answers cannot drift and
+            // questions 251+ (sentence combining) never appear in this quiz.
+            if (syncPCDataFromBank()) return;
             try {
                 const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('participle clauses')}`;
                 const response = await fetch(url);
                 if (!response.ok) return;
                 const csvText = await response.text();
                 const lines = csvText.split(/\r?\n/);
+                const bankByStem = new Map();
+                participleBankRows().forEach(row => bankByStem.set(participleStemKey(row.q), row));
+                const parsed = [];
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
                     const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.replace(/^"|"$/g, '').trim());
-                    if (parts.length >= 2) pcData.push({ q: parts[0], a: parts[1] });
+                    if (parts.length < 2) continue;
+                    const rawStem = parts[0];
+                    const answer = parts[1];
+                    if (!rawStem || !answer) continue;
+                    if (/sentence\s*combin/i.test(rawStem)) continue;
+                    const numberMatch = /^\s*Q?\s*(\d+)\s*[.):]/i.exec(rawStem);
+                    if (numberMatch && Number(numberMatch[1]) >= 251) continue;
+                    const stem = stripParticipleNumber(rawStem);
+                    if (!stem || stem.indexOf('____') === -1) continue; // skip section headers
+                    const bankRow = bankByStem.get(participleStemKey(stem));
+                    parsed.push({
+                        id: bankRow && bankRow.id ? bankRow.id : undefined,
+                        q: stem,
+                        a: bankRow ? bankRow.a : answer
+                    });
                 }
+                if (parsed.length) pcData = parsed;
             } catch (e) { console.log('Failed to load participle clauses data'); }
         }

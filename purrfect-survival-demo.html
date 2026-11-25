@@ -116,14 +116,16 @@
     <button type="button" id="demo-teacher" class="mode">📺 Teacher / Projector</button>
     <span class="demo-sep"></span>
     <button type="button" id="demo-lobby" data-scene="lobby">🏁 Lobby</button>
-    <button type="button" id="demo-round1" data-scene="round1" class="active">🟢 Round 1</button>
-    <button type="button" id="demo-round2" data-scene="round2">🧊 Round 2</button>
-    <button type="button" id="demo-victory" data-scene="victory">🎉 Mid-victory</button>
+    <button type="button" id="demo-round1" data-scene="round1" class="active" title="1-2-3 Meow!">🟢 Round 1</button>
+    <button type="button" id="demo-round2" data-scene="round2" title="Glass Stepping Stones">🧊 Round 2</button>
+    <button type="button" id="demo-round3" data-scene="round3" title="Tug of War">🪢 Round 3</button>
+    <button type="button" id="demo-victory" data-scene="victory" title="Prize ceremony">🎉 Prize ceremony</button>
     <span class="demo-sep"></span>
     <label class="demo-num" for="demo-round-count">Rounds
         <select id="demo-round-count">
             <option value="1">1</option>
             <option value="2" selected>2</option>
+            <option value="3">3</option>
         </select>
     </label>
     <label class="demo-num" for="demo-finish-distance">Metres
@@ -132,13 +134,16 @@
     <label class="demo-num" for="demo-glass-steps">Steps
         <input id="demo-glass-steps" type="number" min="3" max="15" step="1" value="9" inputmode="numeric">
     </label>
+    <label class="demo-num" for="demo-tug-duration">Tug s
+        <input id="demo-tug-duration" type="number" min="30" max="120" step="5" value="60" inputmode="numeric">
+    </label>
     <span class="demo-sep"></span>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
 
 <div id="demo-stage">
     <iframe id="demo-app" src="/index.html?psdemo=1" title="Purr-fect Survival demo"></iframe>
-    <div id="demo-note">Public demo · no login · no saved scores · about 25 cats</div>
+    <div id="demo-note">Round 1: 1-2-3 Meow! · Round 2: Glass Stepping Stones · Round 3: Tug of War. Public demo · no login · no saved scores · about 25 cats</div>
 </div>
 
 <script>
@@ -209,7 +214,8 @@
         return {
             roundCount: Number(document.getElementById('demo-round-count').value) || 2,
             finishDistance: Number(document.getElementById('demo-finish-distance').value) || 100,
-            glassSteps: Number(document.getElementById('demo-glass-steps').value) || 9
+            glassSteps: Number(document.getElementById('demo-glass-steps').value) || 9,
+            tugDuration: Number(document.getElementById('demo-tug-duration').value) || 60
         };
     }
 
@@ -309,6 +315,7 @@
     document.getElementById('demo-lobby').addEventListener('click', function () { goScene('lobby'); });
     document.getElementById('demo-round1').addEventListener('click', function () { goScene('round1'); });
     document.getElementById('demo-round2').addEventListener('click', function () { goScene('round2'); });
+    document.getElementById('demo-round3').addEventListener('click', function () { goScene('round3'); });
     document.getElementById('demo-victory').addEventListener('click', function () { goScene('victory'); });
 
     function applyDemoSettings() {
@@ -320,7 +327,7 @@
         focusFrame();
     }
 
-    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps'].forEach(function (id) {
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration'].forEach(function (id) {
         document.getElementById(id).addEventListener('change', applyDemoSettings);
     });
 

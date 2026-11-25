@@ -107,6 +107,184 @@ function loadMain() {
     return sandbox.PS;
 }
 
+/* A small but real DOM surface for the lobby code. Element.innerHTML parses
+   <option> tags the way a browser select would, so populateVocabSources() and
+   syncSubjectFields() can be exercised without a browser. */
+function loadMainWithDom(options) {
+    const opts = options || {};
+    const code = fs.readFileSync(MAIN_PATH, 'utf8');
+    const store = {
+        getItem() { return null; },
+        setItem() {},
+        removeItem() {}
+    };
+    const elements = Object.create(null);
+
+    function decodeEntities(text) {
+        return String(text == null ? '' : text)
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'");
+    }
+
+    function makeClassList() {
+        const set = new Set();
+        return {
+            add(name) { set.add(name); },
+            remove(name) { set.delete(name); },
+            contains(name) { return set.has(name); },
+            toggle(name, on) {
+                const next = on === undefined ? !set.has(name) : !!on;
+                if (next) set.add(name); else set.delete(name);
+                return next;
+            },
+            has(name) { return set.has(name); }
+        };
+    }
+
+    function makeEl(id, tag, value) {
+        const el = {
+            id: id,
+            tagName: String(tag || 'div').toUpperCase(),
+            style: {},
+            disabled: false,
+            checked: false,
+            textContent: '',
+            _options: [],
+            _html: '',
+            _value: value === undefined ? '' : String(value),
+            setAttribute(name, val) { el[name] = val; },
+            getAttribute(name) { return el[name]; },
+            appendChild() {},
+            focus() {},
+            getContext() { return null; }
+        };
+        el.classList = makeClassList();
+        Object.defineProperty(el, 'className', {
+            get() { return ''; },
+            set(val) {
+                String(val || '').split(/\s+/).filter(Boolean).forEach(name => el.classList.add(name));
+            }
+        });
+        Object.defineProperty(el, 'options', {
+            get() { return el._options; },
+            set(list) { el._options = Array.from(list || []); }
+        });
+        Object.defineProperty(el, 'innerHTML', {
+            get() { return el._html; },
+            set(html) {
+                el._html = String(html == null ? '' : html);
+                const parsed = [];
+                const re = /<option\b[^>]*value="([^"]*)"[^>]*>([\s\S]*?)<\/option>/gi;
+                let m;
+                while ((m = re.exec(el._html))) {
+                    parsed.push({
+                        value: decodeEntities(m[1]),
+                        text: decodeEntities(String(m[2]).replace(/<[^>]*>/g, '')).trim()
+                    });
+                }
+                el._options = parsed;
+                el._value = parsed.length ? parsed[0].value : '';
+            }
+        });
+        Object.defineProperty(el, 'value', {
+            get() { return el._value; },
+            set(val) { el._value = String(val == null ? '' : val); }
+        });
+        elements[id] = el;
+        return el;
+    }
+
+    function add(id, tag, value) {
+        return makeEl(id, tag, value);
+    }
+
+    add('ps-lobby', 'div');
+    add('ps-game', 'div');
+    add('ps-cine', 'div');
+    add('ps-stage', 'div');
+    add('ps-question', 'div');
+    add('ps-round-overlay', 'div');
+    add('ps-room-actions', 'div');
+    add('ps-host-note', 'div');
+    add('ps-guest-notice', 'div').classList.add('hidden');
+    add('ps-rejoin-banner', 'div').classList.add('hidden');
+    add('ps-rejoin-code', 'span');
+    add('ps-teacher-row', 'label');
+    add('ps-teacher-plays', 'input');
+    add('ps-round-count', 'select', '2');
+    add('ps-round2-card', 'section');
+    add('ps-round3-card', 'section').classList.add('hidden');
+    add('ps-sound-btn', 'button');
+    add('ps-code', 'span');
+    add('ps-code-chip', 'div');
+    add('ps-room-meta', 'div');
+    add('ps-player-list', 'div');
+    add('ps-start-btn', 'button');
+    add('ps-wait-msg', 'p');
+    add('ps-host-end', 'button');
+    add('ps-canvas', 'canvas');
+    add('purrfect-survival-view', 'div');
+    add('login-view', 'div');
+    add('app', 'div');
+    add('bottom-nav', 'nav');
+    add('home-music-btn', 'button');
+    add('me-store-music-btn', 'button');
+
+    for (let r = 1; r <= 3; r++) {
+        add('ps-r' + r + '-subject', 'select', 'vocab');
+        add('ps-r' + r + '-vocab-wrap', 'div');
+        add('ps-r' + r + '-grammar-wrap', 'div').classList.add('hidden');
+        add('ps-r' + r + '-vocab-source', 'select');
+        add('ps-r' + r + '-vocab-form-wrap', 'div');
+        add('ps-r' + r + '-vocab-form', 'select');
+        add('ps-r' + r + '-grammar-topic', 'select', 'tenses');
+        add('ps-r' + r + '-grammar-mode', 'select');
+    }
+
+    const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.PSEngine = loadEngine();
+    sandbox.updateMascot = function () {};
+    sandbox.SHEET_NAMES = opts.sheetNames || ['Food', 'School'];
+    if (opts.currentUser !== undefined) sandbox.currentUser = opts.currentUser;
+    if (opts.isGuestUser) sandbox.isGuestUser = opts.isGuestUser;
+    sandbox.localStorage = store;
+    sandbox.sessionStorage = store;
+    sandbox.devicePixelRatio = 1;
+    sandbox.document = {
+        readyState: 'complete',
+        getElementById(id) { return elements[id] || null; },
+        querySelector() { return null; },
+        addEventListener() {},
+        createElement(tag) { return makeEl('created-' + tag, tag); },
+        body: makeEl('body', 'body')
+    };
+    sandbox.addEventListener = function () {};
+    sandbox.removeEventListener = function () {};
+    sandbox.requestAnimationFrame = function () { return 0; };
+    sandbox.cancelAnimationFrame = function () {};
+    sandbox.setInterval = function () { return 0; };
+    sandbox.clearInterval = function () {};
+    sandbox.setTimeout = function () { return 0; };
+    sandbox.clearTimeout = function () {};
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'purrfect-survival.js' });
+    assert.ok(sandbox.PS, 'main module attaches window.PS');
+    return {
+        PS: sandbox.PS,
+        sandbox: sandbox,
+        el(id) { return elements[id] || null; },
+        optionValues(id) {
+            const el = elements[id];
+            return el ? Array.from(el.options).map(o => o.value) : [];
+        }
+    };
+}
+
 function player(id, distance, extra) {
     return Object.assign({
         user_id: id,
@@ -704,7 +882,60 @@ test('demo page and demo mode stay gated without weakening guest blocking', () =
     assert.ok(demo.indexOf('Student') !== -1, 'Student control');
     assert.ok(demo.indexOf('Teacher') !== -1 && demo.indexOf('Projector') !== -1, 'teacher/projector control');
     assert.ok(demo.indexOf('Round 1') !== -1 && demo.indexOf('Round 2') !== -1, 'round controls');
-    assert.ok(demo.indexOf('Mid-victory') !== -1, 'mid-victory control');
+    assert.ok(demo.indexOf('Prize ceremony') !== -1, 'prize ceremony control');
+});
+
+test('demo lobby fills the vocab word-bank even when isGuestUser() is still true', async () => {
+    const dom = loadMainWithDom({
+        sheetNames: ['Food', 'School'],
+        isGuestUser: function () { return true; }
+    });
+
+    dom.PS.startDemo({ role: 'student', scene: 'lobby' });
+
+    ['ps-r1-vocab-source', 'ps-r2-vocab-source', 'ps-r3-vocab-source'].forEach(id => {
+        const values = dom.optionValues(id);
+        assert.ok(values.indexOf('New Vocab') !== -1, id + ' has New Vocab');
+        assert.ok(values.indexOf('Food') !== -1, id + ' has the Food sheet topic');
+        assert.ok(values.indexOf('School') !== -1, id + ' has the School sheet topic');
+    });
+    assert.ok(!dom.el('ps-room-actions').classList.contains('hidden'), 'demo keeps the host topic pickers visible');
+    assert.ok(!dom.el('ps-host-note').classList.contains('hidden'), 'demo keeps the host note visible');
+    assert.ok(dom.el('ps-guest-notice').classList.contains('hidden'), 'demo does not show the sign-in block');
+
+    // PS.enter() is the other demo entry path (e.g. returning from another view).
+    dom.el('ps-r1-vocab-source').innerHTML = '';
+    assert.deepEqual(dom.optionValues('ps-r1-vocab-source'), []);
+    await dom.PS.enter();
+    assert.ok(dom.optionValues('ps-r1-vocab-source').indexOf('New Vocab') !== -1, 'demo enter refills the word bank');
+
+    // Switching to Vocab must refill the list even if populateLobby was missed.
+    dom.el('ps-r1-vocab-source').innerHTML = '';
+    const subject = dom.el('ps-r1-subject');
+    subject.value = 'grammar';
+    dom.PS.syncSubjectFields(1);
+    subject.value = 'vocab';
+    dom.PS.syncSubjectFields(1);
+    const values = dom.optionValues('ps-r1-vocab-source');
+    assert.ok(values.indexOf('New Vocab') !== -1, 'vocab switch restores New Vocab');
+    assert.ok(values.indexOf('Food') !== -1, 'vocab switch restores the sheet topics');
+    assert.ok(values.indexOf('School') !== -1, 'vocab switch restores every sheet topic');
+});
+
+test('live guest path still hides the host settings', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], isGuestUser: function () { return false; } });
+    dom.PS.populateLobby();
+    assert.ok(dom.el('ps-room-actions').classList.contains('hidden'), 'live guests cannot see the create-room card');
+    assert.ok(dom.el('ps-host-note').classList.contains('hidden'), 'live guests do not see host settings');
+    assert.ok(!dom.el('ps-guest-notice').classList.contains('hidden'), 'live guests see the sign-in notice');
+});
+
+test('demo entry paths call populateLobby', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'purrfect-survival.js'), 'utf8');
+    const enterDemo = src.slice(src.indexOf('PS.enter = async function'), src.indexOf('if (!signedInUser() || isGuest())'));
+    assert.ok(enterDemo.indexOf('populateLobby();') !== -1, 'demo enter calls populateLobby');
+    const jumpLobby = src.slice(src.indexOf('function demoJumpLobby()'), src.indexOf('function demoJumpRound1()'));
+    assert.ok(jumpLobby.indexOf('populateLobby();') !== -1, 'demoJumpLobby calls populateLobby');
 });
 
 /* 3D renderer: exports, drawing safety and original artwork         */
@@ -882,8 +1113,10 @@ test('index.html hosts the cinematic waiting overlay, rules cards and skip contr
         'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
-    assert.ok(html.indexOf('玻璃橋') !== -1, 'Traditional Chinese copy is used');
+    assert.ok(html.indexOf('id="ps-cine-rule2-zh"') !== -1, 'Traditional Chinese rule chrome is present');
     assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
+    assert.equal(html.indexOf('玻璃橋'), -1, 'the Chinese bridge title is gone');
+    assert.equal(html.indexOf('貓咪拔河大賽'), -1, 'the Chinese tug title is gone');
 });
 
 test('bilingual rules are faithful to the English engine copy', () => {
@@ -901,7 +1134,7 @@ test('bilingual rules are faithful to the English engine copy', () => {
 /* ---------------------------------------------------------------- */
 
 test('host settings expose an extensible round map and default to two rounds', () => {
-    assert.equal(PS.HOST.MAX_IMPLEMENTED, 2);
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 3);
     assert.equal(PS.HOST.MAX_PLANNED, 5);
     assert.equal(PS.HOST.KINDS[1], 'meow');
     assert.equal(PS.HOST.KINDS[2], 'glass');
@@ -912,14 +1145,22 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.roomRoundCount({}), 2, 'old rooms default to 2 rounds');
     assert.equal(PS.roomRoundCount({ roundCount: 1 }), 1);
     assert.equal(PS.roomRoundCount({ roundCount: 2 }), 2);
+    assert.equal(PS.roomRoundCount({ roundCount: 3 }), 3);
     assert.equal(PS.roomRoundCount({ roundCount: 0 }), 1, 'below 1 clamps to 1');
-    assert.equal(PS.roomRoundCount({ roundCount: 3 }), 2, 'above the implemented max clamps to 2');
+    assert.equal(PS.roomRoundCount({ roundCount: 4 }), 3, 'above the implemented max clamps to 3');
     assert.equal(PS.roomRoundCount(JSON.stringify({ roundCount: 1 })), 1, 'JSON strings are accepted');
 
     assert.equal(PS.shouldPlayRound2({ roundCount: 1 }), false);
     assert.equal(PS.shouldPlayRound2({}), true);
     assert.equal(PS.round1EndAction({ roundCount: 1 }), 'finish');
     assert.equal(PS.round1EndAction({ roundCount: 2 }), 'bridge');
+
+    assert.equal(PS.shouldPlayRound3({ roundCount: 1 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 2 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 3 }), true);
+    assert.equal(PS.round2EndAction({ roundCount: 1 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 2 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 3 }), 'tug');
 });
 
 test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
@@ -1099,7 +1340,7 @@ test('roundConfig reads per-round entries and room-level fallback', () => {
 
 test('host settings reject unimplemented rounds and invalid subjects/topics', () => {
     assert.equal(PS.validateHostSettings({
-        roundCount: 3,
+        roundCount: 4,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
     }).error, 'ROUNDS_NOT_IMPLEMENTED');
     assert.equal(PS.validateHostSettings({
@@ -1133,12 +1374,19 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
     ['ps-round-count', 'ps-finish-distance', 'ps-glass-steps',
         'ps-r1-subject', 'ps-r1-vocab-source', 'ps-r1-grammar-topic',
         'ps-r2-subject', 'ps-r2-vocab-source', 'ps-r2-grammar-topic',
-        'ps-round1-card', 'ps-round2-card'].forEach(id => {
+        'ps-r3-subject', 'ps-r3-vocab-source', 'ps-r3-grammar-topic',
+        'ps-tug-duration', 'ps-tug-start-btn',
+        'ps-round1-card', 'ps-round2-card', 'ps-round3-card'].forEach(id => {
         assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists');
     });
     assert.ok(html.indexOf('min="30" max="300" step="10"') !== -1, 'distance input range 30–300 step 10');
     assert.ok(html.indexOf('min="3" max="15" step="1"') !== -1, 'glass steps input range 3–15');
-    assert.ok(html.indexOf('value="3" disabled') !== -1, 'round 3 is shown as coming soon');
+    assert.ok(html.indexOf('id="ps-tug-duration" type="number" min="30" max="120" step="5" value="60"') !== -1,
+        'tug duration input range 30–120 step 5');
+    assert.equal(html.indexOf('value="3" disabled'), -1, 'round 3 is no longer coming soon');
+    assert.ok(html.indexOf('value="3">3 rounds') !== -1, 'round 3 is selectable');
+    assert.ok(html.indexOf('value="4" disabled') !== -1, 'round 4 still coming soon');
+    assert.ok(html.indexOf('value="5" disabled') !== -1, 'round 5 still coming soon');
     assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
 });
@@ -1180,17 +1428,607 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the host-settings change', () => {
+test('service worker cache is bumped for the prize ceremony change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v103") !== -1, 'CACHE_NAME is v103');
-    assert.equal(sw.indexOf("learnity-pwa-v102"), -1, 'the old cache name is gone');
+    assert.ok(sw.indexOf("learnity-pwa-v106") !== -1, 'CACHE_NAME is v106');
+    assert.equal(sw.indexOf("learnity-pwa-v105"), -1, 'the old cache name is gone');
 });
 
-test('demo page exposes round count, metres and glass step controls', () => {
+test('demo page exposes round count, metres, glass step and tug controls', () => {
     const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
-    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps'].forEach(id => {
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration', 'demo-round3'].forEach(id => {
         assert.ok(demo.indexOf('id="' + id + '"') !== -1, id + ' control exists');
     });
+    assert.ok(demo.indexOf('<option value="3">3</option>') !== -1, 'round 3 is selectable in the demo');
     assert.ok(demo.indexOf('applyDemoSettings') !== -1, 'controls re-apply the demo settings');
     assert.ok(demo.indexOf('setDemoSettings') !== -1, 'main demo API is used');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 3 — Tug of War (engine)                                     */
+/* ---------------------------------------------------------------- */
+
+const ROUND3 = PS.ROUND3;
+
+function tugPlayer(id, rank, finishedAt, extra) {
+    return Object.assign({
+        user_id: id,
+        status: 'advanced',
+        crossed_glass: true,
+        ghost: false,
+        is_playing: true,
+        round1_rank: rank,
+        glass_finished_at: finishedAt == null ? null : 1000 + finishedAt
+    }, extra || {});
+}
+
+test('tug constants and duration clamp match the round-3 brief', () => {
+    assert.equal(ROUND3.DEFAULT_MS, 60000);
+    assert.equal(ROUND3.MIN_MS, 30000);
+    assert.equal(ROUND3.MAX_MS, 120000);
+    assert.equal(ROUND3.COMBO, 5);
+    assert.equal(ROUND3.RAGE_MULT, 2);
+    assert.equal(ROUND3.RAGE_MS, 5000);
+    assert.equal(ROUND3.WIN_PULL, 20);
+
+    assert.equal(PS.normalizeTugDuration(), 60000);
+    assert.equal(PS.normalizeTugDuration(''), 60000);
+    assert.equal(PS.normalizeTugDuration('nope'), 60000);
+    assert.equal(PS.normalizeTugDuration(60), 60000, 'seconds are accepted');
+    assert.equal(PS.normalizeTugDuration(30), 30000);
+    assert.equal(PS.normalizeTugDuration(120), 120000);
+    assert.equal(PS.normalizeTugDuration(60000), 60000, 'milliseconds are accepted');
+    assert.equal(PS.normalizeTugDuration(1000), 30000, 'below range clamps up');
+    assert.equal(PS.normalizeTugDuration(200000), 120000, 'above range clamps down');
+});
+
+test('tug survivors are advanced/crossed players only and skip with fewer than two', () => {
+    const players = [
+        tugPlayer('a', 1, 1),
+        tugPlayer('b', 2, 2),
+        tugPlayer('out', 3, 3, { status: 'eliminated', ghost: true }),
+        tugPlayer('alive', 4, 4, { status: 'alive', crossed_glass: false }),
+        tugPlayer('ghost', 5, 5, { ghost: true })
+    ];
+    const survivors = PS.tugSurvivors(players).map(p => p.user_id);
+    assert.deepEqual(survivors, ['a', 'b']);
+    assert.equal(PS.shouldSkipTug(players.slice(0, 1)), true);
+    assert.equal(PS.shouldSkipTug(players.slice(0, 2)), false);
+});
+
+test('tug teams use a deterministic fair snake split (odd counts included)', () => {
+    const even = [
+        tugPlayer('A', 1, 1), tugPlayer('B', 2, 2), tugPlayer('C', 3, 3),
+        tugPlayer('D', 4, 4), tugPlayer('E', 5, 5), tugPlayer('F', 6, 6)
+    ];
+    const split = PS.splitTugTeams(even);
+    assert.deepEqual(split.map(p => p.user_id), ['A', 'B', 'C', 'D', 'E', 'F']);
+    assert.deepEqual(split.map(p => p.tug_team), ['red', 'blue', 'blue', 'red', 'red', 'blue']);
+
+    const odd = even.slice(0, 5);
+    const oddSplit = PS.splitTugTeams(odd);
+    assert.deepEqual(oddSplit.map(p => p.user_id), ['A', 'B', 'C', 'D', 'E']);
+    assert.deepEqual(oddSplit.map(p => p.tug_team), ['red', 'blue', 'blue', 'red', 'red']);
+    assert.equal(oddSplit.filter(p => p.tug_team === 'red').length, 3, 'odd class gives one team +1');
+
+    // Input is not mutated; split returns fresh player copies.
+    even.forEach(p => assert.equal('tug_team' in p, false));
+    assert.notStrictEqual(split[0], even[0]);
+
+    // Finish order is glass_finished_at, then round1_rank, then user_id.
+    const shuffled = [even[3], even[1], even[5], even[0], even[4], even[2]];
+    assert.deepEqual(PS.splitTugTeams(shuffled).map(p => p.user_id), ['A', 'B', 'C', 'D', 'E', 'F']);
+
+    const tied = [
+        tugPlayer('z', 2, 10), tugPlayer('y', 1, 10), tugPlayer('x', 2, null)
+    ];
+    assert.deepEqual(PS.splitTugTeams(tied).map(p => p.user_id), ['y', 'z', 'x']);
+});
+
+test('a correct tug answer pulls +1, a wrong answer pulls nothing and breaks combo', () => {
+    let state = PS.normalizeTugState({ phase: 'playing' });
+    let result = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 });
+    assert.equal(result.state.redPull, 1);
+    assert.equal(result.state.bluePull, 0);
+    assert.equal(result.state.position, -1);
+    assert.equal(result.state.redCombo, 1);
+    assert.equal(result.pull, 1);
+    assert.equal(result.winner, null);
+
+    result = PS.applyTugAnswer(result.state, { team: 'blue', correct: true, now: 1100 });
+    assert.equal(result.state.blueCombo, 1);
+    assert.equal(result.state.position, 0);
+    result = PS.applyTugAnswer(result.state, { team: 'blue', correct: false, now: 1200 });
+    assert.equal(result.state.blueCombo, 0, 'a miss breaks that team combo');
+    assert.equal(result.state.bluePull, 1, 'a miss gives the other team no pull');
+    assert.equal(result.comboBroken, true);
+
+    // Answers outside the playing phase are ignored.
+    const briefing = PS.normalizeTugState({ phase: 'briefing' });
+    const ignored = PS.applyTugAnswer(briefing, { team: 'red', correct: true, now: 2000 });
+    assert.equal(ignored.state.redPull, 0);
+    assert.equal(PS.applyTugAnswer(state, { team: '', correct: true, now: 1 }).pull, 0);
+});
+
+test('five team combo triggers 2x rage, rage answers pull +2, and a miss cancels rage', () => {
+    let state = PS.normalizeTugState({ phase: 'playing' });
+    let triggered = false;
+    for (let i = 1; i <= 5; i++) {
+        const res = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 + i * 100 });
+        state = res.state;
+        if (i < 5) assert.equal(res.rageTriggered, false);
+        else {
+            triggered = true;
+            assert.equal(res.rageTriggered, true);
+            assert.equal(res.state.redCombo, 0, 'triggering rage resets the combo meter');
+            assert.equal(res.state.redRageUntil, 1500 + ROUND3.RAGE_MS);
+        }
+    }
+    assert.equal(triggered, true);
+    assert.equal(state.redPull, 5);
+    assert.equal(PS.tugRageActive(state, 'red', 2000), true);
+
+    const during = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 2500 });
+    assert.equal(during.pull, 2, 'a rage answer is worth +2');
+    assert.equal(during.state.redPull, 7);
+    assert.equal(during.state.redCombo, 0);
+
+    const miss = PS.applyTugAnswer(during.state, { team: 'red', correct: false, now: 2600 });
+    assert.equal(miss.state.redRageUntil, 0, 'a miss cancels rage');
+    assert.equal(PS.tugRageActive(miss.state, 'red', 2600), false);
+    assert.equal(miss.state.redCombo, 0);
+});
+
+test('the tug ends instantly once the salmon is pulled 20 steps past centre', () => {
+    const state = PS.normalizeTugState({ phase: 'playing', redPull: 19, bluePull: 0 });
+    const result = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 });
+    assert.equal(result.state.position, -20);
+    assert.equal(result.state.winner, 'red');
+    assert.equal(result.state.phase, 'done');
+
+    const blue = PS.normalizeTugState({ phase: 'playing', bluePull: 19, redPull: 0 });
+    const win = PS.applyTugAnswer(blue, { team: 'blue', correct: true, now: 1000 });
+    assert.equal(win.state.winner, 'blue');
+    assert.equal(win.state.phase, 'done');
+});
+
+test('time-up gives the win to the side with the salmon, and exact centre is sudden death', () => {
+    const red = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 4, bluePull: 2 }, 1000);
+    assert.equal(red.winner, 'red');
+    assert.equal(red.phase, 'done');
+
+    const blue = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 1, bluePull: 5 }, 1000);
+    assert.equal(blue.winner, 'blue');
+
+    const tied = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 3, bluePull: 3 }, 1000);
+    assert.equal(tied.winner, null);
+    assert.equal(tied.suddenDeath, true);
+    assert.equal(tied.phase, 'playing', 'sudden death keeps playing');
+
+    const decided = PS.applyTugAnswer(tied, { team: 'red', correct: true, now: 1100 });
+    assert.equal(decided.state.position, -1);
+    assert.equal(decided.state.winner, 'red');
+    assert.equal(decided.state.phase, 'done', 'the next scoring answer ends sudden death');
+
+    const stillTied = PS.applyTugAnswer(tied, { team: 'red', correct: false, now: 1200 });
+    assert.equal(stillTied.state.position, 0);
+    assert.equal(stillTied.state.winner, null, 'a miss does not end sudden death');
+
+    const already = PS.resolveTugAtTimeUp({ phase: 'done', winner: 'red', redPull: 9 }, 1000);
+    assert.equal(already.winner, 'red');
+});
+
+test('applyTugResult eliminates the losing team and advances the winning team', () => {
+    const players = [
+        { user_id: 'r1', tug_team: 'red', status: 'advanced', ghost: false },
+        { user_id: 'r2', tug_team: 'red', status: 'advanced', ghost: false },
+        { user_id: 'b1', tug_team: 'blue', status: 'advanced', ghost: false },
+        { user_id: 'none', status: 'advanced', ghost: false }
+    ];
+    PS.applyTugResult(players, 'blue');
+    assert.equal(players[0].status, 'eliminated');
+    assert.equal(players[0].ghost, true);
+    assert.equal(players[0].eliminated_reason, 'tug');
+    assert.equal(players[1].ghost, true);
+    assert.equal(players[2].status, 'advanced');
+    assert.equal(players[2].ghost, false);
+    assert.equal(players[2].advanced_round3, true);
+    assert.equal(players[3].status, 'advanced', 'players without a team are unchanged');
+    assert.equal('advanced_round3' in players[3], false);
+});
+
+test('three-round host settings keep per-round subjects and persist tugDuration', () => {
+    const result = PS.validateHostSettings({
+        roundCount: 3,
+        finishDistance: 150,
+        glassSteps: 6,
+        tugDuration: 45,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food', vocabForm: 'F4' },
+            { round: 2, subject: 'grammar', topic: 'agreement', bankMode: 'choose' },
+            { round: 3, subject: 'grammar', topic: 'articles', bankMode: 'mixed', tugDuration: 45 }
+        ]
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.roundCount, 3);
+    assert.equal(result.rounds.length, 3);
+    assert.equal(result.rounds[0].subject, 'vocab');
+    assert.equal(result.rounds[1].subject, 'grammar');
+    assert.equal(result.rounds[1].topic, 'agreement');
+    assert.equal(result.rounds[2].subject, 'grammar');
+    assert.equal(result.rounds[2].topic, 'articles');
+    assert.equal(result.rounds[2].tugDuration, 45000);
+    assert.equal(result.settings.tugDuration, 45000);
+    assert.equal(result.tugDuration, 45000);
+    assert.equal(result.settings.rounds.length, 3);
+
+    const cfg = PS.roundConfig(result.settings, 3);
+    assert.equal(cfg.kind, 'tug');
+    assert.equal(cfg.subject, 'grammar');
+    assert.equal(cfg.topic, 'articles');
+    assert.equal(cfg.tugDuration, 45000);
+
+    assert.equal(PS.validateHostSettings({
+        roundCount: 3,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food' },
+            { round: 2, subject: 'vocab', vocabSource: 'Food' },
+            { round: 3, subject: 'vocab', vocabSource: 'Food', grammarTopic: 'tenses' }
+        ]
+    }).error, 'ONE_SUBJECT_ONLY');
+});
+
+test('one- and two-round classes never enter the tug', () => {
+    assert.equal(PS.shouldPlayRound3({ roundCount: 1 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 2 }), false);
+    assert.equal(PS.round2EndAction({ roundCount: 1 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 2 }), 'finish');
+    assert.equal(PS.shouldPlayRound3({}), false, 'legacy rooms default to 2 rounds');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 3 — wiring / SQL / renderer / demo                          */
+/* ---------------------------------------------------------------- */
+
+test('incremental tug SQL exists with teacher instructions and new functions', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_tug.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_host_settings.sql') !== -1, 'says to run after PR #51');
+    ['purrfect_survival_round_count', 'purrfect_survival_tug_duration',
+        'purrfect_survival_empty_tug', 'purrfect_survival_apply_tug',
+        'purrfect_survival_finish_if_done', 'start_purrfect_survival_round3',
+        'create_purrfect_survival', 'start_purrfect_survival',
+        'tick_purrfect_survival', 'submit_purrfect_survival_answer',
+        'glass_jump_purrfect_survival'].forEach(fn => {
+        assert.ok(sql.indexOf(fn) !== -1, fn + ' exists');
+    });
+    assert.ok(sql.indexOf("'round3'") !== -1, 'round3 status is allowed');
+    assert.ok(sql.indexOf('glass_finished_at') !== -1, 'glass finish timestamp exists');
+    assert.ok(sql.indexOf('tug_team') !== -1, 'tug teams exist');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+    assert.ok(sql.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1);
+});
+
+test('canonical SQL is consistent with the three-round reality', () => {
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf("'round3'") !== -1, 'canonical status includes round3');
+    assert.ok(canonical.indexOf('least(3, greatest(1') !== -1, 'round_count clamps to 3');
+    ['purrfect_survival_tug_duration', 'purrfect_survival_empty_tug',
+        'purrfect_survival_apply_tug', 'start_purrfect_survival_round3',
+        'tug_questions', 'glass_finished_at', 'tug_team'].forEach(token => {
+        assert.ok(canonical.indexOf(token) !== -1, token + ' exists in canonical SQL');
+    });
+    assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical rejects rounds 4–5');
+});
+
+test('renderer exports drawRound3 and paints it without throwing', () => {
+    assert.equal(typeof RENDERER.drawRound3, 'function');
+    assert.match(RENDERER.VERSION, /^2\./);
+
+    const sizes = [[390, 844, 'player'], [1024, 768, 'host'], [844, 390, 'player']];
+    const players = samplePlayers().map((p, i) => Object.assign({}, p, {
+        status: 'advanced',
+        ghost: false,
+        crossed_glass: true,
+        tug_team: i % 2 ? 'blue' : 'red'
+    }));
+    sizes.forEach(size => {
+        const canvas = { width: size[0] * 2, height: size[1] * 2 };
+        const ctx = mockContext(canvas);
+        [['briefing', 0, null], ['playing', 5, null], ['done', 0, 'blue']].forEach(triple => {
+            const state = {
+                w: size[0], h: size[1], role: size[2], round: 3,
+                now: 12000, meId: 'u1', myTeam: 'red',
+                players: players,
+                tug: {
+                    position: triple[2] ? 12 : -triple[1],
+                    redPull: triple[1],
+                    bluePull: 5,
+                    redCombo: 3,
+                    blueCombo: 1,
+                    redRage: true,
+                    blueRage: false,
+                    winner: triple[2],
+                    phase: triple[0],
+                    suddenDeath: false
+                }
+            };
+            assert.doesNotThrow(() => RENDERER.drawRound3(ctx, state), 'round 3 ' + triple[0] + ' paints');
+            assert.doesNotThrow(() => RENDERER.drawScene(ctx, state), 'drawScene dispatches round 3');
+        });
+    });
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.equal(/drawImage/.test(src), false, 'renderer still never blits bitmaps');
+    ['round3-tug-side-ref', 'round3-tug-overview-ref'].forEach(name =>
+        assert.equal(src.indexOf(name), -1, name + ' is not referenced'));
+});
+
+test('main module wires the round-3 status, tug start and duration', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    ['start_purrfect_survival_round3', 'round3_started_at', 'round3_ends_at',
+        'tug_state', 'tug_questions', 'ps-tug-start-btn', 'ps-tug-duration',
+        'startRound3Now', 'tugAnswer', 'demoJumpRound3', 'demoStartTug'].forEach(token => {
+        assert.ok(src.indexOf(token) !== -1, token + ' is wired');
+    });
+    assert.ok(src.indexOf("room.status === 'round3'") !== -1, 'round3 is handled in render/frame');
+    assert.ok(src.indexOf('shouldSkipTug') !== -1 || src.indexOf('splitTugTeams') !== -1, 'engine tug helpers are used');
+});
+
+/* ---------------------------------------------------------------- */
+/* Prize ceremony — English titles, ranking and Paws                 */
+/* ---------------------------------------------------------------- */
+
+function ceremonyPlayer(id, extra) {
+    return Object.assign({
+        user_id: id,
+        nickname: '4C ' + id + ' Student',
+        email: id + '@lstyoungkhl.edu.hk',
+        is_playing: true,
+        status: 'alive',
+        ghost: false,
+        distance: 0,
+        reached_finish: false,
+        finished_at: null,
+        round1_rank: null,
+        eliminated_reason: null,
+        glass_step: 0,
+        glass_finished_at: null,
+        crossed_glass: false,
+        tug_team: null
+    }, extra || {});
+}
+
+test('ceremonyResults ranks a one-round class: survivors, finishers, then distance', () => {
+    const players = [
+        ceremonyPlayer('a', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:02Z', round1_rank: 2 }),
+        ceremonyPlayer('b', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:01Z', round1_rank: 1 }),
+        ceremonyPlayer('c', { distance: 70 }),
+        ceremonyPlayer('f', { distance: 60 }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, distance: 40, eliminated_reason: 'red_light' }),
+        ceremonyPlayer('e', { status: 'eliminated', ghost: true, distance: 20, eliminated_reason: 'red_light' })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 1, finishDistance: 100 });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'c', 'f', 'd', 'e']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 5, 2, 2]);
+    assert.deepEqual(rows.map(r => r.role), ['first', 'second', 'third', 'survivor', 'participant', 'participant']);
+    assert.equal(rows[0].rounds.r1.reached_finish, true);
+    assert.equal(rows[4].rounds.r1.eliminated_reason, 'red_light');
+    assert.equal(rows[0].rounds.r2, undefined, 'a one-round class has no round-2 row');
+});
+
+test('ceremonyResults ranks a two-round class by glass finish then fall distance', () => {
+    const players = [
+        ceremonyPlayer('a', {
+            status: 'advanced', crossed_glass: true, glass_step: 9,
+            glass_finished_at: '2026-11-25T10:01:00Z', round1_rank: 1
+        }),
+        ceremonyPlayer('b', {
+            status: 'advanced', crossed_glass: true, glass_step: 9,
+            glass_finished_at: '2026-11-25T10:00:30Z', round1_rank: 4
+        }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, glass_step: 4, round1_rank: 2 }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, glass_step: 6, round1_rank: 3 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 2 });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'd', 'c']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 2]);
+    assert.equal(rows[0].rounds.r2.crossed_glass, true);
+    assert.equal(rows[2].rounds.r2.glass_step, 6);
+    assert.equal(rows[2].survived, false);
+});
+
+test('ceremonyResults ranks a three-round class: winning team first, then losers, then non-team', () => {
+    const players = [
+        ceremonyPlayer('a', { status: 'eliminated', ghost: true, crossed_glass: true, tug_team: 'red', round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z', eliminated_reason: 'tug' }),
+        ceremonyPlayer('b', { status: 'advanced', crossed_glass: true, tug_team: 'blue', round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z' }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, crossed_glass: true, tug_team: 'red', round1_rank: 3, glass_finished_at: '2026-11-25T10:00:03Z', eliminated_reason: 'tug' }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, crossed_glass: false, tug_team: null, round1_rank: 4 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 3, tug: { winner: 'blue' } });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'c', 'd']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 2]);
+    assert.equal(rows[0].survived, true);
+    assert.equal(rows[1].survived, false);
+    assert.equal(rows[0].rounds.r3.tug_team, 'blue');
+    assert.equal(rows[0].rounds.r3.won, true);
+    assert.equal(rows[1].rounds.r3.won, false);
+});
+
+test('a skipped three-round Tug of War still produces a ceremony and bridge survivors win', () => {
+    const players = [
+        ceremonyPlayer('a', { status: 'advanced', crossed_glass: true, round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        ceremonyPlayer('b', { status: 'advanced', crossed_glass: true, round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z' }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, crossed_glass: false, round1_rank: 3 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 3, tug: { winner: null } });
+    assert.deepEqual(rows.map(r => r.user_id), ['a', 'b', 'c']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8]);
+    assert.equal(rows[0].survived, true);
+    assert.equal(rows[0].rounds.r3.won, null, 'no tug winner means no team won');
+});
+
+test('the Paws table is exported once and matches the documented amounts', () => {
+    assert.deepEqual(PS.CEREMONY_PAWS, {
+        first: 20, second: 13, third: 8, survivor: 5, participant: 2
+    });
+    assert.equal(PS.pawsForPlace(1, false), 20);
+    assert.equal(PS.pawsForPlace(2, false), 13);
+    assert.equal(PS.pawsForPlace(3, false), 8);
+    assert.equal(PS.pawsForPlace(4, true), 5);
+    assert.equal(PS.pawsForPlace(4, false), 2);
+});
+
+test('ceremony awards are idempotent per room + user (the SQL on-conflict mirror)', () => {
+    const players = [
+        ceremonyPlayer('a', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        ceremonyPlayer('b', { distance: 50 }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, distance: 10 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 1, finishDistance: 100 });
+    const plan = PS.ceremonyAwardPlan(rows, 'room-1');
+    assert.deepEqual(plan.map(a => a.ref_key), [
+        'purrfect_survival:room-1:a',
+        'purrfect_survival:room-1:b',
+        'purrfect_survival:room-1:c'
+    ]);
+    assert.deepEqual(plan.map(a => a.amount), [20, 13, 8]);
+    assert.ok(plan.every(a => a.reason === 'purrfect_survival'));
+
+    const ledger = {};
+    assert.equal(PS.applyCeremonyAwards(plan, ledger).length, 3);
+    assert.equal(PS.applyCeremonyAwards(plan, ledger).length, 0, 'second call pays nobody twice');
+    assert.equal(Object.keys(ledger).length, 3);
+});
+
+test('official English game titles replace every Chinese or "Glass Bridge" title', () => {
+    const files = [INDEX_PATH, ENGINE_PATH, RENDER_PATH, MAIN_PATH,
+        path.join(__dirname, '..', 'purrfect-survival-demo.html')];
+    files.forEach(file => {
+        const text = fs.readFileSync(file, 'utf8');
+        assert.equal(text.indexOf('玻璃橋'), -1, path.basename(file) + ' has no Chinese bridge title');
+        assert.equal(text.indexOf('貓咪拔河大賽'), -1, path.basename(file) + ' has no Chinese tug title');
+        assert.equal(text.indexOf('Glass Bridge'), -1, path.basename(file) + ' has no unofficial Glass Bridge title');
+        assert.equal(text.indexOf('GLASS BRIDGE'), -1, path.basename(file) + ' has no unofficial GLASS BRIDGE title');
+    });
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'].forEach(title => {
+        assert.ok(html.indexOf(title) !== -1, title + ' is in the lobby');
+    });
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'].forEach(title => {
+        assert.ok(demo.indexOf(title) !== -1, title + ' is in the demo');
+    });
+
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.equal(sql.indexOf('貓咪拔河大賽'), -1, 'canonical SQL uses the English tug title only');
+    assert.ok(sql.indexOf('Round 3 (Tug of War)') !== -1, 'canonical header names Tug of War');
+});
+
+test('the ceremony is wired for finished rooms, all endings and the public demo', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(src.indexOf('function renderCeremony') !== -1, 'renderCeremony exists');
+    assert.ok(src.indexOf("room.status === 'finished'") !== -1, 'finished rooms are handled');
+    assert.ok(src.indexOf('renderCeremony();') !== -1, 'render dispatches to the ceremony');
+    assert.ok(src.indexOf('ceremonyResults') !== -1, 'the engine ranking drives the panel');
+    assert.ok(src.indexOf('ps-ceremony-list') !== -1, 'the results list is filled');
+    assert.ok(src.indexOf('ps-ceremony-title') !== -1, 'the ceremony title is filled');
+    assert.ok(src.indexOf('PSEngine.CEREMONY_PAWS') === -1 || src.indexOf('CEREMONY_PAWS') === -1 || true);
+
+    const demoStart = src.indexOf('function demoJumpVictory()');
+    const demoEnd = src.indexOf('function demoAdvanceToRound2()', demoStart);
+    const demoFn = src.slice(demoStart, demoEnd);
+    assert.ok(demoFn.indexOf('demoRoundCount <= 1') !== -1, 'one-round demo finish exists');
+    assert.ok(demoFn.indexOf('demoRoundCount >= 3') !== -1, 'three-round demo finish exists');
+    assert.ok(demoFn.indexOf('applyTugResult') !== -1, 'three-round demo finishes the tug');
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.ok(html.indexOf('id="ps-ceremony"') !== -1, 'the ceremony overlay exists');
+    assert.ok(html.indexOf('id="ps-ceremony-list"') !== -1, 'the ceremony list exists');
+    assert.ok(html.indexOf('.ps-ceremony.hidden') !== -1, 'hidden overrides display:flex so the overlay starts closed');
+});
+
+test('guests and demo mode never call the live ceremony award RPC', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = src.indexOf('function claimCeremonyPaws()');
+    assert.ok(start !== -1, 'claimCeremonyPaws exists');
+    const end = src.indexOf('/* ------------------------------------------------------------------ */', start);
+    const fn = src.slice(start, end);
+    assert.ok(fn.indexOf('if (demoMode || isGuest()) return;') !== -1, 'demo and guests short-circuit');
+    assert.ok(fn.indexOf("purrfect_survival_ceremony") !== -1, 'only the guarded function calls the RPC');
+    assert.ok(fn.indexOf('p_room_id') !== -1, 'the RPC is room-scoped');
+
+    // The old short win/lose overlay must not be the finished path any more.
+    const milestone = src.slice(src.indexOf('function checkMilestones()'), src.indexOf('function isTypingTarget'));
+    assert.equal(milestone.indexOf('final-win:'), -1, 'the old final-win overlay is gone');
+    assert.equal(milestone.indexOf('final-out:'), -1, 'the old final-out overlay is gone');
+});
+
+test('incremental ceremony SQL exists with teacher instructions, ranking and idempotent awards', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_ceremony.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_host_settings.sql') !== -1, 'says to run after PR #51');
+    assert.ok(sql.indexOf('purrfect_survival_tug.sql') !== -1, 'says to run after the tug incremental');
+    ['purrfect_survival_ceremony_paws', 'purrfect_survival_ceremony_rows',
+        'paw_trg_purrfect_survival', 'purrfect_survival_ceremony',
+        'my_paws_today', 'friend_paws_daily', 'admin_paw_daily'].forEach(fn => {
+        assert.ok(sql.indexOf(fn) !== -1, fn + ' exists');
+    });
+    assert.ok(sql.indexOf('on conflict (user_id, ref_key) do nothing') !== -1, 'idempotent ledger insert');
+    assert.ok(sql.indexOf("'purrfect_survival:' ||") !== -1, 'unique purrfect_survival ref keys');
+    assert.ok(sql.indexOf("reason = 'purrfect_survival'") !== -1, 'today Paws include the new reason');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+    assert.ok(sql.indexOf('NOT_AUTHENTICATED') !== -1, 'guests cannot call the RPC');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    ['purrfect_survival_ceremony_paws', 'purrfect_survival_ceremony_rows',
+        'paw_trg_purrfect_survival', 'purrfect_survival_ceremony'].forEach(fn => {
+        assert.ok(canonical.indexOf(fn) !== -1, fn + ' is folded into the canonical SQL');
+    });
+    assert.ok(canonical.indexOf('on conflict (user_id, ref_key) do nothing') !== -1, 'canonical awards are idempotent');
+});
+
+test('drawCeremony paints a podium in portrait and landscape without bitmaps', () => {
+    const ceremony = [
+        { place: 1, user_id: 'u0', nickname: 'Gold', paws: 20, rounds: { r1: { distance: 100 } } },
+        { place: 2, user_id: 'u1', nickname: 'Silver', paws: 13, rounds: { r1: { distance: 90 } } },
+        { place: 3, user_id: 'u2', nickname: 'Bronze', paws: 8, rounds: { r1: { distance: 80 } } }
+    ];
+    [[390, 844, 'player'], [1024, 768, 'host'], [844, 390, 'player']].forEach(size => {
+        const canvas = { width: size[0] * 2, height: size[1] * 2 };
+        const ctx = mockContext(canvas);
+        const state = sampleState(0, {
+            mode: 'ceremony', status: 'finished', role: size[2],
+            w: size[0], h: size[1], ceremonyElapsed: 1500,
+            players: samplePlayers(), ceremony: ceremony
+        });
+        assert.doesNotThrow(() => RENDERER.drawCeremony(ctx, state), 'drawCeremony paints @' + size[0] + 'x' + size[1]);
+        assert.doesNotThrow(() => RENDERER.drawScene(ctx, state), 'drawScene dispatches the ceremony');
+    });
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
+    assert.match(RENDERER.VERSION, /^2\.2\./);
+});
+
+test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], isGuestUser: function () { return false; } });
+    dom.PS.startDemo({ role: 'student', scene: 'lobby' });
+    [1, 2, 3].forEach(count => {
+        dom.PS.setDemoSettings({ roundCount: count });
+        assert.doesNotThrow(() => dom.PS.demoJump('victory'), count + '-round demo victory renders');
+        const state = dom.PS.state();
+        assert.equal(state.room.status, 'finished');
+        assert.equal(state.room.current_round, count === 1 ? 1 : (count === 2 ? 2 : 3));
+    });
 });

@@ -18,6 +18,10 @@
  *   • Round 2   — a dark theatre: red velvet curtains with gold trim, LED
  *                 bead strands, spotlight beams, a dark void under a
  *                 reflective two-pane glass bridge and a lit far archway.
+ *   • Round 3   — a yellow industrial warehouse: two high steel platforms
+ *                 over an abyss, street-lamp lights, a hemp rope with a
+ *                 golden salmon at the centre and the class's own cat
+ *                 avatars pulling for the red and blue teams.
  *
  * Cats are the game's own DG.drawCatAvatar sprites, billboarded in the same
  * perspective space, so store hats / glasses / outfits keep working.
@@ -33,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.0.1';
+    R.VERSION = '2.2.0';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -730,7 +734,16 @@
                     eye: [0, landscape ? 5.6 : 3.6, landscape ? -7.6 : -5.2],
                     target: [0, landscape ? 0.35 : 0.5, landscape ? 6.8 : 7.0],
                     fov: landscape ? 58 : 61
-                }
+                },
+            // Round 3 — the whole tug (host / landscape) or a closer,
+            // slightly angled view toward the student's own team.
+            cam3: {
+                eye: landscape
+                    ? [0, 4.2, host ? -13.0 : -12.0]
+                    : [0, 4.6, -17.5],
+                target: [0, 3.4, 6.0],
+                fov: landscape ? 58 : 52
+            }
         };
     };
 
@@ -2491,9 +2504,627 @@
         ctx.fillRect(0, 0, L.w, L.h);
 
         ctx.save();
-        pill(ctx, 14, L.hud + 16, 'GLASS STEPPING STONES · 玻璃橋', {
+        pill(ctx, 14, L.hud + 16, 'Glass Stepping Stones', {
             size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
         });
+        ctx.restore();
+    };
+
+    /* ================================================================== */
+    /* Round 3 — Tug of War                                               */
+    /*                                                                    */
+    /* A yellow industrial warehouse: two high steel platforms on either  */
+    /* side of a dark abyss, a hemp rope between them with a golden       */
+    /* salmon at the centre. Everything is original procedural canvas art. */
+    /* ================================================================== */
+
+    const R3 = {
+        platformTop: 3.05,
+        platformInner: 3.35,
+        platformOuter: 5.05,
+        platformNear: 1.6,
+        platformFar: 9.4,
+        ropeY: 3.62,
+        ropeZ: 5.4,
+        ropeInner: 3.45,
+        deckY: 0.55,
+        deckZ: 5.4
+    };
+
+    function r3Cam(L, state) {
+        const team = state && (state.myTeam === 'red' || state.myTeam === 'blue') ? state.myTeam : '';
+        const eye = L.cam3.eye.slice();
+        if (team) eye[0] = (team === 'red' ? -1 : 1) * (L.landscape ? 0.9 : 1.7);
+        return makeCam(L, { eye: eye, target: L.cam3.target, fov: L.cam3.fov });
+    }
+
+    function r3Platform(ctx, cam, side) {
+        const inner = side * R3.platformInner;
+        const outer = side * R3.platformOuter;
+        const x0 = Math.min(inner, outer);
+        const x1 = Math.max(inner, outer);
+        const top = R3.platformTop;
+        const z0 = R3.platformNear;
+        const z1 = R3.platformFar;
+
+        // steel body
+        box3(ctx, cam, {
+            x: x0, y: top - 0.52, z: z0, w: x1 - x0, h: 0.52, d: z1 - z0,
+            color: '#c98f08', top: '#f2b90a', side: '#8a5c05',
+            edge: 'rgba(60,36,2,.35)'
+        });
+        // bright top plate
+        poly3(ctx, cam, [[x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1]],
+            { fill: '#f6c21a', stroke: 'rgba(70,44,0,.4)', lineWidth: 1 });
+        // inner safety stripe facing the rope
+        const sx = side * (R3.platformInner - 0.02);
+        for (let i = 0; i < 7; i++) {
+            const za = lerp(z0, z1, i / 7);
+            const zb = lerp(z0, z1, (i + 1) / 7);
+            poly3(ctx, cam, [[sx, top + 0.004, za], [sx, top + 0.004, zb],
+                [sx, top + 0.10, zb], [sx, top + 0.10, za]],
+                { fill: i % 2 ? '#17120d' : '#f7d24a' });
+        }
+        // warning rail
+        const railX = side * (R3.platformInner - 0.10);
+        poly3(ctx, cam, [[railX, top + 0.62, z0 + 0.3], [railX, top + 0.70, z0 + 0.3],
+            [railX, top + 0.70, z1 - 0.3], [railX, top + 0.62, z1 - 0.3]],
+            { fill: 'rgba(248,196,26,.55)' });
+        for (let i = 0; i < 4; i++) {
+            const z = lerp(z0 + 0.7, z1 - 0.7, i / 3);
+            poly3(ctx, cam, [[railX - side * 0.02, top, z], [railX + side * 0.02, top, z],
+                [railX + side * 0.02, top + 0.66, z], [railX - side * 0.02, top + 0.66, z]],
+                { fill: '#6b4a05' });
+        }
+        // support columns dropping into the abyss
+        for (let i = 0; i < 3; i++) {
+            const z = lerp(z0 + 0.9, z1 - 0.9, i / 2);
+            box3(ctx, cam, {
+                x: side * (R3.platformInner + 0.35), y: top - 7.4, z: z - 0.16,
+                w: 0.32, h: 6.9, d: 0.32,
+                color: '#2a2016', top: '#3a2c1d', side: '#1a130d', edge: 'rgba(0,0,0,.3)'
+            });
+        }
+    }
+
+    function r3LampPost(ctx, cam, side, z) {
+        const x = side * (R3.platformOuter - 0.15);
+        const top = R3.platformTop;
+        box3(ctx, cam, {
+            x: x - 0.07, y: top, z: z - 0.07, w: 0.14, h: 3.1, d: 0.14,
+            color: '#2b2118', top: '#3b2d20', side: '#1b140e'
+        });
+        box3(ctx, cam, {
+            x: x - side * 0.55, y: top + 2.98, z: z - 0.05, w: 0.62, h: 0.10, d: 0.10,
+            color: '#2b2118', top: '#3b2d20', side: '#1b140e'
+        });
+        const headX = x - side * 0.52;
+        box3(ctx, cam, {
+            x: headX - 0.20, y: top + 2.78, z: z - 0.16, w: 0.40, h: 0.20, d: 0.30,
+            color: '#3b2d20', top: '#55402c', side: '#241a11'
+        });
+    }
+
+    function paintTugStatic(ctx, L, cam) {
+        // dark warehouse sky + haze
+        const bg = ctx.createLinearGradient(0, 0, 0, L.h);
+        bg.addColorStop(0, '#0c0a0f');
+        bg.addColorStop(0.42, '#1c1411');
+        bg.addColorStop(0.72, '#241a12');
+        bg.addColorStop(1, '#070509');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, L.w, L.h);
+
+        const amb = ctx.createRadialGradient(L.w * 0.5, L.h * 0.34, L.w * 0.06,
+            L.w * 0.5, L.h * 0.5, L.w * 0.9);
+        amb.addColorStop(0, 'rgba(246,194,26,.14)');
+        amb.addColorStop(0.5, 'rgba(140,90,18,.08)');
+        amb.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = amb;
+        ctx.fillRect(0, 0, L.w, L.h);
+
+        // back wall + roof trusses
+        poly3(ctx, cam, [[-11, -6, 15.5], [11, -6, 15.5], [11, 12, 15.5], [-11, 12, 15.5]],
+            { fill: '#151019' });
+        for (let i = 0; i < 7; i++) {
+            const x = -9 + i * 3;
+            poly3(ctx, cam, [[x, -6, 15], [x + 0.22, -6, 15], [x + 0.22, 12, 15], [x, 12, 15]],
+                { fill: 'rgba(52,41,30,.55)' });
+        }
+        for (let i = 0; i < 5; i++) {
+            const y = 6.4 + i * 1.2;
+            line3(ctx, cam, [-10, y, 14.8], [10, y, 14.8], { stroke: 'rgba(58,45,32,.35)', lineWidth: 1.5 });
+        }
+
+        // distant hanging bulbs / cables
+        for (let i = 0; i < 9; i++) {
+            const x = -9 + i * 2.25;
+            line3(ctx, cam, [x, 10.6, 12.5], [x, 6.9, 12.5], { stroke: 'rgba(60,48,35,.4)', lineWidth: 1 });
+            const p = project(cam, x, 6.8, 12.5);
+            if (p) glow(ctx, p.x, p.y, Math.max(4, p.s * 0.22), '#ffd98a', 0.16);
+        }
+
+        // abyss floor haze
+        const voidG = ctx.createLinearGradient(0, L.h * 0.52, 0, L.h);
+        voidG.addColorStop(0, 'rgba(8,5,10,0)');
+        voidG.addColorStop(1, 'rgba(2,1,4,.92)');
+        ctx.fillStyle = voidG;
+        ctx.fillRect(0, L.h * 0.5, L.w, L.h * 0.5);
+
+        // side platforms + lamps
+        r3Platform(ctx, cam, -1);
+        r3Platform(ctx, cam, 1);
+        r3LampPost(ctx, cam, -1, 4.4);
+        r3LampPost(ctx, cam, 1, 4.4);
+        r3LampPost(ctx, cam, -1, 8.0);
+        r3LampPost(ctx, cam, 1, 8.0);
+
+        // lower centre viewing deck
+        box3(ctx, cam, {
+            x: -1.75, y: R3.deckY - 0.34, z: 3.5, w: 3.5, h: 0.34, d: 3.8,
+            color: '#3a2b1b', top: '#5a432a', side: '#241a10', edge: 'rgba(0,0,0,.3)'
+        });
+        poly3(ctx, cam, [[-1.75, R3.deckY, 3.5], [1.75, R3.deckY, 3.5],
+            [1.75, R3.deckY, 7.3], [-1.75, R3.deckY, 7.3]],
+            { fill: 'rgba(90,67,42,.9)' });
+        for (let i = 0; i < 6; i++) {
+            const x = -1.6 + i * 0.64;
+            line3(ctx, cam, [x, R3.deckY + 0.6, 3.55], [x, R3.deckY + 0.6, 7.25],
+                { stroke: 'rgba(246,194,26,.35)', lineWidth: 1 });
+        }
+        // deck rail
+        line3(ctx, cam, [-1.75, R3.deckY + 0.62, 3.5], [1.75, R3.deckY + 0.62, 3.5],
+            { stroke: 'rgba(246,194,26,.55)', lineWidth: 2 });
+
+        // faint sparks / dust in the abyss
+        for (let i = 0; i < 16; i++) {
+            const sx = (hash01('tugsparkX' + i) - 0.5) * 12;
+            const sy = -1.2 - hash01('tugsparkY' + i) * 5.0;
+            const sz = 3 + hash01('tugsparkZ' + i) * 9;
+            const sp = project(cam, sx, sy, sz);
+            if (!sp) continue;
+            ctx.fillStyle = 'rgba(246,194,26,' + (0.05 + hash01('tugsparkA' + i) * 0.12).toFixed(3) + ')';
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, Math.max(0.7, sp.s * 0.016), 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function r3RopePoints(salmonX, t) {
+        const pts = [];
+        const n = 26;
+        for (let i = 0; i <= n; i++) {
+            const k = i / n;
+            const x = lerp(-R3.ropeInner, R3.ropeInner, k);
+            const sway = Math.sin(t / 900 + k * 7) * 0.018;
+            const sag = Math.sin(Math.PI * k) * 0.19;
+            const pull = Math.sin(Math.PI * k) * (salmonX / Math.max(0.01, R3.ropeInner)) * 0.06;
+            pts.push([x, R3.ropeY - sag - pull + sway, R3.ropeZ]);
+        }
+        return pts;
+    }
+
+    function drawTugRope(ctx, cam, salmonX, t, rageRed, rageBlue) {
+        const pts = r3RopePoints(salmonX, t);
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = project(cam, pts[i][0], pts[i][1], pts[i][2]);
+            const b = project(cam, pts[i + 1][0], pts[i + 1][1], pts[i + 1][2]);
+            if (!a || !b) continue;
+            ctx.save();
+            ctx.lineCap = 'round';
+            ctx.lineWidth = Math.max(2, a.s * 0.055);
+            ctx.strokeStyle = i % 2 ? '#b98b52' : '#8a6234';
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+            // braided highlight
+            ctx.lineWidth = Math.max(1, a.s * 0.018);
+            ctx.strokeStyle = 'rgba(245,221,170,.55)';
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y - Math.max(0.5, a.s * 0.012));
+            ctx.lineTo(b.x, b.y - Math.max(0.5, b.s * 0.012));
+            ctx.stroke();
+            ctx.restore();
+        }
+        // knots near the platforms
+        [-R3.ropeInner, R3.ropeInner].forEach(x => {
+            const p = project(cam, x, R3.ropeY - 0.01, R3.ropeZ);
+            if (!p) return;
+            ctx.fillStyle = '#6f4c26';
+            ell(ctx, p.x, p.y, Math.max(2, p.s * 0.055), Math.max(2, p.s * 0.045));
+        });
+        if (rageRed || rageBlue) {
+            const centre = project(cam, 0, R3.ropeY, R3.ropeZ);
+            if (centre) {
+                const col = rageRed && !rageBlue ? '#ef4444' : (rageBlue && !rageRed ? '#3b82f6' : '#f59e0b');
+                glow(ctx, centre.x, centre.y, Math.max(40, centre.s * 1.5), col, 0.20 + 0.08 * Math.sin(t / 180));
+            }
+        }
+    }
+
+    function drawTugSalmon(ctx, cam, x, t) {
+        const p = project(cam, x, R3.ropeY + 0.04 + Math.sin(t / 420) * 0.025, R3.ropeZ);
+        if (!p) return;
+        const s = clamp(p.s * 0.62, 11, 84);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(Math.sin(t / 700) * 0.08);
+        glow(ctx, 0, 0, s * 1.5, '#fbbf24', 0.32);
+        // body
+        const grad = ctx.createLinearGradient(-s, -s * 0.4, s, s * 0.4);
+        grad.addColorStop(0, '#b45309');
+        grad.addColorStop(0.35, '#f59e0b');
+        grad.addColorStop(0.7, '#fbbf24');
+        grad.addColorStop(1, '#fde68a');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s, s * 0.44, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // tail
+        ctx.fillStyle = '#d97706';
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.92, 0);
+        ctx.lineTo(-s * 1.50, -s * 0.40);
+        ctx.lineTo(-s * 1.38, 0);
+        ctx.lineTo(-s * 1.50, s * 0.40);
+        ctx.closePath();
+        ctx.fill();
+        // dorsal + pectoral fins
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.15, -s * 0.40);
+        ctx.lineTo(s * 0.05, -s * 0.82);
+        ctx.lineTo(s * 0.28, -s * 0.34);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(s * 0.18, s * 0.10);
+        ctx.lineTo(s * 0.52, s * 0.58);
+        ctx.lineTo(s * 0.62, s * 0.10);
+        ctx.closePath();
+        ctx.fill();
+        // eye + mouth
+        ctx.fillStyle = '#1f2937';
+        ctx.beginPath();
+        ctx.arc(s * 0.58, -s * 0.10, Math.max(1, s * 0.075), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#7c2d12';
+        ctx.lineWidth = Math.max(1, s * 0.055);
+        ctx.beginPath();
+        ctx.moveTo(s * 0.82, s * 0.06);
+        ctx.lineTo(s * 0.97, s * 0.12);
+        ctx.stroke();
+        // scale hints
+        ctx.strokeStyle = 'rgba(146,64,14,.35)';
+        ctx.lineWidth = Math.max(0.8, s * 0.035);
+        for (let i = -2; i <= 3; i++) {
+            ctx.beginPath();
+            ctx.arc(i * s * 0.22, 0, s * 0.16, -Math.PI * 0.55, Math.PI * 0.55);
+            ctx.stroke();
+        }
+        ctx.restore();
+        return p;
+    }
+
+    function tugTeamList(players, team, meId) {
+        const list = (Array.isArray(players) ? players : []).filter(p =>
+            p && p.is_playing !== false && p.tug_team === team && p.ghost !== true &&
+            p.status !== 'eliminated' && p.status !== 'out');
+        list.sort((a, b) => {
+            const am = meId && String(a.user_id) === String(meId) ? -1 : 0;
+            const bm = meId && String(b.user_id) === String(meId) ? -1 : 0;
+            if (am !== bm) return am - bm;
+            return String(a.user_id) < String(b.user_id) ? -1 : 1;
+        });
+        return list;
+    }
+
+    function drawTugCats(ctx, L, cam, state, t) {
+        const players = Array.isArray(state.players) ? state.players : [];
+        const tug = state.tug || {};
+        const meId = state.meId ? String(state.meId) : '';
+        const winner = tug.winner === 'red' || tug.winner === 'blue' ? tug.winner : '';
+        const maxPerTeam = L.landscape ? 10 : 6;
+        ['red', 'blue'].forEach(team => {
+            const list = tugTeamList(players, team, meId).slice(0, maxPerTeam);
+            list.forEach((player, i) => {
+                const isMe = meId && String(player.user_id) === meId;
+                const losing = !!(winner && winner !== team && (tug.phase === 'done' || winner));
+                const z = lerp(3.15, 8.7, list.length <= 1 ? 0.5 : i / (list.length - 1));
+                const baseX = team === 'red' ? -(R3.platformInner + 0.48) : (R3.platformInner + 0.48);
+                let x = baseX;
+                let y = R3.platformTop + 0.01;
+                let scaleWorld = isMe ? 0.88 : 0.76;
+                let alpha = 1;
+                let ghost = false;
+                if (losing) {
+                    const fall = clamp(((t / 2600) + mix01('tugfall' + player.user_id) * 1.4) % 1.6, 0, 1);
+                    y = R3.platformTop - smoothstep(fall) * 8.0;
+                    x = baseX + (mix01('tugfx' + player.user_id) - 0.5) * 0.6;
+                    alpha = 0.30;
+                    ghost = true;
+                }
+                const anchor = drawCatAt(ctx, cam, x, y, z, scaleWorld, catLook(player), {
+                    alpha: alpha,
+                    ghost: ghost,
+                    ring: isMe && !losing,
+                    ringColor: '#fde047',
+                    halo: ghost,
+                    haloColor: '#fcd34d'
+                });
+                if (anchor && (isMe || L.landscape) && !losing) {
+                    const name = shortName(player);
+                    if (name) {
+                        pill(ctx, anchor.x, anchor.y - 128 * anchor.scale - 4, name, {
+                            size: Math.max(7, Math.min(11, anchor.scale * 14)),
+                            bg: isMe ? 'rgba(120,60,0,.8)' : 'rgba(8,12,24,.55)',
+                            color: isMe ? '#fde68a' : '#f5e7cf'
+                        });
+                    }
+                }
+            });
+        });
+    }
+
+    function drawTugGlow(ctx, L, cam, state, t) {
+        const tug = state.tug || {};
+        if (tug.redRage) {
+            const p = project(cam, -(R3.platformInner + 1.2), R3.platformTop + 2.2, R3.ropeZ);
+            if (p) {
+                glow(ctx, p.x, p.y, Math.max(30, p.s * 1.3), '#ef4444', 0.18 + 0.10 * Math.sin(t / 170));
+                pill(ctx, p.x, p.y - 26, '爆走拉力 2x · RED', {
+                    size: Math.max(9, Math.min(14, L.w * 0.026)), bg: 'rgba(127,29,29,.85)', color: '#fee2e2', border: 'rgba(248,113,113,.7)'
+                });
+            }
+        }
+        if (tug.blueRage) {
+            const p = project(cam, (R3.platformInner + 1.2), R3.platformTop + 2.2, R3.ropeZ);
+            if (p) {
+                glow(ctx, p.x, p.y, Math.max(30, p.s * 1.3), '#3b82f6', 0.18 + 0.10 * Math.sin(t / 170 + 1.4));
+                pill(ctx, p.x, p.y - 26, '爆走拉力 2x · BLUE', {
+                    size: Math.max(9, Math.min(14, L.w * 0.026)), bg: 'rgba(30,58,138,.85)', color: '#dbeafe', border: 'rgba(96,165,250,.7)'
+                });
+            }
+        }
+    }
+
+    R.drawRound3 = function (ctx, state) {
+        const s = state || {};
+        const L = R.layout(s.w, s.h, s.role);
+        const cam = r3Cam(L, s);
+        const t = Number(s.now) || 0;
+        const tug = s.tug || {};
+        const redPull = Number(tug.redPull) || 0;
+        const bluePull = Number(tug.bluePull) || 0;
+        const position = Number(tug.position) || 0;
+        const salmonX = clamp(position / 20, -1, 1) * (R3.ropeInner - 0.30);
+
+        drawCached(ctx, L, 'tug-static:' + (s.role || 'player') + ':' + (s.myTeam || '') + ':' + (L.landscape ? 'l' : 'p'),
+            function (paint) { paintTugStatic(paint, L, cam); });
+
+        // animated lamps
+        [[-1, 4.4], [1, 4.4], [-1, 8.0], [1, 8.0]].forEach((lamp, i) => {
+            const x = lamp[0] * (R3.platformOuter - 0.15) - lamp[0] * 0.52;
+            const p = project(cam, x, R3.platformTop + 2.70, lamp[1]);
+            if (!p) return;
+            const tw = 0.7 + 0.3 * Math.sin(t / 700 + i * 1.7);
+            glow(ctx, p.x, p.y, Math.max(8, p.s * 0.85), '#ffe6a3', 0.24 * tw);
+        });
+
+        // pink-suited staff on the lower deck (same original drawGuard figure)
+        drawGuard(ctx, cam, -1.05, R3.deckY, 6.6, t, 21, { scale: 0.82 });
+        drawGuard(ctx, cam, 1.05, R3.deckY, 6.6, t, 22, { scale: 0.82 });
+
+        drawTugRope(ctx, cam, salmonX, t, tug.redRage === true, tug.blueRage === true);
+        drawTugSalmon(ctx, cam, salmonX, t);
+        drawTugCats(ctx, L, cam, s, t);
+        drawTugGlow(ctx, L, cam, s, t);
+
+        // team labels
+        const redP = project(cam, -4.2, R3.platformTop + 1.35, 3.4);
+        const blueP = project(cam, 4.2, R3.platformTop + 1.35, 3.4);
+        if (redP) pill(ctx, redP.x, redP.y, 'RED · 紅隊', { size: Math.max(9, Math.min(14, L.w * 0.026)), bg: 'rgba(127,29,29,.82)', color: '#fee2e2', border: 'rgba(248,113,113,.6)' });
+        if (blueP) pill(ctx, blueP.x, blueP.y, 'BLUE · 藍隊', { size: Math.max(9, Math.min(14, L.w * 0.026)), bg: 'rgba(30,58,138,.82)', color: '#dbeafe', border: 'rgba(96,165,250,.6)' });
+
+        // rope score / sudden death
+        const scoreY = L.hud + (L.landscape ? 26 : 32);
+        pill(ctx, L.w / 2, scoreY, 'RED ' + redPull + '  ·  ' + (position === 0 ? 'LEVEL' : (position > 0 ? 'BLUE +' + position : 'RED +' + Math.abs(position))) + '  ·  BLUE ' + bluePull, {
+            size: Math.max(9, Math.min(14, L.w * (L.landscape ? 0.012 : 0.030))),
+            bg: 'rgba(20,14,8,.78)', color: '#ffe9b0', border: 'rgba(246,194,26,.5)'
+        });
+        if (tug.suddenDeath) {
+            pill(ctx, L.w / 2, scoreY + 24, '⚡ SUDDEN DEATH — next score wins', {
+                size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.026))),
+                bg: 'rgba(120,53,15,.88)', color: '#fef3c7', border: 'rgba(251,191,36,.7)'
+            });
+        }
+        if (tug.phase === 'briefing') {
+            pill(ctx, L.w / 2, L.h * 0.52, '🪢 TUG OF WAR — waiting for the host', {
+                size: Math.max(10, Math.min(16, L.w * (L.landscape ? 0.014 : 0.034))),
+                bg: 'rgba(20,14,8,.82)', color: '#ffe9b0', border: 'rgba(246,194,26,.5)'
+            });
+        } else if (tug.winner === 'red' || tug.winner === 'blue') {
+            pill(ctx, L.w / 2, L.h * 0.52, tug.winner === 'red' ? '🔴 RED TEAM WINS' : '🔵 BLUE TEAM WINS', {
+                size: Math.max(11, Math.min(18, L.w * (L.landscape ? 0.016 : 0.038))),
+                bg: tug.winner === 'red' ? 'rgba(127,29,29,.88)' : 'rgba(30,58,138,.88)',
+                color: '#fef3c7', border: 'rgba(251,191,36,.7)'
+            });
+        }
+
+        // vignette
+        const vig = ctx.createRadialGradient(L.w / 2, L.h * 0.5, L.w * 0.24, L.w / 2, L.h * 0.5, L.w * 0.9);
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(2,1,4,.78)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, L.w, L.h);
+
+        ctx.save();
+        pill(ctx, 14, L.hud + 16, 'Tug of War', {
+            size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
+        });
+        ctx.restore();
+    };
+
+    /* ================================================================== */
+    /* Prize ceremony — original 3D podium                                */
+    /* ================================================================== */
+
+    R.drawCeremony = function (ctx, state) {
+        if (!ctx) return;
+        const s = state || {};
+        const w = Math.max(1, Number(s.w) || 800);
+        const h = Math.max(1, Number(s.h) || 600);
+        const L = R.layout(w, h, s.role || 'player');
+        const elapsed = Math.max(0, Number(s.ceremonyElapsed) || 0);
+        const rise = smoothstep(Math.min(1, elapsed / 800));
+
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        /* theatre / playground hall backdrop */
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#160d2b');
+        sky.addColorStop(0.52, '#2a1440');
+        sky.addColorStop(1, '#0b0714');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        glow(ctx, w * 0.5, h * 0.22, Math.max(w, h) * 0.5, '#f472b6', 0.13);
+        glow(ctx, w * 0.18, h * 0.3, Math.max(w, h) * 0.32, '#60a5fa', 0.1);
+        glow(ctx, w * 0.82, h * 0.3, Math.max(w, h) * 0.32, '#fbbf24', 0.1);
+
+        const cam = makeCam(L, {
+            eye: [0, L.landscape ? 3.4 : 3.0, L.landscape ? -8.4 : -9.4],
+            target: [0, 1.9, 5.2],
+            fov: L.landscape ? 60 : 66
+        });
+
+        /* stage floor + back wall */
+        poly3(ctx, cam, [[-16, 0, -2], [16, 0, -2], [16, 0, 15], [-16, 0, 15]], {
+            fill: '#1a1024'
+        });
+        poly3(ctx, cam, [[-16, 0, 15], [16, 0, 15], [16, 12, 15], [-16, 12, 15]], {
+            fill: '#120a1d'
+        });
+        for (let i = -2; i <= 2; i++) {
+            line3(ctx, cam, [i * 6, 0.02, -2], [i * 6, 0.02, 15], {
+                stroke: 'rgba(251,191,36,.08)', lineWidth: 1
+            });
+        }
+
+        /* spotlights */
+        const beam = (x, color, alpha) => {
+            poly3(ctx, cam, [
+                [x, 10, 12], [x - 1.6, 0, 4], [x + 1.6, 0, 4]
+            ], { fill: rgba(color, alpha), close: true });
+        };
+        beam(-5.2, '#93c5fd', 0.09);
+        beam(0, '#fef08a', 0.12);
+        beam(5.2, '#fca5a5', 0.09);
+
+        const ceremony = Array.isArray(s.ceremony) ? s.ceremony : [];
+        const byPlace = {};
+        ceremony.forEach(row => {
+            if (row && row.place >= 1 && row.place <= 3) byPlace[row.place] = row;
+        });
+        const playersById = {};
+        (Array.isArray(s.players) ? s.players : []).forEach(p => {
+            if (p && (p.user_id || p.id)) playersById[String(p.user_id || p.id)] = p;
+        });
+
+        const specs = [
+            { place: 2, x: -4.3, z: 5.0, height: 1.55, base: '#b7c2d0', top: '#e2e8f0', side: '#8f9bab' },
+            { place: 1, x: 0, z: 6.3, height: 2.35, base: '#d4a017', top: '#fde68a', side: '#b47c0b' },
+            { place: 3, x: 4.3, z: 5.0, height: 1.15, base: '#b9773a', top: '#f3c08a', side: '#8c5527' }
+        ];
+
+        specs.forEach((spec, index) => {
+            const podH = Math.max(0.05, spec.height * rise);
+            const boxW = 2.9;
+            box3(ctx, cam, {
+                x: spec.x - boxW / 2,
+                y: 0,
+                z: spec.z,
+                w: boxW,
+                h: podH,
+                d: 2.6,
+                color: spec.base,
+                top: spec.top,
+                side: spec.side,
+                edge: 'rgba(8,4,18,.42)',
+                lineWidth: 0.8
+            });
+
+            /* gold / silver trim */
+            const trim = spec.place === 1 ? '#fde047' : (spec.place === 2 ? '#e2e8f0' : '#fdba74');
+            line3(ctx, cam, [spec.x - boxW / 2, podH, spec.z], [spec.x + boxW / 2, podH, spec.z], {
+                stroke: trim, lineWidth: 2
+            });
+            line3(ctx, cam, [spec.x - boxW / 2, 0.12, spec.z], [spec.x + boxW / 2, 0.12, spec.z], {
+                stroke: rgba(trim, 0.5), lineWidth: 1
+            });
+
+            const label = spec.place === 1 ? '1' : (spec.place === 2 ? '2' : '3');
+            const anchor = project(cam, spec.x, podH * 0.62, spec.z + 0.02);
+            if (anchor) {
+                pill(ctx, anchor.x, anchor.y, label, {
+                    size: Math.max(10, Math.min(20, h * 0.024)),
+                    bg: rgba(trim, 0.92),
+                    color: '#241407',
+                    border: 'rgba(255,255,255,.6)'
+                });
+            }
+
+            const row = byPlace[spec.place];
+            if (!row || rise < 0.45) return;
+            const lookRow = playersById[String(row.user_id)] || row;
+
+            const cat = drawCatAt(
+                ctx, cam,
+                spec.x, podH + 1.28, spec.z + 0.35,
+                Math.max(0.55, h / 620),
+                {
+                    cat: lookRow.cat || 'Ginger',
+                    glasses: lookRow.glasses || 'None',
+                    hat: lookRow.hat || 'None',
+                    outfit: lookRow.outfit || 'None'
+                },
+                { ring: true, ringColor: trim, halo: spec.place === 1, haloColor: '#fde047' }
+            );
+            if (cat) {
+                pill(ctx, cat.x, cat.y + 22, row.nickname || 'Player', {
+                    size: Math.max(9, Math.min(14, h * 0.018)),
+                    bg: 'rgba(8,12,24,.78)',
+                    color: '#f8fafc',
+                    border: rgba(trim, 0.55)
+                });
+                if (row.paws) {
+                    pill(ctx, cat.x, cat.y + 23 + Math.max(18, h * 0.026), '+' + row.paws + ' 🐾', {
+                        size: Math.max(8, Math.min(12, h * 0.016)),
+                        bg: 'rgba(190,24,93,.72)',
+                        color: '#fff1f2'
+                    });
+                }
+            }
+        });
+
+        /* falling confetti, deterministic from the elapsed time */
+        const count = L.landscape ? 26 : 34;
+        for (let i = 0; i < count; i++) {
+            const seed = hash01('ceremony-confetti-' + i);
+            const x = ((seed * w * 1.4 + elapsed * (0.012 + seed * 0.02)) % (w + 40)) - 20;
+            const y = ((hash01('ceremony-y-' + i) * h * 1.4 + elapsed * (0.03 + seed * 0.05)) % (h + 30)) - 15;
+            const size = 2 + seed * 3;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + seed * 0.35;
+            ctx.fillStyle = i % 3 === 0 ? '#fbbf24' : (i % 3 === 1 ? '#f472b6' : '#93c5fd');
+            ctx.translate(x, y);
+            ctx.rotate(elapsed * 0.001 + seed * 6.28);
+            ctx.fillRect(-size, -size / 2, size * 2, size);
+            ctx.restore();
+        }
+
         ctx.restore();
     };
 
@@ -2505,8 +3136,12 @@
         if (!ctx) return;
         const s = state || {};
         ctx.clearRect(0, 0, s.w || ctx.canvas.width, s.h || ctx.canvas.height);
-        if (s.mode === 'intro' || Number(s.round) === 0) {
+        if (s.mode === 'ceremony' || s.status === 'finished') {
+            R.drawCeremony(ctx, s);
+        } else if (s.mode === 'intro' || Number(s.round) === 0) {
             R.drawIntro(ctx, s);
+        } else if (Number(s.round) === 3) {
+            R.drawRound3(ctx, s);
         } else if (Number(s.round) === 2) {
             R.drawRound2(ctx, s);
         } else {

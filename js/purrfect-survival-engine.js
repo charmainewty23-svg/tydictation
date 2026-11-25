@@ -6,8 +6,10 @@
  *
  * Round 1  — 1-2-3 Meow! (Red Light, Green Light)
  * Round 2  — Glass Stepping Stones
- * Later rounds (tug of war, a second bridge, Squid Circle) are deliberately
- * not implemented; the room keeps current_round / status extensible.
+ * Round 3  — Tug of War (team life-or-death)
+ * Rounds 4-5 (a second bridge, Squid Circle) are deliberately not
+ * implemented; the room keeps current_round / status extensible. When each
+ * later round ships, its host settings must ship in the same change.
  */
 (function (root) {
     'use strict';
@@ -18,7 +20,7 @@
     /* Constants                                                           */
     /* ------------------------------------------------------------------ */
 
-    PS.VERSION = '1.0.0';
+    PS.VERSION = '1.2.0';
 
     PS.ROUND1 = {
         GREEN_MIN_MS: 4000,
@@ -45,15 +47,28 @@
         DEFAULT_ROUND_MS: 600000
     };
 
-    /* Host settings are extensible by design. Rounds 3–5 (tug of war, a
-       second glass bridge, Squid Circle) are NOT playable yet; when each
-       one is implemented, that game AND its host settings must ship in the
-       same change. The lobby / settings model already exposes a roundCount
-       plus a per-round entry, so adding a round only means adding a kind
-       here and one settings block in the lobby. */
+    /* Round 3 — Tug of War. Both teams speed-quiz at the same time; every
+       correct answer pulls the rope. A team combo of five correct answers
+       triggers a 5 s "爆走拉力 2x" burst. The golden salmon sits at
+       (bluePull - redPull); |position| >= WIN_PULL ends instantly. */
+    PS.ROUND3 = {
+        DEFAULT_MS: 60000,
+        MIN_MS: 30000,
+        MAX_MS: 120000,
+        COMBO: 5,
+        RAGE_MULT: 2,
+        RAGE_MS: 5000,
+        WIN_PULL: 20
+    };
+
+    /* Host settings are extensible by design. Round 3 (tug of war) is now
+       implemented; rounds 4-5 (a second glass bridge, Squid Circle) are NOT
+       playable yet. When each one is implemented, that game AND its host
+       settings must ship in the same change. */
     PS.HOST = {
-        MAX_IMPLEMENTED: 2,
+        MAX_IMPLEMENTED: 3,
         MAX_PLANNED: 5,
+        DEFAULT_ROUNDS: 2,
         KINDS: {
             1: 'meow',
             2: 'glass',
@@ -66,6 +81,18 @@
     PS.LIMITS = {
         STUDENTS: 30,
         PLAYERS: 31
+    };
+
+    /* Prize ceremony Paws (🐾) table. One source of truth for the UI, the
+       tests and the SQL mirror. Purr-fect Survival is a longer class game
+       than a Word Battle, so it follows the Drive & Go! class top-3 scale
+       plus a smaller amount for everyone who actually played. */
+    PS.CEREMONY_PAWS = {
+        first: 20,
+        second: 13,
+        third: 8,
+        survivor: 5,
+        participant: 2
     };
 
     PS.PHASES = ['green', 'yellow', 'red'];
@@ -81,14 +108,16 @@
 
     PS.RULE_TEXT = {
         round1: 'Green: answer to sprint +10 m. Yellow: 2 s warning, answers still count. Red: 3 s — do not answer. Pressing in red costs 30 m, then 15 m, then you are out. Reach 100 m. First 15 survivors cross to the bridge.',
-        round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.'
+        round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.',
+        round3: 'Survivors are split into a red team and a blue team. Both teams answer at the same time: every correct answer pulls the rope +1. Five correct answers in a row trigger 爆走拉力 2x for 5 seconds (each correct then pulls +2). A wrong answer breaks the combo. Pull the golden salmon 20 steps past the centre to win — or be ahead when the clock runs out. The losing team falls into the abyss.'
     };
 
     /* Traditional Chinese (Hong Kong) sibling of RULE_TEXT. The English
        strings above stay untouched because the in-game HUD uses them. */
     PS.RULE_TEXT_ZH = {
         round1: '綠燈：作答向前衝 +10 米。黃燈：2 秒警告，作答仍然計分。紅燈：3 秒——唔好作答。紅燈時撳會扣 30 米，再撳扣 15 米，第三次出局。跑到 100 米，最先 15 位生存者過橋。',
-        round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。'
+        round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。',
+        round3: '生存者會平均分去紅隊同藍隊。兩隊同時作答：每答啱一題，條繩就會向自己隊拉 +1。連續答啱 5 題會爆發「爆走拉力 2x」5 秒，期間每題 +2。答錯會斷連勝。將金色三文魚拉過中線 20 步就贏；時間到就由三文魚喺邊一邊定勝負。輸咗嗰隊會跌落深淵。'
     };
 
     /* ------------------------------------------------------------------ */
@@ -291,6 +320,18 @@
         return Math.max(PS.ROUND2.MIN_STEPS, Math.min(PS.ROUND2.MAX_STEPS, n));
     };
 
+    /* Round-3 tug duration. The lobby input is in SECONDS, but this helper
+       also accepts milliseconds: a value <= 120 is read as seconds, anything
+       larger as milliseconds. Default 60 s, clamped to 30–120 s. */
+    PS.normalizeTugDuration = function (value) {
+        if (value == null || value === '') return PS.ROUND3.DEFAULT_MS;
+        let n = Number(value);
+        if (!isFinite(n) || n <= 0) return PS.ROUND3.DEFAULT_MS;
+        if (n <= 120) n = n * 1000;
+        n = Math.round(n);
+        return Math.max(PS.ROUND3.MIN_MS, Math.min(PS.ROUND3.MAX_MS, n));
+    };
+
     function clampRoundMs(value) {
         const n = Number(value);
         if (!isFinite(n) || n <= 0) return PS.ROUND1.DEFAULT_ROUND_MS;
@@ -332,13 +373,14 @@
         };
     }
 
-    /* Room round count: 1 or 2 today. Old rooms default to 2 (today's
-       behaviour) and anything above the implemented maximum is clamped. */
+    /* Room round count: 1, 2 or 3 today. Old rooms with no roundCount
+       default to 2 (today's behaviour) and anything above the implemented
+       maximum is clamped. */
     PS.roomRoundCount = function (settings) {
         const s = settingsObject(settings);
-        if (!Object.prototype.hasOwnProperty.call(s, 'roundCount')) return PS.HOST.MAX_IMPLEMENTED;
+        if (!Object.prototype.hasOwnProperty.call(s, 'roundCount')) return PS.HOST.DEFAULT_ROUNDS;
         const n = Number(s.roundCount);
-        if (!isFinite(n)) return PS.HOST.MAX_IMPLEMENTED;
+        if (!isFinite(n)) return PS.HOST.DEFAULT_ROUNDS;
         if (n < 1) return 1;
         return Math.max(1, Math.min(PS.HOST.MAX_IMPLEMENTED, Math.floor(n)));
     };
@@ -347,10 +389,20 @@
         return PS.roomRoundCount(settings) > 1;
     };
 
+    PS.shouldPlayRound3 = function (settings) {
+        return PS.roomRoundCount(settings) >= 3;
+    };
+
     /* 'bridge' when round 1 advances into the glass bridge, 'finish' when
        this class only selected 1-2-3 Meow! and survivors win immediately. */
     PS.round1EndAction = function (settings) {
         return PS.shouldPlayRound2(settings) ? 'bridge' : 'finish';
+    };
+
+    /* 'tug' when the glass bridge advances into the Tug of War, 'finish'
+       when the class only selected 1 or 2 rounds. */
+    PS.round2EndAction = function (settings) {
+        return PS.shouldPlayRound3(settings) ? 'tug' : 'finish';
     };
 
     /* Config for round n (1-based) with old-room fallback: missing or
@@ -410,6 +462,9 @@
         const roundMs = msRaw != null ? clampRoundMs(msRaw) : PS.scaleRound1Ms(finishDistance);
         const stepsRaw = entry.glassSteps != null ? entry.glassSteps : s.glassSteps;
         const glassSteps = PS.normalizeGlassSteps(stepsRaw);
+        const tugRaw = entry.tugDuration != null ? entry.tugDuration
+            : (s.tugDuration != null ? s.tugDuration : undefined);
+        const tugDuration = PS.normalizeTugDuration(tugRaw);
 
         return {
             round: roundNo,
@@ -421,7 +476,8 @@
             bankMode: bankMode,
             finishDistance: finishDistance,
             roundMs: roundMs,
-            glassSteps: glassSteps
+            glassSteps: glassSteps,
+            tugDuration: tugDuration
         };
     };
 
@@ -433,7 +489,7 @@
         const raw = input || {};
         const rawRounds = Array.isArray(raw.rounds) ? raw.rounds : [];
         let roundCount = raw.roundCount;
-        if (roundCount == null || roundCount === '') roundCount = PS.HOST.MAX_IMPLEMENTED;
+        if (roundCount == null || roundCount === '') roundCount = PS.HOST.DEFAULT_ROUNDS;
         roundCount = Number(roundCount);
         if (!isFinite(roundCount) || Math.floor(roundCount) !== roundCount || roundCount < 1) {
             return { ok: false, error: 'INVALID_ROUND_COUNT' };
@@ -449,6 +505,12 @@
         const glassSteps = PS.normalizeGlassSteps(
             raw.glassSteps != null ? raw.glassSteps
                 : (raw.glass_steps != null ? raw.glass_steps : undefined)
+        );
+        const tugEntry = rawRounds.find(item => item && Number(item.round) === 3);
+        const tugDuration = PS.normalizeTugDuration(
+            tugEntry && tugEntry.tugDuration != null ? tugEntry.tugDuration
+                : (raw.tugDuration != null ? raw.tugDuration
+                    : (raw.tug_duration != null ? raw.tug_duration : undefined))
         );
 
         const rounds = [];
@@ -483,6 +545,10 @@
                 const stepsRaw = entry && entry.glassSteps != null ? entry.glassSteps : glassSteps;
                 cfg.glassSteps = PS.normalizeGlassSteps(stepsRaw);
             }
+            if (n === 3) {
+                const tugRaw = entry && entry.tugDuration != null ? entry.tugDuration : tugDuration;
+                cfg.tugDuration = PS.normalizeTugDuration(tugRaw);
+            }
             rounds.push(cfg);
             previous = cfg;
         }
@@ -494,7 +560,8 @@
             rounds: rounds.map(item => Object.assign({}, item)),
             roundMs: r1.roundMs,
             finishDistance: r1.finishDistance,
-            glassSteps: rounds[1] ? rounds[1].glassSteps : null
+            glassSteps: rounds[1] ? rounds[1].glassSteps : null,
+            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration
         };
 
         return {
@@ -508,7 +575,9 @@
             topic: r1.topic,
             bankMode: r1.bankMode,
             finishDistance: r1.finishDistance,
-            roundMs: r1.roundMs
+            roundMs: r1.roundMs,
+            glassSteps: rounds[1] ? rounds[1].glassSteps : null,
+            tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration
         };
     };
 
@@ -957,6 +1026,440 @@
 
     PS.glassFinished = function (players) {
         return PS.glassAlivePlayers(players).length === 0;
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Round 3 — Tug of War                                                */
+    /* ------------------------------------------------------------------ */
+
+    function isTugCandidate(player) {
+        if (!player) return false;
+        if (player.is_playing === false) return false;
+        if (player.ghost === true) return false;
+        const status = String(player.status || 'alive');
+        if (status === 'eliminated' || status === 'out' || status === 'ghost') return false;
+        return player.crossed_glass === true
+            || status === 'advanced'
+            || player.advanced_round2 === true;
+    }
+
+    /* The players who actually reached the far side of the glass bridge.
+       If a 3-round class somehow has no glass survivors (older/odd rooms),
+       fall back to the living players who advanced out of round 1. */
+    PS.tugSurvivors = function (players) {
+        const list = Array.isArray(players) ? players : [];
+        const crossed = list.filter(isTugCandidate);
+        if (crossed.length) return crossed;
+        return list.filter(p => {
+            if (!p || p.is_playing === false || p.ghost === true) return false;
+            const status = String(p.status || 'alive');
+            if (status === 'eliminated' || status === 'out' || status === 'ghost') return false;
+            return p.round1_advanced === true || p.advanced_round1 === true;
+        });
+    };
+
+    PS.shouldSkipTug = function (players) {
+        return PS.tugSurvivors(players).length < 2;
+    };
+
+    /* Fair snake split by prior finish order:
+       glass_finished_at asc, round1_rank asc, user_id asc.
+       Teams: index 0 red, 1 blue, 2 blue, 3 red, 4 red, 5 blue, ... so
+       consecutive finishers alternate in ABBA pairs and an odd class is
+       never stacked with the strongest players on one team.
+       Returns a NEW array of shallow-copied players with tug_team set; the
+       input array and its player objects are not mutated. */
+    PS.splitTugTeams = function (players) {
+        const ordered = PS.tugSurvivors(players).slice().sort((a, b) => {
+            const fa = PS.timeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+            const fb = PS.timeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+            if (fa !== fb) return fa < fb ? -1 : 1;
+            const ra = a.round1_rank != null ? Number(a.round1_rank) : Infinity;
+            const rb = b.round1_rank != null ? Number(b.round1_rank) : Infinity;
+            if (ra !== rb) return ra < rb ? -1 : 1;
+            return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+        });
+        return ordered.map((player, i) => {
+            const team = (i % 4 === 0 || i % 4 === 3) ? 'red' : 'blue';
+            return Object.assign({}, player, { tug_team: team });
+        });
+    };
+
+    PS.emptyTugState = function () {
+        return {
+            phase: 'briefing',
+            redPull: 0,
+            bluePull: 0,
+            redCombo: 0,
+            blueCombo: 0,
+            redRageUntil: 0,
+            blueRageUntil: 0,
+            position: 0,
+            winner: null,
+            suddenDeath: false
+        };
+    };
+
+    PS.normalizeTugState = function (state) {
+        const base = PS.emptyTugState();
+        let raw = state;
+        if (typeof raw === 'string') {
+            try { raw = JSON.parse(raw); } catch (e) { raw = null; }
+        }
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+        const phase = String(raw.phase || '');
+        base.phase = (phase === 'playing' || phase === 'done') ? phase : 'briefing';
+        const num = (v) => {
+            const n = Number(v);
+            return isFinite(n) ? n : 0;
+        };
+        base.redPull = num(raw.redPull);
+        base.bluePull = num(raw.bluePull);
+        base.redCombo = Math.max(0, Math.floor(num(raw.redCombo)));
+        base.blueCombo = Math.max(0, Math.floor(num(raw.blueCombo)));
+        base.redRageUntil = Math.max(0, num(raw.redRageUntil));
+        base.blueRageUntil = Math.max(0, num(raw.blueRageUntil));
+        base.position = base.bluePull - base.redPull;
+        base.winner = raw.winner === 'red' || raw.winner === 'blue' ? raw.winner : null;
+        base.suddenDeath = raw.suddenDeath === true;
+        if (base.winner) base.phase = 'done';
+        return base;
+    };
+
+    /* Positive = pulled toward blue. Not clamped: the win check needs the
+       true value; the renderer may clamp the visual position. */
+    PS.tugPosition = function (state) {
+        const s = PS.normalizeTugState(state);
+        return s.bluePull - s.redPull;
+    };
+
+    PS.tugRageActive = function (state, team, now) {
+        const s = PS.normalizeTugState(state);
+        const t = team === 'red' ? 'redRageUntil' : (team === 'blue' ? 'blueRageUntil' : '');
+        if (!t) return false;
+        const at = now == null ? Date.now() : Number(now);
+        return isFinite(at) && at < Number(s[t] || 0);
+    };
+
+    /* Pure answer application. Returns a new state plus a small result
+       summary. Ignore answers when the phase is not 'playing' or no team. */
+    PS.applyTugAnswer = function (state, input) {
+        const o = input || {};
+        const current = PS.normalizeTugState(state);
+        const team = o.team === 'red' || o.team === 'blue' ? o.team : '';
+        const now = o.now == null ? Date.now() : Number(o.now);
+        if (!team || current.phase !== 'playing') {
+            return { state: current, pull: 0, rageTriggered: false, comboBroken: false, rageActive: false, winner: current.winner };
+        }
+        const next = PS.normalizeTugState(current);
+        const comboKey = team + 'Combo';
+        const rageKey = team + 'RageUntil';
+        const rageWasActive = PS.tugRageActive(next, team, now);
+        let pull = 0;
+        let rageTriggered = false;
+        let comboBroken = false;
+
+        if (o.correct === true) {
+            pull = rageWasActive ? PS.ROUND3.RAGE_MULT : 1;
+            if (rageWasActive) {
+                next[comboKey] = 0;
+                // Rage lasts its 5 seconds; a correct answer inside the
+                // burst does not extend it.
+            } else {
+                const combo = Math.max(0, Math.floor(Number(next[comboKey]) || 0)) + 1;
+                if (combo >= PS.ROUND3.COMBO) {
+                    next[comboKey] = 0;
+                    next[rageKey] = now + PS.ROUND3.RAGE_MS;
+                    rageTriggered = true;
+                } else {
+                    next[comboKey] = combo;
+                }
+            }
+        } else {
+            next[comboKey] = 0;
+            next[rageKey] = 0;
+            comboBroken = true;
+        }
+
+        if (team === 'red') next.redPull = Math.max(0, Number(next.redPull) || 0) + pull;
+        else next.bluePull = Math.max(0, Number(next.bluePull) || 0) + pull;
+        next.position = next.bluePull - next.redPull;
+
+        if (next.position >= PS.ROUND3.WIN_PULL) {
+            next.winner = 'blue';
+            next.phase = 'done';
+        } else if (next.position <= -PS.ROUND3.WIN_PULL) {
+            next.winner = 'red';
+            next.phase = 'done';
+        } else if (next.suddenDeath && o.correct === true && next.position !== 0) {
+            // Sudden death: the next scoring answer pulls the salmon off
+            // centre and decides the tug immediately.
+            next.winner = next.position > 0 ? 'blue' : 'red';
+            next.phase = 'done';
+        }
+
+        return {
+            state: next,
+            pull: pull,
+            rageTriggered: rageTriggered,
+            comboBroken: comboBroken,
+            rageActive: PS.tugRageActive(next, team, now),
+            winner: next.winner
+        };
+    };
+
+    /* At time-up the side with the golden salmon wins. An exact tie is
+       sudden death: keep playing, no winner yet. */
+    PS.resolveTugAtTimeUp = function (state, now) {
+        const s = PS.normalizeTugState(state);
+        if (s.phase === 'done' || s.winner) return s;
+        const pos = s.bluePull - s.redPull;
+        if (pos > 0) {
+            s.winner = 'blue';
+            s.phase = 'done';
+        } else if (pos < 0) {
+            s.winner = 'red';
+            s.phase = 'done';
+        } else {
+            s.suddenDeath = true;
+            s.phase = 'playing';
+            s.winner = null;
+        }
+        return s;
+    };
+
+    /* Losing team falls + becomes ghosts; winning team is marked advanced.
+       Players without a team are left untouched. Mutates the player objects
+       and returns the same list (matches advanceRound1's style). */
+    PS.applyTugResult = function (players, winner) {
+        const list = Array.isArray(players) ? players : [];
+        const win = winner === 'red' || winner === 'blue' ? winner : '';
+        if (!win) return list;
+        list.forEach(p => {
+            if (!p || !p.tug_team) return;
+            if (p.tug_team === win) {
+                p.status = 'advanced';
+                p.ghost = false;
+                p.eliminated_reason = null;
+                p.advanced_round3 = true;
+            } else {
+                eliminate(p, 'tug');
+            }
+        });
+        return list;
+    };
+
+    /* ------------------------------------------------------------------ */
+    /* Prize ceremony — ranking + Paws                                     */
+    /*                                                                    */
+    /* This is the single source of truth for the end-of-class ceremony.  */
+    /* It only reads fields the game already stores, so the SQL mirror can */
+    /* reproduce exactly the same order and amounts.                       */
+    /* ------------------------------------------------------------------ */
+
+    PS.pawsForPlace = function (place, survived) {
+        const n = Math.floor(Number(place) || 0);
+        if (n === 1) return PS.CEREMONY_PAWS.first;
+        if (n === 2) return PS.CEREMONY_PAWS.second;
+        if (n === 3) return PS.CEREMONY_PAWS.third;
+        return survived ? PS.CEREMONY_PAWS.survivor : PS.CEREMONY_PAWS.participant;
+    };
+
+    function ceremonyRankValue(value) {
+        if (value == null || value === '') return Infinity;
+        const n = Number(value);
+        return isFinite(n) ? n : Infinity;
+    }
+
+    function ceremonyTimeValue(value) {
+        return PS.timeValue(value);
+    }
+
+    function ceremonyNickname(player) {
+        const nickname = String((player && player.nickname) || '').trim();
+        if (nickname) return nickname;
+        const email = String((player && player.email) || '').trim();
+        if (email) return email.split('@')[0];
+        return 'Player';
+    }
+
+    function compareCeremonyUser(a, b) {
+        const ua = PS.userKey(a);
+        const ub = PS.userKey(b);
+        return ua < ub ? -1 : (ua > ub ? 1 : 0);
+    }
+
+    function ceremonyRole(place, survived) {
+        if (place === 1) return 'first';
+        if (place === 2) return 'second';
+        if (place === 3) return 'third';
+        return survived ? 'survivor' : 'participant';
+    }
+
+    function round1Survivor(player) {
+        if (!player) return false;
+        if (player.ghost === true) return false;
+        const status = String(player.status || 'alive');
+        return status !== 'eliminated' && status !== 'out' && status !== 'ghost';
+    }
+
+    function round2Survivor(player) {
+        if (!player) return false;
+        return player.crossed_glass === true || String(player.status || '') === 'advanced';
+    }
+
+    PS.ceremonyResults = function (players, opts) {
+        const o = opts || {};
+        const roundCount = PS.roomRoundCount({ roundCount: o.roundCount == null ? PS.HOST.DEFAULT_ROUNDS : o.roundCount });
+        const finishDistance = o.finishDistance == null ? PS.ROUND1.FINISH_DISTANCE : Number(o.finishDistance);
+        const tug = PS.normalizeTugState(o.tug);
+        const winner = tug.winner === 'red' || tug.winner === 'blue' ? tug.winner : '';
+        const eligible = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
+        let survivedOf = round1Survivor;
+
+        const ordered = eligible.slice().sort((a, b) => {
+            if (roundCount >= 3) {
+                const groupOf = (p) => {
+                    if (winner) {
+                        if (p.tug_team === winner) return 0;
+                        if (p.tug_team === 'red' || p.tug_team === 'blue') return 1;
+                        return 2;
+                    }
+                    return round2Survivor(p) ? 0 : 1;
+                };
+                const ga = groupOf(a);
+                const gb = groupOf(b);
+                if (ga !== gb) return ga - gb;
+                const ta = ceremonyTimeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+                const tb = ceremonyTimeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+                if (ta !== tb) return ta < tb ? -1 : 1;
+                const ra = ceremonyRankValue(a.round1_rank);
+                const rb = ceremonyRankValue(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                return compareCeremonyUser(a, b);
+            }
+
+            if (roundCount === 2) {
+                const sa = round2Survivor(a) ? 0 : 1;
+                const sb = round2Survivor(b) ? 0 : 1;
+                if (sa !== sb) return sa - sb;
+                if (sa === 0) {
+                    const ta = ceremonyTimeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+                    const tb = ceremonyTimeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+                    if (ta !== tb) return ta < tb ? -1 : 1;
+                    const ra = ceremonyRankValue(a.round1_rank);
+                    const rb = ceremonyRankValue(b.round1_rank);
+                    if (ra !== rb) return ra < rb ? -1 : 1;
+                    return compareCeremonyUser(a, b);
+                }
+                const gsa = Number(a.glass_step) || 0;
+                const gsb = Number(b.glass_step) || 0;
+                if (gsa !== gsb) return gsb - gsa;
+                const ra = ceremonyRankValue(a.round1_rank);
+                const rb = ceremonyRankValue(b.round1_rank);
+                if (ra !== rb) return ra < rb ? -1 : 1;
+                const da = PS.round1Distance(a);
+                const db = PS.round1Distance(b);
+                if (da !== db) return db - da;
+                return compareCeremonyUser(a, b);
+            }
+
+            const sa = round1Survivor(a) ? 0 : 1;
+            const sb = round1Survivor(b) ? 0 : 1;
+            if (sa !== sb) return sa - sb;
+            if (sa === 0) {
+                const fa = PS.isRound1Finished(a, finishDistance) ? 0 : 1;
+                const fb = PS.isRound1Finished(b, finishDistance) ? 0 : 1;
+                if (fa !== fb) return fa - fb;
+                const ta = ceremonyTimeValue(a.finished_at != null ? a.finished_at : a.finished_at_ms);
+                const tb = ceremonyTimeValue(b.finished_at != null ? b.finished_at : b.finished_at_ms);
+                if (ta !== tb) return ta < tb ? -1 : 1;
+            }
+            const da = PS.round1Distance(a);
+            const db = PS.round1Distance(b);
+            if (da !== db) return db - da;
+            return compareCeremonyUser(a, b);
+        });
+
+        survivedOf = roundCount >= 3
+            ? function (p) {
+                if (winner) return p.tug_team === winner;
+                return round2Survivor(p);
+            }
+            : (roundCount === 2 ? round2Survivor : round1Survivor);
+
+        return ordered.map((player, index) => {
+            const place = index + 1;
+            const survived = survivedOf(player) === true;
+            const rounds = {
+                r1: {
+                    distance: PS.round1Distance(player),
+                    reached_finish: PS.isRound1Finished(player, finishDistance),
+                    finished_at: player.finished_at != null ? player.finished_at : null,
+                    round1_rank: player.round1_rank == null ? null : Number(player.round1_rank),
+                    eliminated: !round1Survivor(player),
+                    eliminated_reason: player.eliminated_reason || null
+                }
+            };
+            if (roundCount >= 2) {
+                rounds.r2 = {
+                    glass_step: Number(player.glass_step) || 0,
+                    glass_finished_at: player.glass_finished_at != null ? player.glass_finished_at : null,
+                    crossed_glass: player.crossed_glass === true || String(player.status || '') === 'advanced'
+                };
+            }
+            if (roundCount >= 3) {
+                rounds.r3 = {
+                    tug_team: player.tug_team === 'red' || player.tug_team === 'blue' ? player.tug_team : null,
+                    won: winner ? player.tug_team === winner : null
+                };
+            }
+            return {
+                place: place,
+                user_id: PS.userKey(player),
+                nickname: ceremonyNickname(player),
+                paws: PS.pawsForPlace(place, survived),
+                role: ceremonyRole(place, survived),
+                survived: survived,
+                rounds: rounds
+            };
+        });
+    };
+
+    /* --- Idempotent award helpers (mirrors the SQL ledger insert) ------ */
+
+    PS.ceremonyAwardPlan = function (results, roomId) {
+        const prefix = 'purrfect_survival:' + String(roomId == null ? '' : roomId) + ':';
+        return (Array.isArray(results) ? results : [])
+            .filter(r => r && r.user_id)
+            .map(r => ({
+                user_id: String(r.user_id),
+                amount: Math.max(0, Number(r.paws) || 0),
+                reason: 'purrfect_survival',
+                ref_key: prefix + String(r.user_id)
+            }))
+            .filter(a => a.amount > 0);
+    };
+
+    /* Applies a plan into a fake ledger keyed by user_id + '|' + ref_key.
+       A second call for the same room/user is a no-op, exactly like the
+       `on conflict (user_id, ref_key) do nothing` SQL clause. */
+    PS.applyCeremonyAwards = function (plan, ledger) {
+        const store = ledger || {};
+        const added = [];
+        (Array.isArray(plan) ? plan : []).forEach(award => {
+            if (!award || !award.user_id || !award.ref_key) return;
+            const key = award.user_id + '|' + award.ref_key;
+            if (store[key]) return;
+            store[key] = {
+                user_id: award.user_id,
+                amount: Number(award.amount) || 0,
+                reason: award.reason || 'purrfect_survival',
+                ref_key: award.ref_key
+            };
+            added.push(store[key]);
+        });
+        return added;
     };
 
     /* ------------------------------------------------------------------ */

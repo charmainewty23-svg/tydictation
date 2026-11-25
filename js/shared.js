@@ -1698,7 +1698,25 @@
             updateNotificationBadge();
         }
 
+        function isPurrfectSurvivalDemo() {
+            try {
+                if (typeof PS !== 'undefined' && PS && typeof PS.isDemoMode === 'function' && PS.isDemoMode()) return true;
+            } catch (e) { /* ignore */ }
+            return /(?:\?|&)psdemo=1(?:&|$)/.test(String((typeof location !== 'undefined' && location.search) || ''));
+        }
+
         function showApp() {
+            // The public Purr-fect Survival demo boots without login. Auth
+            // session events must not bounce the iframe to the Hub or
+            // uncover the login screen.
+            if (isPurrfectSurvivalDemo()) {
+                document.body.classList.add('ps-demo-mode');
+                const loginEl = document.getElementById('login-view');
+                if (loginEl) loginEl.style.display = 'none';
+                const appEl = document.getElementById('app');
+                if (appEl) appEl.classList.add('logged-in');
+                return;
+            }
             const app = document.getElementById('app');
             const login = document.getElementById('login-view');
             const alreadyOpen = !!(app && app.classList.contains('logged-in') && login && login.style.display === 'none');
@@ -1731,6 +1749,14 @@
         }
 
         function showLogin() {
+            if (isPurrfectSurvivalDemo()) {
+                document.body.classList.add('ps-demo-mode');
+                const loginEl = document.getElementById('login-view');
+                if (loginEl) loginEl.style.display = 'none';
+                const appEl = document.getElementById('app');
+                if (appEl) appEl.classList.add('logged-in');
+                return;
+            }
             const pawsBtn = document.getElementById('mascot-paws-btn');
             if (pawsBtn) pawsBtn.classList.add('hidden');
             document.getElementById('app').classList.remove('logged-in');

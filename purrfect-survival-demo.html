@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LearniTY · Purr-fect Survival demo</title>
+<style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0b1020; }
+    body { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+    #demo-bar {
+        position: static;
+        flex: 0 0 auto;
+        min-height: 52px;
+        z-index: 20000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 6px 10px;
+        background: #1f2937;
+        box-shadow: 0 2px 8px rgba(0,0,0,.45);
+    }
+    #demo-bar .demo-sep {
+        width: 1px;
+        height: 26px;
+        background: rgba(255,255,255,.16);
+        margin: 0 3px;
+    }
+    #demo-bar button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 12px;
+        background: rgba(255,255,255,.12);
+        color: #e5e7eb;
+        font: 800 12px Fredoka, system-ui, sans-serif;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background .12s ease, transform .06s ease;
+    }
+    #demo-bar button:hover { background: rgba(255,255,255,.2); }
+    #demo-bar button:active { transform: translateY(1px); }
+    #demo-bar button.active { background: #ec4899; color: #fff; }
+    #demo-bar button.mode.active { background: #22c55e; }
+    #demo-bar button[data-scene].active { background: #0ea5e9; }
+
+    #demo-stage {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 50% 8%, rgba(236, 72, 153, .12), transparent 46%),
+            #0b1020;
+    }
+    #demo-app {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 390px;
+        height: 844px;
+        transform: translate(-50%, -50%) scale(1);
+        transform-origin: center center;
+        border: 0;
+        background: #fff9f2;
+        box-shadow: 0 20px 70px rgba(0,0,0,.55);
+    }
+    body.mode-student #demo-app { border-radius: 22px; }
+    body.mode-teacher #demo-app { border-radius: 10px; }
+
+    #demo-note {
+        position: absolute;
+        left: 10px;
+        bottom: 8px;
+        z-index: 5;
+        max-width: 240px;
+        color: rgba(226,232,240,.72);
+        font: 700 11px Fredoka, system-ui, sans-serif;
+        line-height: 1.35;
+        pointer-events: none;
+    }
+    @media (max-width: 900px) {
+        #demo-note { display: none; }
+    }
+    @media (max-width: 560px) {
+        #demo-bar { gap: 4px; padding: 5px 6px; }
+        #demo-bar button { min-height: 34px; padding: 0 9px; font-size: 11px; }
+    }
+</style>
+</head>
+<body class="mode-student">
+<div id="demo-bar" role="toolbar" aria-label="Purr-fect Survival demo controls">
+    <button type="button" id="demo-student" class="mode active">📱 Student</button>
+    <button type="button" id="demo-teacher" class="mode">📺 Teacher / Projector</button>
+    <span class="demo-sep"></span>
+    <button type="button" id="demo-lobby" data-scene="lobby">🏁 Lobby</button>
+    <button type="button" id="demo-round1" data-scene="round1" class="active">🟢 Round 1</button>
+    <button type="button" id="demo-round2" data-scene="round2">🧊 Round 2</button>
+    <button type="button" id="demo-victory" data-scene="victory">🎉 Mid-victory</button>
+    <span class="demo-sep"></span>
+    <button type="button" id="demo-replay">↺ Replay</button>
+</div>
+
+<div id="demo-stage">
+    <iframe id="demo-app" src="/index.html?psdemo=1" title="Purr-fect Survival demo"></iframe>
+    <div id="demo-note">Public demo · no login · no saved scores · about 25 cats</div>
+</div>
+
+<script>
+(function () {
+    var frame = document.getElementById('demo-app');
+    var stage = document.getElementById('demo-stage');
+    var mode = 'student';
+    var scene = 'round1';
+
+    var BASE = {
+        student: { w: 390, h: 844 },
+        teacher: { w: 1280, h: 720 }
+    };
+    var loadSerial = 0;
+    var setupDoneSerial = -1;
+
+    function applyFrame() {
+        var base = BASE[mode] || BASE.student;
+        var stageW = Math.max(1, stage.clientWidth || window.innerWidth);
+        var stageH = Math.max(1, stage.clientHeight || window.innerHeight);
+        var scale = Math.min(stageW / base.w, stageH / base.h);
+        // Keep the phone readable on tall desktops, and never blow the
+        // projector view up past a comfortable size.
+        scale = Math.min(scale, mode === 'teacher' ? 1.25 : 1.15);
+        if (!isFinite(scale) || scale <= 0) scale = 1;
+        frame.style.width = base.w + 'px';
+        frame.style.height = base.h + 'px';
+        frame.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+        document.body.classList.toggle('mode-student', mode === 'student');
+        document.body.classList.toggle('mode-teacher', mode === 'teacher');
+    }
+
+    function setModeButtonActive() {
+        document.getElementById('demo-student').classList.toggle('active', mode === 'student');
+        document.getElementById('demo-teacher').classList.toggle('active', mode === 'teacher');
+    }
+
+    function setSceneButtonActive() {
+        var buttons = document.querySelectorAll('#demo-bar button[data-scene]');
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].classList.toggle('active', buttons[i].getAttribute('data-scene') === scene);
+        }
+    }
+
+    function hideChrome(w, d) {
+        try {
+            var login = d.getElementById('login-view');
+            if (login) login.style.display = 'none';
+            var app = d.getElementById('app');
+            if (app) app.classList.add('logged-in');
+            var header = d.querySelector('#app > .brand-header');
+            if (header) header.style.display = 'none';
+            var mascot = d.querySelector('#app > header');
+            if (mascot) mascot.style.display = 'none';
+            ['bottom-nav', 'home-music-btn', 'me-store-music-btn'].forEach(function (id) {
+                var el = d.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+        } catch (e) { /* ignore */ }
+        return w;
+    }
+
+    function ready(w, d) {
+        return !!(w && d && w.PS && w.PS.startDemo && d.getElementById('purrfect-survival-view'));
+    }
+
+    function setup(serial) {
+        var token = serial == null ? loadSerial : serial;
+        if (setupDoneSerial === token) return;
+        var w = frame.contentWindow;
+        var d = w && w.document;
+        if (!ready(w, d)) {
+            setTimeout(function () { setup(token); }, 180);
+            return;
+        }
+        setupDoneSerial = token;
+        hideChrome(w, d);
+        try {
+            window.confirm = function () { return true; };
+            w.confirm = function () { return true; };
+        } catch (e) { /* ignore */ }
+        try {
+            if (w.PS.isDemoMode && w.PS.isDemoMode()) {
+                // Auto-boot (or a previous setup) already built the demo;
+                // only sync the role so a late load event cannot restart
+                // a round the visitor is already playing.
+                w.PS.setDemoRole(mode);
+            } else {
+                w.PS.startDemo({ role: mode, scene: scene });
+            }
+        } catch (e) {
+            setupDoneSerial = -1;
+            setTimeout(function () { setup(token); }, 220);
+            return;
+        }
+        applyFrame();
+        focusFrame();
+    }
+
+    function focusFrame() {
+        try { frame.focus(); } catch (e) { /* ignore */ }
+    }
+
+    /* Keep the demo keyboard shortcuts usable even when focus is still on
+       the demo bar after a button click. Inside the iframe the existing
+       document keydown handler does the real work. */
+    window.addEventListener('keydown', function (event) {
+        var w = frame.contentWindow;
+        if (!w || !w.document || !w.PS) return;
+        var key = event.key;
+        var relevant = (key >= '1' && key <= '4') ||
+            key === 'ArrowLeft' || key === 'ArrowRight' ||
+            key === 'a' || key === 'A' || key === 'd' || key === 'D' ||
+            key === 'Escape';
+        if (!relevant) return;
+        try {
+            var forwarded = new w.KeyboardEvent('keydown', {
+                key: key,
+                code: event.code,
+                keyCode: event.keyCode,
+                which: event.which,
+                bubbles: true,
+                cancelable: true
+            });
+            w.document.dispatchEvent(forwarded);
+            if (forwarded.defaultPrevented) event.preventDefault();
+        } catch (e) { /* ignore */ }
+    });
+
+    function callFrame(fn) {
+        try {
+            var w = frame.contentWindow;
+            if (w && w.PS && typeof fn === 'function') fn(w.PS);
+        } catch (e) { /* ignore */ }
+    }
+
+    document.getElementById('demo-student').addEventListener('click', function () {
+        mode = 'student';
+        setModeButtonActive();
+        applyFrame();
+        callFrame(function (PS) { PS.setDemoRole('student'); });
+        focusFrame();
+    });
+
+    document.getElementById('demo-teacher').addEventListener('click', function () {
+        mode = 'teacher';
+        setModeButtonActive();
+        applyFrame();
+        callFrame(function (PS) { PS.setDemoRole('teacher'); });
+        focusFrame();
+    });
+
+    function goScene(next) {
+        scene = next;
+        setSceneButtonActive();
+        callFrame(function (PS) { PS.demoJump(next); });
+        focusFrame();
+    }
+
+    document.getElementById('demo-lobby').addEventListener('click', function () { goScene('lobby'); });
+    document.getElementById('demo-round1').addEventListener('click', function () { goScene('round1'); });
+    document.getElementById('demo-round2').addEventListener('click', function () { goScene('round2'); });
+    document.getElementById('demo-victory').addEventListener('click', function () { goScene('victory'); });
+
+    document.getElementById('demo-replay').addEventListener('click', function () {
+        scene = 'round1';
+        setSceneButtonActive();
+        try { frame.contentWindow.location.reload(); } catch (e) { /* ignore */ }
+    });
+
+    window.addEventListener('resize', applyFrame);
+    window.addEventListener('orientationchange', function () { setTimeout(applyFrame, 180); });
+
+    frame.addEventListener('load', function () {
+        loadSerial += 1;
+        setModeButtonActive();
+        setSceneButtonActive();
+        applyFrame();
+        setTimeout(function () { setup(loadSerial); }, 300);
+    });
+
+    applyFrame();
+    setTimeout(function () { setup(loadSerial); }, 400);
+})();
+</script>
+</body>
+</html>

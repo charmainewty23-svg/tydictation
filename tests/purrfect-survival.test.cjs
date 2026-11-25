@@ -605,6 +605,108 @@ test('service worker precaches the new modules and the SQL file is complete', ()
 });
 
 /* ---------------------------------------------------------------- */
+/* Public demo (no login / no Supabase)                              */
+/* ---------------------------------------------------------------- */
+
+test('demo banks are built in and have enough entries', () => {
+    assert.ok(Array.isArray(PS.DEMO_VOCAB), 'DEMO_VOCAB exists');
+    assert.ok(PS.DEMO_VOCAB.length >= 20, 'at least 20 vocab pairs');
+    PS.DEMO_VOCAB.forEach(word => {
+        assert.ok(word.en && word.zh, 'vocab card needs English + Chinese');
+    });
+
+    assert.ok(Array.isArray(PS.DEMO_GRAMMAR), 'DEMO_GRAMMAR exists');
+    assert.ok(PS.DEMO_GRAMMAR.length >= 20, 'at least 20 grammar prompts');
+    PS.DEMO_GRAMMAR.forEach(q => {
+        assert.ok(q.prompt && q.primary && q.sectionKey, 'grammar card needs prompt + primary + section');
+    });
+});
+
+test('buildDemoQuestionSet builds a seeded vocab paper and a 9-step glass bridge', () => {
+    const set = PS.buildDemoQuestionSet({ subject: 'vocab', seed: 4242 });
+    assert.equal(set.subject, 'vocab');
+    assert.ok(set.questions.length >= 12, 'at least 12 MC questions');
+    set.questions.forEach(q => {
+        assert.equal(q.options.length, 4, 'four options per MC question');
+        assert.equal(q.options[q.answer], q.answer_text, 'answer index points at the correct text');
+        assert.equal(q.options.filter(o => o === q.answer_text).length, 1, 'exactly one correct option');
+        assert.ok(q.prompt, 'prompt is present');
+    });
+
+    assert.equal(set.glassPairs.length, 9, 'nine glass pairs');
+    assert.equal(set.glassSteps.length, 9, 'nine glass steps');
+    set.glassSteps.forEach(step => {
+        assert.ok(step.correct_side === 'left' || step.correct_side === 'right', 'one correct side');
+        assert.ok(step.left && step.right, 'both panes have text');
+        assert.notEqual(step.left, step.right, 'panes are not identical');
+        assert.equal(step.revealed, false);
+    });
+
+    assert.deepEqual(
+        PS.buildDemoQuestionSet({ subject: 'vocab', seed: 4242 }),
+        set,
+        'same seed replays the same demo paper'
+    );
+});
+
+test('buildDemoQuestionSet can use the grammar bank and never mixes subjects', () => {
+    const set = PS.buildDemoQuestionSet({ subject: 'grammar', seed: 7 });
+    assert.equal(set.subject, 'grammar');
+    assert.ok(set.questions.length >= 12);
+    set.questions.forEach(q => {
+        assert.equal(q.options.length, 4);
+        assert.equal(q.options[q.answer], q.answer_text);
+        assert.equal(q.options.filter(o => o === q.answer_text).length, 1);
+    });
+    assert.equal(set.glassPairs.length, 9);
+    set.glassSteps.forEach(step => {
+        assert.ok(step.correct_side === 'left' || step.correct_side === 'right');
+        assert.notEqual(step.left, step.right);
+    });
+
+    assert.equal(PS.buildDemoQuestionSet({ seed: 1 }).subject, 'vocab', 'defaults to vocab');
+    assert.equal(PS.buildDemoQuestionSet({ subject: 'nope', seed: 1 }).subject, 'vocab', 'unknown falls back to vocab');
+});
+
+test('demo classmate builder returns 20–28 unique bots with cat looks', () => {
+    const bots = PS.buildDemoClassmates({ count: 24, seed: 99 });
+    assert.equal(bots.length, 24);
+    const ids = new Set(bots.map(b => b.user_id));
+    assert.equal(ids.size, 24, 'user_ids are unique');
+    bots.forEach(bot => {
+        assert.match(bot.nickname, /^4C \d\d /);
+        assert.ok(bot.cat && bot.glasses && bot.hat && bot.outfit, 'mixed cat / hat / glasses / outfit');
+    });
+    assert.deepEqual(PS.buildDemoClassmates({ count: 24, seed: 99 }), bots, 'seeded builder is stable');
+    assert.equal(PS.buildDemoClassmates({ count: 99 }).length, 28, 'clamped to the class size');
+});
+
+test('demo page and demo mode stay gated without weakening guest blocking', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'purrfect-survival.js'), 'utf8');
+    ['isGuest', 'GUEST_NOT_ALLOWED', 'assertCanPlay', 'psdemo', 'startDemo',
+        'demoMode', 'isDemoMode', 'demoJump', 'setDemoRole'].forEach(token => {
+        assert.ok(src.indexOf(token) !== -1, token + ' is present');
+    });
+    assert.ok(src.indexOf('function demoAnswer') !== -1, 'visitor answers apply locally');
+    assert.ok(src.indexOf('function demoGlassJump') !== -1, 'visitor jumps apply locally');
+    assert.ok(src.indexOf('if (demoMode) return;') !== -1, 'const guards short-circuit Supabase work');
+    assert.ok(src.indexOf('if (!info) return;') !== -1, 'missing phase clock does not skip to the bridge');
+
+    const shared = fs.readFileSync(path.join(__dirname, '..', 'js', 'shared.js'), 'utf8');
+    assert.ok(shared.indexOf('function isPurrfectSurvivalDemo') !== -1, 'shared.js recognises the demo');
+    assert.ok(shared.indexOf('psdemo=1') !== -1, 'shared.js checks the psdemo flag');
+
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    assert.ok(demo.indexOf('psdemo=1') !== -1, 'iframe uses the psdemo=1 flag');
+    assert.ok(demo.indexOf('id="demo-app"') !== -1, 'iframe element exists');
+    assert.ok(demo.indexOf('src="/index.html?psdemo=1"') !== -1, 'iframe points at index.html');
+    assert.ok(demo.indexOf('Replay') !== -1, 'Replay control');
+    assert.ok(demo.indexOf('Student') !== -1, 'Student control');
+    assert.ok(demo.indexOf('Teacher') !== -1 && demo.indexOf('Projector') !== -1, 'teacher/projector control');
+    assert.ok(demo.indexOf('Round 1') !== -1 && demo.indexOf('Round 2') !== -1, 'round controls');
+    assert.ok(demo.indexOf('Mid-victory') !== -1, 'mid-victory control');
+});
+
 /* 3D renderer: exports, drawing safety and original artwork         */
 /* ---------------------------------------------------------------- */
 

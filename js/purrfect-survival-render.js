@@ -1929,6 +1929,7 @@
         const sorted = players.slice().sort((a, b) => (Number(b.distance) || 0) - (Number(a.distance) || 0));
         sorted.forEach(player => {
             if (!player) return;
+            if (player.is_playing === false) return;
             const alive = player.status !== 'eliminated' && player.status !== 'out' && player.ghost !== true;
             const dist = clamp(Number(player.distance) || 0, 0, finish);
             const z = r1Z(dist);
@@ -2375,10 +2376,11 @@
         const players = Array.isArray(state.players) ? state.players : [];
         const steps = Math.max(1, Number(state.stepCount) || 9);
         const meId = state.meId ? String(state.meId) : '';
-        const queued = players.filter(p => p.status === 'alive' && !p.glass_active);
+        const queued = players.filter(p => p.is_playing !== false && p.status === 'alive' && !p.glass_active);
 
         const drawOne = player => {
             if (!player) return;
+            if (player.is_playing === false) return;
             const alive = player.status !== 'eliminated' && player.status !== 'out' && player.status !== 'advanced' && player.ghost !== true;
             const advanced = player.status === 'advanced' || player.crossed_glass;
             const step = clamp(Number(player.glass_step) || 0, 0, steps);

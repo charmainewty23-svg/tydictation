@@ -901,6 +901,159 @@
     };
 
     /* ------------------------------------------------------------------ */
+    /* Built-in demo banks (no Google Sheet / Supabase required)           */
+    /* ------------------------------------------------------------------ */
+
+    /* School-English vocabulary. Every card has English + Chinese so the
+       MC builder can use the Chinese prompt and English answer, exactly
+       like the live Vocab rooms. Keep this list small and safe: it is
+       used by the public no-login demo only. */
+    PS.DEMO_VOCAB = [
+        { en: 'backpack', zh: '背包' },
+        { en: 'library', zh: '圖書館' },
+        { en: 'laboratory', zh: '實驗室' },
+        { en: 'timetable', zh: '時間表' },
+        { en: 'uniform', zh: '校服' },
+        { en: 'homework', zh: '功課' },
+        { en: 'classroom', zh: '課室' },
+        { en: 'principal', zh: '校長' },
+        { en: 'excursion', zh: '參觀活動' },
+        { en: 'examination', zh: '考試' },
+        { en: 'dictionary', zh: '字典' },
+        { en: 'assignment', zh: '作業' },
+        { en: 'certificate', zh: '證書' },
+        { en: 'competition', zh: '比賽' },
+        { en: 'audience', zh: '觀眾' },
+        { en: 'volunteer', zh: '義工' },
+        { en: 'environment', zh: '環境' },
+        { en: 'recycling', zh: '回收' },
+        { en: 'pollution', zh: '污染' },
+        { en: 'nutrition', zh: '營養' },
+        { en: 'festival', zh: '節日' },
+        { en: 'tradition', zh: '傳統' },
+        { en: 'celebrate', zh: '慶祝' },
+        { en: 'decorate', zh: '佈置' }
+    ];
+
+    /* Grammar prompts with a primary answer and close distractors in the
+       same section. buildGrammarMC picks four options; buildGlassPairs
+       turns each pair into two near-identical panes. */
+    PS.DEMO_GRAMMAR = [
+        { prompt: 'Neither of them ___ ready.', primary: 'is', sectionKey: 'is-are' },
+        { prompt: 'Both of them ___ ready.', primary: 'are', sectionKey: 'is-are' },
+        { prompt: 'Everyone ___ finished the test.', primary: 'has', sectionKey: 'has-have' },
+        { prompt: 'The students ___ finished the test.', primary: 'have', sectionKey: 'has-have' },
+        { prompt: 'She has lived here ___ 2019.', primary: 'since', sectionKey: 'since-for' },
+        { prompt: 'She has lived here ___ five years.', primary: 'for', sectionKey: 'since-for' },
+        { prompt: 'The teacher ___ helped us is kind.', primary: 'who', sectionKey: 'who-whom' },
+        { prompt: 'The student ___ we met is kind.', primary: 'whom', sectionKey: 'who-whom' },
+        { prompt: 'There is not ___ water left.', primary: 'much', sectionKey: 'much-many' },
+        { prompt: 'There are not ___ chairs left.', primary: 'many', sectionKey: 'much-many' },
+        { prompt: 'He is ___ honest boy.', primary: 'an', sectionKey: 'a-an' },
+        { prompt: 'He is ___ university student.', primary: 'a', sectionKey: 'a-an' },
+        { prompt: 'I ___ at home yesterday.', primary: 'was', sectionKey: 'was-were' },
+        { prompt: 'They ___ at home yesterday.', primary: 'were', sectionKey: 'was-were' },
+        { prompt: 'She ___ her homework every day.', primary: 'does', sectionKey: 'do-does' },
+        { prompt: 'They ___ their homework every day.', primary: 'do', sectionKey: 'do-does' },
+        { prompt: 'The book is ___ the desk.', primary: 'on', sectionKey: 'in-on' },
+        { prompt: 'The pencil is ___ the pencil case.', primary: 'in', sectionKey: 'in-on' },
+        { prompt: 'There are ___ students this year.', primary: 'fewer', sectionKey: 'fewer-less' },
+        { prompt: 'There is ___ water this year.', primary: 'less', sectionKey: 'fewer-less' },
+        { prompt: 'I taught ___ to play the piano.', primary: 'myself', sectionKey: 'self' },
+        { prompt: 'You taught ___ to play the piano.', primary: 'yourself', sectionKey: 'self' },
+        { prompt: 'If it rains, we ___ stay at home.', primary: 'will', sectionKey: 'will-would' },
+        { prompt: 'If I were you, I ___ stay at home.', primary: 'would', sectionKey: 'will-would' },
+        { prompt: 'She ___ swim when she was five.', primary: 'could', sectionKey: 'can-could' },
+        { prompt: 'She ___ swim very well now.', primary: 'can', sectionKey: 'can-could' },
+        { prompt: '___ shoes are mine.', primary: 'These', sectionKey: 'this-these' },
+        { prompt: '___ bag is mine.', primary: 'This', sectionKey: 'this-these' },
+        { prompt: 'This book is ___ interesting than that one.', primary: 'more', sectionKey: 'more-most' },
+        { prompt: 'This is the ___ interesting book.', primary: 'most', sectionKey: 'more-most' },
+        { prompt: 'You ___ wear a seatbelt. It is the law.', primary: 'must', sectionKey: 'must-should' },
+        { prompt: 'You ___ drink more water. It is a good idea.', primary: 'should', sectionKey: 'must-should' },
+        { prompt: 'She ___ arrives late. She is very punctual.', primary: 'never', sectionKey: 'always-never' },
+        { prompt: 'She ___ arrives early.', primary: 'always', sectionKey: 'always-never' },
+        { prompt: 'We stayed at home ___ it was raining.', primary: 'because', sectionKey: 'because-although' },
+        { prompt: '___ it was raining, we went out.', primary: 'Although', sectionKey: 'because-although' },
+        { prompt: 'I want ___ go home.', primary: 'to', sectionKey: 'to-too' },
+        { prompt: 'It is ___ hot today.', primary: 'too', sectionKey: 'to-too' },
+        { prompt: '___ bags are in the classroom.', primary: 'Their', sectionKey: 'their-there' },
+        { prompt: '___ is a book on the desk.', primary: 'There', sectionKey: 'their-there' },
+        { prompt: 'The cat licked ___ paw.', primary: 'its', sectionKey: 'its-its' },
+        { prompt: '___ raining outside.', primary: "It's", sectionKey: 'its-its' },
+        { prompt: 'Is this ___ book?', primary: 'your', sectionKey: 'your-youre' },
+        { prompt: '___ welcome to our school.', primary: "You're", sectionKey: 'your-youre' }
+    ];
+
+    /* Build a complete demo question paper from the built-in banks.
+       One subject per room: subject defaults to vocab; grammar is used
+       only when explicitly requested. Every builder receives the same
+       seed, so the public demo replays identically. */
+    PS.buildDemoQuestionSet = function (opts) {
+        const o = opts || {};
+        const subject = PS.normalizeSubject(o.subject) || 'vocab';
+        const seed = o.seed == null ? 20261125 : o.seed;
+        const count = Math.max(12, Number(o.count) || 60);
+        if (subject === 'grammar') {
+            const questions = PS.buildGrammarMC({ questions: PS.DEMO_GRAMMAR, seed: seed, count: count });
+            const glassPairs = PS.buildGlassPairs({
+                questions: PS.DEMO_GRAMMAR,
+                seed: PS.coerceSeed(seed) + 3,
+                count: PS.ROUND2.STEP_COUNT
+            });
+            const glassSteps = PS.buildGlassSteps({
+                pairs: glassPairs,
+                seed: PS.coerceSeed(seed) + 17,
+                count: PS.ROUND2.STEP_COUNT
+            });
+            return { subject: 'grammar', seed: seed, questions: questions, glassPairs: glassPairs, glassSteps: glassSteps };
+        }
+        const questions = PS.buildVocabMC({ words: PS.DEMO_VOCAB, seed: seed, count: count });
+        const glassPairs = PS.buildGlassPairs({
+            words: PS.DEMO_VOCAB,
+            seed: PS.coerceSeed(seed) + 3,
+            count: PS.ROUND2.STEP_COUNT
+        });
+        const glassSteps = PS.buildGlassSteps({
+            pairs: glassPairs,
+            seed: PS.coerceSeed(seed) + 17,
+            count: PS.ROUND2.STEP_COUNT
+        });
+        return { subject: 'vocab', seed: seed, questions: questions, glassPairs: glassPairs, glassSteps: glassSteps };
+    };
+
+    PS.DEMO_SURNAMES = ['Chan', 'Lee', 'Wong', 'Ho', 'Lam', 'Yip', 'Cheung', 'Lau', 'Ng', 'Tsang', 'Pang', 'Chow'];
+
+    /* A deterministic class of demo classmates (bots). Pure: the demo
+       module adds the live player fields. 20–28 keeps the track busy
+       without overwhelming a phone. */
+    PS.buildDemoClassmates = function (opts) {
+        const o = opts || {};
+        const count = Math.max(0, Math.min(28, o.count == null ? 24 : Number(o.count)));
+        const rng = PS.mulberry32(coerceSeed(o.seed == null ? 20261125 : o.seed));
+        const cats = ['Ginger', 'Ragdoll', 'British Shorthair', 'Garfield'];
+        const hats = ['None', 'Party Hat', 'Crown', 'Lo-Fi Headphones', 'None', 'None'];
+        const glasses = ['None', 'Glasses', 'Sunglasses', 'None', 'Cyber Visor', 'None'];
+        const outfits = ['None', 'Racing Jacket', 'Red Scarf', 'School Blazer', 'Football Kit', 'None'];
+        const surnames = PS.DEMO_SURNAMES;
+        const out = [];
+        for (let i = 1; i <= count; i++) {
+            const n = String(i).padStart(2, '0');
+            out.push({
+                user_id: 'demo-' + n,
+                email: 's' + n + '@lstyoungkhl.edu.hk',
+                nickname: '4C ' + n + ' ' + surnames[(i - 1) % surnames.length],
+                form: 'F4',
+                cat: cats[i % cats.length],
+                hat: hats[Math.floor(rng() * hats.length)],
+                glasses: glasses[Math.floor(rng() * glasses.length)],
+                outfit: outfits[Math.floor(rng() * outfits.length)]
+            });
+        }
+        return out;
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Misc UI helpers (pure)                                              */
     /* ------------------------------------------------------------------ */
 

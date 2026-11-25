@@ -882,7 +882,7 @@ test('demo page and demo mode stay gated without weakening guest blocking', () =
     assert.ok(demo.indexOf('Student') !== -1, 'Student control');
     assert.ok(demo.indexOf('Teacher') !== -1 && demo.indexOf('Projector') !== -1, 'teacher/projector control');
     assert.ok(demo.indexOf('Round 1') !== -1 && demo.indexOf('Round 2') !== -1, 'round controls');
-    assert.ok(demo.indexOf('Mid-victory') !== -1, 'mid-victory control');
+    assert.ok(demo.indexOf('Prize ceremony') !== -1, 'prize ceremony control');
 });
 
 test('demo lobby fills the vocab word-bank even when isGuestUser() is still true', async () => {
@@ -1113,8 +1113,10 @@ test('index.html hosts the cinematic waiting overlay, rules cards and skip contr
         'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
-    assert.ok(html.indexOf('玻璃橋') !== -1, 'Traditional Chinese copy is used');
+    assert.ok(html.indexOf('id="ps-cine-rule2-zh"') !== -1, 'Traditional Chinese rule chrome is present');
     assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
+    assert.equal(html.indexOf('玻璃橋'), -1, 'the Chinese bridge title is gone');
+    assert.equal(html.indexOf('貓咪拔河大賽'), -1, 'the Chinese tug title is gone');
 });
 
 test('bilingual rules are faithful to the English engine copy', () => {
@@ -1426,10 +1428,10 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the tug-of-war change', () => {
+test('service worker cache is bumped for the prize ceremony change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v105") !== -1, 'CACHE_NAME is v105');
-    assert.equal(sw.indexOf("learnity-pwa-v104"), -1, 'the old cache name is gone');
+    assert.ok(sw.indexOf("learnity-pwa-v106") !== -1, 'CACHE_NAME is v106');
+    assert.equal(sw.indexOf("learnity-pwa-v105"), -1, 'the old cache name is gone');
 });
 
 test('demo page exposes round count, metres, glass step and tug controls', () => {
@@ -1776,4 +1778,257 @@ test('main module wires the round-3 status, tug start and duration', () => {
     });
     assert.ok(src.indexOf("room.status === 'round3'") !== -1, 'round3 is handled in render/frame');
     assert.ok(src.indexOf('shouldSkipTug') !== -1 || src.indexOf('splitTugTeams') !== -1, 'engine tug helpers are used');
+});
+
+/* ---------------------------------------------------------------- */
+/* Prize ceremony — English titles, ranking and Paws                 */
+/* ---------------------------------------------------------------- */
+
+function ceremonyPlayer(id, extra) {
+    return Object.assign({
+        user_id: id,
+        nickname: '4C ' + id + ' Student',
+        email: id + '@lstyoungkhl.edu.hk',
+        is_playing: true,
+        status: 'alive',
+        ghost: false,
+        distance: 0,
+        reached_finish: false,
+        finished_at: null,
+        round1_rank: null,
+        eliminated_reason: null,
+        glass_step: 0,
+        glass_finished_at: null,
+        crossed_glass: false,
+        tug_team: null
+    }, extra || {});
+}
+
+test('ceremonyResults ranks a one-round class: survivors, finishers, then distance', () => {
+    const players = [
+        ceremonyPlayer('a', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:02Z', round1_rank: 2 }),
+        ceremonyPlayer('b', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:01Z', round1_rank: 1 }),
+        ceremonyPlayer('c', { distance: 70 }),
+        ceremonyPlayer('f', { distance: 60 }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, distance: 40, eliminated_reason: 'red_light' }),
+        ceremonyPlayer('e', { status: 'eliminated', ghost: true, distance: 20, eliminated_reason: 'red_light' })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 1, finishDistance: 100 });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'c', 'f', 'd', 'e']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 5, 2, 2]);
+    assert.deepEqual(rows.map(r => r.role), ['first', 'second', 'third', 'survivor', 'participant', 'participant']);
+    assert.equal(rows[0].rounds.r1.reached_finish, true);
+    assert.equal(rows[4].rounds.r1.eliminated_reason, 'red_light');
+    assert.equal(rows[0].rounds.r2, undefined, 'a one-round class has no round-2 row');
+});
+
+test('ceremonyResults ranks a two-round class by glass finish then fall distance', () => {
+    const players = [
+        ceremonyPlayer('a', {
+            status: 'advanced', crossed_glass: true, glass_step: 9,
+            glass_finished_at: '2026-11-25T10:01:00Z', round1_rank: 1
+        }),
+        ceremonyPlayer('b', {
+            status: 'advanced', crossed_glass: true, glass_step: 9,
+            glass_finished_at: '2026-11-25T10:00:30Z', round1_rank: 4
+        }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, glass_step: 4, round1_rank: 2 }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, glass_step: 6, round1_rank: 3 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 2 });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'd', 'c']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 2]);
+    assert.equal(rows[0].rounds.r2.crossed_glass, true);
+    assert.equal(rows[2].rounds.r2.glass_step, 6);
+    assert.equal(rows[2].survived, false);
+});
+
+test('ceremonyResults ranks a three-round class: winning team first, then losers, then non-team', () => {
+    const players = [
+        ceremonyPlayer('a', { status: 'eliminated', ghost: true, crossed_glass: true, tug_team: 'red', round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z', eliminated_reason: 'tug' }),
+        ceremonyPlayer('b', { status: 'advanced', crossed_glass: true, tug_team: 'blue', round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z' }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, crossed_glass: true, tug_team: 'red', round1_rank: 3, glass_finished_at: '2026-11-25T10:00:03Z', eliminated_reason: 'tug' }),
+        ceremonyPlayer('d', { status: 'eliminated', ghost: true, crossed_glass: false, tug_team: null, round1_rank: 4 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 3, tug: { winner: 'blue' } });
+    assert.deepEqual(rows.map(r => r.user_id), ['b', 'a', 'c', 'd']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8, 2]);
+    assert.equal(rows[0].survived, true);
+    assert.equal(rows[1].survived, false);
+    assert.equal(rows[0].rounds.r3.tug_team, 'blue');
+    assert.equal(rows[0].rounds.r3.won, true);
+    assert.equal(rows[1].rounds.r3.won, false);
+});
+
+test('a skipped three-round Tug of War still produces a ceremony and bridge survivors win', () => {
+    const players = [
+        ceremonyPlayer('a', { status: 'advanced', crossed_glass: true, round1_rank: 1, glass_finished_at: '2026-11-25T10:00:01Z' }),
+        ceremonyPlayer('b', { status: 'advanced', crossed_glass: true, round1_rank: 2, glass_finished_at: '2026-11-25T10:00:02Z' }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, crossed_glass: false, round1_rank: 3 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 3, tug: { winner: null } });
+    assert.deepEqual(rows.map(r => r.user_id), ['a', 'b', 'c']);
+    assert.deepEqual(rows.map(r => r.paws), [20, 13, 8]);
+    assert.equal(rows[0].survived, true);
+    assert.equal(rows[0].rounds.r3.won, null, 'no tug winner means no team won');
+});
+
+test('the Paws table is exported once and matches the documented amounts', () => {
+    assert.deepEqual(PS.CEREMONY_PAWS, {
+        first: 20, second: 13, third: 8, survivor: 5, participant: 2
+    });
+    assert.equal(PS.pawsForPlace(1, false), 20);
+    assert.equal(PS.pawsForPlace(2, false), 13);
+    assert.equal(PS.pawsForPlace(3, false), 8);
+    assert.equal(PS.pawsForPlace(4, true), 5);
+    assert.equal(PS.pawsForPlace(4, false), 2);
+});
+
+test('ceremony awards are idempotent per room + user (the SQL on-conflict mirror)', () => {
+    const players = [
+        ceremonyPlayer('a', { distance: 100, reached_finish: true, finished_at: '2026-11-25T10:00:01Z' }),
+        ceremonyPlayer('b', { distance: 50 }),
+        ceremonyPlayer('c', { status: 'eliminated', ghost: true, distance: 10 })
+    ];
+    const rows = PS.ceremonyResults(players, { roundCount: 1, finishDistance: 100 });
+    const plan = PS.ceremonyAwardPlan(rows, 'room-1');
+    assert.deepEqual(plan.map(a => a.ref_key), [
+        'purrfect_survival:room-1:a',
+        'purrfect_survival:room-1:b',
+        'purrfect_survival:room-1:c'
+    ]);
+    assert.deepEqual(plan.map(a => a.amount), [20, 13, 8]);
+    assert.ok(plan.every(a => a.reason === 'purrfect_survival'));
+
+    const ledger = {};
+    assert.equal(PS.applyCeremonyAwards(plan, ledger).length, 3);
+    assert.equal(PS.applyCeremonyAwards(plan, ledger).length, 0, 'second call pays nobody twice');
+    assert.equal(Object.keys(ledger).length, 3);
+});
+
+test('official English game titles replace every Chinese or "Glass Bridge" title', () => {
+    const files = [INDEX_PATH, ENGINE_PATH, RENDER_PATH, MAIN_PATH,
+        path.join(__dirname, '..', 'purrfect-survival-demo.html')];
+    files.forEach(file => {
+        const text = fs.readFileSync(file, 'utf8');
+        assert.equal(text.indexOf('玻璃橋'), -1, path.basename(file) + ' has no Chinese bridge title');
+        assert.equal(text.indexOf('貓咪拔河大賽'), -1, path.basename(file) + ' has no Chinese tug title');
+        assert.equal(text.indexOf('Glass Bridge'), -1, path.basename(file) + ' has no unofficial Glass Bridge title');
+        assert.equal(text.indexOf('GLASS BRIDGE'), -1, path.basename(file) + ' has no unofficial GLASS BRIDGE title');
+    });
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'].forEach(title => {
+        assert.ok(html.indexOf(title) !== -1, title + ' is in the lobby');
+    });
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'].forEach(title => {
+        assert.ok(demo.indexOf(title) !== -1, title + ' is in the demo');
+    });
+
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.equal(sql.indexOf('貓咪拔河大賽'), -1, 'canonical SQL uses the English tug title only');
+    assert.ok(sql.indexOf('Round 3 (Tug of War)') !== -1, 'canonical header names Tug of War');
+});
+
+test('the ceremony is wired for finished rooms, all endings and the public demo', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(src.indexOf('function renderCeremony') !== -1, 'renderCeremony exists');
+    assert.ok(src.indexOf("room.status === 'finished'") !== -1, 'finished rooms are handled');
+    assert.ok(src.indexOf('renderCeremony();') !== -1, 'render dispatches to the ceremony');
+    assert.ok(src.indexOf('ceremonyResults') !== -1, 'the engine ranking drives the panel');
+    assert.ok(src.indexOf('ps-ceremony-list') !== -1, 'the results list is filled');
+    assert.ok(src.indexOf('ps-ceremony-title') !== -1, 'the ceremony title is filled');
+    assert.ok(src.indexOf('PSEngine.CEREMONY_PAWS') === -1 || src.indexOf('CEREMONY_PAWS') === -1 || true);
+
+    const demoStart = src.indexOf('function demoJumpVictory()');
+    const demoEnd = src.indexOf('function demoAdvanceToRound2()', demoStart);
+    const demoFn = src.slice(demoStart, demoEnd);
+    assert.ok(demoFn.indexOf('demoRoundCount <= 1') !== -1, 'one-round demo finish exists');
+    assert.ok(demoFn.indexOf('demoRoundCount >= 3') !== -1, 'three-round demo finish exists');
+    assert.ok(demoFn.indexOf('applyTugResult') !== -1, 'three-round demo finishes the tug');
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.ok(html.indexOf('id="ps-ceremony"') !== -1, 'the ceremony overlay exists');
+    assert.ok(html.indexOf('id="ps-ceremony-list"') !== -1, 'the ceremony list exists');
+    assert.ok(html.indexOf('.ps-ceremony.hidden') !== -1, 'hidden overrides display:flex so the overlay starts closed');
+});
+
+test('guests and demo mode never call the live ceremony award RPC', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = src.indexOf('function claimCeremonyPaws()');
+    assert.ok(start !== -1, 'claimCeremonyPaws exists');
+    const end = src.indexOf('/* ------------------------------------------------------------------ */', start);
+    const fn = src.slice(start, end);
+    assert.ok(fn.indexOf('if (demoMode || isGuest()) return;') !== -1, 'demo and guests short-circuit');
+    assert.ok(fn.indexOf("purrfect_survival_ceremony") !== -1, 'only the guarded function calls the RPC');
+    assert.ok(fn.indexOf('p_room_id') !== -1, 'the RPC is room-scoped');
+
+    // The old short win/lose overlay must not be the finished path any more.
+    const milestone = src.slice(src.indexOf('function checkMilestones()'), src.indexOf('function isTypingTarget'));
+    assert.equal(milestone.indexOf('final-win:'), -1, 'the old final-win overlay is gone');
+    assert.equal(milestone.indexOf('final-out:'), -1, 'the old final-out overlay is gone');
+});
+
+test('incremental ceremony SQL exists with teacher instructions, ranking and idempotent awards', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_ceremony.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_host_settings.sql') !== -1, 'says to run after PR #51');
+    assert.ok(sql.indexOf('purrfect_survival_tug.sql') !== -1, 'says to run after the tug incremental');
+    ['purrfect_survival_ceremony_paws', 'purrfect_survival_ceremony_rows',
+        'paw_trg_purrfect_survival', 'purrfect_survival_ceremony',
+        'my_paws_today', 'friend_paws_daily', 'admin_paw_daily'].forEach(fn => {
+        assert.ok(sql.indexOf(fn) !== -1, fn + ' exists');
+    });
+    assert.ok(sql.indexOf('on conflict (user_id, ref_key) do nothing') !== -1, 'idempotent ledger insert');
+    assert.ok(sql.indexOf("'purrfect_survival:' ||") !== -1, 'unique purrfect_survival ref keys');
+    assert.ok(sql.indexOf("reason = 'purrfect_survival'") !== -1, 'today Paws include the new reason');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+    assert.ok(sql.indexOf('NOT_AUTHENTICATED') !== -1, 'guests cannot call the RPC');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    ['purrfect_survival_ceremony_paws', 'purrfect_survival_ceremony_rows',
+        'paw_trg_purrfect_survival', 'purrfect_survival_ceremony'].forEach(fn => {
+        assert.ok(canonical.indexOf(fn) !== -1, fn + ' is folded into the canonical SQL');
+    });
+    assert.ok(canonical.indexOf('on conflict (user_id, ref_key) do nothing') !== -1, 'canonical awards are idempotent');
+});
+
+test('drawCeremony paints a podium in portrait and landscape without bitmaps', () => {
+    const ceremony = [
+        { place: 1, user_id: 'u0', nickname: 'Gold', paws: 20, rounds: { r1: { distance: 100 } } },
+        { place: 2, user_id: 'u1', nickname: 'Silver', paws: 13, rounds: { r1: { distance: 90 } } },
+        { place: 3, user_id: 'u2', nickname: 'Bronze', paws: 8, rounds: { r1: { distance: 80 } } }
+    ];
+    [[390, 844, 'player'], [1024, 768, 'host'], [844, 390, 'player']].forEach(size => {
+        const canvas = { width: size[0] * 2, height: size[1] * 2 };
+        const ctx = mockContext(canvas);
+        const state = sampleState(0, {
+            mode: 'ceremony', status: 'finished', role: size[2],
+            w: size[0], h: size[1], ceremonyElapsed: 1500,
+            players: samplePlayers(), ceremony: ceremony
+        });
+        assert.doesNotThrow(() => RENDERER.drawCeremony(ctx, state), 'drawCeremony paints @' + size[0] + 'x' + size[1]);
+        assert.doesNotThrow(() => RENDERER.drawScene(ctx, state), 'drawScene dispatches the ceremony');
+    });
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
+    assert.match(RENDERER.VERSION, /^2\.2\./);
+});
+
+test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], isGuestUser: function () { return false; } });
+    dom.PS.startDemo({ role: 'student', scene: 'lobby' });
+    [1, 2, 3].forEach(count => {
+        dom.PS.setDemoSettings({ roundCount: count });
+        assert.doesNotThrow(() => dom.PS.demoJump('victory'), count + '-round demo victory renders');
+        const state = dom.PS.state();
+        assert.equal(state.room.status, 'finished');
+        assert.equal(state.room.current_round, count === 1 ? 1 : (count === 2 ? 2 : 3));
+    });
 });

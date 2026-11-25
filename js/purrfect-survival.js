@@ -58,6 +58,11 @@
     let introSeen = {};
     let cueTimer = 0;
     let rulesPainted = false;
+    let ceremonyStart = 0;
+    let ceremonyRoomId = '';
+    let ceremonyCache = null;
+    let ceremonyOfficial = null;
+    let ceremonySaveState = '';
 
     /* ---- public demo (no login, no Supabase) -------------------------- */
     const DEMO_ROUND_MS = 120000;
@@ -903,6 +908,7 @@
                 .eq('room_id', room.id);
             if (!result.error) players = result.data || [];
             me = myPlayer();
+            if (room.status === 'finished') ceremonyCache = null;
 
             if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
 
@@ -1090,17 +1096,24 @@
             return;
         }
         if (room.status === 'waiting') {
+            hideCeremony();
             renderWaiting();
             return;
         }
+        if (room.status === 'finished') {
+            if (introPlaying) markIntroSeen(room.id);
+            renderCeremony();
+            return;
+        }
+        hideCeremony();
         if (introPlaying) markIntroSeen(room.id);
         setPanel('game');
         setLive(room.status === 'round1' || room.status === 'round2' || room.status === 'round3');
         const isR3 = room.status === 'round3' || (room.status === 'finished' && roomRound() === 3);
         const isR2 = !isR3 && roomRound() === 2;
         setText('ps-hud-round', isR3
-            ? 'ROUND 3 · TUG OF WAR'
-            : (isR2 ? 'ROUND 2 · GLASS BRIDGE' : 'ROUND 1 · 1-2-3 Meow!'));
+            ? 'ROUND 3 · Tug of War'
+            : (isR2 ? 'ROUND 2 · Glass Stepping Stones' : 'ROUND 1 · 1-2-3 Meow!'));
         setText('ps-hud-rule', isR3
             ? PSEngine.RULE_TEXT.round3
             : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1));
@@ -1310,7 +1323,8 @@
     function startFrames() {
         if (rafId) return;
         if (!room) return;
-        if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2' && room.status !== 'round3') return;
+        if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2'
+            && room.status !== 'round3' && room.status !== 'finished') return;
         lastFrame = 0;
         rafId = requestAnimationFrame(frame);
     }
@@ -1345,7 +1359,8 @@
         if (!room) return;
         const waiting = room.status === 'waiting';
         const playing = room.status === 'round1' || room.status === 'round2' || room.status === 'round3';
-        if (!waiting && !playing) return;
+        const finished = room.status === 'finished';
+        if (!waiting && !playing && !finished) return;
 
         // Canvas art at ~30 fps keeps 30 cats smooth on phones; the DOM HUD
         // and phase sounds still update on every animation frame.
@@ -1359,7 +1374,10 @@
                 const nowMs = serverNow();
                 const state = {
                     mode: waiting ? 'intro' : 'round',
-                    round: waiting ? 0 : (isR3 ? 3 : (isR2 ? 2 : 1)),
+                    status: room.status,
+                    round: (waiting || finished) ? 0 : (isR3 ? 3 : (isR2 ? 2 : 1)),
+                    ceremonyElapsed: finished ? Math.max(0, Date.now() - (ceremonyStart || Date.now())) : 0,
+                    ceremony: finished ? ceremonyRows() : null,
                     introElapsed: waiting ? introElapsedMs() : 0,
                     role: (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
                     w: surface.w,
@@ -1390,6 +1408,7 @@
                         suddenDeath: tug.suddenDeath
                     } : null
                 };
+                if (finished) state.mode = 'ceremony';
                 if (typeof PSRender !== 'undefined' && PSRender.drawScene) {
                     PSRender.drawScene(surface.ctx, state);
                 }
@@ -1399,7 +1418,7 @@
 
         if (waiting) {
             updateIntroChrome();
-        } else {
+        } else if (playing) {
             updateHud();
             handlePhaseSound();
         }
@@ -1439,7 +1458,7 @@
                 delete prompt.dataset.red;
             }
         } else if (room.status === 'round2') {
-            setText('ps-hud-phase', '🧊 GLASS BRIDGE');
+            setText('ps-hud-phase', '🧊 Glass Stepping Stones');
             const hudPhase = $('ps-hud-phase');
             if (hudPhase) hudPhase.className = 'ps-phase ps-phase-glass';
             setText('ps-hud-you', me && isPlayingPlayer(me)
@@ -1983,6 +2002,182 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Prize ceremony / Paws                                              */
+    /* ------------------------------------------------------------------ */
+
+    function ceremonyRoundNames(count) {
+        if (count >= 3) return ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'];
+        if (count === 2) return ['1-2-3 Meow!', 'Glass Stepping Stones'];
+        return ['1-2-3 Meow!'];
+    }
+
+    function ceremonyRows() {
+        if (!room) return [];
+        if (!ceremonyCache) {
+            ceremonyCache = PSEngine.ceremonyResults(players.map(p => Object.assign({}, p)), {
+                roundCount: roomRoundCount(),
+                tug: tugState(),
+                finishDistance: finishDistance()
+            });
+        }
+        return ceremonyCache;
+    }
+
+    function ceremonyDetailText(row) {
+        const r = (row && row.rounds) || {};
+        const parts = [];
+        if (r.r1) {
+            parts.push(r.r1.eliminated && !r.r1.reached_finish
+                ? 'R1 out'
+                : 'R1 ' + r.r1.distance + ' m' + (r.r1.reached_finish ? ' 🏁' : ''));
+        }
+        if (r.r2) {
+            parts.push(r.r2.crossed_glass ? 'R2 crossed' : 'R2 step ' + (r.r2.glass_step || 0));
+        }
+        if (r.r3) {
+            if (r.r3.tug_team) {
+                parts.push('R3 ' + r.r3.tug_team + (r.r3.won === true ? ' won' : (r.r3.won === false ? ' lost' : '')));
+            } else {
+                parts.push('R3 no team');
+            }
+        }
+        return parts.join(' · ');
+    }
+
+    function ceremonySummaryHTML(rows, count) {
+        const items = [];
+        const r1Survivors = rows.filter(row => !row.rounds.r1.eliminated).length;
+        const r1Finishers = rows.filter(row => row.rounds.r1.reached_finish).length;
+        items.push('Round 1 · 1-2-3 Meow! — ' + r1Survivors + ' standing'
+            + (r1Finishers ? ' · ' + r1Finishers + ' finished' : ''));
+        if (count >= 2) {
+            const crossed = rows.filter(row => row.rounds.r2 && row.rounds.r2.crossed_glass).length;
+            const fell = rows.filter(row => row.rounds.r2 && !row.rounds.r2.crossed_glass).length;
+            items.push('Round 2 · Glass Stepping Stones — ' + crossed + ' crossed'
+                + (fell ? ' · ' + fell + ' fell' : ''));
+        }
+        if (count >= 3) {
+            const tug = tugState();
+            if (tug.winner) {
+                items.push('Round 3 · Tug of War — ' + (tug.winner === 'red' ? 'Red' : 'Blue') + ' team won');
+            } else {
+                items.push('Round 3 · Tug of War — skipped (not enough survivors); bridge survivors win');
+            }
+        }
+        return items.map(item => '<div class="ps-ceremony-summary-row">' + escapeText(item) + '</div>').join('');
+    }
+
+    function ceremonyRowsHTML(rows) {
+        const mine = signedInUser() ? String(signedInUser().id) : '';
+        return rows.map(row => {
+            const place = Number(row.place) || 0;
+            const medal = place === 1 ? '🥇' : (place === 2 ? '🥈' : (place === 3 ? '🥉' : '#' + place));
+            const isMine = mine && String(row.user_id) === mine;
+            return '<div class="ps-ceremony-row' + (isMine ? ' ps-ceremony-me' : '') + '">' +
+                '<span class="ps-ceremony-medal">' + medal + '</span>' +
+                '<span class="ps-ceremony-name">' + escapeText(row.nickname || 'Player') +
+                (isMine ? ' (you)' : '') + '</span>' +
+                '<span class="ps-ceremony-detail">' + escapeText(ceremonyDetailText(row)) + '</span>' +
+                '<span class="ps-ceremony-paws">+' + (Number(row.paws) || 0) + ' 🐾</span>' +
+                '</div>';
+        }).join('');
+    }
+
+    function ceremonyNoteText() {
+        if (demoMode) return 'Demo mode — these are the Paws the class would earn. Nothing is saved.';
+        if (isGuest()) return 'Sign in with a school account to earn Paws.';
+        if (ceremonySaveState === 'saved') return '🐾 Paws saved to the class ledger.';
+        if (ceremonySaveState === 'local') {
+            return 'Paws are shown for this screen only — run supabase/purrfect_survival_ceremony.sql to save them.';
+        }
+        return 'Saving Paws…';
+    }
+
+    function hideCeremony() {
+        const overlay = $('ps-ceremony');
+        if (overlay) overlay.classList.add('hidden');
+        const hud = document.querySelector('#ps-game .ps-hud');
+        if (hud) hud.classList.remove('hidden');
+    }
+
+    function renderCeremony() {
+        if (!room || room.status !== 'finished') {
+            hideCeremony();
+            return;
+        }
+        if (ceremonyRoomId !== room.id) {
+            ceremonyRoomId = room.id;
+            ceremonyStart = Date.now();
+            ceremonyCache = null;
+            ceremonyOfficial = null;
+            ceremonySaveState = '';
+        }
+        setPanel('game');
+        setLive(true);
+        show('ps-question', false);
+        const hud = document.querySelector('#ps-game .ps-hud');
+        if (hud) hud.classList.add('hidden');
+        show('ps-ceremony', true);
+
+        const count = roomRoundCount();
+        const names = ceremonyRoundNames(count);
+        const localRows = ceremonyRows();
+        const rows = (ceremonyOfficial && Array.isArray(ceremonyOfficial.results) && ceremonyOfficial.results.length)
+            ? ceremonyOfficial.results
+            : localRows;
+
+        setText('ps-ceremony-title', '🏆 Prize Ceremony');
+        setText('ps-ceremony-sub', count + ' round' + (count === 1 ? '' : 's') + ' · ' + names.join(' → '));
+        const summary = $('ps-ceremony-summary');
+        if (summary) summary.innerHTML = ceremonySummaryHTML(localRows, count);
+        const list = $('ps-ceremony-list');
+        if (list) list.innerHTML = ceremonyRowsHTML(rows);
+        setText('ps-ceremony-note', ceremonyNoteText());
+
+        claimCeremonyPaws();
+        if (!rafId) startFrames();
+    }
+
+    /* Live only: ask the security-definer RPC to award the ledger once per
+       room. Demo mode and guests never reach this function. Missing SQL is
+       shown honestly as "screen only" — the client never pretends to pay. */
+    function claimCeremonyPaws() {
+        if (demoMode || isGuest()) return;
+        if (!room || room.status !== 'finished') return;
+        if (!once('ceremony-claim:' + room.id)) return;
+        ceremonySaveState = 'pending';
+        if (typeof sb === 'undefined' || !sb || typeof sb.rpc !== 'function') {
+            ceremonySaveState = 'local';
+            return;
+        }
+        Promise.resolve(sb.rpc('purrfect_survival_ceremony', { p_room_id: room.id }))
+            .then(result => {
+                const error = result && result.error;
+                let payload = result && result.data;
+                if (typeof payload === 'string') {
+                    try { payload = JSON.parse(payload); } catch (e) { payload = null; }
+                }
+                if (error) {
+                    ceremonySaveState = 'local';
+                    console.warn('Purr-fect Survival ceremony RPC failed:', error.message || error);
+                } else {
+                    if (payload && Array.isArray(payload.results) && payload.results.length) {
+                        ceremonyOfficial = payload;
+                    }
+                    ceremonySaveState = 'saved';
+                }
+                if (room && room.status === 'finished'
+                    && typeof currentView !== 'undefined' && currentView === VIEW_ID) {
+                    render();
+                }
+            })
+            .catch(err => {
+                ceremonySaveState = 'local';
+                console.warn('Purr-fect Survival ceremony RPC failed:', err && err.message ? err.message : err);
+            });
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Overlays / milestones                                              */
     /* ------------------------------------------------------------------ */
 
@@ -2028,9 +2223,9 @@
         if (!el) return;
         const n = Number(roundNo) || 1;
         if (n === 3) {
-            el.innerHTML = '<b>🪢 ROUND 3 · 貓咪拔河大賽</b><span>Answer 1–4 · pull +1 · five in a row = 爆走拉力 2x</span>';
+            el.innerHTML = '<b>🪢 ROUND 3 · Tug of War</b><span>Answer 1–4 · pull +1 · five in a row = 爆走拉力 2x</span>';
         } else if (n === 2) {
-            el.innerHTML = '<b>🧊 ROUND 2 · 玻璃橋</b><span>Pick the tempered pane before 5 s</span>';
+            el.innerHTML = '<b>🧊 ROUND 2 · Glass Stepping Stones</b><span>Pick the tempered pane before 5 s</span>';
         } else {
             el.innerHTML = '<b>🟢 ROUND 1 · 1-2-3 Meow!</b><span>Green = answer · Red = freeze</span>';
         }
@@ -2077,59 +2272,6 @@
         );
     }
 
-    function finishedOverlayInfo() {
-        const count = roomRoundCount();
-        const tug = tugState();
-        const myTeam = tugTeamOf(me);
-        if (count >= 3) {
-            if (tug.winner) {
-                if (myTeam === tug.winner) {
-                    return {
-                        win: true,
-                        title: '🏆 Victory in the Tug of War!',
-                        body: 'Your team pulled the golden salmon past the centre line and survived. You can go back to the Hub.'
-                    };
-                }
-                if (myTeam) {
-                    return {
-                        win: false,
-                        title: '💀 Your team fell into the abyss',
-                        body: 'The other team pulled harder. You can go back to the Hub and try again in the next class.'
-                    };
-                }
-                return {
-                    win: false,
-                    title: 'The Tug of War is over',
-                    body: 'Your class finished Purr-fect Survival. You can go back to the Hub.'
-                };
-            }
-            // Tug skipped (fewer than 2 survivors): bridge survivors win.
-            const survived = !!(me && (me.crossed_glass || me.status === 'advanced') && !me.ghost);
-            return survived
-                ? { win: true, title: '🎉 Victory!', body: 'You survived the glass bridge — there were not enough survivors for the Tug of War, so you win. You can go back to the Hub.' }
-                : { win: false, title: 'The class is over', body: 'Your class finished Purr-fect Survival. You can go back to the Hub.' };
-        }
-        const onlyRound1 = count === 1;
-        const survived = onlyRound1
-            ? !!(me && me.status !== 'eliminated' && me.ghost !== true)
-            : !!(me && (me.crossed_glass || me.status === 'advanced'));
-        return survived
-            ? {
-                win: true,
-                title: onlyRound1 ? '🎉 Victory in 1-2-3 Meow!' : '🎉 Mid-victory!',
-                body: onlyRound1
-                    ? 'You survived Red Light, Green Light. Round 2 was not selected for this class — every student still standing wins. You can go back to the Hub.'
-                    : 'You survived the glass bridge. This class chose two rounds, so every survivor wins. You can go back to the Hub.'
-            }
-            : {
-                win: false,
-                title: onlyRound1 ? '1-2-3 Meow! is over' : 'The bridge is over',
-                body: onlyRound1
-                    ? 'Your class finished Round 1. You can go back to the Hub.'
-                    : 'Your class finished Round 2. You can go back to the Hub.'
-            };
-    }
-
     function checkMilestones() {
         if (!room || !me) return;
         if (room.status === 'round1' && once('cue1:' + room.id)) {
@@ -2145,14 +2287,7 @@
             showEliminatedOverlay();
         }
         if (room.status === 'finished') {
-            const info = finishedOverlayInfo();
-            if (info.win) {
-                if (once('final-win:' + room.id)) {
-                    PS.showOverlay(info.title, info.body, '🎉', 'Back to Hub', () => PS.backToHub());
-                }
-            } else if (once('final-out:' + room.id)) {
-                PS.showOverlay(info.title, info.body, '🏁', 'Back to Hub', () => PS.backToHub());
-            }
+            claimCeremonyPaws();
         }
     }
 
@@ -2268,6 +2403,7 @@
     PS.stop = function () {
         stopPolling();
         stopFrames();
+        hideCeremony();
         setLive(false);
         if (cueTimer) {
             clearTimeout(cueTimer);
@@ -2801,6 +2937,43 @@
         const playing = players.filter(isPlayingPlayer);
         const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
         const bots = playing.filter(function (p) { return p.user_id !== DEMO_VISITOR_ID; });
+
+        if (demoRoundCount <= 1) {
+            /* One-round ending: the class finishes in 1-2-3 Meow!. */
+            const survivors = [];
+            if (visitor && demoRole === 'student') survivors.push(visitor);
+            bots.slice(0, 9).forEach(function (p) { survivors.push(p); });
+            const kept = {};
+            survivors.forEach(function (p, i) {
+                kept[p.user_id] = true;
+                p.status = 'alive';
+                p.ghost = false;
+                p.distance = i < 4 ? demoFinishDistance : Math.max(10, demoFinishDistance - (i + 1) * 8);
+                p.reached_finish = i < 4;
+                p.finished_at = i < 4 ? new Date(now - (4 - i) * 900).toISOString() : null;
+            });
+            playing.forEach(function (p) {
+                if (kept[p.user_id]) return;
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = 'red_light';
+                p.distance = Math.max(0, 30 - p.demo_attempts * 5);
+            });
+            room.status = 'finished';
+            room.current_round = 1;
+            room.round2_started_at = null;
+            room.round2_ends_at = null;
+            room.round3_started_at = null;
+            room.round3_ends_at = null;
+            room.tug_state = PSEngine.emptyTugState();
+            room.finished_at = new Date(now).toISOString();
+            shownKeys = {};
+            questionsKey = '';
+            me = myPlayer();
+            PS.hideOverlay();
+            return;
+        }
+
         bots.slice(0, 5).forEach(function (p, i) {
             p.status = 'advanced';
             p.crossed_glass = true;
@@ -2809,6 +2982,7 @@
             p.glass_step = demoGlassStepCount;
             p.glass_active = false;
             p.round1_rank = i + 1;
+            p.glass_finished_at = new Date(now - (9 - i) * 1200).toISOString();
         });
         if (visitor && demoRole === 'student') {
             visitor.status = 'advanced';
@@ -2818,6 +2992,7 @@
             visitor.glass_step = demoGlassStepCount;
             visitor.glass_active = false;
             visitor.round1_rank = 1;
+            visitor.glass_finished_at = new Date(now - 12000).toISOString();
         }
         playing.forEach(function (p) {
             if (p.status !== 'advanced') {
@@ -2827,13 +3002,34 @@
                 p.glass_active = false;
             }
         });
+
+        if (demoRoundCount >= 3) {
+            /* Three-round ending: the glass survivors play the Tug of War. */
+            const crossers = playing.filter(function (p) {
+                return p.status === 'advanced' || p.crossed_glass === true;
+            });
+            let winner = 'red';
+            const split = PSEngine.splitTugTeams(crossers);
+            split.forEach(function (s) {
+                const p = crossers.find(function (x) { return x.user_id === s.user_id; });
+                if (p) p.tug_team = s.tug_team;
+            });
+            if (visitor && visitor.tug_team) winner = visitor.tug_team;
+            PSEngine.applyTugResult(playing, winner);
+            room.tug_state = Object.assign(PSEngine.emptyTugState(), { phase: 'done', winner: winner });
+            room.current_round = 3;
+            room.round3_started_at = new Date(now - 45000).toISOString();
+            room.round3_ends_at = new Date(now).toISOString();
+        } else {
+            room.current_round = 2;
+            room.round3_started_at = null;
+            room.round3_ends_at = null;
+            room.tug_state = PSEngine.emptyTugState();
+        }
+
         room.status = 'finished';
-        room.current_round = 2;
         room.round2_started_at = room.round2_started_at || new Date(now - 40000).toISOString();
         room.round2_ends_at = new Date(now).toISOString();
-        room.round3_started_at = null;
-        room.round3_ends_at = null;
-        room.tug_state = PSEngine.emptyTugState();
         room.finished_at = new Date(now).toISOString();
         glassSteps = demoBuildGlassSteps();
         for (let i = 0; i < glassSteps.length; i++) PSEngine.revealGlassStep(glassSteps[i], 'correct');

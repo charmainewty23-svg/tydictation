@@ -3506,9 +3506,9 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   - `supabase/purrfect_survival.sql` — 老師自己喺 live project `mggnwzirjmibreimrwiq`
     嘅 SQL editor 貼一次（可重跑；**唔好**用 plugin／agent 跑）。
 - **流程**：房主揀 **Vocab 或 Grammar（唔可以混合）** → 建立房間 → 學生用 4 位房碼加入
-  → 房主 Start（至少 2 個玩家）→ Round 1 → 自動／房主手動轉 Round 2 → 完場顯示
-  中途勝利／出局畫面（Round 3 同 Squid Circle 未做）。`current_round`／`status`
-  預留日後加回合。
+  → 房主 Start（至少 2 個玩家）→ Round 1 →（2／3 回合房）自動／房主手動轉
+  Round 2 →（3 回合房）Tug of War → 任何結局都出 **prize ceremony**（見 §10.18c）。
+  Round 4–5（Squid Circle）仍未做；`current_round`／`status` 預留日後加回合。
 - **Round 1（1-2-3 Meow!）**：server 存 `phase_schedule`（green 4–8s、yellow 2s、
   red 3s）同 `round1_started_at`；所有電話用 server 時間重算 phase，RPC 亦用
   `now()` 驗證。Green／Yellow 答對 +10m；Red 亂撳第 1 次 −30m、第 2 次 −15m、
@@ -3525,7 +3525,8 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
 ### 10.18a Cinematic 3D entrance＋3D 場景（2026-11 加）
 
 - **目的**：老師話原本「flat cartoon sunset field＋bright cyan sky」好假。而家
-  Purr-fect Survival **全部用 3D 透視**（hallway → 樓梯迷宮 → 沙地遊樂場 → 黑暗劇院玻璃橋），
+  Purr-fect Survival **全部用 3D 透視**（hallway → 樓梯迷宮 → 沙地遊樂場 →
+  黑暗劇院（Glass Stepping Stones）→ Tug of War 倉庫），
   但**冇**引入 Three.js／任何 library。
 - **`js/purrfect-survival-render.js`（VERSION `2.0.0`）**：自己寫嘅 lightweight
   perspective camera（`makeCam`／`toCam`／`projectCam`／`project`、near-plane
@@ -3575,3 +3576,66 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   painter order（遠→近）。Static cache key 有 scene＋role，改相機記得
   同時改 key 或 bump。Portrait 嘅 horizontal FOV 好窄（≈33°），所以
   portrait 專用 `pgLayout()` 會收窄擺位；老師 landscape 用 wide layout。
+
+### 10.18b English game titles（2026-11 加）
+
+- 三個回合嘅**官方遊戲名只用英文**，所有 UI、demo、SQL header、test 都唔再用
+  中文標題。正式寫法（大小楷、連字號、感嘆號都要跟）：
+  - Round 1: **1-2-3 Meow!**
+  - Round 2: **Glass Stepping Stones**
+  - Round 3: **Tug of War**
+- 已經清走嘅舊中文標題（橋類／拔河類），以及非官方英文短名（lobby
+  `<option>`、`<h3>`、HUD pill、round cue 全部已換成上面三個官方名）。
+  規則內文、`PSEngine.RULE_TEXT_ZH`、`主題` 等老師介面中文、
+  以及 `爆走拉力 2x` 這類玩法字眼**保持不變**。
+- 改動提示：加新回合時，`PSEngine.RULE_TEXT`、`index.html` lobby／rules 卡、
+  `js/purrfect-survival.js` HUD／cue、renderer pill 同 SQL header 要一齊用
+  同一個英文官方名；唔好再引入中文遊戲標題。
+
+### 10.18c Prize ceremony ＋ Paws（2026-11 加）
+
+- Room 一變 `status = 'finished'`（無論玩 1、2 或 3 回合，包括 Tug of War
+  因人數不足而 skip），老師同每位學生都會見到同一個 **prize ceremony**：
+  - Canvas：`PSRender.drawCeremony()` 畫原創 3D podium（2nd｜1st｜3rd），
+    用 `DG.drawCatAvatar` 畫每位得獎者隻貓，配合金／銀／銅台階、
+    聚光燈同彩帶；`R.drawScene` 見到 `mode === 'ceremony'` 或
+    `status === 'finished'` 就畫呢個 scene。`R.VERSION` 已升到 `2.2.0`。
+  - HTML：`#ps-ceremony` panel 顯示 ceremony title、每回合 summary（R1
+    距離／過橋／Tug 勝方）同完整 ranking，每行有 per-round 小字同
+    `+20 🐾` 等 Paws。Back to Hub 仍然喺 panel 底部。
+- **Paws 表**（`PSEngine.CEREMONY_PAWS`，JS 同 SQL 同一個 source of truth）：
+  | 名次／角色 | Paws |
+  |---|---|
+  | 1st overall | 20 |
+  | 2nd overall | 13 |
+  | 3rd overall | 8 |
+  | 其他 survivor／finisher | 5 |
+  | 其他 participant（出局） | 2 |
+  Top 3 永遠取得獎台金額，即使佢係出局者；第 4 名起才分
+  survivor（5）／participant（2）。只有 `is_playing !== false` 嘅玩家有份，
+  純粹做 host、冇落場嘅老師唔會收 Paws。
+- **Ranking**：`PSEngine.ceremonyResults(players, { roundCount, tug, finishDistance })`
+  只讀遊戲已存在嘅欄位：
+  - 1 回合：survivors 先（reached_finish → finished_at → distance → user_id），
+    出局者按 distance desc → user_id。
+  - 2 回合：過橋者先（glass_finished_at → round1_rank → user_id），
+    其他人按 glass_step desc → round1_rank → distance → user_id。
+  - 3 回合：有 winner 就 winning team → losing team → 冇 team；Tug skip 就
+    glass survivors 先。組內按 glass_finished_at → round1_rank → user_id。
+- **寫入路徑**：live 房間完成後，client 用 `once()` 對
+  `purrfect_survival_ceremony(p_room_id)` 呼叫一次；RPC 同 trigger 都會用
+  `ref_key = purrfect_survival:<room>:<user>`、`reason = 'purrfect_survival'`，
+  `on conflict (user_id, ref_key) do nothing`，所以 refresh／重連都唔會double-pay。
+  Demo（`PS.isDemoMode()`）同訪客（`isGuest()`）**唔會**call RPC／寫
+  `paw_ledger`。SQL 未跑時 panel 會寫「screen only」，唔會假裝已入帳。
+- `my_paws_today()` 同 `friend_paws_daily()` 已把
+  `reason = 'purrfect_survival'` 計入當日 Paws（同 `class_battle` 一樣）；
+  `my_paw_balance()`／Store 不變，仍然加總整個 ledger。
+- **SQL**：增量檔 `supabase/purrfect_survival_ceremony.sql`，喺 live project
+  `mggnwzirjmibreimrwiq` SQL editor 貼（先清空；喺
+  `purrfect_survival_host_settings.sql` 同 `purrfect_survival_tug.sql` 之後；
+  可重跑；**唔好**用 plugin／agent 跑）。Canonical
+  `supabase/purrfect_survival.sql` 亦已包含同一套 function／trigger／RPC。
+- **測試**：`node --test tests/purrfect-survival.test.cjs` 覆蓋 1／2／3 回合
+  （含 Tug skip）ranking、Paws 表、idempotent award、英文標題、guest／demo
+  保護、`drawCeremony` portrait／landscape，以及 incremental SQL 檢查。

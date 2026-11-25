@@ -4713,6 +4713,126 @@
         }
         .ps-overlay-card .ps-primary { max-width: 280px; margin: 0 auto; }
 
+        /* ---------- prize ceremony ---------- */
+        .ps-ceremony {
+            position: absolute;
+            inset: 0;
+            z-index: 14;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 12px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+            background: linear-gradient(to bottom, rgba(8, 5, 18, 0) 0%, rgba(8, 5, 18, .18) 42%, rgba(8, 5, 18, .82) 100%);
+            pointer-events: none;
+        }
+        .ps-ceremony.hidden { display: none; }
+        .ps-ceremony-card {
+            pointer-events: auto;
+            width: min(720px, 100%);
+            max-height: 58%;
+            overflow: auto;
+            padding: 14px 16px 16px;
+            border-radius: 1.25rem;
+            background: rgba(17, 10, 30, .94);
+            border: 2px solid rgba(251, 191, 36, .55);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .06) inset;
+            color: #f8fafc;
+        }
+        .ps-ceremony-head { text-align: center; }
+        .ps-ceremony-kicker {
+            margin: 0;
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: .18em;
+            color: #fbbf24;
+        }
+        .ps-ceremony-card h2 {
+            margin: 2px 0 3px;
+            font-size: clamp(19px, 4.4vw, 27px);
+            font-weight: 800;
+            color: #fef3c7;
+        }
+        .ps-ceremony-sub {
+            margin: 0 0 9px;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(248, 250, 252, .7);
+        }
+        .ps-ceremony-summary {
+            display: grid;
+            gap: 3px;
+            margin-bottom: 9px;
+            padding: 7px 9px;
+            border-radius: .75rem;
+            background: rgba(251, 191, 36, .09);
+            border: 1px solid rgba(251, 191, 36, .24);
+        }
+        .ps-ceremony-summary-row {
+            font-size: 10.5px;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #fde68a;
+        }
+        .ps-ceremony-list {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 9px;
+        }
+        .ps-ceremony-row {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1.35fr) auto;
+            align-items: center;
+            gap: 6px;
+            min-height: 32px;
+            padding: 4px 7px;
+            border-radius: .65rem;
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid rgba(255, 255, 255, .05);
+        }
+        .ps-ceremony-row.ps-ceremony-me {
+            background: rgba(251, 191, 36, .14);
+            border-color: rgba(251, 191, 36, .5);
+        }
+        .ps-ceremony-medal {
+            font-size: 14px;
+            font-weight: 800;
+            text-align: center;
+            color: #fde68a;
+        }
+        .ps-ceremony-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 11.5px;
+            font-weight: 800;
+        }
+        .ps-ceremony-detail {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(248, 250, 252, .62);
+        }
+        .ps-ceremony-paws {
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+            color: #fbcfe8;
+        }
+        .ps-ceremony-note {
+            margin: 0 0 10px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.35;
+            color: rgba(248, 250, 252, .58);
+        }
+        .ps-ceremony-card .ps-primary { max-width: 260px; margin: 0 auto; }
+
         /* ---------- landscape / projector ---------- */
         @media (orientation: landscape) and (min-width: 700px) {
             .ps-hero-icon { width: 56px; height: 56px; font-size: 30px; }
@@ -4733,6 +4853,12 @@
             .ps-hud { padding: 5px 9px 8px; }
             .ps-badge, .ps-alive, .ps-phase, .ps-timer { min-height: 26px; font-size: 10.5px; padding: 3px 8px; }
             .ps-host-btn, .ps-icon-btn { min-height: 27px; font-size: 10px; }
+            .ps-ceremony {
+                align-items: center;
+                justify-content: flex-end;
+                padding-right: max(14px, env(safe-area-inset-right));
+            }
+            .ps-ceremony-card { width: min(460px, 46vw); max-height: calc(100% - 18px); }
         }
         @media (max-height: 560px) and (orientation: landscape) {
             .ps-hud-row { gap: 5px; }
@@ -4756,6 +4882,15 @@
             .ps-overlay-card h2 { font-size: 20px; margin: 4px 0; }
             .ps-overlay-card p { font-size: 12.5px; margin-bottom: 10px; }
             .ps-primary { min-height: 44px; }
+            .ps-ceremony-card { padding: 9px 11px 11px; max-height: calc(100% - 10px); }
+            .ps-ceremony-sub { margin-bottom: 5px; font-size: 9.5px; }
+            .ps-ceremony-summary { margin-bottom: 5px; padding: 5px 7px; }
+            .ps-ceremony-summary-row { font-size: 9px; }
+            .ps-ceremony-row { min-height: 26px; padding: 2px 5px; }
+            .ps-ceremony-name { font-size: 10px; }
+            .ps-ceremony-detail { font-size: 9px; }
+            .ps-ceremony-paws { font-size: 10px; }
+            .ps-ceremony-note { margin-bottom: 6px; font-size: 9px; }
         }
         @media (max-width: 430px) {
             .ps-lobby { padding: 14px 12px 24px; }
@@ -5690,7 +5825,7 @@
                             <div class="ps-hero-icon">🦑</div>
                             <div>
                                 <h1>Purr-fect Survival</h1>
-                                <p>One class, one survival game. Round 1: 1-2-3 Meow! (Red Light, Green Light). Round 2: Glass Stepping Stones. Round 3: 貓咪拔河大賽 (Tug of War). Later rounds are coming soon.</p>
+                                <p>One class, one survival game. Round 1: 1-2-3 Meow! (Red Light, Green Light). Round 2: Glass Stepping Stones. Round 3: Tug of War. Later rounds are coming soon.</p>
                             </div>
                         </div>
 
@@ -5713,8 +5848,8 @@
                                     <label for="ps-round-count">Rounds to play</label>
                                     <select id="ps-round-count" onchange="PS.syncRoundCount()">
                                         <option value="1">1 round · 1-2-3 Meow!</option>
-                                        <option value="2" selected>2 rounds · 1-2-3 Meow! + Glass Bridge</option>
-                                        <option value="3">3 rounds · 1-2-3 Meow! + Glass Bridge + Tug of War</option>
+                                        <option value="2" selected>2 rounds · 1-2-3 Meow! + Glass Stepping Stones</option>
+                                        <option value="3">3 rounds · 1-2-3 Meow! + Glass Stepping Stones + Tug of War</option>
                                         <option value="4" disabled>4 rounds · coming soon</option>
                                         <option value="5" disabled>5 rounds · coming soon</option>
                                     </select>
@@ -5762,7 +5897,7 @@
                                 </section>
 
                                 <section id="ps-round2-card" class="ps-round-config">
-                                    <h3 class="ps-round-title">Round 2 · Glass Bridge</h3>
+                                    <h3 class="ps-round-title">Round 2 · Glass Stepping Stones</h3>
                                     <div class="ps-field">
                                         <label for="ps-r2-subject">Subject</label>
                                         <select id="ps-r2-subject" onchange="PS.syncSubjectFields(2)">
@@ -5894,12 +6029,12 @@
                                             <p id="ps-cine-rule1-zh" class="ps-rule-zh"></p>
                                         </div>
                                         <div id="ps-cine-rule2" class="ps-rule-card">
-                                            <h3><span class="ps-rule-tag">ROUND 2</span> 玻璃橋</h3>
+                                            <h3><span class="ps-rule-tag">ROUND 2</span> Glass Stepping Stones</h3>
                                             <p id="ps-cine-rule2-en" class="ps-rule-en"></p>
                                             <p id="ps-cine-rule2-zh" class="ps-rule-zh"></p>
                                         </div>
                                         <div id="ps-cine-rule3" class="ps-rule-card hidden">
-                                            <h3><span class="ps-rule-tag">ROUND 3</span> 貓咪拔河大賽</h3>
+                                            <h3><span class="ps-rule-tag">ROUND 3</span> Tug of War</h3>
                                             <p id="ps-cine-rule3-en" class="ps-rule-en"></p>
                                             <p id="ps-cine-rule3-zh" class="ps-rule-zh"></p>
                                         </div>
@@ -5946,6 +6081,20 @@
                                     <h2 id="ps-overlay-title"></h2>
                                     <p id="ps-overlay-body"></p>
                                     <button id="ps-overlay-btn" type="button" class="ps-primary" onclick="PS.overlayAction()">Continue</button>
+                                </div>
+                            </div>
+
+                            <div id="ps-ceremony" class="ps-ceremony hidden" role="dialog" aria-label="Prize ceremony">
+                                <div class="ps-ceremony-card">
+                                    <header class="ps-ceremony-head">
+                                        <p class="ps-ceremony-kicker">PURR-FECT SURVIVAL</p>
+                                        <h2 id="ps-ceremony-title">🏆 Prize Ceremony</h2>
+                                        <p id="ps-ceremony-sub" class="ps-ceremony-sub"></p>
+                                    </header>
+                                    <div id="ps-ceremony-summary" class="ps-ceremony-summary"></div>
+                                    <div id="ps-ceremony-list" class="ps-ceremony-list"></div>
+                                    <p id="ps-ceremony-note" class="ps-ceremony-note"></p>
+                                    <button type="button" class="ps-primary" onclick="PS.backToHub()">← Back to Hub</button>
                                 </div>
                             </div>
                         </div>

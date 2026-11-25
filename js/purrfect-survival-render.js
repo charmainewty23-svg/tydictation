@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.1.0';
+    R.VERSION = '2.2.0';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -2504,14 +2504,14 @@
         ctx.fillRect(0, 0, L.w, L.h);
 
         ctx.save();
-        pill(ctx, 14, L.hud + 16, 'GLASS STEPPING STONES · 玻璃橋', {
+        pill(ctx, 14, L.hud + 16, 'Glass Stepping Stones', {
             size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
         });
         ctx.restore();
     };
 
     /* ================================================================== */
-    /* Round 3 — 貓咪拔河大賽 / Tug of War                                */
+    /* Round 3 — Tug of War                                               */
     /*                                                                    */
     /* A yellow industrial warehouse: two high steel platforms on either  */
     /* side of a dark abyss, a hemp rope between them with a golden       */
@@ -2960,9 +2960,171 @@
         ctx.fillRect(0, 0, L.w, L.h);
 
         ctx.save();
-        pill(ctx, 14, L.hud + 16, 'TUG OF WAR · 貓咪拔河大賽', {
+        pill(ctx, 14, L.hud + 16, 'Tug of War', {
             size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
         });
+        ctx.restore();
+    };
+
+    /* ================================================================== */
+    /* Prize ceremony — original 3D podium                                */
+    /* ================================================================== */
+
+    R.drawCeremony = function (ctx, state) {
+        if (!ctx) return;
+        const s = state || {};
+        const w = Math.max(1, Number(s.w) || 800);
+        const h = Math.max(1, Number(s.h) || 600);
+        const L = R.layout(w, h, s.role || 'player');
+        const elapsed = Math.max(0, Number(s.ceremonyElapsed) || 0);
+        const rise = smoothstep(Math.min(1, elapsed / 800));
+
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+
+        /* theatre / playground hall backdrop */
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#160d2b');
+        sky.addColorStop(0.52, '#2a1440');
+        sky.addColorStop(1, '#0b0714');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        glow(ctx, w * 0.5, h * 0.22, Math.max(w, h) * 0.5, '#f472b6', 0.13);
+        glow(ctx, w * 0.18, h * 0.3, Math.max(w, h) * 0.32, '#60a5fa', 0.1);
+        glow(ctx, w * 0.82, h * 0.3, Math.max(w, h) * 0.32, '#fbbf24', 0.1);
+
+        const cam = makeCam(L, {
+            eye: [0, L.landscape ? 3.4 : 3.0, L.landscape ? -8.4 : -9.4],
+            target: [0, 1.9, 5.2],
+            fov: L.landscape ? 60 : 66
+        });
+
+        /* stage floor + back wall */
+        poly3(ctx, cam, [[-16, 0, -2], [16, 0, -2], [16, 0, 15], [-16, 0, 15]], {
+            fill: '#1a1024'
+        });
+        poly3(ctx, cam, [[-16, 0, 15], [16, 0, 15], [16, 12, 15], [-16, 12, 15]], {
+            fill: '#120a1d'
+        });
+        for (let i = -2; i <= 2; i++) {
+            line3(ctx, cam, [i * 6, 0.02, -2], [i * 6, 0.02, 15], {
+                stroke: 'rgba(251,191,36,.08)', lineWidth: 1
+            });
+        }
+
+        /* spotlights */
+        const beam = (x, color, alpha) => {
+            poly3(ctx, cam, [
+                [x, 10, 12], [x - 1.6, 0, 4], [x + 1.6, 0, 4]
+            ], { fill: rgba(color, alpha), close: true });
+        };
+        beam(-5.2, '#93c5fd', 0.09);
+        beam(0, '#fef08a', 0.12);
+        beam(5.2, '#fca5a5', 0.09);
+
+        const ceremony = Array.isArray(s.ceremony) ? s.ceremony : [];
+        const byPlace = {};
+        ceremony.forEach(row => {
+            if (row && row.place >= 1 && row.place <= 3) byPlace[row.place] = row;
+        });
+        const playersById = {};
+        (Array.isArray(s.players) ? s.players : []).forEach(p => {
+            if (p && (p.user_id || p.id)) playersById[String(p.user_id || p.id)] = p;
+        });
+
+        const specs = [
+            { place: 2, x: -4.3, z: 5.0, height: 1.55, base: '#b7c2d0', top: '#e2e8f0', side: '#8f9bab' },
+            { place: 1, x: 0, z: 6.3, height: 2.35, base: '#d4a017', top: '#fde68a', side: '#b47c0b' },
+            { place: 3, x: 4.3, z: 5.0, height: 1.15, base: '#b9773a', top: '#f3c08a', side: '#8c5527' }
+        ];
+
+        specs.forEach((spec, index) => {
+            const podH = Math.max(0.05, spec.height * rise);
+            const boxW = 2.9;
+            box3(ctx, cam, {
+                x: spec.x - boxW / 2,
+                y: 0,
+                z: spec.z,
+                w: boxW,
+                h: podH,
+                d: 2.6,
+                color: spec.base,
+                top: spec.top,
+                side: spec.side,
+                edge: 'rgba(8,4,18,.42)',
+                lineWidth: 0.8
+            });
+
+            /* gold / silver trim */
+            const trim = spec.place === 1 ? '#fde047' : (spec.place === 2 ? '#e2e8f0' : '#fdba74');
+            line3(ctx, cam, [spec.x - boxW / 2, podH, spec.z], [spec.x + boxW / 2, podH, spec.z], {
+                stroke: trim, lineWidth: 2
+            });
+            line3(ctx, cam, [spec.x - boxW / 2, 0.12, spec.z], [spec.x + boxW / 2, 0.12, spec.z], {
+                stroke: rgba(trim, 0.5), lineWidth: 1
+            });
+
+            const label = spec.place === 1 ? '1' : (spec.place === 2 ? '2' : '3');
+            const anchor = project(cam, spec.x, podH * 0.62, spec.z + 0.02);
+            if (anchor) {
+                pill(ctx, anchor.x, anchor.y, label, {
+                    size: Math.max(10, Math.min(20, h * 0.024)),
+                    bg: rgba(trim, 0.92),
+                    color: '#241407',
+                    border: 'rgba(255,255,255,.6)'
+                });
+            }
+
+            const row = byPlace[spec.place];
+            if (!row || rise < 0.45) return;
+            const lookRow = playersById[String(row.user_id)] || row;
+
+            const cat = drawCatAt(
+                ctx, cam,
+                spec.x, podH + 1.28, spec.z + 0.35,
+                Math.max(0.55, h / 620),
+                {
+                    cat: lookRow.cat || 'Ginger',
+                    glasses: lookRow.glasses || 'None',
+                    hat: lookRow.hat || 'None',
+                    outfit: lookRow.outfit || 'None'
+                },
+                { ring: true, ringColor: trim, halo: spec.place === 1, haloColor: '#fde047' }
+            );
+            if (cat) {
+                pill(ctx, cat.x, cat.y + 22, row.nickname || 'Player', {
+                    size: Math.max(9, Math.min(14, h * 0.018)),
+                    bg: 'rgba(8,12,24,.78)',
+                    color: '#f8fafc',
+                    border: rgba(trim, 0.55)
+                });
+                if (row.paws) {
+                    pill(ctx, cat.x, cat.y + 23 + Math.max(18, h * 0.026), '+' + row.paws + ' 🐾', {
+                        size: Math.max(8, Math.min(12, h * 0.016)),
+                        bg: 'rgba(190,24,93,.72)',
+                        color: '#fff1f2'
+                    });
+                }
+            }
+        });
+
+        /* falling confetti, deterministic from the elapsed time */
+        const count = L.landscape ? 26 : 34;
+        for (let i = 0; i < count; i++) {
+            const seed = hash01('ceremony-confetti-' + i);
+            const x = ((seed * w * 1.4 + elapsed * (0.012 + seed * 0.02)) % (w + 40)) - 20;
+            const y = ((hash01('ceremony-y-' + i) * h * 1.4 + elapsed * (0.03 + seed * 0.05)) % (h + 30)) - 15;
+            const size = 2 + seed * 3;
+            ctx.save();
+            ctx.globalAlpha = 0.55 + seed * 0.35;
+            ctx.fillStyle = i % 3 === 0 ? '#fbbf24' : (i % 3 === 1 ? '#f472b6' : '#93c5fd');
+            ctx.translate(x, y);
+            ctx.rotate(elapsed * 0.001 + seed * 6.28);
+            ctx.fillRect(-size, -size / 2, size * 2, size);
+            ctx.restore();
+        }
+
         ctx.restore();
     };
 
@@ -2974,7 +3136,9 @@
         if (!ctx) return;
         const s = state || {};
         ctx.clearRect(0, 0, s.w || ctx.canvas.width, s.h || ctx.canvas.height);
-        if (s.mode === 'intro' || Number(s.round) === 0) {
+        if (s.mode === 'ceremony' || s.status === 'finished') {
+            R.drawCeremony(ctx, s);
+        } else if (s.mode === 'intro' || Number(s.round) === 0) {
             R.drawIntro(ctx, s);
         } else if (Number(s.round) === 3) {
             R.drawRound3(ctx, s);

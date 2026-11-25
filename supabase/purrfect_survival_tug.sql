@@ -1,5 +1,5 @@
 -- ============================================================
--- LearniTY — Purr-fect Survival: Round 3 貓咪拔河大賽 (Tug of War)
+-- LearniTY — Purr-fect Survival: Round 3 Tug of War
 --
 -- PASTE THIS FILE INTO THE LIVE PROJECT'S SUPABASE SQL EDITOR:
 --   https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new
@@ -13,7 +13,7 @@
 -- Safe to re-run.
 --
 -- What it adds, in teacher-friendly language:
---   * Round 3 is 貓咪拔河大賽 (Tug of War). It is playable now, and it only
+--   * Round 3 is Tug of War. It is playable now, and it only
 --     runs when the host chose 3 rounds. Classes that chose 1 or 2 rounds
 --     finish exactly as before.
 --   * Survivors of the glass bridge are split fairly into a red team and a

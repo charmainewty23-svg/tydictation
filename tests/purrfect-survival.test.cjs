@@ -901,7 +901,7 @@ test('bilingual rules are faithful to the English engine copy', () => {
 /* ---------------------------------------------------------------- */
 
 test('host settings expose an extensible round map and default to two rounds', () => {
-    assert.equal(PS.HOST.MAX_IMPLEMENTED, 2);
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 3);
     assert.equal(PS.HOST.MAX_PLANNED, 5);
     assert.equal(PS.HOST.KINDS[1], 'meow');
     assert.equal(PS.HOST.KINDS[2], 'glass');
@@ -912,14 +912,22 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.roomRoundCount({}), 2, 'old rooms default to 2 rounds');
     assert.equal(PS.roomRoundCount({ roundCount: 1 }), 1);
     assert.equal(PS.roomRoundCount({ roundCount: 2 }), 2);
+    assert.equal(PS.roomRoundCount({ roundCount: 3 }), 3);
     assert.equal(PS.roomRoundCount({ roundCount: 0 }), 1, 'below 1 clamps to 1');
-    assert.equal(PS.roomRoundCount({ roundCount: 3 }), 2, 'above the implemented max clamps to 2');
+    assert.equal(PS.roomRoundCount({ roundCount: 4 }), 3, 'above the implemented max clamps to 3');
     assert.equal(PS.roomRoundCount(JSON.stringify({ roundCount: 1 })), 1, 'JSON strings are accepted');
 
     assert.equal(PS.shouldPlayRound2({ roundCount: 1 }), false);
     assert.equal(PS.shouldPlayRound2({}), true);
     assert.equal(PS.round1EndAction({ roundCount: 1 }), 'finish');
     assert.equal(PS.round1EndAction({ roundCount: 2 }), 'bridge');
+
+    assert.equal(PS.shouldPlayRound3({ roundCount: 1 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 2 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 3 }), true);
+    assert.equal(PS.round2EndAction({ roundCount: 1 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 2 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 3 }), 'tug');
 });
 
 test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
@@ -1099,7 +1107,7 @@ test('roundConfig reads per-round entries and room-level fallback', () => {
 
 test('host settings reject unimplemented rounds and invalid subjects/topics', () => {
     assert.equal(PS.validateHostSettings({
-        roundCount: 3,
+        roundCount: 4,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
     }).error, 'ROUNDS_NOT_IMPLEMENTED');
     assert.equal(PS.validateHostSettings({
@@ -1133,12 +1141,19 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
     ['ps-round-count', 'ps-finish-distance', 'ps-glass-steps',
         'ps-r1-subject', 'ps-r1-vocab-source', 'ps-r1-grammar-topic',
         'ps-r2-subject', 'ps-r2-vocab-source', 'ps-r2-grammar-topic',
-        'ps-round1-card', 'ps-round2-card'].forEach(id => {
+        'ps-r3-subject', 'ps-r3-vocab-source', 'ps-r3-grammar-topic',
+        'ps-tug-duration', 'ps-tug-start-btn',
+        'ps-round1-card', 'ps-round2-card', 'ps-round3-card'].forEach(id => {
         assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists');
     });
     assert.ok(html.indexOf('min="30" max="300" step="10"') !== -1, 'distance input range 30–300 step 10');
     assert.ok(html.indexOf('min="3" max="15" step="1"') !== -1, 'glass steps input range 3–15');
-    assert.ok(html.indexOf('value="3" disabled') !== -1, 'round 3 is shown as coming soon');
+    assert.ok(html.indexOf('id="ps-tug-duration" type="number" min="30" max="120" step="5" value="60"') !== -1,
+        'tug duration input range 30–120 step 5');
+    assert.equal(html.indexOf('value="3" disabled'), -1, 'round 3 is no longer coming soon');
+    assert.ok(html.indexOf('value="3">3 rounds') !== -1, 'round 3 is selectable');
+    assert.ok(html.indexOf('value="4" disabled') !== -1, 'round 4 still coming soon');
+    assert.ok(html.indexOf('value="5" disabled') !== -1, 'round 5 still coming soon');
     assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
 });
@@ -1180,17 +1195,354 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the host-settings change', () => {
+test('service worker cache is bumped for the tug-of-war change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v103") !== -1, 'CACHE_NAME is v103');
-    assert.equal(sw.indexOf("learnity-pwa-v102"), -1, 'the old cache name is gone');
+    assert.ok(sw.indexOf("learnity-pwa-v104") !== -1, 'CACHE_NAME is v104');
+    assert.equal(sw.indexOf("learnity-pwa-v103"), -1, 'the old cache name is gone');
 });
 
-test('demo page exposes round count, metres and glass step controls', () => {
+test('demo page exposes round count, metres, glass step and tug controls', () => {
     const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
-    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps'].forEach(id => {
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration', 'demo-round3'].forEach(id => {
         assert.ok(demo.indexOf('id="' + id + '"') !== -1, id + ' control exists');
     });
+    assert.ok(demo.indexOf('<option value="3">3</option>') !== -1, 'round 3 is selectable in the demo');
     assert.ok(demo.indexOf('applyDemoSettings') !== -1, 'controls re-apply the demo settings');
     assert.ok(demo.indexOf('setDemoSettings') !== -1, 'main demo API is used');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 3 — Tug of War (engine)                                     */
+/* ---------------------------------------------------------------- */
+
+const ROUND3 = PS.ROUND3;
+
+function tugPlayer(id, rank, finishedAt, extra) {
+    return Object.assign({
+        user_id: id,
+        status: 'advanced',
+        crossed_glass: true,
+        ghost: false,
+        is_playing: true,
+        round1_rank: rank,
+        glass_finished_at: finishedAt == null ? null : 1000 + finishedAt
+    }, extra || {});
+}
+
+test('tug constants and duration clamp match the round-3 brief', () => {
+    assert.equal(ROUND3.DEFAULT_MS, 60000);
+    assert.equal(ROUND3.MIN_MS, 30000);
+    assert.equal(ROUND3.MAX_MS, 120000);
+    assert.equal(ROUND3.COMBO, 5);
+    assert.equal(ROUND3.RAGE_MULT, 2);
+    assert.equal(ROUND3.RAGE_MS, 5000);
+    assert.equal(ROUND3.WIN_PULL, 20);
+
+    assert.equal(PS.normalizeTugDuration(), 60000);
+    assert.equal(PS.normalizeTugDuration(''), 60000);
+    assert.equal(PS.normalizeTugDuration('nope'), 60000);
+    assert.equal(PS.normalizeTugDuration(60), 60000, 'seconds are accepted');
+    assert.equal(PS.normalizeTugDuration(30), 30000);
+    assert.equal(PS.normalizeTugDuration(120), 120000);
+    assert.equal(PS.normalizeTugDuration(60000), 60000, 'milliseconds are accepted');
+    assert.equal(PS.normalizeTugDuration(1000), 30000, 'below range clamps up');
+    assert.equal(PS.normalizeTugDuration(200000), 120000, 'above range clamps down');
+});
+
+test('tug survivors are advanced/crossed players only and skip with fewer than two', () => {
+    const players = [
+        tugPlayer('a', 1, 1),
+        tugPlayer('b', 2, 2),
+        tugPlayer('out', 3, 3, { status: 'eliminated', ghost: true }),
+        tugPlayer('alive', 4, 4, { status: 'alive', crossed_glass: false }),
+        tugPlayer('ghost', 5, 5, { ghost: true })
+    ];
+    const survivors = PS.tugSurvivors(players).map(p => p.user_id);
+    assert.deepEqual(survivors, ['a', 'b']);
+    assert.equal(PS.shouldSkipTug(players.slice(0, 1)), true);
+    assert.equal(PS.shouldSkipTug(players.slice(0, 2)), false);
+});
+
+test('tug teams use a deterministic fair snake split (odd counts included)', () => {
+    const even = [
+        tugPlayer('A', 1, 1), tugPlayer('B', 2, 2), tugPlayer('C', 3, 3),
+        tugPlayer('D', 4, 4), tugPlayer('E', 5, 5), tugPlayer('F', 6, 6)
+    ];
+    const split = PS.splitTugTeams(even);
+    assert.deepEqual(split.map(p => p.user_id), ['A', 'B', 'C', 'D', 'E', 'F']);
+    assert.deepEqual(split.map(p => p.tug_team), ['red', 'blue', 'blue', 'red', 'red', 'blue']);
+
+    const odd = even.slice(0, 5);
+    const oddSplit = PS.splitTugTeams(odd);
+    assert.deepEqual(oddSplit.map(p => p.user_id), ['A', 'B', 'C', 'D', 'E']);
+    assert.deepEqual(oddSplit.map(p => p.tug_team), ['red', 'blue', 'blue', 'red', 'red']);
+    assert.equal(oddSplit.filter(p => p.tug_team === 'red').length, 3, 'odd class gives one team +1');
+
+    // Input is not mutated; split returns fresh player copies.
+    even.forEach(p => assert.equal('tug_team' in p, false));
+    assert.notStrictEqual(split[0], even[0]);
+
+    // Finish order is glass_finished_at, then round1_rank, then user_id.
+    const shuffled = [even[3], even[1], even[5], even[0], even[4], even[2]];
+    assert.deepEqual(PS.splitTugTeams(shuffled).map(p => p.user_id), ['A', 'B', 'C', 'D', 'E', 'F']);
+
+    const tied = [
+        tugPlayer('z', 2, 10), tugPlayer('y', 1, 10), tugPlayer('x', 2, null)
+    ];
+    assert.deepEqual(PS.splitTugTeams(tied).map(p => p.user_id), ['y', 'z', 'x']);
+});
+
+test('a correct tug answer pulls +1, a wrong answer pulls nothing and breaks combo', () => {
+    let state = PS.normalizeTugState({ phase: 'playing' });
+    let result = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 });
+    assert.equal(result.state.redPull, 1);
+    assert.equal(result.state.bluePull, 0);
+    assert.equal(result.state.position, -1);
+    assert.equal(result.state.redCombo, 1);
+    assert.equal(result.pull, 1);
+    assert.equal(result.winner, null);
+
+    result = PS.applyTugAnswer(result.state, { team: 'blue', correct: true, now: 1100 });
+    assert.equal(result.state.blueCombo, 1);
+    assert.equal(result.state.position, 0);
+    result = PS.applyTugAnswer(result.state, { team: 'blue', correct: false, now: 1200 });
+    assert.equal(result.state.blueCombo, 0, 'a miss breaks that team combo');
+    assert.equal(result.state.bluePull, 1, 'a miss gives the other team no pull');
+    assert.equal(result.comboBroken, true);
+
+    // Answers outside the playing phase are ignored.
+    const briefing = PS.normalizeTugState({ phase: 'briefing' });
+    const ignored = PS.applyTugAnswer(briefing, { team: 'red', correct: true, now: 2000 });
+    assert.equal(ignored.state.redPull, 0);
+    assert.equal(PS.applyTugAnswer(state, { team: '', correct: true, now: 1 }).pull, 0);
+});
+
+test('five team combo triggers 2x rage, rage answers pull +2, and a miss cancels rage', () => {
+    let state = PS.normalizeTugState({ phase: 'playing' });
+    let triggered = false;
+    for (let i = 1; i <= 5; i++) {
+        const res = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 + i * 100 });
+        state = res.state;
+        if (i < 5) assert.equal(res.rageTriggered, false);
+        else {
+            triggered = true;
+            assert.equal(res.rageTriggered, true);
+            assert.equal(res.state.redCombo, 0, 'triggering rage resets the combo meter');
+            assert.equal(res.state.redRageUntil, 1500 + ROUND3.RAGE_MS);
+        }
+    }
+    assert.equal(triggered, true);
+    assert.equal(state.redPull, 5);
+    assert.equal(PS.tugRageActive(state, 'red', 2000), true);
+
+    const during = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 2500 });
+    assert.equal(during.pull, 2, 'a rage answer is worth +2');
+    assert.equal(during.state.redPull, 7);
+    assert.equal(during.state.redCombo, 0);
+
+    const miss = PS.applyTugAnswer(during.state, { team: 'red', correct: false, now: 2600 });
+    assert.equal(miss.state.redRageUntil, 0, 'a miss cancels rage');
+    assert.equal(PS.tugRageActive(miss.state, 'red', 2600), false);
+    assert.equal(miss.state.redCombo, 0);
+});
+
+test('the tug ends instantly once the salmon is pulled 20 steps past centre', () => {
+    const state = PS.normalizeTugState({ phase: 'playing', redPull: 19, bluePull: 0 });
+    const result = PS.applyTugAnswer(state, { team: 'red', correct: true, now: 1000 });
+    assert.equal(result.state.position, -20);
+    assert.equal(result.state.winner, 'red');
+    assert.equal(result.state.phase, 'done');
+
+    const blue = PS.normalizeTugState({ phase: 'playing', bluePull: 19, redPull: 0 });
+    const win = PS.applyTugAnswer(blue, { team: 'blue', correct: true, now: 1000 });
+    assert.equal(win.state.winner, 'blue');
+    assert.equal(win.state.phase, 'done');
+});
+
+test('time-up gives the win to the side with the salmon, and exact centre is sudden death', () => {
+    const red = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 4, bluePull: 2 }, 1000);
+    assert.equal(red.winner, 'red');
+    assert.equal(red.phase, 'done');
+
+    const blue = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 1, bluePull: 5 }, 1000);
+    assert.equal(blue.winner, 'blue');
+
+    const tied = PS.resolveTugAtTimeUp({ phase: 'playing', redPull: 3, bluePull: 3 }, 1000);
+    assert.equal(tied.winner, null);
+    assert.equal(tied.suddenDeath, true);
+    assert.equal(tied.phase, 'playing', 'sudden death keeps playing');
+
+    const decided = PS.applyTugAnswer(tied, { team: 'red', correct: true, now: 1100 });
+    assert.equal(decided.state.position, -1);
+    assert.equal(decided.state.winner, 'red');
+    assert.equal(decided.state.phase, 'done', 'the next scoring answer ends sudden death');
+
+    const stillTied = PS.applyTugAnswer(tied, { team: 'red', correct: false, now: 1200 });
+    assert.equal(stillTied.state.position, 0);
+    assert.equal(stillTied.state.winner, null, 'a miss does not end sudden death');
+
+    const already = PS.resolveTugAtTimeUp({ phase: 'done', winner: 'red', redPull: 9 }, 1000);
+    assert.equal(already.winner, 'red');
+});
+
+test('applyTugResult eliminates the losing team and advances the winning team', () => {
+    const players = [
+        { user_id: 'r1', tug_team: 'red', status: 'advanced', ghost: false },
+        { user_id: 'r2', tug_team: 'red', status: 'advanced', ghost: false },
+        { user_id: 'b1', tug_team: 'blue', status: 'advanced', ghost: false },
+        { user_id: 'none', status: 'advanced', ghost: false }
+    ];
+    PS.applyTugResult(players, 'blue');
+    assert.equal(players[0].status, 'eliminated');
+    assert.equal(players[0].ghost, true);
+    assert.equal(players[0].eliminated_reason, 'tug');
+    assert.equal(players[1].ghost, true);
+    assert.equal(players[2].status, 'advanced');
+    assert.equal(players[2].ghost, false);
+    assert.equal(players[2].advanced_round3, true);
+    assert.equal(players[3].status, 'advanced', 'players without a team are unchanged');
+    assert.equal('advanced_round3' in players[3], false);
+});
+
+test('three-round host settings keep per-round subjects and persist tugDuration', () => {
+    const result = PS.validateHostSettings({
+        roundCount: 3,
+        finishDistance: 150,
+        glassSteps: 6,
+        tugDuration: 45,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food', vocabForm: 'F4' },
+            { round: 2, subject: 'grammar', topic: 'agreement', bankMode: 'choose' },
+            { round: 3, subject: 'grammar', topic: 'articles', bankMode: 'mixed', tugDuration: 45 }
+        ]
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.roundCount, 3);
+    assert.equal(result.rounds.length, 3);
+    assert.equal(result.rounds[0].subject, 'vocab');
+    assert.equal(result.rounds[1].subject, 'grammar');
+    assert.equal(result.rounds[1].topic, 'agreement');
+    assert.equal(result.rounds[2].subject, 'grammar');
+    assert.equal(result.rounds[2].topic, 'articles');
+    assert.equal(result.rounds[2].tugDuration, 45000);
+    assert.equal(result.settings.tugDuration, 45000);
+    assert.equal(result.tugDuration, 45000);
+    assert.equal(result.settings.rounds.length, 3);
+
+    const cfg = PS.roundConfig(result.settings, 3);
+    assert.equal(cfg.kind, 'tug');
+    assert.equal(cfg.subject, 'grammar');
+    assert.equal(cfg.topic, 'articles');
+    assert.equal(cfg.tugDuration, 45000);
+
+    assert.equal(PS.validateHostSettings({
+        roundCount: 3,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'Food' },
+            { round: 2, subject: 'vocab', vocabSource: 'Food' },
+            { round: 3, subject: 'vocab', vocabSource: 'Food', grammarTopic: 'tenses' }
+        ]
+    }).error, 'ONE_SUBJECT_ONLY');
+});
+
+test('one- and two-round classes never enter the tug', () => {
+    assert.equal(PS.shouldPlayRound3({ roundCount: 1 }), false);
+    assert.equal(PS.shouldPlayRound3({ roundCount: 2 }), false);
+    assert.equal(PS.round2EndAction({ roundCount: 1 }), 'finish');
+    assert.equal(PS.round2EndAction({ roundCount: 2 }), 'finish');
+    assert.equal(PS.shouldPlayRound3({}), false, 'legacy rooms default to 2 rounds');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 3 — wiring / SQL / renderer / demo                          */
+/* ---------------------------------------------------------------- */
+
+test('incremental tug SQL exists with teacher instructions and new functions', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_tug.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(sql.indexOf('purrfect_survival_host_settings.sql') !== -1, 'says to run after PR #51');
+    ['purrfect_survival_round_count', 'purrfect_survival_tug_duration',
+        'purrfect_survival_empty_tug', 'purrfect_survival_apply_tug',
+        'purrfect_survival_finish_if_done', 'start_purrfect_survival_round3',
+        'create_purrfect_survival', 'start_purrfect_survival',
+        'tick_purrfect_survival', 'submit_purrfect_survival_answer',
+        'glass_jump_purrfect_survival'].forEach(fn => {
+        assert.ok(sql.indexOf(fn) !== -1, fn + ' exists');
+    });
+    assert.ok(sql.indexOf("'round3'") !== -1, 'round3 status is allowed');
+    assert.ok(sql.indexOf('glass_finished_at') !== -1, 'glass finish timestamp exists');
+    assert.ok(sql.indexOf('tug_team') !== -1, 'tug teams exist');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+    assert.ok(sql.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1);
+});
+
+test('canonical SQL is consistent with the three-round reality', () => {
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf("'round3'") !== -1, 'canonical status includes round3');
+    assert.ok(canonical.indexOf('least(3, greatest(1') !== -1, 'round_count clamps to 3');
+    ['purrfect_survival_tug_duration', 'purrfect_survival_empty_tug',
+        'purrfect_survival_apply_tug', 'start_purrfect_survival_round3',
+        'tug_questions', 'glass_finished_at', 'tug_team'].forEach(token => {
+        assert.ok(canonical.indexOf(token) !== -1, token + ' exists in canonical SQL');
+    });
+    assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical rejects rounds 4–5');
+});
+
+test('renderer exports drawRound3 and paints it without throwing', () => {
+    assert.equal(typeof RENDERER.drawRound3, 'function');
+    assert.match(RENDERER.VERSION, /^2\./);
+
+    const sizes = [[390, 844, 'player'], [1024, 768, 'host'], [844, 390, 'player']];
+    const players = samplePlayers().map((p, i) => Object.assign({}, p, {
+        status: 'advanced',
+        ghost: false,
+        crossed_glass: true,
+        tug_team: i % 2 ? 'blue' : 'red'
+    }));
+    sizes.forEach(size => {
+        const canvas = { width: size[0] * 2, height: size[1] * 2 };
+        const ctx = mockContext(canvas);
+        [['briefing', 0, null], ['playing', 5, null], ['done', 0, 'blue']].forEach(triple => {
+            const state = {
+                w: size[0], h: size[1], role: size[2], round: 3,
+                now: 12000, meId: 'u1', myTeam: 'red',
+                players: players,
+                tug: {
+                    position: triple[2] ? 12 : -triple[1],
+                    redPull: triple[1],
+                    bluePull: 5,
+                    redCombo: 3,
+                    blueCombo: 1,
+                    redRage: true,
+                    blueRage: false,
+                    winner: triple[2],
+                    phase: triple[0],
+                    suddenDeath: false
+                }
+            };
+            assert.doesNotThrow(() => RENDERER.drawRound3(ctx, state), 'round 3 ' + triple[0] + ' paints');
+            assert.doesNotThrow(() => RENDERER.drawScene(ctx, state), 'drawScene dispatches round 3');
+        });
+    });
+
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.equal(/drawImage/.test(src), false, 'renderer still never blits bitmaps');
+    ['round3-tug-side-ref', 'round3-tug-overview-ref'].forEach(name =>
+        assert.equal(src.indexOf(name), -1, name + ' is not referenced'));
+});
+
+test('main module wires the round-3 status, tug start and duration', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    ['start_purrfect_survival_round3', 'round3_started_at', 'round3_ends_at',
+        'tug_state', 'tug_questions', 'ps-tug-start-btn', 'ps-tug-duration',
+        'startRound3Now', 'tugAnswer', 'demoJumpRound3', 'demoStartTug'].forEach(token => {
+        assert.ok(src.indexOf(token) !== -1, token + ' is wired');
+    });
+    assert.ok(src.indexOf("room.status === 'round3'") !== -1, 'round3 is handled in render/frame');
+    assert.ok(src.indexOf('shouldSkipTug') !== -1 || src.indexOf('splitTugTeams') !== -1, 'engine tug helpers are used');
 });

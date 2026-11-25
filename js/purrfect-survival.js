@@ -1,13 +1,13 @@
 /* LearniTY — Purr-fect Survival main module.
  *
  * Homepage tile -> create / join lobby -> Round 1 (Red Light, Green Light)
- * -> Round 2 (Glass Stepping Stones) -> mid-victory / spectator screen.
+ * -> Round 2 (Glass Stepping Stones) -> Round 3 (Tug of War) -> victory.
  *
  * Rooms use short polling (no Realtime publication), exactly like Drive &
- * Go!. The host creates the room, picks 1-2 rounds with an independent
- * subject/topic per round (plus round-1 metres and round-2 glass steps) and
- * starts it. Students join with a 4-character code and follow the host's
- * settings.
+ * Go!. The host creates the room, picks 1-3 rounds with an independent
+ * subject/topic per round (plus round-1 metres, round-2 glass steps and the
+ * round-3 tug duration) and starts it. Students join with a 4-character
+ * code and follow the host's settings.
  */
 (function (root) {
     'use strict';
@@ -25,13 +25,15 @@
     const VIEW_ID = 'purrfect-survival-view';
     const PS_ROUND_MS = 180000;
     const PS_INTRO_HOLD_MS = 15000;
-    const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,phase_schedule,glass_steps,settings,created_at,started_at,finished_at,server_now';
+    const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,round3_started_at,round3_ends_at,phase_schedule,glass_steps,settings,tug_state,tug_questions,created_at,started_at,finished_at,server_now';
+    const ROOM_COLUMNS_LIGHT = ROOM_COLUMNS.replace(',tug_questions', '');
 
     let room = null;
     let players = [];
     let me = null;
     let questions = [];
     let glassSteps = [];
+    let tugQuestions = [];
     let pollTimer = 0;
     let pollBusy = false;
     let rafId = 0;
@@ -70,6 +72,7 @@
     let demoRoundCount = 2;
     let demoFinishDistance = 100;
     let demoGlassStepCount = 9;
+    let demoTugDuration = 60000;
     let demoLoopTimer = 0;
     let demoClassmates = [];
     let demoGlassPairs = [];
@@ -164,7 +167,12 @@
     }
 
     function roomRound() {
-        return room ? Number(room.current_round) || (room.status === 'round2' ? 2 : 1) : 0;
+        if (!room) return 0;
+        const n = Number(room.current_round);
+        if (n) return n;
+        if (room.status === 'round3') return 3;
+        if (room.status === 'round2') return 2;
+        return 1;
     }
 
     function resumeKey() {
@@ -216,13 +224,27 @@
     }
 
     function roomRoundCount() {
-        if (!room) return PSEngine.HOST.MAX_IMPLEMENTED;
+        if (!room) return PSEngine.HOST.DEFAULT_ROUNDS;
         return PSEngine.roomRoundCount(room.settings || {});
     }
 
     function roundConfig(n) {
         if (!room) return null;
         return PSEngine.roundConfig(room.settings || {}, n, room);
+    }
+
+    function tugState() {
+        return PSEngine.normalizeTugState(room && room.tug_state);
+    }
+
+    function tugBank() {
+        const fromRoom = asArray(room && room.tug_questions);
+        if (fromRoom.length) return fromRoom;
+        return tugQuestions;
+    }
+
+    function tugTeamOf(player) {
+        return player && (player.tug_team === 'red' || player.tug_team === 'blue') ? player.tug_team : '';
     }
 
     function finishDistance() {
@@ -364,7 +386,7 @@
     }
 
     function sqlHint() {
-        return 'Run supabase/purrfect_survival_host_settings.sql in the Supabase SQL editor first (project mggnwzirjmibreimrwiq). Clear the editor first and do not re-run older incrementals, then reload this page.';
+        return 'Run supabase/purrfect_survival_tug.sql in the Supabase SQL editor first (project mggnwzirjmibreimrwiq). Paste it after purrfect_survival_host_settings.sql, clear the editor first, do not re-run older incrementals, then reload this page.';
     }
 
     function errorMessage(error) {
@@ -379,7 +401,7 @@
         if (m.includes('NOT_HOST')) return 'Only the room host can do that.';
         if (m.includes('CANNOT_START')) return 'Wait for at least two players before starting.';
         if (m.includes('NO_QUESTIONS') || m.includes('NO_SCHEDULE') || m.includes('NO_GLASS') || m.includes('INVALID_SCHEDULE') || m.includes('INVALID_GLASS')) return 'The question set could not be built. Reload and try again.';
-        if (m.includes('ROUNDS_NOT_IMPLEMENTED')) return 'Rounds 3–5 are not available yet. Choose 1 or 2 rounds.';
+        if (m.includes('ROUNDS_NOT_IMPLEMENTED')) return 'That round count is not available on this server yet. Run supabase/purrfect_survival_tug.sql first (rounds 4–5 are still coming soon).';
         if (m.includes('INVALID_ROUND_COUNT')) return 'Choose 1 or 2 rounds for this class.';
         if (m.includes('INVALID_SUBJECT')) return 'Pick Vocab or Grammar for that round.';
         if (m.includes('ONE_SUBJECT_ONLY')) return 'One subject per round — do not mix Vocab and Grammar inside the same round.';
@@ -591,6 +613,7 @@
         count = Math.max(1, Math.min(PSEngine.HOST.MAX_IMPLEMENTED, Math.floor(count)));
         if (sel && String(sel.value) !== String(count)) sel.value = String(count);
         show('ps-round2-card', count >= 2);
+        show('ps-round3-card', count >= 3);
         return count;
     }
 
@@ -688,6 +711,7 @@
             roundCount: roundCount,
             finishDistance: selectValue('ps-finish-distance', '100'),
             glassSteps: selectValue('ps-glass-steps', '9'),
+            tugDuration: selectValue('ps-tug-duration', '60'),
             rounds: rounds
         });
         if (!validated.ok) return setError(errorMessage(validated.error));
@@ -780,6 +804,7 @@
         room = next;
         questions = asArray(room.questions);
         glassSteps = asArray(room.glass_steps);
+        tugQuestions = asArray(room.tug_questions);
         lastRedSent = -1;
         lastPhaseKey = '';
         questionsKey = '';
@@ -803,7 +828,7 @@
 
     function pollDelay() {
         if (!room) return POLL_WAITING_MS;
-        return (room.status === 'round1' || room.status === 'round2') ? POLL_ACTIVE_MS : POLL_WAITING_MS;
+        return (room.status === 'round1' || room.status === 'round2' || room.status === 'round3') ? POLL_ACTIVE_MS : POLL_WAITING_MS;
     }
 
     function startPolling() {
@@ -832,7 +857,7 @@
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
         pollBusy = true;
         try {
-            if (room.status === 'round1' || room.status === 'round2') {
+            if (room.status === 'round1' || room.status === 'round2' || room.status === 'round3') {
                 // The host ticks every poll; students tick at most every
                 // 1.5 s so 30 phones do not hammer the room row.
                 if (isHost() || Date.now() - lastTickAt > 1500) {
@@ -852,7 +877,8 @@
                 }
             }
 
-            const columns = questions.length ? ROOM_COLUMNS : ROOM_COLUMNS + ',questions';
+            const columns = (tugQuestions.length ? ROOM_COLUMNS_LIGHT : ROOM_COLUMNS)
+                + (questions.length ? '' : ',questions');
             const { data, error } = await sb.from('purrfect_survival_rooms')
                 .select(columns)
                 .eq('id', room.id)
@@ -865,6 +891,8 @@
             syncClock();
             const fetchedQuestions = asArray(room.questions);
             if (fetchedQuestions.length) questions = fetchedQuestions;
+            const fetchedTug = asArray(room.tug_questions);
+            if (fetchedTug.length) tugQuestions = fetchedTug;
             glassSteps = asArray(room.glass_steps);
 
             const result = await sb.from('purrfect_survival_players')
@@ -895,6 +923,7 @@
         me = null;
         questions = [];
         glassSteps = [];
+        tugQuestions = [];
         introPlaying = false;
         stopPolling();
         setLive(false);
@@ -952,6 +981,8 @@
         const r1zh = $('ps-cine-rule1-zh');
         const r2en = $('ps-cine-rule2-en');
         const r2zh = $('ps-cine-rule2-zh');
+        const r3en = $('ps-cine-rule3-en');
+        const r3zh = $('ps-cine-rule3-zh');
         if (!r1en || !r2en) return;
         const en = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT) ? PSEngine.RULE_TEXT : null;
         const zh = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT_ZH) ? PSEngine.RULE_TEXT_ZH : null;
@@ -959,6 +990,8 @@
         r1zh.textContent = zh ? zh.round1 : '';
         r2en.textContent = en ? en.round2 : '';
         r2zh.textContent = zh ? zh.round2 : '';
+        if (r3en) r3en.textContent = en ? en.round3 : '';
+        if (r3zh) r3zh.textContent = zh ? zh.round3 : '';
         rulesPainted = true;
     }
 
@@ -968,11 +1001,17 @@
         const revealAll = !introPlaying;
         const r1 = $('ps-cine-rule1');
         const r2 = $('ps-cine-rule2');
+        const r3 = $('ps-cine-rule3');
         const playRound2 = roomRoundCount() > 1;
+        const playRound3 = roomRoundCount() >= 3;
         if (r1) r1.classList.toggle('is-in', revealAll || elapsed >= 6800);
         if (r2) {
             r2.classList.toggle('hidden', !playRound2);
             r2.classList.toggle('is-in', playRound2 && (revealAll || elapsed >= 10800));
+        }
+        if (r3) {
+            r3.classList.toggle('hidden', !playRound3);
+            r3.classList.toggle('is-in', playRound3 && (revealAll || elapsed >= 14400));
         }
         const skip = $('ps-intro-skip');
         if (skip) skip.classList.toggle('hidden', !introPlaying);
@@ -996,10 +1035,15 @@
         const count = roomRoundCount();
         const r1 = roundConfig(1);
         const r2 = roundConfig(2);
+        const r3 = roundConfig(3);
         const meta = count === 1
             ? '1 round · ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
-            : '2 rounds · R1 ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
-                + ' · R2 ' + roundConfigLabel(r2) + ' · ' + r2.glassSteps + ' steps';
+            : (count === 2
+                ? '2 rounds · R1 ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
+                    + ' · R2 ' + roundConfigLabel(r2) + ' · ' + r2.glassSteps + ' steps'
+                : '3 rounds · R1 ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m'
+                    + ' · R2 ' + roundConfigLabel(r2) + ' · ' + r2.glassSteps + ' steps'
+                    + ' · R3 Tug of War · ' + Math.round(r3.tugDuration / 1000) + ' s');
         setText('ps-room-meta', meta);
         const list = $('ps-player-list');
         if (list) {
@@ -1048,10 +1092,15 @@
         }
         if (introPlaying) markIntroSeen(room.id);
         setPanel('game');
-        setLive(room.status === 'round1' || room.status === 'round2');
-        const isR2 = roomRound() === 2;
-        setText('ps-hud-round', isR2 ? 'ROUND 2 · GLASS BRIDGE' : 'ROUND 1 · 1-2-3 Meow!');
-        setText('ps-hud-rule', isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1);
+        setLive(room.status === 'round1' || room.status === 'round2' || room.status === 'round3');
+        const isR3 = room.status === 'round3' || (room.status === 'finished' && roomRound() === 3);
+        const isR2 = !isR3 && roomRound() === 2;
+        setText('ps-hud-round', isR3
+            ? 'ROUND 3 · TUG OF WAR'
+            : (isR2 ? 'ROUND 2 · GLASS BRIDGE' : 'ROUND 1 · 1-2-3 Meow!'));
+        setText('ps-hud-rule', isR3
+            ? PSEngine.RULE_TEXT.round3
+            : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1));
         const alive = alivePlayers().length;
         const total = totalPlayers();
         setText('ps-hud-alive', 'Alive: ' + alive + ' / ' + total);
@@ -1062,14 +1111,17 @@
             codeChip.textContent = 'Room ' + (room.code || '----');
         }
         const host = isHost();
-        show('ps-host-end', host && !isR2);
-        if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2);
-        else renderSpectator(isR2);
+        const tug = isR3 ? tugState() : null;
+        const briefing = !!(tug && tug.phase === 'briefing');
+        show('ps-host-end', host && !isR2 && !isR3);
+        show('ps-tug-start-btn', host && isR3 && briefing);
+        if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2, isR3);
+        else renderSpectator(isR2, isR3);
         checkMilestones();
         requestAnimationFrame(() => startFrames());
     }
 
-    function renderSpectator(isR2) {
+    function renderSpectator(isR2, isR3) {
         if (!me || (demoMode && !isPlayingPlayer(me))) {
             // Teacher / host spectating with no player seat: keep the whole
             // track or bridge unobstructed.
@@ -1077,15 +1129,22 @@
             return;
         }
         show('ps-question', true);
-        setText('ps-prompt', isR2 ? 'Live class view' : 'Live class view');
+        setText('ps-prompt', 'Live class view');
         const opts = $('ps-options');
         if (opts) opts.innerHTML = '';
-        toast(isR2
-            ? 'Watching the glass bridge — ' + alivePlayers().length + ' still standing.'
-            : 'Watching the race — ' + alivePlayers().length + ' still running.');
+        if (isR3) {
+            const t = tugState();
+            toast(t.phase === 'briefing'
+                ? 'Waiting for the host to start the Tug of War.'
+                : 'Watching the tug of war — red ' + t.redPull + ' · blue ' + t.bluePull + '.');
+        } else {
+            toast(isR2
+                ? 'Watching the glass bridge — ' + alivePlayers().length + ' still standing.'
+                : 'Watching the race — ' + alivePlayers().length + ' still running.');
+        }
     }
 
-    function renderPlayerQuestion(isR2) {
+    function renderPlayerQuestion(isR2, isR3) {
         const box = $('ps-question');
         if (!box) return;
         box.classList.remove('hidden');
@@ -1096,7 +1155,8 @@
             toast('Eliminated. Stay and watch the rest of the class.');
             return;
         }
-        if (isR2) renderGlassTurn();
+        if (isR3) renderTugTurn();
+        else if (isR2) renderGlassTurn();
         else renderRound1Question();
     }
 
@@ -1140,10 +1200,13 @@
     function renderGlassTurn() {
         const steps = Math.max(1, Number(glassSteps.length) || PSEngine.ROUND2.STEP_COUNT);
         if (me.crossed_glass || me.status === 'advanced') {
-            setText('ps-prompt', '🎉 You crossed the glass bridge. Round 3 is coming soon.');
+            const tugNext = roomRoundCount() >= 3;
+            setText('ps-prompt', tugNext
+                ? '🎉 You crossed the glass bridge. Get ready for the Tug of War!'
+                : '🎉 You crossed the glass bridge. Waiting for the mid-victory screen.');
             const opts = $('ps-options');
             if (opts) opts.innerHTML = '';
-            toast('Survivor! Stay for the mid-victory screen.');
+            toast(tugNext ? 'Survivor! Wait for the host to start the Tug of War.' : 'Survivor! Stay for the mid-victory screen.');
             return;
         }
         if (!me.glass_active) {
@@ -1183,6 +1246,60 @@
         }
     }
 
+    function renderTugTurn() {
+        const state = tugState();
+        const team = tugTeamOf(me);
+        const opts = $('ps-options');
+        if (opts) {
+            opts.classList.remove('ps-options-glass', 'ps-options-red', 'ps-options-busy');
+        }
+        if (!team) {
+            setText('ps-prompt', '👀 You are spectating this Tug of War — only the glass-bridge survivors have a team.');
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+        const teamLabel = team === 'red' ? '🔴 RED team' : '🔵 BLUE team';
+        if (state.phase === 'briefing') {
+            setText('ps-prompt', teamLabel + ' · ' + (isHost()
+                ? 'Press Start Tug of War when the class is ready.'
+                : 'Waiting for the host to start the Tug of War…'));
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+        if (state.phase === 'done') {
+            setText('ps-prompt', state.winner
+                ? (state.winner === team ? '🏆 Your team won the Tug of War!' : '💀 Your team fell into the abyss.')
+                : 'The Tug of War is over.');
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+        const bank = tugBank();
+        const qIndex = (Number(me.question_index) || 0) % Math.max(1, bank.length);
+        const q = bank[qIndex];
+        if (!q) {
+            setText('ps-prompt', 'Loading the Tug of War question bank…');
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+        const combo = team === 'red' ? state.redCombo : state.blueCombo;
+        const rage = PSEngine.tugRageActive(state, team, serverNow());
+        const lead = state.position === 0 ? 'Level' : (state.position > 0 ? 'Blue +' + state.position : 'Red +' + Math.abs(state.position));
+        setText('ps-prompt', teamLabel + ' · ' + lead + ' · Combo ' + combo + '/' + PSEngine.ROUND3.COMBO
+            + (rage ? ' · 爆走拉力 2x' : '') + ' — ' + (q.prompt || ''));
+        const key = 'r3:' + qIndex + ':' + (q.options || []).join('|') + ':' + team;
+        if (key !== questionsKey) {
+            questionsKey = key;
+            if (opts) {
+                opts.innerHTML = (q.options || []).map((label, i) =>
+                    '<button type="button" class="ps-opt ps-tug-opt" data-choice="' + i + '" onclick="PS.tugAnswer(' + i + ')">' +
+                    '<span class="ps-opt-key">' + (i + 1) + '</span>' +
+                    '<span class="ps-opt-text">' + escapeText(label) + '</span>' +
+                    '</button>'
+                ).join('');
+            }
+        }
+    }
+
     /* ------------------------------------------------------------------ */
     /* HUD / canvas frames                                                */
     /* ------------------------------------------------------------------ */
@@ -1190,7 +1307,7 @@
     function startFrames() {
         if (rafId) return;
         if (!room) return;
-        if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2') return;
+        if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2' && room.status !== 'round3') return;
         lastFrame = 0;
         rafId = requestAnimationFrame(frame);
     }
@@ -1224,7 +1341,7 @@
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
         if (!room) return;
         const waiting = room.status === 'waiting';
-        const playing = room.status === 'round1' || room.status === 'round2';
+        const playing = room.status === 'round1' || room.status === 'round2' || room.status === 'round3';
         if (!waiting && !playing) return;
 
         // Canvas art at ~30 fps keeps 30 cats smooth on phones; the DOM HUD
@@ -1233,10 +1350,13 @@
             const surface = resizeCanvas();
             if (surface) {
                 const isR2 = room.status === 'round2';
-                const info = isR2 ? null : phaseInfo();
+                const isR3 = room.status === 'round3';
+                const info = (isR2 || isR3) ? null : phaseInfo();
+                const tug = isR3 ? tugState() : null;
+                const nowMs = serverNow();
                 const state = {
                     mode: waiting ? 'intro' : 'round',
-                    round: waiting ? 0 : (isR2 ? 2 : 1),
+                    round: waiting ? 0 : (isR3 ? 3 : (isR2 ? 2 : 1)),
                     introElapsed: waiting ? introElapsedMs() : 0,
                     role: (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
                     w: surface.w,
@@ -1248,11 +1368,24 @@
                     phase: info && !info.done ? info.phase : (isR2 ? 'green' : 'done'),
                     phaseElapsed: info ? info.elapsed_ms : 0,
                     phaseDuration: info ? info.duration_ms : 2000,
-                    elapsed: room.round1_started_at ? Math.max(0, serverNow() - Date.parse(room.round1_started_at)) : 0,
+                    elapsed: room.round1_started_at ? Math.max(0, nowMs - Date.parse(room.round1_started_at)) : 0,
                     now: (root.performance && root.performance.now) ? root.performance.now() : Date.now(),
                     bang: Math.max(0, 1 - (Date.now() - lastBang) / 420),
                     glassSteps: glassSteps,
-                    stepCount: glassSteps.length || PSEngine.ROUND2.STEP_COUNT
+                    stepCount: glassSteps.length || PSEngine.ROUND2.STEP_COUNT,
+                    myTeam: tugTeamOf(me),
+                    tug: tug ? {
+                        position: tug.position,
+                        redPull: tug.redPull,
+                        bluePull: tug.bluePull,
+                        redCombo: tug.redCombo,
+                        blueCombo: tug.blueCombo,
+                        redRage: PSEngine.tugRageActive(tug, 'red', nowMs),
+                        blueRage: PSEngine.tugRageActive(tug, 'blue', nowMs),
+                        winner: tug.winner,
+                        phase: tug.phase,
+                        suddenDeath: tug.suddenDeath
+                    } : null
                 };
                 if (typeof PSRender !== 'undefined' && PSRender.drawScene) {
                     PSRender.drawScene(surface.ctx, state);
@@ -1318,6 +1451,36 @@
                 const ends = room.round2_ends_at ? Date.parse(room.round2_ends_at) : 0;
                 setText('ps-hud-timer', ends ? PSEngine.formatClock(ends - serverNow()) : '—');
             }
+        } else if (room.status === 'round3') {
+            const tug = tugState();
+            const nowMs = serverNow();
+            const redRage = PSEngine.tugRageActive(tug, 'red', nowMs);
+            const blueRage = PSEngine.tugRageActive(tug, 'blue', nowMs);
+            const team = tugTeamOf(me);
+            const hudPhase = $('ps-hud-phase');
+            if (hudPhase) hudPhase.className = 'ps-phase ps-phase-tug';
+            setText('ps-hud-phase', tug.phase === 'briefing'
+                ? '🪢 BRIEFING'
+                : (tug.phase === 'done' ? '🏁 TUG OVER' : '🪢 RED ' + tug.redPull + ' · BLUE ' + tug.bluePull));
+            if (!team) {
+                setText('ps-hud-you', 'Spectating');
+            } else {
+                const combo = team === 'red' ? tug.redCombo : tug.blueCombo;
+                const rage = team === 'red' ? redRage : blueRage;
+                setText('ps-hud-you', (team === 'red' ? '🔴 RED' : '🔵 BLUE')
+                    + ' · Combo ' + combo + '/' + PSEngine.ROUND3.COMBO
+                    + (rage ? ' · 爆走拉力 2x' : ''));
+            }
+            if (tug.phase === 'briefing') {
+                setText('ps-hud-timer', 'Ready');
+            } else if (tug.suddenDeath) {
+                setText('ps-hud-timer', 'SUDDEN DEATH');
+            } else {
+                const ends = room.round3_ends_at ? Date.parse(room.round3_ends_at) : 0;
+                setText('ps-hud-timer', ends ? PSEngine.formatClock(ends - nowMs) : '—');
+            }
+            const lead = tug.position === 0 ? 'Level' : (tug.position > 0 ? 'Blue +' + tug.position : 'Red +' + Math.abs(tug.position));
+            setText('ps-hud-alive', 'Tug: ' + lead + (redRage || blueRage ? ' · RAGE' : ''));
         }
     }
 
@@ -1447,6 +1610,70 @@
     };
 
     /* ------------------------------------------------------------------ */
+    /* Round 3 actions                                                    */
+    /* ------------------------------------------------------------------ */
+
+    PS.tugAnswer = async function (choice) {
+        if (demoMode) { demoTugAnswer(choice); return; }
+        if (busy || !room || room.status !== 'round3' || !me || !isPlayingPlayer(me)) return;
+        if (me.ghost || me.status === 'eliminated') return;
+        if (!tugTeamOf(me)) return;
+        const state = tugState();
+        if (state.phase !== 'playing') return;
+        if (Date.now() < answerLockUntil) return;
+
+        busy = true;
+        answerLockUntil = Date.now() + 260;
+        const opts = $('ps-options');
+        if (opts) opts.classList.add('ps-options-busy');
+        try {
+            const { data, error } = await sb.rpc('submit_purrfect_survival_answer', {
+                p_room_id: room.id,
+                p_choice: Number(choice) || 0
+            });
+            if (error) {
+                setError(errorMessage(error));
+                return;
+            }
+            const res = Array.isArray(data) ? data[0] : data;
+            if (res && res.player) {
+                me = res.player;
+                const idx = players.findIndex(p => String(p.user_id) === String(me.user_id));
+                if (idx >= 0) players[idx] = me;
+            }
+            if (res && res.room && res.room.id) {
+                room = res.room;
+                tugQuestions = asArray(room.tug_questions).length ? asArray(room.tug_questions) : tugQuestions;
+            }
+            const nextTug = res && res.tug_state
+                ? PSEngine.normalizeTugState(res.tug_state)
+                : tugState();
+            if (res && res.ok === false) {
+                toast(res.error === 'NOT_PLAYING'
+                    ? 'You do not have a team in this Tug of War.'
+                    : 'Wait for the host to start the Tug of War.');
+            } else if (res && res.correct) {
+                sfxCorrect();
+                toast('✅ Pull +' + (Number(res.pull) || 1) + (res.rage ? ' · 爆走拉力 2x!' : '')
+                    + ' — ' + (nextTug.position === 0 ? 'Level' : (nextTug.position > 0 ? 'Blue +' + nextTug.position : 'Red +' + Math.abs(nextTug.position))));
+            } else {
+                sfxWrong();
+                if (opts) {
+                    opts.classList.add('ps-options-wrong');
+                    setTimeout(() => opts.classList.remove('ps-options-wrong'), 340);
+                }
+                toast('❌ No pull — the combo is broken.');
+            }
+            questionsKey = '';
+            render();
+            poll(true);
+        } finally {
+            busy = false;
+            if (opts) opts.classList.remove('ps-options-busy');
+        }
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Round 2 actions                                                    */
     /* ------------------------------------------------------------------ */
 
@@ -1521,6 +1748,7 @@
         try {
             const built = await buildQuestionSet();
             if (!built) return;
+            tugQuestions = asArray(built.tugQuestions).slice();
             const seed = Number(room.seed) || 1;
             const roundMs = resolveRoundMs();
             const glass = built.roundCount > 1
@@ -1531,19 +1759,27 @@
                 })
                 : [];
             const phaseSchedule = PSEngine.buildPhaseSchedule(seed, { roundMs: roundMs });
-            const { data, error } = await sb.rpc('start_purrfect_survival', {
+            const startArgs = {
                 p_room_id: room.id,
                 p_questions: built.questions,
                 p_glass: glass,
                 p_schedule: phaseSchedule,
                 p_round_ms: roundMs
-            });
+            };
+            // Preload the tug bank only for 3-round rooms. This keeps the
+            // existing 1–2 round call valid against older SQL while the
+            // new incremental stores the round-3 bank for a host refresh.
+            if (built.roundCount >= 3 && tugQuestions.length) {
+                startArgs.p_tug_questions = tugQuestions;
+            }
+            const { data, error } = await sb.rpc('start_purrfect_survival', startArgs);
             if (error) return setError(errorMessage(error));
             const started = Array.isArray(data) ? data[0] : data;
             if (started && started.id) room = started;
             syncClock();
             questions = asArray(room.questions);
             glassSteps = asArray(room.glass_steps);
+            tugQuestions = asArray(room.tug_questions).length ? asArray(room.tug_questions) : tugQuestions;
             lastPhaseKey = '';
             lastRedSent = -1;
             overlayAction = null;
@@ -1579,6 +1815,36 @@
     };
 
     PS.startRound2Now = PS.endRound1Now;
+
+    PS.startRound3Now = async function () {
+        if (demoMode) { demoStartTug(); render(); return; }
+        if (busy || !room || !isHost() || room.status !== 'round3') return;
+        const state = tugState();
+        if (state.phase !== 'briefing') return;
+        setError('');
+        busy = true;
+        const btn = $('ps-tug-start-btn');
+        if (btn) btn.disabled = true;
+        try {
+            const bank = tugBank();
+            const { data, error } = await sb.rpc('start_purrfect_survival_round3', {
+                p_room_id: room.id,
+                p_questions: bank
+            });
+            if (error) return setError(errorMessage(error));
+            const updated = Array.isArray(data) ? data[0] : data;
+            if (updated && updated.id) room = updated;
+            tugQuestions = asArray(room.tug_questions).length ? asArray(room.tug_questions) : tugQuestions;
+            questionsKey = '';
+            hideOverlay();
+            render();
+            retunePolling();
+            poll(true);
+        } finally {
+            busy = false;
+            if (btn) btn.disabled = false;
+        }
+    };
 
     /* ------------------------------------------------------------------ */
     /* Bank loading / question building                                   */
@@ -1692,9 +1958,21 @@
                 : PSEngine.buildGlassPairs({ words: bank2.words, seed: seed + 3, count: steps });
         }
 
+        let tugQuestions = [];
+        if (roundCount >= 3) {
+            const r3 = roundConfig(3);
+            const bank3 = sameRoundBank(r1, r3) ? bank1
+                : (sameRoundBank(r2, r3) ? await loadRoundBank(r2) : await loadRoundBank(r3));
+            if (!bank3) return null;
+            tugQuestions = bank3.subject === 'grammar'
+                ? PSEngine.buildGrammarMC({ questions: bank3.grammar, seed: seed + 31, count: count })
+                : PSEngine.buildVocabMC({ words: bank3.words, seed: seed + 31, count: count });
+        }
+
         return {
             questions: questions,
             glassPairs: glassPairs,
+            tugQuestions: tugQuestions,
             roundCount: roundCount,
             round1: r1,
             round2: r2
@@ -1745,10 +2023,14 @@
     function showRoundCue(roundNo) {
         const el = $('ps-round-cue');
         if (!el) return;
-        const isR1 = Number(roundNo) !== 2;
-        el.innerHTML = isR1
-            ? '<b>🟢 ROUND 1 · 1-2-3 Meow!</b><span>Green = answer · Red = freeze</span>'
-            : '<b>🧊 ROUND 2 · 玻璃橋</b><span>Pick the tempered pane before 5 s</span>';
+        const n = Number(roundNo) || 1;
+        if (n === 3) {
+            el.innerHTML = '<b>🪢 ROUND 3 · 貓咪拔河大賽</b><span>Answer 1–4 · pull +1 · five in a row = 爆走拉力 2x</span>';
+        } else if (n === 2) {
+            el.innerHTML = '<b>🧊 ROUND 2 · 玻璃橋</b><span>Pick the tempered pane before 5 s</span>';
+        } else {
+            el.innerHTML = '<b>🟢 ROUND 1 · 1-2-3 Meow!</b><span>Green = answer · Red = freeze</span>';
+        }
         el.classList.remove('hidden');
         // restart the CSS animation
         el.classList.remove('ps-cue-on');
@@ -1781,7 +2063,68 @@
 
     function showSurvivedOverlay() {
         if (!once('survived:' + room.id + ':' + (me ? me.user_id : ''))) return;
-        PS.showOverlay('🎉 You survived the glass bridge!', 'Mid-victory! Round 3 (and the Squid Circle finale) are coming soon. Stay to watch the rest of the class.', '🎉', 'Continue');
+        const tugNext = roomRoundCount() >= 3;
+        PS.showOverlay(
+            '🎉 You survived the glass bridge!',
+            tugNext
+                ? 'Get ready for the Tug of War — the host will start it when the class is ready. Your team is picked from the survivors.'
+                : 'You crossed the bridge. Stay to watch the rest of the class — this class chose two rounds.',
+            '🎉',
+            'Continue'
+        );
+    }
+
+    function finishedOverlayInfo() {
+        const count = roomRoundCount();
+        const tug = tugState();
+        const myTeam = tugTeamOf(me);
+        if (count >= 3) {
+            if (tug.winner) {
+                if (myTeam === tug.winner) {
+                    return {
+                        win: true,
+                        title: '🏆 Victory in the Tug of War!',
+                        body: 'Your team pulled the golden salmon past the centre line and survived. You can go back to the Hub.'
+                    };
+                }
+                if (myTeam) {
+                    return {
+                        win: false,
+                        title: '💀 Your team fell into the abyss',
+                        body: 'The other team pulled harder. You can go back to the Hub and try again in the next class.'
+                    };
+                }
+                return {
+                    win: false,
+                    title: 'The Tug of War is over',
+                    body: 'Your class finished Purr-fect Survival. You can go back to the Hub.'
+                };
+            }
+            // Tug skipped (fewer than 2 survivors): bridge survivors win.
+            const survived = !!(me && (me.crossed_glass || me.status === 'advanced') && !me.ghost);
+            return survived
+                ? { win: true, title: '🎉 Victory!', body: 'You survived the glass bridge — there were not enough survivors for the Tug of War, so you win. You can go back to the Hub.' }
+                : { win: false, title: 'The class is over', body: 'Your class finished Purr-fect Survival. You can go back to the Hub.' };
+        }
+        const onlyRound1 = count === 1;
+        const survived = onlyRound1
+            ? !!(me && me.status !== 'eliminated' && me.ghost !== true)
+            : !!(me && (me.crossed_glass || me.status === 'advanced'));
+        return survived
+            ? {
+                win: true,
+                title: onlyRound1 ? '🎉 Victory in 1-2-3 Meow!' : '🎉 Mid-victory!',
+                body: onlyRound1
+                    ? 'You survived Red Light, Green Light. Round 2 was not selected for this class — every student still standing wins. You can go back to the Hub.'
+                    : 'You survived the glass bridge. This class chose two rounds, so every survivor wins. You can go back to the Hub.'
+            }
+            : {
+                win: false,
+                title: onlyRound1 ? '1-2-3 Meow! is over' : 'The bridge is over',
+                body: onlyRound1
+                    ? 'Your class finished Round 1. You can go back to the Hub.'
+                    : 'Your class finished Round 2. You can go back to the Hub.'
+            };
     }
 
     function checkMilestones() {
@@ -1792,28 +2135,20 @@
         if (room.status === 'round2' && once('cue2:' + room.id)) {
             showRoundCue(2);
         }
-        if ((me.status === 'eliminated' || me.ghost) && (room.status === 'round1' || room.status === 'round2')) {
+        if (room.status === 'round3' && tugState().phase === 'playing' && once('cue3:' + room.id)) {
+            showRoundCue(3);
+        }
+        if ((me.status === 'eliminated' || me.ghost) && (room.status === 'round1' || room.status === 'round2' || room.status === 'round3')) {
             showEliminatedOverlay();
         }
         if (room.status === 'finished') {
-            const onlyRound1 = roomRoundCount() === 1;
-            const survived = onlyRound1
-                ? !!(me && me.status !== 'eliminated' && me.ghost !== true)
-                : !!(me && (me.crossed_glass || me.status === 'advanced'));
-            if (survived) {
+            const info = finishedOverlayInfo();
+            if (info.win) {
                 if (once('final-win:' + room.id)) {
-                    if (onlyRound1) {
-                        PS.showOverlay('🎉 Victory in 1-2-3 Meow!', 'You survived Red Light, Green Light. Round 2 was not selected for this class — every student still standing wins. You can go back to the Hub.', '🎉', 'Back to Hub', () => PS.backToHub());
-                    } else {
-                        PS.showOverlay('🎉 Mid-victory!', 'You survived the glass bridge. Round 3 and the Squid Circle finale are coming soon. You can go back to the Hub.', '🎉', 'Back to Hub', () => PS.backToHub());
-                    }
+                    PS.showOverlay(info.title, info.body, '🎉', 'Back to Hub', () => PS.backToHub());
                 }
             } else if (once('final-out:' + room.id)) {
-                if (onlyRound1) {
-                    PS.showOverlay('1-2-3 Meow! is over', 'Your class finished Round 1. Later rounds are coming soon. You can go back to the Hub.', '🏁', 'Back to Hub', () => PS.backToHub());
-                } else {
-                    PS.showOverlay('The bridge is over', 'Your class finished Round 2. You can go back to the Hub — later rounds are coming soon.', '🧊', 'Back to Hub', () => PS.backToHub());
-                }
+                PS.showOverlay(info.title, info.body, '🏁', 'Back to Hub', () => PS.backToHub());
             }
         }
     }
@@ -1830,7 +2165,7 @@
 
     function handleKey(event) {
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
-        if (!room || (room.status !== 'round1' && room.status !== 'round2')) return;
+        if (!room || (room.status !== 'round1' && room.status !== 'round2' && room.status !== 'round3')) return;
         if (isTypingTarget(event.target)) return;
         const key = event.key;
         const overlayOpen = $('ps-round-overlay') && !$('ps-round-overlay').classList.contains('hidden');
@@ -1848,6 +2183,14 @@
             } else if (key === '2' || key === 'ArrowRight' || key.toLowerCase() === 'd') {
                 event.preventDefault();
                 PS.jump('right');
+            }
+            return;
+        }
+
+        if (room.status === 'round3') {
+            if (key >= '1' && key <= '4') {
+                event.preventDefault();
+                PS.tugAnswer(Number(key) - 1);
             }
             return;
         }
@@ -1973,6 +2316,7 @@
         me = null;
         questions = [];
         glassSteps = [];
+        tugQuestions = [];
         introPlaying = false;
         clearResume();
         stopPolling();
@@ -2147,7 +2491,10 @@
             glass_finished_at: null,
             crossed_glass: false,
             survived_round2: false,
-            advanced_round2: false
+            advanced_round2: false,
+            tug_team: null,
+            advanced_round3: false,
+            tug_attempts: 0
         };
     }
 
@@ -2157,35 +2504,49 @@
 
     function demoSettings() {
         const isGrammar = demoSubject === 'grammar';
+        const rounds = [
+            {
+                round: 1,
+                kind: 'meow',
+                subject: demoSubject,
+                topic: isGrammar ? 'demo' : 'Demo Vocab',
+                vocabSource: isGrammar ? '' : 'Demo Vocab',
+                vocabForm: '',
+                bankMode: '',
+                finishDistance: demoFinishDistance,
+                roundMs: demoRoundMs()
+            },
+            {
+                round: 2,
+                kind: 'glass',
+                subject: demoSubject,
+                topic: isGrammar ? 'demo' : 'Demo Vocab',
+                vocabSource: isGrammar ? '' : 'Demo Vocab',
+                vocabForm: '',
+                bankMode: '',
+                glassSteps: demoGlassStepCount
+            }
+        ];
+        if (demoRoundCount >= 3) {
+            rounds.push({
+                round: 3,
+                kind: 'tug',
+                subject: demoSubject,
+                topic: isGrammar ? 'demo' : 'Demo Vocab',
+                vocabSource: isGrammar ? '' : 'Demo Vocab',
+                vocabForm: '',
+                bankMode: '',
+                tugDuration: demoTugDuration
+            });
+        }
         return {
             version: 1,
             roundCount: demoRoundCount,
-            rounds: [
-                {
-                    round: 1,
-                    kind: 'meow',
-                    subject: demoSubject,
-                    topic: isGrammar ? 'demo' : 'Demo Vocab',
-                    vocabSource: isGrammar ? '' : 'Demo Vocab',
-                    vocabForm: '',
-                    bankMode: '',
-                    finishDistance: demoFinishDistance,
-                    roundMs: demoRoundMs()
-                },
-                {
-                    round: 2,
-                    kind: 'glass',
-                    subject: demoSubject,
-                    topic: isGrammar ? 'demo' : 'Demo Vocab',
-                    vocabSource: isGrammar ? '' : 'Demo Vocab',
-                    vocabForm: '',
-                    bankMode: '',
-                    glassSteps: demoGlassStepCount
-                }
-            ],
+            rounds: rounds,
             roundMs: demoRoundMs(),
             finishDistance: demoFinishDistance,
-            glassSteps: demoGlassStepCount
+            glassSteps: demoGlassStepCount,
+            tugDuration: demoTugDuration
         };
     }
 
@@ -2241,9 +2602,13 @@
             round1_ends_at: null,
             round2_started_at: null,
             round2_ends_at: null,
+            round3_started_at: null,
+            round3_ends_at: null,
             phase_schedule: [],
             glass_steps: glassSteps,
             questions: questions,
+            tug_questions: questions.slice(),
+            tug_state: PSEngine.emptyTugState(),
             settings: demoSettings(),
             server_now: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -2284,6 +2649,9 @@
             p.crossed_glass = false;
             p.survived_round2 = false;
             p.advanced_round2 = false;
+            p.tug_team = null;
+            p.advanced_round3 = false;
+            p.tug_attempts = 0;
             p.eliminated_reason = null;
         });
         questionsKey = '';
@@ -2314,7 +2682,10 @@
         room.round1_ends_at = null;
         room.round2_started_at = null;
         room.round2_ends_at = null;
+        room.round3_started_at = null;
+        room.round3_ends_at = null;
         room.finished_at = null;
+        room.tug_state = PSEngine.emptyTugState();
         room.phase_schedule = [];
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
@@ -2341,7 +2712,10 @@
         room.round1_ends_at = new Date(now + roundMs).toISOString();
         room.round2_started_at = null;
         room.round2_ends_at = null;
+        room.round3_started_at = null;
+        room.round3_ends_at = null;
         room.finished_at = null;
+        room.tug_state = PSEngine.emptyTugState();
         room.phase_schedule = PSEngine.buildPhaseSchedule(DEMO_SEED, { roundMs: roundMs });
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
@@ -2383,6 +2757,8 @@
             p.status = 'alive';
             p.ghost = false;
             p.distance = demoFinishDistance;
+            p.tug_team = null;
+            p.glass_finished_at = null;
         });
         playing.forEach(function (p) {
             if (kept[p.user_id]) return;
@@ -2398,7 +2774,10 @@
         room.round1_ends_at = room.round1_ends_at || new Date(now).toISOString();
         room.round2_started_at = new Date(now).toISOString();
         room.round2_ends_at = new Date(now + DEMO_ROUND2_MS).toISOString();
+        room.round3_started_at = null;
+        room.round3_ends_at = null;
         room.finished_at = null;
+        room.tug_state = PSEngine.emptyTugState();
         glassSteps = demoBuildGlassSteps();
         room.glass_steps = glassSteps;
         room.questions = questions;
@@ -2446,6 +2825,9 @@
         room.current_round = 2;
         room.round2_started_at = room.round2_started_at || new Date(now - 40000).toISOString();
         room.round2_ends_at = new Date(now).toISOString();
+        room.round3_started_at = null;
+        room.round3_ends_at = null;
+        room.tug_state = PSEngine.emptyTugState();
         room.finished_at = new Date(now).toISOString();
         glassSteps = demoBuildGlassSteps();
         for (let i = 0; i < glassSteps.length; i++) PSEngine.revealGlassStep(glassSteps[i], 'correct');
@@ -2482,6 +2864,9 @@
             p.crossed_glass = false;
             p.survived_round2 = false;
             p.advanced_round2 = false;
+            p.tug_team = null;
+            p.advanced_round3 = false;
+            p.tug_attempts = 0;
             if (kept[p.user_id]) {
                 p.status = 'alive';
                 p.ghost = false;
@@ -2497,7 +2882,10 @@
         room.current_round = 2;
         room.round2_started_at = new Date(now).toISOString();
         room.round2_ends_at = new Date(now + DEMO_ROUND2_MS).toISOString();
+        room.round3_started_at = null;
+        room.round3_ends_at = null;
         room.finished_at = null;
+        room.tug_state = PSEngine.emptyTugState();
         shownKeys['intro2:' + room.id] = true;
         questionsKey = '';
         me = myPlayer();
@@ -2523,9 +2911,226 @@
 
     function demoFinishRound2(now) {
         if (!room || room.status !== 'round2') return;
+        if (demoRoundCount >= 3) {
+            const at = now || Date.now();
+            room.status = 'round3';
+            room.current_round = 3;
+            room.round2_ends_at = new Date(at).toISOString();
+            room.round3_started_at = null;
+            room.round3_ends_at = null;
+            room.finished_at = null;
+            room.tug_state = PSEngine.emptyTugState();
+            room.tug_questions = (questions.length ? questions : room.questions || []).slice();
+            questionsKey = '';
+            return;
+        }
         room.status = 'finished';
         room.current_round = 2;
         room.finished_at = new Date(now || Date.now()).toISOString();
+    }
+
+    function demoPrepareTugSurvivors(now) {
+        const playing = players.filter(isPlayingPlayer);
+        let survivors = playing.filter(function (p) {
+            return p.status === 'advanced' || p.crossed_glass === true;
+        });
+        if (survivors.length < 2) {
+            playing.forEach(function (p) {
+                p.status = 'alive';
+                p.ghost = false;
+                p.eliminated_reason = null;
+                p.tug_team = null;
+            });
+            const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+            const bots = playing.filter(function (p) { return p.user_id !== DEMO_VISITOR_ID; });
+            bots.sort(function (a, b) {
+                return demoHash01('tugsurvive:' + a.user_id) - demoHash01('tugsurvive:' + b.user_id);
+            });
+            survivors = [];
+            if (visitor && demoRole === 'student') survivors.push(visitor);
+            while (survivors.length < 12 && bots.length) survivors.push(bots.shift());
+            const kept = {};
+            survivors.forEach(function (p, i) {
+                kept[p.user_id] = true;
+                p.status = 'advanced';
+                p.ghost = false;
+                p.crossed_glass = true;
+                p.advanced_round2 = true;
+                p.glass_step = demoGlassStepCount;
+                p.glass_active = false;
+                p.round1_rank = p.round1_rank || i + 1;
+                p.glass_finished_at = p.glass_finished_at
+                    || new Date(now - (survivors.length - i) * 1200).toISOString();
+            });
+            playing.forEach(function (p) {
+                if (kept[p.user_id]) return;
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = 'glass';
+                p.glass_active = false;
+            });
+            survivors = playing.filter(function (p) {
+                return p.status === 'advanced' || p.crossed_glass === true;
+            });
+        }
+
+        const split = PSEngine.splitTugTeams(survivors);
+        const teams = {};
+        split.forEach(function (s) {
+            const p = playing.find(function (x) { return x.user_id === s.user_id; });
+            if (!p) return;
+            teams[p.user_id] = s.tug_team;
+            p.tug_team = s.tug_team;
+            p.question_index = 0;
+            p.advanced_round3 = false;
+            p.tug_attempts = 0;
+        });
+        playing.forEach(function (p) {
+            if (!teams[p.user_id]) p.tug_team = null;
+        });
+        return survivors;
+    }
+
+    function demoStartTug() {
+        if (!room || room.status !== 'round3' || demoRoundCount < 3) return;
+        const state = PSEngine.normalizeTugState(room.tug_state);
+        if (state.phase !== 'briefing') return;
+        const now = Date.now();
+        demoPrepareTugSurvivors(now);
+        room.tug_state = Object.assign(PSEngine.emptyTugState(), { phase: 'playing' });
+        room.round3_started_at = new Date(now).toISOString();
+        room.round3_ends_at = new Date(now + demoTugDuration).toISOString();
+        room.finished_at = null;
+        room.tug_questions = (questions.length ? questions : asArray(room.questions)).slice();
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p) {
+            if (!p.tug_team) return;
+            p.next_answer_at = now + 300 + demoHash01(p.user_id + ':tugstart') * 1400;
+        });
+        questionsKey = '';
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function demoJumpRound3() {
+        demoResetPlayers();
+        if (!questions.length) {
+            const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+            questions = built.questions.slice();
+            demoGlassPairs = built.glassPairs.slice();
+        }
+        const now = Date.now();
+        demoPrepareTugSurvivors(now);
+        room.status = 'round3';
+        room.current_round = 3;
+        room.round1_started_at = room.round1_started_at || new Date(now - 90000).toISOString();
+        room.round1_ends_at = room.round1_ends_at || new Date(now - 30000).toISOString();
+        room.round2_started_at = room.round2_started_at || new Date(now - 40000).toISOString();
+        room.round2_ends_at = new Date(now).toISOString();
+        room.tug_state = Object.assign(PSEngine.emptyTugState(), { phase: 'playing' });
+        room.round3_started_at = new Date(now).toISOString();
+        room.round3_ends_at = new Date(now + demoTugDuration).toISOString();
+        room.finished_at = null;
+        room.tug_questions = questions.slice();
+        glassSteps = demoBuildGlassSteps();
+        for (let i = 0; i < glassSteps.length; i++) PSEngine.revealGlassStep(glassSteps[i], 'correct');
+        room.glass_steps = glassSteps;
+        room.questions = questions;
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p) {
+            if (!p.tug_team) return;
+            p.next_answer_at = now + 300 + demoHash01(p.user_id + ':tugjump') * 1500;
+        });
+        shownKeys = {};
+        questionsKey = '';
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function createdQuestionsKeyReset() {
+        questionsKey = '';
+    }
+
+    function demoFinishTug(winner, now) {
+        if (!room) return;
+        const at = now || Date.now();
+        const state = PSEngine.normalizeTugState(room.tug_state);
+        state.phase = 'done';
+        state.winner = winner === 'red' || winner === 'blue' ? winner : state.winner;
+        room.tug_state = state;
+        room.status = 'finished';
+        room.current_round = 3;
+        room.finished_at = new Date(at).toISOString();
+        PSEngine.applyTugResult(players.filter(isPlayingPlayer), state.winner);
+        shownKeys = {};
+        questionsKey = '';
+        me = myPlayer();
+    }
+
+    function demoTugAnswer(choice) {
+        if (!room || room.status !== 'round3' || !me || !isPlayingPlayer(me)) return;
+        if (!me.tug_team || me.ghost || me.status === 'eliminated') return;
+        if (Date.now() < answerLockUntil) return;
+        const state = PSEngine.normalizeTugState(room.tug_state);
+        if (state.phase !== 'playing') return;
+        const bank = room.tug_questions && room.tug_questions.length ? room.tug_questions : questions;
+        const qIndex = (Number(me.question_index) || 0) % Math.max(1, bank.length);
+        const q = bank[qIndex];
+        if (!q) return;
+        answerLockUntil = Date.now() + 260;
+        const now = Date.now();
+        const correct = Number(choice) === Number(q.answer);
+        const res = PSEngine.applyTugAnswer(state, { team: me.tug_team, correct: correct, now: now });
+        room.tug_state = res.state;
+        me.question_index = (Number(me.question_index) || 0) + 1;
+        me.tug_attempts = (Number(me.tug_attempts) || 0) + 1;
+        if (correct) {
+            sfxCorrect();
+            toast('✅ Pull +' + res.pull + (res.rageTriggered ? ' · 爆走拉力 2x!' : '')
+                + ' — ' + (res.state.position === 0 ? 'Level' : (res.state.position > 0 ? 'Blue +' + res.state.position : 'Red +' + Math.abs(res.state.position))));
+        } else {
+            sfxWrong();
+            const optsEl = $('ps-options');
+            if (optsEl) {
+                optsEl.classList.add('ps-options-wrong');
+                setTimeout(function () { optsEl.classList.remove('ps-options-wrong'); }, 340);
+            }
+            toast('❌ No pull — the combo is broken.');
+        }
+        if (res.state.winner) demoFinishTug(res.state.winner, now);
+        questionsKey = '';
+        render();
+    }
+
+    function demoTickRound3(now) {
+        if (!room || room.status !== 'round3') return;
+        const state = PSEngine.normalizeTugState(room.tug_state);
+        if (state.phase !== 'playing') return;
+        const ends = room.round3_ends_at ? Date.parse(room.round3_ends_at) : 0;
+        if (ends && now >= ends && !state.suddenDeath) {
+            const resolved = PSEngine.resolveTugAtTimeUp(state, now);
+            room.tug_state = resolved;
+            if (resolved.winner) {
+                demoFinishTug(resolved.winner, now);
+                return;
+            }
+            // Sudden death: the clock stays open until the next score.
+            room.round3_ends_at = null;
+        }
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p) {
+            if (!p.tug_team || p.ghost || p.status === 'eliminated') return;
+            if (demoIsVisitor(p)) return;
+            if (p.next_answer_at && now < p.next_answer_at) return;
+            const skill = 0.58 + demoHash01(p.user_id + ':tugskill') * 0.18;
+            const correct = demoHash01(p.user_id + ':tug:' + (Number(p.tug_attempts) || 0)) < skill;
+            const res = PSEngine.applyTugAnswer(room.tug_state, { team: p.tug_team, correct: correct, now: now });
+            room.tug_state = res.state;
+            p.question_index = (Number(p.question_index) || 0) + 1;
+            p.tug_attempts = (Number(p.tug_attempts) || 0) + 1;
+            p.next_answer_at = now + 1200 + demoHash01(p.user_id + ':tugpace:' + p.tug_attempts) * 1900;
+            if (res.state.winner) demoFinishTug(res.state.winner, now);
+        });
     }
 
     function demoReleaseGlass(now) {
@@ -2668,8 +3273,9 @@
         room.server_now = new Date().toISOString();
         if (room.status === 'round1') demoTickRound1(Date.now());
         else if (room.status === 'round2') demoTickRound2(Date.now());
+        else if (room.status === 'round3') demoTickRound3(Date.now());
         render();
-        if (room && (room.status === 'round1' || room.status === 'round2')) startFrames();
+        if (room && (room.status === 'round1' || room.status === 'round2' || room.status === 'round3')) startFrames();
     }
 
     function demoStartLoop() {
@@ -2790,11 +3396,15 @@
         }
         if (cfg.finishDistance != null) demoFinishDistance = PSEngine.normalizeFinishDistance(cfg.finishDistance);
         if (cfg.glassSteps != null) demoGlassStepCount = PSEngine.normalizeGlassSteps(cfg.glassSteps);
+        if (cfg.tugDuration != null) demoTugDuration = PSEngine.normalizeTugDuration(cfg.tugDuration);
         if (room) {
             room.finish_distance = demoFinishDistance;
             room.settings = demoSettings();
             glassSteps = demoBuildGlassSteps();
             room.glass_steps = glassSteps;
+            if (room.status === 'round3' && cfg.tugDuration != null && room.round3_started_at) {
+                room.round3_ends_at = new Date(Date.parse(room.round3_started_at) + demoTugDuration).toISOString();
+            }
         }
     }
 
@@ -2859,7 +3469,10 @@
         const target = String(scene || 'round1').toLowerCase();
         if (target === 'lobby' || target === 'waiting') demoJumpLobby();
         else if (target === 'round2' || target === 'glass') demoJumpRound2();
-        else if (target === 'victory' || target === 'finished') demoJumpVictory();
+        else if (target === 'round3' || target === 'tug') {
+            if (demoRoundCount >= 3) demoJumpRound3();
+            else demoJumpVictory();
+        } else if (target === 'victory' || target === 'finished') demoJumpVictory();
         else demoJumpRound1();
         demoOpenView();
         demoStartLoop();

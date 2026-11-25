@@ -97,13 +97,14 @@
 
     PS.PHASES = ['green', 'yellow', 'red'];
 
-    PS.GRAMMAR_TOPICS = ['tenses', 'agreement', 'articles', 'indefinite_pronouns'];
+    PS.GRAMMAR_TOPICS = ['tenses', 'agreement', 'articles', 'indefinite_pronouns', 'participle_phrases'];
 
     PS.GRAMMAR_MODES = {
         tenses: ['av', 'pv', 'mixed'],
         agreement: ['gapfill', 'choose', 'mixed'],
         articles: ['mixed'],
-        indefinite_pronouns: ['mixed']
+        indefinite_pronouns: ['mixed'],
+        participle_phrases: ['mixed']
     };
 
     PS.RULE_TEXT = {

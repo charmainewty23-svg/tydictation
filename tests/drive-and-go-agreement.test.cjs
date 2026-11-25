@@ -109,7 +109,7 @@ function agreementQuestions(DG) {
 
 test('topic model: defaults, normalisation, labels and exact Agreement tab', () => {
     const DG = loadDG();
-    assert.deepEqual(Array.from(DG.TOPICS), ['tenses', 'agreement']);
+    assert.deepEqual(Array.from(DG.TOPICS), ['tenses', 'agreement', 'articles', 'indefinite_pronouns', 'participle_phrases']);
     assert.equal(DG.defaultSettings().topic, 'tenses');
     assert.equal(DG.defaultSettings().bankMode, 'av');
     assert.equal(DG.readSettings().topic, 'tenses');

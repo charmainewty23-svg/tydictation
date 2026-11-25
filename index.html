@@ -5588,7 +5588,7 @@
                     <div class="category-box shadow-sm" style="border-color:#8b5cf6;background:linear-gradient(135deg,#f5f3ff,#ede9fe);box-shadow:0 0 0 4px rgba(139,92,246,.15)" onclick="showDriveAndGo()">
                         <div class="text-5xl mb-4">🏎️</div>
                         <div class="font-bold text-center leading-tight">Drive &amp; Go!</div>
-                        <div class="text-xs font-bold text-violet-600 text-center mt-1">RACE · 4 topics</div>
+                        <div class="text-xs font-bold text-violet-600 text-center mt-1">RACE · 5 topics</div>
                     </div>
                     <div class="category-box shadow-sm border-green-200" onclick="changeView('sentence-structures-view')">
                         <div class="text-5xl mb-4">📖</div>
@@ -5606,6 +5606,10 @@
                         <div class="text-5xl mb-4">🙋</div>
                         <div class="font-bold text-center leading-tight">Indefinite Pronouns</div>
                     </div>
+                    <div class="category-box shadow-sm border-green-200" onclick="showStructureDetail('participle_clauses')">
+                        <div class="text-5xl mb-4">🔗</div>
+                        <div class="font-bold text-center leading-tight">Participle phrases</div>
+                    </div>
                 </div>
             </div>
 
@@ -5621,7 +5625,7 @@
                     </div>
                     <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('participle_clauses')">
                         <div class="text-5xl mb-4">🔗</div>
-                        <div class="font-bold text-center leading-tight">Participle Clauses</div>
+                        <div class="font-bold text-center leading-tight">Participle phrases</div>
                     </div>
                     <div class="category-box shadow-sm border-green-100" onclick="showStructureDetail('not_only_but_also')">
                         <div class="text-5xl mb-4">➕</div>
@@ -5882,6 +5886,7 @@
                                                 <option value="agreement">Agreement</option>
                                                 <option value="articles">Articles</option>
                                                 <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                                <option value="participle_phrases">Participle phrases</option>
                                             </select>
                                         </div>
                                         <div class="ps-field">
@@ -5923,6 +5928,7 @@
                                                 <option value="agreement">Agreement</option>
                                                 <option value="articles">Articles</option>
                                                 <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                                <option value="participle_phrases">Participle phrases</option>
                                             </select>
                                         </div>
                                         <div class="ps-field">
@@ -5964,6 +5970,7 @@
                                                 <option value="agreement">Agreement</option>
                                                 <option value="articles">Articles</option>
                                                 <option value="indefinite_pronouns">Indefinite Pronouns</option>
+                                                <option value="participle_phrases">Participle phrases</option>
                                             </select>
                                         </div>
                                         <div class="ps-field">
@@ -6462,7 +6469,7 @@
                     <div class="flex flex-wrap gap-3 mb-6">
                         <button onclick="loadGrammarAdmin('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-500 text-white grammar-admin-btn">All</button>
                         <button onclick="loadGrammarAdmin('conditionals')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-600 grammar-admin-btn">Conditionals</button>
-                        <button onclick="loadGrammarAdmin('participle_clauses')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-600 grammar-admin-btn">Participle Clauses</button>
+                        <button onclick="loadGrammarAdmin('participle_clauses')" class="px-4 py-2 rounded-full font-bold text-sm bg-green-100 text-green-600 grammar-admin-btn">Participle phrases</button>
                     </div>
                     <h3 class="text-xl font-bold text-gray-600 mb-4">Student Activity</h3>
                     <div id="grammar-admin-container">
@@ -6900,6 +6907,7 @@
     <script src="js/grammar-quest.js"></script>
     <script src="js/grammar/articles-data.js"></script>
     <script src="js/grammar/indefinite-pronouns-data.js"></script>
+    <script src="js/grammar/participle-phrases-data.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>

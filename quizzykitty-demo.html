@@ -1166,7 +1166,7 @@
     { id: 'quick', label: '🤖 Quick demo · 5 players' }
   ];
   const SCOPE_OPTIONS = [
-    { id: 'all', label: '📚 All words' },
+    { id: 'all', label: '📚 All' },
     { id: 'today', label: '🆕 Added today' },
     { id: 'yesterday', label: '📅 Added yesterday' }
   ];
@@ -3977,7 +3977,7 @@
     saveSettings();
     renderSetup();
     $('setupNote').textContent = settings.topic.indexOf('nv:') === 0
-      ? 'Pick one or two word groups (All words, Added today, Added yesterday), then press Start.'
+      ? 'Pick one or two word groups (All, Added today, Added yesterday), then press Start.'
       : 'Words for “' + topicTitle(settings.topic) + '” load when you press Start.';
   });
   $('startBtn').addEventListener('click', startQuiz);

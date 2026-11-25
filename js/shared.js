@@ -2450,6 +2450,46 @@
             }).format(new Date(iso));
         }
 
+        // --- New Vocab date scopes (All / Added today / Added yesterday) ---
+        // Shared by Dictation Master, Word Battle and Purr-fect Survival.
+        // A New Vocab word's day is when the teacher ADDED it (created_at,
+        // timestamptz) on the Asia/Hong_Kong calendar. updated_at is ignored
+        // on purpose so editing an old word does not move it into today.
+        function normalizeVocabDateScope(value) {
+            const v = String(value == null ? '' : value).trim().toLowerCase();
+            if (v === 'today') return 'today';
+            if (v === 'yesterday') return 'yesterday';
+            return 'all';
+        }
+
+        function vocabHkDayKey(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (!Number.isFinite(d.getTime())) return '';
+            try { return hkDayKey(d.toISOString()); } catch (e) { return ''; }
+        }
+
+        // dayOffset: 0 = today, -1 = yesterday, relative to nowIso (or now).
+        function vocabWordAddedOnHkDay(iso, dayOffset, nowIso) {
+            const day = vocabHkDayKey(iso);
+            if (!day) return false;
+            const now = (nowIso == null || nowIso === '') ? new Date() : new Date(nowIso);
+            if (!Number.isFinite(now.getTime())) return false;
+            const offset = Number(dayOffset) || 0;
+            const target = new Date(now.getTime() + offset * 86400000);
+            return day === vocabHkDayKey(target.toISOString());
+        }
+
+        // Returns a new array; never mutates rows. 'all' keeps every row,
+        // including old rows with no created_at.
+        function filterNewVocabByScope(rows, scope, nowIso) {
+            const list = Array.isArray(rows) ? rows : [];
+            const s = normalizeVocabDateScope(scope);
+            if (s === 'all') return list.slice();
+            const offset = s === 'today' ? 0 : -1;
+            return list.filter(w => vocabWordAddedOnHkDay(w && w.created_at, offset, nowIso));
+        }
+
         function deviceLabel(ua) {
             if (!ua) return '—';
             const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS'

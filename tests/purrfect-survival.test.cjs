@@ -11,6 +11,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ENGINE_PATH = path.join(__dirname, '..', 'js', 'purrfect-survival-engine.js');
+const RENDER_PATH = path.join(__dirname, '..', 'js', 'purrfect-survival-render.js');
+const MAIN_PATH = path.join(__dirname, '..', 'js', 'purrfect-survival.js');
+const INDEX_PATH = path.join(__dirname, '..', 'index.html');
 
 function loadEngine() {
     const code = fs.readFileSync(ENGINE_PATH, 'utf8');
@@ -23,6 +26,86 @@ function loadEngine() {
 }
 
 const PS = loadEngine();
+
+/* A deliberately complete 2D context stub: the renderer must only touch the
+   standard Canvas2D API (no browser, no bitmap assets). */
+function mockContext(canvas) {
+    const gradient = { addColorStop() {} };
+    const ctx = {
+        canvas: canvas,
+        globalAlpha: 1,
+        globalCompositeOperation: 'source-over',
+        fillStyle: '#000',
+        strokeStyle: '#000',
+        lineWidth: 1,
+        lineCap: 'butt',
+        lineJoin: 'miter',
+        font: '10px sans-serif',
+        textAlign: 'left',
+        textBaseline: 'alphabetic',
+        shadowColor: 'transparent',
+        shadowBlur: 0,
+        save() {}, restore() {},
+        beginPath() {}, closePath() {},
+        moveTo() {}, lineTo() {}, quadraticCurveTo() {}, bezierCurveTo() {},
+        arc() {}, arcTo() {}, ellipse() {}, rect() {}, roundRect() {},
+        fill() {}, stroke() {}, clip() {},
+        fillRect() {}, strokeRect() {}, clearRect() {},
+        translate() {}, scale() {}, rotate() {}, transform() {}, setTransform() {}, resetTransform() {},
+        setLineDash() {}, getLineDash() { return []; },
+        createLinearGradient() { return gradient; },
+        createRadialGradient() { return gradient; },
+        createPattern() { return null; },
+        fillText() {}, strokeText() {},
+        measureText(text) { return { width: String(text == null ? '' : text).length * 6 }; },
+        drawImage() {}, putImageData() {}, getImageData() { return { data: new Uint8ClampedArray(4) }; }
+    };
+    return ctx;
+}
+
+function loadRenderer() {
+    const code = fs.readFileSync(RENDER_PATH, 'utf8');
+    const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'purrfect-survival-render.js' });
+    assert.ok(sandbox.PSRender, 'renderer attaches window.PSRender');
+    return sandbox.PSRender;
+}
+
+function loadMain() {
+    const code = fs.readFileSync(MAIN_PATH, 'utf8');
+    const store = {
+        getItem() { return null; },
+        setItem() {},
+        removeItem() {}
+    };
+    const sandbox = { console, Date, Math, JSON, Number, String, Array, Object, isFinite, parseInt, parseFloat };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.localStorage = store;
+    sandbox.sessionStorage = store;
+    sandbox.document = {
+        getElementById() { return null; },
+        querySelector() { return null; },
+        addEventListener() {},
+        createElement() { return { getContext() { return null; } }; },
+        body: { classList: { toggle() {}, add() {}, remove() {} } }
+    };
+    sandbox.addEventListener = function () {};
+    sandbox.removeEventListener = function () {};
+    sandbox.requestAnimationFrame = function () { return 0; };
+    sandbox.cancelAnimationFrame = function () {};
+    sandbox.setInterval = function () { return 0; };
+    sandbox.clearInterval = function () {};
+    sandbox.setTimeout = function () { return 0; };
+    sandbox.clearTimeout = function () {};
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'purrfect-survival.js' });
+    assert.ok(sandbox.PS, 'main module attaches window.PS');
+    return sandbox.PS;
+}
 
 function player(id, distance, extra) {
     return Object.assign({
@@ -622,4 +705,193 @@ test('demo page and demo mode stay gated without weakening guest blocking', () =
     assert.ok(demo.indexOf('Teacher') !== -1 && demo.indexOf('Projector') !== -1, 'teacher/projector control');
     assert.ok(demo.indexOf('Round 1') !== -1 && demo.indexOf('Round 2') !== -1, 'round controls');
     assert.ok(demo.indexOf('Mid-victory') !== -1, 'mid-victory control');
+});
+
+/* 3D renderer: exports, drawing safety and original artwork         */
+/* ---------------------------------------------------------------- */
+
+const RENDERER = loadRenderer();
+
+function samplePlayers() {
+    const list = [];
+    for (let i = 0; i < 18; i++) {
+        list.push({
+            user_id: 'u' + i,
+            nickname: '4C ' + String(i + 1).padStart(2, '0') + ' Student',
+            status: i === 5 ? 'eliminated' : 'alive',
+            ghost: i === 5,
+            distance: Math.min(100, i * 6),
+            glass_step: (i % 9),
+            glass_active: i < 2,
+            glass_side: i % 2 ? 'right' : 'left',
+            cat: 'Ginger',
+            glasses: 'None',
+            hat: 'None',
+            outfit: 'None'
+        });
+    }
+    return list;
+}
+
+function sampleGlass() {
+    const steps = [];
+    for (let i = 0; i < 9; i++) {
+        steps.push({
+            index: i,
+            prompt: 'Neither of them ___ ready.',
+            left: 'is',
+            right: 'are',
+            correct_side: i % 2 ? 'left' : 'right',
+            revealed: i < 3,
+            revealed_side: i < 3 ? (i % 2 ? 'left' : 'right') : null,
+            shattered_side: i === 2 ? 'left' : null
+        });
+    }
+    return steps;
+}
+
+function sampleState(round, extra) {
+    return Object.assign({
+        mode: 'round',
+        round: round,
+        role: 'player',
+        w: 390,
+        h: 844,
+        introElapsed: 0,
+        players: samplePlayers(),
+        meId: 'u1',
+        finishDistance: 100,
+        phase: 'green',
+        phaseElapsed: 0,
+        phaseDuration: 4000,
+        elapsed: 14000,
+        now: 4200,
+        bang: 0,
+        glassSteps: sampleGlass(),
+        stepCount: 9
+    }, extra || {});
+}
+
+test('renderer exports the public API and bumps its version for the 3D rewrite', () => {
+    ['drawScene', 'drawRound1', 'drawRound2', 'drawIntro', 'drawDoll', 'drawCat', 'drawLobbyCat', 'layout']
+        .forEach(name => assert.equal(typeof RENDERER[name], 'function', name + ' is exported'));
+    assert.match(RENDERER.VERSION, /^2\./);
+    const L = RENDERER.layout(390, 844, 'player');
+    ['w', 'h', 'startY', 'finishY', 'bridgeNearY', 'bridgeFarY', 'centerX'].forEach(key => {
+        assert.ok(key in L, 'layout keeps ' + key);
+    });
+    assert.ok(L.cam1 && L.cam1.eye && L.cam1.target, 'round 1 camera preset exists');
+    assert.ok(L.cam2 && L.cam2.eye && L.cam2.target, 'round 2 camera preset exists');
+    assert.ok(L.startY > L.finishY, 'start is nearer the viewer than the finish');
+});
+
+test('drawScene paints intro, Round 1 and Round 2 without throwing (portrait + landscape)', () => {
+    const sizes = [[390, 844, 'player'], [1024, 768, 'host'], [844, 390, 'player']];
+    sizes.forEach(size => {
+        const canvas = { width: size[0] * 2, height: size[1] * 2 };
+        const ctx = mockContext(canvas);
+        const base = { w: size[0], h: size[1], role: size[2] };
+
+        [0, 3200, 6100, 9000, 15000].forEach(t => {
+            assert.doesNotThrow(() => RENDERER.drawScene(ctx, sampleState(0, Object.assign({}, base, {
+                mode: 'intro', introElapsed: t
+            }))), 'intro @' + t + 'ms paints');
+        });
+
+        ['green', 'yellow', 'red', 'done'].forEach(phase => {
+            assert.doesNotThrow(() => RENDERER.drawRound1(ctx, sampleState(1, Object.assign({}, base, {
+                phase: phase, phaseElapsed: 1200, dollTurn: phase === 'red' ? 1 : 0.4
+            }))), 'round 1 ' + phase + ' paints');
+        });
+
+        assert.doesNotThrow(() => RENDERER.drawRound2(ctx, sampleState(2, base)), 'round 2 paints');
+        assert.doesNotThrow(() => RENDERER.drawDoll(ctx, 100, 200, 1.2, { turn: 1, red: true, warning: true }));
+        assert.doesNotThrow(() => RENDERER.drawCat(ctx, 60, 300, 0.8, { cat: 'Garfield' }, { ring: true }));
+        assert.doesNotThrow(() => RENDERER.drawLobbyCat(ctx, 30, 30, 0.3, { cat: 'Ragdoll' }));
+    });
+});
+
+test('the 3D renderer uses no photographic assets or reference stills', () => {
+    const src = fs.readFileSync(RENDER_PATH, 'utf8');
+    assert.equal(/drawImage/.test(src), false, 'renderer never blits bitmaps');
+    ['intro-hallway-ref', 'intro-stairs-ref', 'round1-playground-ref', 'round2-glass-bridge-ref']
+        .forEach(name => assert.equal(src.indexOf(name), -1, name + ' is not referenced'));
+    assert.equal(/data:image\/(jpeg|jpg|png)/i.test(src), false, 'no embedded image data URLs');
+    assert.equal(/base64,[A-Za-z0-9+/]{200,}/.test(src), false, 'no large base64 payloads');
+    assert.equal(/@font-face/.test(src), false, 'no imported typography');
+});
+
+test('the old flat sunset and cyan-sky backdrops are gone', () => {
+    const src = fs.readFileSync(RENDER_PATH, 'utf8').toLowerCase();
+    ['#2b1a52', '#f7b267', '#7c3d78', '#e27a6f', '#0ea5e9', '#bae6fd']
+        .forEach(hex => assert.equal(src.indexOf(hex), -1, hex + ' must not be a world backdrop any more'));
+    assert.ok(src.indexOf('#dbeaf6') !== -1, 'pale painted-sky mural is used');
+    assert.ok(src.indexOf('#08050c') !== -1 || src.indexOf('#0d0713') !== -1, 'dark theatre base is used');
+});
+
+/* ---------------------------------------------------------------- */
+/* Entrance sequencing (waiting room)                                */
+/* ---------------------------------------------------------------- */
+
+const MAIN = loadMain();
+
+test('intro stages follow the hallway -> stairs -> hold schedule', () => {
+    assert.equal(MAIN.introStage(0), 'hall');
+    assert.equal(MAIN.introStage(5999), 'hall');
+    assert.equal(MAIN.introStage(6000), 'stairs');
+    assert.equal(MAIN.introStage(11000), 'stairs');
+    assert.equal(MAIN.introStage(14400), 'hold');
+    assert.equal(MAIN.introStage(999999), 'hold');
+    assert.equal(RENDERER.INTRO.hallMs, 6000);
+    assert.ok(RENDERER.INTRO.stairsMs >= 7000, 'the stair briefing is long enough to read');
+});
+
+test('the entrance only plays once, in a waiting room, and never after the round starts', () => {
+    assert.equal(MAIN.shouldPlayIntro({ status: 'waiting', seen: false }), true);
+    assert.equal(MAIN.shouldPlayIntro({ status: 'waiting', seen: true }), false);
+    assert.equal(MAIN.shouldPlayIntro({ status: 'round1', seen: false }), false);
+    assert.equal(MAIN.shouldPlayIntro({ status: 'round2', seen: false }), false);
+    assert.equal(MAIN.shouldPlayIntro({ status: 'finished', seen: false }), false);
+    assert.equal(typeof MAIN.skipIntro, 'function');
+    assert.equal(typeof MAIN.introElapsedMs, 'function');
+});
+
+test('the waiting room goes full-stage with the live canvas and keeps the Start button', () => {
+    const src = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = src.indexOf('function renderWaiting');
+    const end = src.indexOf('function render()', start);
+    assert.ok(start !== -1 && end > start);
+    const fn = src.slice(start, end);
+    assert.ok(fn.indexOf('setLive(true)') !== -1, 'waiting uses the live canvas');
+    assert.ok(fn.indexOf('ps-start-btn') !== -1, 'host Start button is still wired');
+    assert.ok(fn.indexOf('ps-player-list') !== -1, 'player list is still wired');
+
+    const frameStart = src.indexOf('function frame(ts)');
+    const frameEnd = src.indexOf('function updateHud', frameStart);
+    const frameFn = src.slice(frameStart, frameEnd);
+    assert.ok(frameFn.indexOf("mode: waiting ? 'intro' : 'round'") !== -1, 'frames paint the intro while waiting');
+
+    assert.equal(src.indexOf('showRoundIntro'), -1, 'blocking showRoundIntro is gone');
+    assert.equal(src.indexOf("PS.showOverlay('Round 1"), -1, 'Round 1 is not covered by a modal');
+    assert.ok(src.indexOf('showRoundCue') !== -1, 'a non-blocking round cue exists');
+});
+
+test('index.html hosts the cinematic waiting overlay, rules cards and skip control', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    ['ps-cine', 'ps-cine-rule1', 'ps-cine-rule2', 'ps-cine-rule1-zh', 'ps-cine-rule2-zh',
+        'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
+        .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
+    assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
+    assert.ok(html.indexOf('玻璃橋') !== -1, 'Traditional Chinese copy is used');
+    assert.ok(html.indexOf('木頭貓') !== -1);
+});
+
+test('bilingual rules are faithful to the English engine copy', () => {
+    assert.equal(typeof PS.RULE_TEXT_ZH, 'object');
+    assert.match(PS.RULE_TEXT_ZH.round1, /綠燈/);
+    assert.match(PS.RULE_TEXT_ZH.round1, /100 米/);
+    assert.match(PS.RULE_TEXT_ZH.round2, /5 秒/);
+    assert.match(PS.RULE_TEXT_ZH.round2, /玻璃/);
+    assert.equal(typeof PS.RULE_TEXT.round1, 'string');
+    assert.ok(PS.RULE_TEXT.round1.indexOf('+10 m') !== -1);
 });

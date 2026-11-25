@@ -19,8 +19,10 @@
     const POLL_WAITING_MS = 1200;
     const POLL_ACTIVE_MS = 700;
     const RESUME_PREFIX = 'learniTY_ps_resume:';
+    const INTRO_SEEN_PREFIX = 'learniTY_ps_intro:';
     const VIEW_ID = 'purrfect-survival-view';
     const PS_ROUND_MS = 180000;
+    const PS_INTRO_HOLD_MS = 15000;
     const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,phase_schedule,glass_steps,settings,created_at,started_at,finished_at,server_now';
 
     let room = null;
@@ -47,6 +49,11 @@
     let liveOn = false;
     let clockOffset = 0;
     let lastTickAt = 0;
+    let introStart = 0;
+    let introPlaying = false;
+    let introSeen = {};
+    let cueTimer = 0;
+    let rulesPainted = false;
 
     /* ---- public demo (no login, no Supabase) -------------------------- */
     const DEMO_ROUND_MS = 120000;
@@ -217,6 +224,86 @@
         if (!room) return [];
         return asArray(room.phase_schedule);
     }
+
+    /* ------------------------------------------------------------------ */
+    /* Cinematic entrance (front-end only, no extra SQL)                  */
+    /*                                                                    */
+    /* While the room is waiting everybody watches the hallway -> stair   */
+    /* maze -> held landing sequence drawn by PSRender. The intro is      */
+    /* purely cosmetic: it never gates the room code, the player list or  */
+    /* the host's Start button, and it is skipped the moment the server   */
+    /* moves the room into round 1 or round 2.                            */
+    /* ------------------------------------------------------------------ */
+
+    const INTRO_HALL_MS = 6000;
+    const INTRO_STAIRS_DONE_MS = 14400;
+
+    function introSeenKey(roomId) {
+        return INTRO_SEEN_PREFIX + (roomId || 'room');
+    }
+
+    function introRoomSeen(roomId) {
+        if (!roomId) return true;
+        if (introSeen[roomId]) return true;
+        try {
+            return sessionStorage.getItem(introSeenKey(roomId)) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function markIntroSeen(roomId) {
+        const id = roomId || (room && room.id);
+        introPlaying = false;
+        if (!id) return;
+        introSeen[id] = true;
+        try {
+            sessionStorage.setItem(introSeenKey(id), '1');
+        } catch (e) { /* storage can be unavailable in private mode */ }
+    }
+
+    function introElapsedMs() {
+        if (!introPlaying || !introStart) return PS_INTRO_HOLD_MS;
+        return Math.max(0, Date.now() - introStart);
+    }
+
+    function ensureIntro() {
+        if (!room || room.status !== 'waiting' || introPlaying) return;
+        if (!PS.shouldPlayIntro({ status: room.status, seen: introRoomSeen(room.id) })) {
+            introPlaying = false;
+            return;
+        }
+        introPlaying = true;
+        introStart = Date.now();
+    }
+
+    PS.skipIntro = function () {
+        if (!room) return;
+        const wasPlaying = introPlaying;
+        markIntroSeen(room.id);
+        updateIntroChrome();
+        if (wasPlaying) renderWaiting();
+        if (wasPlaying && typeof updateMascot === 'function') {
+            updateMascot('Replay skipped — read the rules and start when everyone is in.');
+        }
+    };
+
+    PS.introElapsedMs = introElapsedMs;
+
+    /* Pure helper: which beat of the entrance is showing. */
+    PS.introStage = function (elapsedMs) {
+        const ms = Math.max(0, Number(elapsedMs) || 0);
+        if (ms < INTRO_HALL_MS) return 'hall';
+        if (ms < INTRO_STAIRS_DONE_MS) return 'stairs';
+        return 'hold';
+    };
+
+    /* Pure helper: the entrance only plays in a waiting room it has not
+       already played in for this session. */
+    PS.shouldPlayIntro = function (opts) {
+        const o = opts || {};
+        return o.status === 'waiting' && !o.seen;
+    };
 
     function serverNow() {
         return Date.now() - clockOffset;
@@ -623,10 +710,15 @@
         questionsKey = '';
         shownKeys = {};
         busy = false;
+        introPlaying = false;
+        // Late joiners / rejoiners drop straight into the live arena; only a
+        // freshly waiting room plays the entrance.
+        if (room.status !== 'waiting') markIntroSeen(room.id);
         PS.hideOverlay();
         saveResume();
         renderRejoin();
         startPolling();
+        render();
         poll(true);
     }
 
@@ -728,6 +820,7 @@
         me = null;
         questions = [];
         glassSteps = [];
+        introPlaying = false;
         stopPolling();
         setLive(false);
         clearResume();
@@ -743,8 +836,16 @@
 
     function setPanel(name) {
         show('ps-lobby', name === 'lobby');
-        show('ps-waiting', name === 'waiting');
-        show('ps-game', name === 'game');
+        const liveStage = name === 'waiting' || name === 'game';
+        show('ps-game', liveStage);
+        show('ps-cine', name === 'waiting');
+        const stage = $('ps-stage');
+        if (stage) stage.classList.toggle('ps-stage-waiting', name === 'waiting');
+        if (name === 'waiting') {
+            show('ps-question', false);
+            const overlay = $('ps-round-overlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
     }
 
     function setLive(on) {
@@ -770,11 +871,49 @@
     /* Waiting room                                                       */
     /* ------------------------------------------------------------------ */
 
+    function paintCineRules() {
+        if (rulesPainted) return;
+        const r1en = $('ps-cine-rule1-en');
+        const r1zh = $('ps-cine-rule1-zh');
+        const r2en = $('ps-cine-rule2-en');
+        const r2zh = $('ps-cine-rule2-zh');
+        if (!r1en || !r2en) return;
+        const en = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT) ? PSEngine.RULE_TEXT : null;
+        const zh = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT_ZH) ? PSEngine.RULE_TEXT_ZH : null;
+        r1en.textContent = en ? en.round1 : '';
+        r1zh.textContent = zh ? zh.round1 : '';
+        r2en.textContent = en ? en.round2 : '';
+        r2zh.textContent = zh ? zh.round2 : '';
+        rulesPainted = true;
+    }
+
+    function updateIntroChrome() {
+        if (!room || room.status !== 'waiting') return;
+        const elapsed = introElapsedMs();
+        const revealAll = !introPlaying;
+        const r1 = $('ps-cine-rule1');
+        const r2 = $('ps-cine-rule2');
+        if (r1) r1.classList.toggle('is-in', revealAll || elapsed >= 6800);
+        if (r2) r2.classList.toggle('is-in', revealAll || elapsed >= 10800);
+        const skip = $('ps-intro-skip');
+        if (skip) skip.classList.toggle('hidden', !introPlaying);
+        const cine = $('ps-cine');
+        if (cine) cine.classList.toggle('is-briefing', introPlaying && elapsed >= 5800);
+        if (introPlaying && elapsed >= INTRO_STAIRS_DONE_MS) {
+            markIntroSeen(room.id);
+            updateIntroChrome();
+        }
+    }
+
     function renderWaiting() {
         setPanel('waiting');
-        setLive(false);
+        ensureIntro();
+        setLive(true);
+        paintCineRules();
+
         setText('ps-code', room.code || '----');
-        setText('ps-player-count', totalPlayers() + ' player' + (totalPlayers() === 1 ? '' : 's') + ' joined');
+        const total = totalPlayers();
+        setText('ps-player-count', total + ' player' + (total === 1 ? '' : 's') + ' joined');
         const subject = room.subject === 'grammar' ? 'Grammar' : 'Vocab';
         const topic = room.subject === 'grammar'
             ? (String(room.topic || '').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) || 'Grammar')
@@ -786,7 +925,9 @@
             list.innerHTML = players.filter(isPlayingPlayer).map((p) => {
                 const name = escapeText(String(p.nickname || p.email || 'Player').split('@')[0]);
                 const isHostPlayer = room && String(p.user_id) === String(room.host_id);
-                return '<div class="ps-player-chip"><span class="ps-player-cat">🐱</span><span>' + name + '</span>' +
+                const mine = signedInUser() && String(p.user_id) === String(signedInUser().id);
+                return '<div class="ps-player-chip ps-cine-chip' + (mine ? ' ps-cine-chip-me' : '') + '">' +
+                    '<span class="ps-player-cat">🐱</span><span>' + name + '</span>' +
                     (isHostPlayer ? '<span class="ps-host-tag">HOST</span>' : '') + '</div>';
             }).join('');
         }
@@ -798,11 +939,14 @@
         const msg = $('ps-wait-msg');
         if (msg) {
             msg.textContent = host
-                ? (enough ? 'Everyone in? Start Round 1 when ready.' : 'Waiting for at least one more player…')
+                ? (enough ? 'Everyone in? Start Round 1 when ready — the cinematic will cut straight into the field.' : 'Waiting for at least one more player…')
                 : 'Waiting for the host to start…';
         }
         const end = $('ps-host-end');
         if (end) end.classList.add('hidden');
+
+        updateIntroChrome();
+        requestAnimationFrame(() => { resizeCanvas(); startFrames(); });
     }
 
     /* ------------------------------------------------------------------ */
@@ -821,6 +965,7 @@
             renderWaiting();
             return;
         }
+        if (introPlaying) markIntroSeen(room.id);
         setPanel('game');
         setLive(room.status === 'round1' || room.status === 'round2');
         const isR2 = roomRound() === 2;
@@ -960,7 +1105,8 @@
 
     function startFrames() {
         if (rafId) return;
-        if (!room || (room.status !== 'round1' && room.status !== 'round2')) return;
+        if (!room) return;
+        if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2') return;
         lastFrame = 0;
         rafId = requestAnimationFrame(frame);
     }
@@ -986,13 +1132,16 @@
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        return { ctx: ctx, w: w, h: h };
+        return { ctx: ctx, w: w, h: h, dpr: dpr };
     }
 
     function frame(ts) {
         rafId = 0;
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
-        if (!room || (room.status !== 'round1' && room.status !== 'round2')) return;
+        if (!room) return;
+        const waiting = room.status === 'waiting';
+        const playing = room.status === 'round1' || room.status === 'round2';
+        if (!waiting && !playing) return;
 
         // Canvas art at ~30 fps keeps 30 cats smooth on phones; the DOM HUD
         // and phase sounds still update on every animation frame.
@@ -1000,12 +1149,15 @@
             const surface = resizeCanvas();
             if (surface) {
                 const isR2 = room.status === 'round2';
-                const info = phaseInfo();
+                const info = isR2 ? null : phaseInfo();
                 const state = {
-                    round: isR2 ? 2 : 1,
+                    mode: waiting ? 'intro' : 'round',
+                    round: waiting ? 0 : (isR2 ? 2 : 1),
+                    introElapsed: waiting ? introElapsedMs() : 0,
                     role: (isHost() && (!me || !isPlayingPlayer(me))) ? 'host' : 'player',
                     w: surface.w,
                     h: surface.h,
+                    dpr: surface.dpr,
                     players: players,
                     meId: me ? me.user_id : '',
                     finishDistance: room.finish_distance || 100,
@@ -1025,8 +1177,12 @@
             lastFrame = ts;
         }
 
-        updateHud();
-        handlePhaseSound();
+        if (waiting) {
+            updateIntroChrome();
+        } else {
+            updateHud();
+            handlePhaseSound();
+        }
         rafId = requestAnimationFrame(frame);
     }
 
@@ -1306,7 +1462,8 @@
             lastRedSent = -1;
             overlayAction = null;
             hideOverlay();
-            showRoundIntro(1);
+            markIntroSeen(room.id);
+            render();
             retunePolling();
             poll(true);
         } finally {
@@ -1458,12 +1615,26 @@
         return true;
     }
 
-    function showRoundIntro(roundNo) {
-        if (roundNo === 1) {
-            PS.showOverlay('Round 1 — 123 木頭貓', PSEngine.RULE_TEXT.round1, '🟢', 'Run!');
-        } else {
-            PS.showOverlay('Round 2 — Glass Stepping Stones', PSEngine.RULE_TEXT.round2, '🧊', 'Watch the bridge');
-        }
+    /* Brief non-blocking round cue. The rules were already delivered in the
+       entrance briefing, so nothing may cover the answer pad once the
+       official clock is running. */
+    function showRoundCue(roundNo) {
+        const el = $('ps-round-cue');
+        if (!el) return;
+        const isR1 = Number(roundNo) !== 2;
+        el.innerHTML = isR1
+            ? '<b>🟢 ROUND 1 · 123 木頭貓</b><span>Green = answer · Red = freeze</span>'
+            : '<b>🧊 ROUND 2 · 玻璃橋</b><span>Pick the tempered pane before 5 s</span>';
+        el.classList.remove('hidden');
+        // restart the CSS animation
+        el.classList.remove('ps-cue-on');
+        void el.offsetWidth;
+        el.classList.add('ps-cue-on');
+        if (cueTimer) clearTimeout(cueTimer);
+        cueTimer = setTimeout(() => {
+            el.classList.add('hidden');
+            el.classList.remove('ps-cue-on');
+        }, 4200);
     }
 
     function showEliminatedOverlay() {
@@ -1483,8 +1654,11 @@
 
     function checkMilestones() {
         if (!room || !me) return;
-        if (room.status === 'round2' && once('intro2:' + room.id)) {
-            showRoundIntro(2);
+        if (room.status === 'round1' && once('cue1:' + room.id)) {
+            showRoundCue(1);
+        }
+        if (room.status === 'round2' && once('cue2:' + room.id)) {
+            showRoundCue(2);
         }
         if ((me.status === 'eliminated' || me.ghost) && (room.status === 'round1' || room.status === 'round2')) {
             showEliminatedOverlay();
@@ -1588,6 +1762,10 @@
         populateLobby();
         if (room) {
             setPanel(room.status === 'waiting' ? 'waiting' : 'game');
+            if (room.status === 'waiting') {
+                ensureIntro();
+                setLive(true);
+            }
             startPolling();
             poll(true);
         } else {
@@ -1601,6 +1779,10 @@
         stopPolling();
         stopFrames();
         setLive(false);
+        if (cueTimer) {
+            clearTimeout(cueTimer);
+            cueTimer = 0;
+        }
         if (overlayAction) overlayAction = null;
     };
 
@@ -1648,6 +1830,7 @@
         me = null;
         questions = [];
         glassSteps = [];
+        introPlaying = false;
         clearResume();
         stopPolling();
         setLive(false);

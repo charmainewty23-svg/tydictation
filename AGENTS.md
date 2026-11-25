@@ -3521,3 +3521,57 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   房員 call，idempotent，負責時間到／15 人到終點轉 Round 2、5 秒 timeout、放行
   下一個同完場。RLS 只准房員／老師讀；寫入全部經 security-definer RPC。
 - **測試**：`node --test tests/purrfect-survival.test.cjs`（27 個 engine／wiring 測試）。
+
+### 10.18a Cinematic 3D entrance＋3D 場景（2026-11 加）
+
+- **目的**：老師話原本「flat cartoon sunset field＋bright cyan sky」好假。而家
+  Purr-fect Survival **全部用 3D 透視**（hallway → 樓梯迷宮 → 沙地遊樂場 → 黑暗劇院玻璃橋），
+  但**冇**引入 Three.js／任何 library。
+- **`js/purrfect-survival-render.js`（VERSION `2.0.0`）**：自己寫嘅 lightweight
+  perspective camera（`makeCam`／`toCam`／`projectCam`／`project`、near-plane
+  clipping、`poly3`／`line3`／`box3`、`glow`／`pill`）。所有背景都係**原創 canvas
+  繪畫**（gradients＋paths＋procedural texture），**冇**任何相片／JPEG／`drawImage`。
+  參考圖只係用嚟研究構圖／燈光／顏色，**唔可以**加入 repo。
+- **場景**：
+  - `drawIntro`：hallway（teal 門牌、雙色牆、glossy 地板反光、天花燈、CCTV）→
+    60% 位置 dip-to-black → 粉彩樓梯迷宮（粉紅工作人員行走、landing、
+    crenellation、窗、balcony）→ 停下作為 waiting 背景。
+  - `drawRound1`：沙地＋painted pale-blue mural（雲）＋4 塊 dalgona 門板
+    （綠圈／紅三角／黃星／藍傘）＋彩色矮欄＋爬架＋綠色滑梯＋原創粉紅守衛
+    ＋貓公仔（有貓耳）。相機固定在沙地望向壁畫。
+  - `drawRound2`：黑暗劇院（紅絲絨窗簾＋金邊＋swags、LED 珠鏈、spotlights、
+    深淵、反光紫調玻璃、發光拱門）。Portrait 係第一人稱；landscape 老師／
+    projector 係較高嘅 balcony 視角，睇晒全條橋同排隊。
+- **Cats**：`DG.drawCatAvatar` billboard 喺同一個 perspective space，store hats／
+  glasses／outfits 照用。R2 portrait 只畫自己＋橋上／已過橋嘅人，避免排隊貓遮住
+  玻璃（landscape 照畫全班）。名 tag 用深色 pill。
+- **Caching**：R1 靜態場景（壁畫、欄、爬架、滑梯、距離線）同樓梯 hold 會畫去
+  device-resolution offscreen canvas，再用 `putImageData` 貼返（**唔用**
+  `drawImage`），key = canvas size＋scene＋camera preset；大過 3M px 或冇
+  `document`／`getImageData` 時自動 fallback 直接畫。動態層（守衛、貓公仔、
+  cats、燈、staff、LED）每幀畫。
+- **Entrance（front-end only，冇新 SQL）**：room `waiting` 時
+  `renderWaiting()` 會 `setLive(true)`，canvas 播放 hallway → 樓梯＋
+  **English＋繁體中文** 規則卡（`PSEngine.RULE_TEXT_ZH`，English 原文不變）。
+  Host「Start Round 1」任何時候都撳得；一變 `round1`／`round2` 即刻
+  `markIntroSeen()` 切去 3D arena，唔會等 intro 播完。Late joiner／rejoin
+  直接入 arena。每個 room 每 session 玩一次（`sessionStorage
+  learniTY_ps_intro:<roomId>`），有 **Skip intro →**。Round 1 唔再用
+  blocking modal，只有非阻塞 `#ps-round-cue`；Round 2 cue 亦唔阻擋玻璃跳。
+- **規則不變**：scoring、red penalty、top-15、glass timeout／reveal、guest
+  blocking、polling／RPC contracts 全部冇改。`R.layout` 的 `startY`／`finishY`／
+  `bridgeNearY`／`bridgeFarY` 保留；distance 0–100 同 9 塊玻璃經 3D 投影對應。
+- **HTML／CSS**：`#ps-waiting` 改為 `#ps-stage` 入面嘅 `#ps-cine` overlay
+  （room code、player chips、Start／Leave、規則卡、Skip），`.ps-stage-waiting`
+  會收埋 HUD／question；新增 `.ps-cine*`、`.ps-rule-*`、`.ps-round-cue`。
+- **測試**：renderer 仍 export `drawScene`／`drawRound1`／`drawRound2`／
+  `drawIntro`／`drawDoll`／`drawCat`／`drawLobbyCat`／`layout`；新增 mock-2D-ctx
+  smoke test、intro stage／once-per-room tests、source checks（冇
+  `drawImage`、冇參考圖檔名、冇舊 sunset `#2b1a52`／`#f7b267`、冇 cyan
+  `#0ea5e9`／`#bae6fd`）。`node --test tests/purrfect-survival.test.cjs
+  tests/guest-admin.test.cjs` 全綠。
+- **改動提示**：校準 R1 相機改 `R.layout().cam1`（eye／target／fov）；
+  R2 改 `cam2`；場景常數喺 `PG`／`R2`。加新場景物件用 `box/poly3`，記住
+  painter order（遠→近）。Static cache key 有 scene＋role，改相機記得
+  同時改 key 或 bump。Portrait 嘅 horizontal FOV 好窄（≈33°），所以
+  portrait 專用 `pgLayout()` 會收窄擺位；老師 landscape 用 wide layout。

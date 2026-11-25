@@ -240,6 +240,8 @@ function loadMainWithDom(options) {
         add('ps-r' + r + '-vocab-source', 'select');
         add('ps-r' + r + '-vocab-form-wrap', 'div');
         add('ps-r' + r + '-vocab-form', 'select');
+        add('ps-r' + r + '-vocab-scope-wrap', 'div');
+        add('ps-r' + r + '-vocab-scope', 'select', 'all');
         add('ps-r' + r + '-grammar-topic', 'select', 'tenses');
         add('ps-r' + r + '-grammar-mode', 'select');
     }
@@ -1391,6 +1393,69 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
 });
 
+test('New Vocab lobby pickers offer All / Added today / Added yesterday for every round', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    [1, 2, 3].forEach(r => {
+        const id = 'ps-r' + r + '-vocab-scope';
+        assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists');
+    });
+    const scopeSelects = html.match(/<select id="ps-r[123]-vocab-scope">([\s\S]*?)<\/select>/g) || [];
+    assert.equal(scopeSelects.length, 3, 'one scope select per round');
+    scopeSelects.forEach(block => {
+        assert.ok(block.indexOf('<option value="all" selected>All</option>') !== -1, 'All is the default');
+        assert.ok(block.indexOf('<option value="today">Added today</option>') !== -1, 'today option');
+        assert.ok(block.indexOf('<option value="yesterday">Added yesterday</option>') !== -1, 'yesterday option');
+    });
+
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'] });
+    dom.PS.populateLobby();
+    assert.ok(!dom.el('ps-r1-vocab-scope-wrap').classList.contains('hidden'), 'scope picker shows for New Vocab');
+    dom.el('ps-r1-vocab-source').value = 'Food';
+    dom.PS.syncVocabForm(1);
+    assert.ok(dom.el('ps-r1-vocab-scope-wrap').classList.contains('hidden'), 'scope picker hides for a sheet topic');
+
+    assert.equal(dom.PS.sameRoundBank(
+        { subject: 'vocab', topic: 'New Vocab', vocabSource: 'New Vocab', vocabForm: 'F4', vocabScope: 'today' },
+        { subject: 'vocab', topic: 'New Vocab', vocabSource: 'New Vocab', vocabForm: 'F4', vocabScope: 'yesterday' }
+    ), false, 'a different scope is a different bank');
+    assert.equal(dom.PS.sameRoundBank(
+        { subject: 'vocab', topic: 'New Vocab', vocabSource: 'New Vocab', vocabForm: 'F4' },
+        { subject: 'vocab', topic: 'New Vocab', vocabSource: 'New Vocab', vocabForm: 'F4', vocabScope: 'all' }
+    ), true, 'missing scope equals All');
+});
+
+test('Purr-fect Survival host settings persist the per-round New Vocab date scope', () => {
+    const result = PS.validateHostSettings({
+        roundCount: 2,
+        rounds: [
+            { round: 1, subject: 'vocab', vocabSource: 'New Vocab', vocabForm: 'F4', vocabScope: 'yesterday' },
+            { round: 2, subject: 'vocab', vocabSource: 'New Vocab', vocabForm: 'F4', vocabScope: 'today' }
+        ]
+    });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.rounds[0].vocabScope, 'yesterday');
+    assert.equal(result.rounds[1].vocabScope, 'today');
+    assert.equal(result.settings.rounds[0].vocabScope, 'yesterday');
+    assert.equal(PS.roundConfig(result.settings, 1).vocabScope, 'yesterday');
+    assert.equal(PS.roundConfig(result.settings, 2).vocabScope, 'today');
+
+    // Legacy rooms have no scope at all -> All.
+    assert.equal(PS.roundConfig({ vocabSource: 'New Vocab', vocabForm: 'F4' }, 1).vocabScope, 'all');
+    assert.equal(PS.validateHostSettings({
+        roundCount: 1,
+        rounds: [{ round: 1, subject: 'vocab', vocabSource: 'New Vocab', vocabForm: 'F4' }]
+    }).rounds[0].vocabScope, 'all');
+    assert.equal(PS.normalizeVocabScope('nonsense'), 'all');
+
+    // A different date scope is a different bank, even with the same form.
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf("String(a.vocabScope || 'all') === String(b.vocabScope || 'all')") !== -1,
+        'sameRoundBank compares vocabScope');
+    assert.ok(main.indexOf("select('en,zh,form,created_at')") !== -1, 'New Vocab query selects created_at');
+    assert.ok(main.indexOf('filterNewVocabByScope(rows, dateScope)') !== -1, 'load path uses the shared filter');
+    assert.ok(main.indexOf('Switch that round to All') !== -1, 'empty today/yesterday has a clear message');
+});
+
 test('main module reads and sends the host settings without the old room-level rule', () => {
     const src = fs.readFileSync(MAIN_PATH, 'utf8');
     ['validateHostSettings', 'roomRoundCount', 'roundConfig', 'syncRoundCount',
@@ -1430,8 +1495,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the prize ceremony change', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v106") !== -1, 'CACHE_NAME is v106');
-    assert.equal(sw.indexOf("learnity-pwa-v105"), -1, 'the old cache name is gone');
+    assert.ok(sw.indexOf("learnity-pwa-v107") !== -1, 'CACHE_NAME is v107');
+    assert.equal(sw.indexOf("learnity-pwa-v106"), -1, 'the old cache name is gone');
 });
 
 test('demo page exposes round count, metres, glass step and tug controls', () => {

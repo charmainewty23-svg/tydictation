@@ -5713,9 +5713,9 @@
                 <h2 id="current-topic-title" class="text-3xl font-bold text-orange-600 mb-4 px-2 capitalize">Topic Name</h2>
                 <div id="nv-panel" class="hidden mb-8">
                     <div id="nv-scope" class="flex gap-2 flex-wrap mb-4">
-                        <button type="button" id="nv-scope-today" onclick="nvSetScope('today')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white">Added today</button>
-                        <button type="button" id="nv-scope-yesterday" onclick="nvSetScope('yesterday')" class="hidden px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">Added yesterday</button>
-                        <button type="button" id="nv-scope-all" onclick="nvSetScope('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">All words</button>
+                        <button type="button" id="nv-scope-today" onclick="nvSetScope('today')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">Added today</button>
+                        <button type="button" id="nv-scope-yesterday" onclick="nvSetScope('yesterday')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-100 text-orange-600">Added yesterday</button>
+                        <button type="button" id="nv-scope-all" onclick="nvSetScope('all')" class="px-4 py-2 rounded-full font-bold text-sm bg-orange-500 text-white">All</button>
                     </div>
                     <div id="nv-status" class="text-gray-500 font-bold mb-4"></div>
                     <div id="nv-feedback" class="hidden mb-4 p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 font-bold text-sm leading-relaxed"></div>
@@ -5873,6 +5873,14 @@
                                             <label for="ps-r1-vocab-form">New Vocab form</label>
                                             <select id="ps-r1-vocab-form"></select>
                                         </div>
+                                        <div id="ps-r1-vocab-scope-wrap" class="ps-field">
+                                            <label for="ps-r1-vocab-scope">Which words</label>
+                                            <select id="ps-r1-vocab-scope">
+                                                <option value="all" selected>All</option>
+                                                <option value="today">Added today</option>
+                                                <option value="yesterday">Added yesterday</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div id="ps-r1-grammar-wrap" class="hidden">
                                         <div class="ps-field">
@@ -5914,6 +5922,14 @@
                                             <label for="ps-r2-vocab-form">New Vocab form</label>
                                             <select id="ps-r2-vocab-form"></select>
                                         </div>
+                                        <div id="ps-r2-vocab-scope-wrap" class="ps-field">
+                                            <label for="ps-r2-vocab-scope">Which words</label>
+                                            <select id="ps-r2-vocab-scope">
+                                                <option value="all" selected>All</option>
+                                                <option value="today">Added today</option>
+                                                <option value="yesterday">Added yesterday</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div id="ps-r2-grammar-wrap" class="hidden">
                                         <div class="ps-field">
@@ -5954,6 +5970,14 @@
                                         <div id="ps-r3-vocab-form-wrap" class="ps-field">
                                             <label for="ps-r3-vocab-form">New Vocab form</label>
                                             <select id="ps-r3-vocab-form"></select>
+                                        </div>
+                                        <div id="ps-r3-vocab-scope-wrap" class="ps-field">
+                                            <label for="ps-r3-vocab-scope">Which words</label>
+                                            <select id="ps-r3-vocab-scope">
+                                                <option value="all" selected>All</option>
+                                                <option value="today">Added today</option>
+                                                <option value="yesterday">Added yesterday</option>
+                                            </select>
                                         </div>
                                     </div>
                                     <div id="ps-r3-grammar-wrap" class="hidden">
@@ -6153,10 +6177,10 @@
                                     <p id="battle-vocab-form-hint" class="text-sm text-amber-700 font-bold mt-2 hidden"></p>
                                     <label class="text-sm text-gray-500 font-bold mt-3 block">Which words</label>
                                     <select id="battle-vocab-scope" class="w-full mt-2 p-3 rounded-xl border-2 border-blue-100 bg-white font-bold text-gray-700">
-                                        <option value="all" selected>Full bank</option>
-                                        <option value="today">Added today only</option>
+                                        <option value="all" selected>All</option>
+                                        <option value="today">Added today</option>
                                     </select>
-                                    <p class="text-xs text-gray-400 mt-2">Everyone in the room gets this same list, frozen when the room opens. Full bank is the usual choice.</p>
+                                    <p class="text-xs text-gray-400 mt-2">Everyone in the room gets this same list, frozen when the room opens. All is the usual choice.</p>
                                 </div>
                                 <button onclick="battleCreateRoom()" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">Create Room</button>
                             </div>

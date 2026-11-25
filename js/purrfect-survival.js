@@ -263,7 +263,8 @@
             const topic = String(cfg.topic || 'tenses').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
             return 'Grammar · ' + topic + (cfg.bankMode ? ' · ' + cfg.bankMode : '');
         }
-        return 'Vocab · ' + (cfg.vocabSource || cfg.topic || 'Vocab') + (cfg.vocabForm ? ' · ' + cfg.vocabForm : '');
+        return 'Vocab · ' + (cfg.vocabSource || cfg.topic || 'Vocab') + (cfg.vocabForm ? ' · ' + cfg.vocabForm : '')
+            + (cfg.vocabScope && cfg.vocabScope !== 'all' ? ' · ' + cfg.vocabScope : '');
     }
 
     function asArray(value) {
@@ -551,6 +552,7 @@
         const sourceSel = roundField(r, 'vocab-source') || (r === 1 ? $('ps-vocab-source') : null);
         const source = sourceSel ? sourceSel.value : 'New Vocab';
         show(roundId(r, 'vocab-form-wrap'), source === 'New Vocab');
+        show(roundId(r, 'vocab-scope-wrap'), source === 'New Vocab');
         const sel = roundField(r, 'vocab-form') || (r === 1 ? $('ps-vocab-form') : null);
         if (!sel) return;
         const admin = typeof isAdmin === 'function' && isAdmin();
@@ -703,7 +705,8 @@
             round: r,
             subject: 'vocab',
             vocabSource: selectValue(roundId(r, 'vocab-source'), 'New Vocab'),
-            vocabForm: selectValue(roundId(r, 'vocab-form'), '')
+            vocabForm: selectValue(roundId(r, 'vocab-form'), ''),
+            vocabScope: selectValue(roundId(r, 'vocab-scope'), 'all')
         };
     }
 
@@ -734,6 +737,7 @@
             const seed = Math.floor(Math.random() * 2000000000) + 1;
             const settings = Object.assign({}, validated.settings, {
                 vocabForm: r1.vocabForm || '',
+                vocabScope: r1.vocabScope || 'all',
                 vocabSource: r1.vocabSource || '',
                 grammarTopic: r1.subject === 'grammar' ? r1.topic : '',
                 bankMode: r1.bankMode || ''
@@ -1884,7 +1888,7 @@
         });
     }
 
-    async function loadVocabWords(source, form) {
+    async function loadVocabWords(source, form, scope) {
         const src = String(source || (room && (room.source || room.topic)) || '').trim();
         const looksNew = src === 'New Vocab' || src === 'new_vocab';
         if (!looksNew) {
@@ -1900,8 +1904,11 @@
         if (resolvedForm === 'ALL') resolvedForm = '';
         if (!resolvedForm && typeof myFormValue !== 'undefined' && myFormValue) resolvedForm = myFormValue;
         if (!resolvedForm && typeof ownDisplayedForm === 'function') resolvedForm = ownDisplayedForm() || '';
+        const dateScope = typeof normalizeVocabDateScope === 'function'
+            ? normalizeVocabDateScope(scope)
+            : (scope === 'today' || scope === 'yesterday' ? scope : 'all');
         try {
-            let query = sb.from('new_vocab_words').select('en,zh,form').order('id');
+            let query = sb.from('new_vocab_words').select('en,zh,form,created_at').order('id');
             if (resolvedForm && resolvedForm !== 'ALL') query = query.eq('form', resolvedForm);
             else if (typeof FORM_LEVELS !== 'undefined') query = query.in('form', FORM_LEVELS.map(f => f.id));
             const { data, error } = await query;
@@ -1909,7 +1916,11 @@
                 setError('Could not load New Vocab: ' + (error.message || 'unknown error'));
                 return [];
             }
-            return (data || []).map(w => ({ en: String(w.en || '').trim(), zh: String(w.zh || '').trim() })).filter(w => w.en && w.zh);
+            const rows = (data || []).filter(w => w && String(w.en || '').trim() && String(w.zh || '').trim());
+            const scoped = typeof filterNewVocabByScope === 'function'
+                ? filterNewVocabByScope(rows, dateScope)
+                : (dateScope === 'all' ? rows.slice() : []);
+            return scoped.map(w => ({ en: String(w.en || '').trim(), zh: String(w.zh || '').trim() }));
         } catch (e) {
             setError('Could not load New Vocab.');
             return [];
@@ -1940,9 +1951,16 @@
             }
             return { subject: 'grammar', grammar: bank };
         }
-        const words = await loadVocabWords(config.vocabSource || config.topic, config.vocabForm);
+        const words = await loadVocabWords(config.vocabSource || config.topic, config.vocabForm, config.vocabScope);
         if (!words.length) {
-            setError('No usable words in that vocab bank. New Vocab cards need both English and Chinese.');
+            const scope = typeof normalizeVocabDateScope === 'function'
+                ? normalizeVocabDateScope(config.vocabScope)
+                : (config.vocabScope === 'today' || config.vocabScope === 'yesterday' ? config.vocabScope : 'all');
+            if (scope !== 'all') {
+                setError('No usable New Vocab words were added ' + scope + '. Switch that round to All, or add the English first.');
+            } else {
+                setError('No usable words in that vocab bank. New Vocab cards need both English and Chinese.');
+            }
             return null;
         }
         return { subject: 'vocab', words: words };
@@ -1954,6 +1972,7 @@
             && String(a.topic || '') === String(b.topic || '')
             && String(a.vocabSource || '') === String(b.vocabSource || '')
             && String(a.vocabForm || '') === String(b.vocabForm || '')
+            && String(a.vocabScope || 'all') === String(b.vocabScope || 'all')
             && String(a.bankMode || '') === String(b.bankMode || '');
     }
 
@@ -2472,6 +2491,7 @@
     PS.populateLobby = populateLobby;
     PS.syncSubjectFields = syncSubjectFields;
     PS.syncVocabForm = syncVocabForm;
+    PS.sameRoundBank = sameRoundBank;
     PS.syncGrammarModes = syncGrammarModes;
     PS.syncRoundCount = syncRoundCount;
     PS.state = function () {

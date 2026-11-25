@@ -228,6 +228,15 @@
         return !(hasVocab && hasGrammar);
     };
 
+    /* New Vocab date scope. The shared helper is authoritative in the app;
+       this fallback keeps the pure engine usable on its own. */
+    function normalizeVocabScope(value) {
+        if (typeof normalizeVocabDateScope === 'function') return normalizeVocabDateScope(value);
+        const v = String(value == null ? '' : value).trim().toLowerCase();
+        return v === 'today' || v === 'yesterday' ? v : 'all';
+    }
+    PS.normalizeVocabScope = normalizeVocabScope;
+
     PS.validateRoomSetup = function (input) {
         const raw = input || {};
         const subject = PS.normalizeSubject(raw.subject);
@@ -254,7 +263,8 @@
                     topic: topic,
                     bankMode: mode,
                     vocabSource: '',
-                    vocabForm: ''
+                    vocabForm: '',
+                    vocabScope: 'all'
                 }
             };
         }
@@ -272,7 +282,8 @@
                 topic: source,
                 bankMode: '',
                 vocabSource: source,
-                vocabForm: String(raw.vocabForm || raw.vocab_form || raw.form || '').trim().toUpperCase()
+                vocabForm: String(raw.vocabForm || raw.vocab_form || raw.form || '').trim().toUpperCase(),
+                vocabScope: normalizeVocabScope(raw.vocabScope || raw.vocab_scope)
             }
         };
     };
@@ -367,6 +378,7 @@
             vocabSource: raw.vocabSource || raw.vocab_source || raw.source
                 || (subject === 'vocab' ? (raw.topic || '') : ''),
             vocabForm: raw.vocabForm || raw.vocab_form || raw.form || '',
+            vocabScope: raw.vocabScope || raw.vocab_scope || '',
             grammarTopic: raw.grammarTopic || raw.grammar_topic
                 || (subject === 'grammar' ? (raw.topic || '') : ''),
             bankMode: raw.bankMode || raw.bank_mode || ''
@@ -423,6 +435,7 @@
             || (flatSubject === 'vocab' ? (s.topic || r.topic || '') : '') || ''
         ).trim();
         const flatForm = String(s.vocabForm || s.vocab_form || s.form || r.vocabForm || '').trim().toUpperCase();
+        const flatScope = normalizeVocabScope(s.vocabScope || s.vocab_scope || r.vocabScope || r.vocab_scope);
         const flatGrammarTopic = String(
             s.grammarTopic || s.grammar_topic
             || (flatSubject === 'grammar' ? (s.topic || r.topic || 'tenses') : '')
@@ -434,6 +447,7 @@
         let topic = subject === 'grammar' ? (flatGrammarTopic || 'tenses') : (flatSource || String(s.topic || r.topic || ''));
         let vocabSource = subject === 'vocab' ? flatSource : '';
         let vocabForm = subject === 'vocab' ? flatForm : '';
+        let vocabScope = subject === 'vocab' ? flatScope : 'all';
         let bankMode = subject === 'grammar' ? flatMode : '';
 
         if (hasEntry) {
@@ -445,10 +459,12 @@
                     bankMode = String(entry.bankMode || entry.bank_mode || flatMode || '').trim().toLowerCase();
                     vocabSource = '';
                     vocabForm = '';
+                    vocabScope = 'all';
                 } else {
                     vocabSource = String(entry.vocabSource || entry.vocab_source || entry.topic || flatSource || '').trim();
                     topic = vocabSource;
                     vocabForm = String(entry.vocabForm || entry.vocab_form || entry.form || flatForm || '').trim().toUpperCase();
+                    vocabScope = normalizeVocabScope(entry.vocabScope || entry.vocab_scope || flatScope);
                     bankMode = '';
                 }
             }
@@ -473,6 +489,7 @@
             topic: topic,
             vocabSource: vocabSource,
             vocabForm: vocabForm,
+            vocabScope: vocabScope,
             bankMode: bankMode,
             finishDistance: finishDistance,
             roundMs: roundMs,
@@ -532,7 +549,8 @@
                 topic: validated.setup.topic,
                 bankMode: validated.setup.bankMode,
                 vocabSource: validated.setup.vocabSource,
-                vocabForm: validated.setup.vocabForm
+                vocabForm: validated.setup.vocabForm,
+                vocabScope: normalizeVocabScope(validated.setup.vocabScope)
             };
 
             if (n === 1) {

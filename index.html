@@ -5007,6 +5007,99 @@
             background: #f8fafc;
         }
         .ps-lick.hidden { display: none; }
+        /* ---------- Round 5 · Grammar Finals ---------- */
+        .ps-phase-finals {
+            background: #0e7490;
+            color: #ecfeff;
+            border-color: #67e8f9;
+        }
+        .ps-finals-opt {
+            border-color: #a5f3fc;
+            background: linear-gradient(160deg, #f0fdff, #cffafe);
+            color: #164e63;
+        }
+        .ps-finals-token {
+            justify-content: center;
+            text-align: center;
+            min-height: 52px;
+            font-size: 14px;
+            line-height: 1.22;
+        }
+        .ps-finals-blank {
+            display: grid;
+            grid-template-columns: 22px 1fr 1fr;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .ps-finals-blank-n {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #0e7490;
+            color: #ecfeff;
+            font: 800 11px Fredoka, system-ui, sans-serif;
+        }
+        .ps-finals-blank .ps-opt {
+            justify-content: center;
+            text-align: center;
+            min-height: 44px;
+        }
+        .ps-opt-picked {
+            outline: 3px solid #f59e0b;
+            outline-offset: -2px;
+            background: #fef3c7;
+        }
+        .ps-finals-submit {
+            width: 100%;
+            min-height: 46px;
+            margin-top: 4px;
+        }
+        .ps-finals-submit:disabled {
+            opacity: .5;
+            cursor: default;
+        }
+        .ps-ink-btn {
+            display: block;
+            width: 100%;
+            min-height: 46px;
+            margin-top: 8px;
+            border-radius: .85rem;
+            border: 2px solid #7c3aed;
+            background: linear-gradient(160deg, #f5f3ff, #ede9fe);
+            color: #4c1d95;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .ps-ink-btn.hidden { display: none; }
+        .ps-ink-cover {
+            position: absolute;
+            inset: 0;
+            z-index: 12;
+            border-radius: 1.25rem;
+            background: radial-gradient(circle at 50% 42%, rgba(15, 23, 42, .96), rgba(2, 6, 23, .98));
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            pointer-events: none;
+        }
+        .ps-ink-cover.hidden { display: none; }
+        .ps-ink-splat {
+            font-size: clamp(34px, 12vw, 54px);
+            filter: drop-shadow(0 0 14px rgba(168, 85, 247, .8));
+        }
+        .ps-ink-time {
+            font: 800 13px Fredoka, system-ui, sans-serif;
+            color: #c4b5fd;
+        }
         /* Student Round 4 only: a slightly tighter pad so the tin keeps the
            free space above it. Keys stay usable (36px letters). */
         #purrfect-survival-view.ps-r4-student .ps-question {
@@ -5040,6 +5133,22 @@
             margin-top: 6px;
             font-size: 13px;
         }
+        /* Teacher / projector Round 1 only: every visible control label is
+           exactly 1px larger than the normal size. The student Round 1 view
+           (no .ps-r1-host class) is unchanged. */
+        #purrfect-survival-view.ps-r1-host .ps-badge,
+        #purrfect-survival-view.ps-r1-host .ps-alive,
+        #purrfect-survival-view.ps-r1-host .ps-phase,
+        #purrfect-survival-view.ps-r1-host .ps-timer,
+        #purrfect-survival-view.ps-r1-host .ps-place { font-size: 12.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 11.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-host-btn,
+        #purrfect-survival-view.ps-r1-host .ps-icon-btn { font-size: 12px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-title { font-size: 11.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-count { font-size: 10.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 11px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 11px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-status { font-size: 9.5px; }
         .ps-danger-frame {
             box-shadow: 0 0 0 4px rgba(239, 68, 68, .55), 0 16px 40px rgba(0, 0, 0, .28) !important;
             animation: psDangerPulse .9s ease-in-out infinite;
@@ -5363,6 +5472,18 @@
             .ps-progress-row { font-size: 9px; padding: 2px 4px; gap: 4px; }
             .ps-progress-detail { font-size: 8.5px; }
             .ps-progress-status { font-size: 8px; }
+            /* Teacher / projector Round 1 keeps the same +1px bump here. */
+            #purrfect-survival-view.ps-r1-host .ps-badge,
+            #purrfect-survival-view.ps-r1-host .ps-alive,
+            #purrfect-survival-view.ps-r1-host .ps-phase,
+            #purrfect-survival-view.ps-r1-host .ps-timer,
+            #purrfect-survival-view.ps-r1-host .ps-place { font-size: 11.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 10.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-host-btn,
+            #purrfect-survival-view.ps-r1-host .ps-icon-btn { font-size: 11px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 10px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 9.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-status { font-size: 9px; }
             .ps-qualifier-list { grid-template-columns: 1fr 1fr; }
             .ps-qualifier-card { width: min(720px, 78vw); padding: 12px 16px; }
             .ps-qualifier-card h2 { font-size: 20px; }
@@ -5383,6 +5504,8 @@
             .ps-progress { top: calc(52px + env(safe-area-inset-top)); width: min(230px, 24vw); max-height: calc(100% - 62px); }
             .ps-progress-head { padding: 4px 6px; }
             .ps-progress-row { font-size: 8.5px; padding: 1px 4px; }
+            /* Teacher / projector Round 1 +1px on the short landscape HUD. */
+            #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 9.5px; }
             .ps-qualifier-card { padding: 9px 12px; }
             .ps-qualifier-list { gap: 3px; margin-bottom: 5px; }
             .ps-qualifier-row { font-size: 9px; padding: 2px 4px; }
@@ -5398,6 +5521,7 @@
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+            #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 9.5px; }
             .ps-question { bottom: 6px; left: 6px; width: min(390px, 46vw); padding: 6px 8px 8px; }
             .ps-prompt { min-height: 0; margin-bottom: 4px; font-size: 12.5px; }
             .ps-opt { min-height: 36px; font-size: 11.5px; }
@@ -5424,6 +5548,12 @@
             .ps-mistake-title { font-size: 10px; }
             .ps-mistake-sub { font-size: 8.5px; margin-bottom: 4px; }
             .ps-mistake-item { font-size: 8.5px; }
+            .ps-finals-token { min-height: 40px; font-size: 11px; }
+            .ps-finals-blank { grid-template-columns: 18px 1fr 1fr; gap: 4px; margin-bottom: 4px; }
+            .ps-finals-blank-n { width: 18px; height: 18px; font-size: 9px; }
+            .ps-finals-blank .ps-opt { min-height: 36px; }
+            .ps-finals-submit { min-height: 40px; }
+            .ps-ink-btn { min-height: 40px; }
         }
         @media (max-width: 430px) {
             .ps-lobby { padding: 14px 12px 24px; }
@@ -6388,7 +6518,7 @@
                                         <option value="2" selected>2 rounds · Meow + Glass</option>
                                         <option value="3">3 rounds · Meow + Glass + Tug</option>
                                         <option value="4">4 rounds · Meow + Glass + Tug + Dalgona</option>
-                                        <option value="5" disabled>5 rounds · coming soon</option>
+                                        <option value="5">5 rounds · Meow + Glass + Tug + Dalgona + Finals</option>
                                     </select>
                                 </div>
 
@@ -6551,6 +6681,15 @@
                                     </div>
                                 </section>
 
+                                <section id="ps-round5-card" class="ps-round-config hidden">
+                                    <h3 class="ps-round-title">Round 5 · Grammar Finals</h3>
+                                    <div class="ps-field">
+                                        <label for="ps-finals-duration">Finals time limit (seconds)</label>
+                                        <input id="ps-finals-duration" type="number" min="60" max="180" step="5" value="120" inputmode="numeric">
+                                        <p class="ps-hint">60–180 seconds (default 120). Every Dalgona survivor enters the electric-fence arena. Error Spotting (6 s) and Double-Trap Cloze (8 s) pay the grammar bank. A wrong answer slips 25 back; a wrong answer at 0 is electrocuted. Every 3 correct answers fires a paw-wave that knocks the nearest opponent back 15. If fewer than 2 Dalgona survivors remain, the finals are skipped.</p>
+                                    </div>
+                                </section>
+
                                 <label id="ps-teacher-row" class="ps-check">
                                     <input id="ps-teacher-plays" type="checkbox">
                                     <span>Join as a player too (teacher host otherwise spectates)</span>
@@ -6642,7 +6781,12 @@
                                 <p id="ps-carved" class="ps-carved"></p>
                                 <div id="ps-options" class="ps-options"></div>
                                 <button id="ps-lick-btn" type="button" class="ps-lick hidden" onclick="PS.dalgonaLick()">[ 👅 舔一口椪糖 (Hint) ]</button>
+                                <button id="ps-ink-btn" type="button" class="ps-ink-btn hidden" onclick="PS.throwInk()">🖤 Throw ink bomb</button>
                                 <p id="ps-feedback" class="ps-feedback"></p>
+                                <div id="ps-ink-cover" class="ps-ink-cover hidden" aria-hidden="true">
+                                    <span class="ps-ink-splat">🖤</span>
+                                    <span class="ps-ink-time"></span>
+                                </div>
                             </div>
 
                             <div id="ps-round-overlay" class="ps-overlay hidden">

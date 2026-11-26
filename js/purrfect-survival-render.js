@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.5.2';
+    R.VERSION = '2.6.1';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -719,11 +719,11 @@
             ? { startZ: 0.8, finishZ: 9.95, dollZ: 10.2 }
             : { startZ: 5.0, finishZ: 9.8, dollZ: 10.15 };
         const hostCam2 = landscape
-            ? { eye: [0, 11.0, -9.0], target: [0, 0.0, 7.6], fov: 58 }
-            : { eye: [0, 8.4, -4.4], target: [0, 0.0, 7.6], fov: 64 };
+            ? { eye: [-1.4, 10.6, -8.6], target: [-1.4, 0.0, 7.6], fov: 54 }
+            : { eye: [0, 8.0, -4.0], target: [0, 0.0, 7.6], fov: 60 };
         const hostCam3 = landscape
-            ? { eye: [0, 11.0, -8.0], target: [0, 0.4, 5.8], fov: 58 }
-            : { eye: [0, 8.4, -5.0], target: [0, 0.4, 5.8], fov: 60 };
+            ? { eye: [-1.4, 10.6, -7.6], target: [-1.4, 0.4, 5.8], fov: 54 }
+            : { eye: [0, 8.0, -4.6], target: [0, 0.4, 5.8], fov: 56 };
         return {
             w: width,
             h: height,
@@ -1822,7 +1822,7 @@
                 { stroke: m === 0 ? 'rgba(255,255,255,.55)' : 'rgba(120,88,44,.28)', lineWidth: m === 0 ? 2 : 1, dash: m === 0 ? null : [6, 8] });
             if (m % 20 === 0) {
                 const lp = project(cam, pg.wide ? -5.9 : -3.2, 0.28, z);
-                if (lp) pill(ctx, lp.x, lp.y, m + ' m', { size: Math.max(8, Math.min(12, lp.s * 0.16)), align: 'right' });
+                if (lp) pill(ctx, lp.x, lp.y, m + ' m', { size: Math.max(8, Math.min(12, lp.s * 0.16)) + (L.host ? 1 : 0), align: 'right' });
             }
         }
         // checkered finish strip
@@ -1958,8 +1958,11 @@
         drawLight(ctx, L, s, cam);
 
         ctx.save();
+        /* Teacher / projector Round 1 text is 1px larger (the student
+           camera and typography are unchanged). */
+        const titleSize = Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027)));
         pill(ctx, 14, L.hud + 16, '1-2-3 Meow! · RED LIGHT, GREEN LIGHT', {
-            size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
+            size: titleSize + (L.host ? 1 : 0), align: 'left'
         });
         ctx.restore();
     };
@@ -2052,7 +2055,7 @@
                 if (name) {
                     const rank = rankOf[pid];
                     const label = (rank ? rank + ' · ' : '') + name;
-                    const fs = Math.max(7, Math.min(12, anchor.scale * 15));
+                    const fs = Math.max(7, Math.min(12, anchor.scale * 15)) + (L.host ? 1 : 0);
                     pill(ctx, anchor.x, anchor.y - (isMe ? 152 : 140) * anchor.scale - 5, label, {
                         size: fs,
                         bg: isMe ? 'rgba(120,80,0,.8)' : 'rgba(8,12,24,.55)',
@@ -3756,6 +3759,258 @@
     };
 
     /* ================================================================== */
+    /* Round 5 — Grammar Finals arena                                     */
+    /*                                                                    */
+    /* Original stylised 3D: a circular arena inside an electric fence.   */
+    /* finals_progress 100 sits near the safe centre; 0 is the fence.     */
+    /* Ghost cats stand outside. No photographic assets are used.         */
+    /* ================================================================== */
+
+    function finalsAngle(row) {
+        return mix01('finals-angle:' + String((row && row.user_id) || '')) * Math.PI * 2;
+    }
+
+    function finalsRadius(progress) {
+        const p = clamp(Number(progress) || 0, 0, 100) / 100;
+        /* progress 100 -> inner safe ring, progress 0 -> outer fence */
+        return lerp(8.4, 2.1, p);
+    }
+
+    function drawElectricFence(ctx, cam, radius, t) {
+        const posts = 28;
+        let prev = null;
+        for (let i = 0; i <= posts; i++) {
+            const a = (i / posts) * Math.PI * 2;
+            const x = Math.cos(a) * radius;
+            const z = Math.sin(a) * radius + 4.2;
+            const p = project(cam, x, 0, z);
+            if (p) {
+                if (prev) {
+                    line3(ctx, cam, [prev.x, prev.y, prev.z], [x, 0, z], {
+                        stroke: 'rgba(103,232,249,.30)', lineWidth: 1.2
+                    });
+                }
+                prev = { x: x, z: z, y: 0 };
+            }
+            if (i % 2 === 0) {
+                const h = 1.15 + Math.sin(t * 0.004 + i) * 0.06;
+                line3(ctx, cam, [x, 0, z], [x, h, z], {
+                    stroke: '#67e8f9', lineWidth: 2
+                });
+                const top = project(cam, x, h, z);
+                if (top) glow(ctx, top.x, top.y, 14, '#22d3ee', 0.38);
+            }
+        }
+        /* crackling arcs along the fence */
+        for (let i = 0; i < 9; i++) {
+            const seed = hash01('finals-arc:' + i + ':' + Math.floor(t / 160));
+            const a = seed * Math.PI * 2;
+            const x = Math.cos(a) * radius;
+            const z = Math.sin(a) * radius + 4.2;
+            const top = project(cam, x, 1.05, z);
+            if (!top) continue;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(165,243,252,.72)';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(top.x - 10, top.y + 4);
+            ctx.lineTo(top.x - 3, top.y - 3);
+            ctx.lineTo(top.x + 4, top.y + 2);
+            ctx.lineTo(top.x + 11, top.y - 5);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    R.drawRound5 = function (ctx, state) {
+        if (!ctx) return;
+        const s = state || {};
+        const L = R.layout(s.w, s.h, s.role);
+        const host = String(s.role || '') === 'host';
+        const r5 = s.round5 || {};
+        const board = (Array.isArray(r5.board) ? r5.board : []).filter(function (row) { return row && row.user_id; });
+        const ghosts = (Array.isArray(r5.ghosts) ? r5.ghosts : []).filter(function (row) { return row && row.user_id; });
+        const now = Number(s.now) || 0;
+
+        ctx.save();
+        const sky = ctx.createLinearGradient(0, 0, 0, L.h);
+        sky.addColorStop(0, '#0b1026');
+        sky.addColorStop(0.52, '#161b3f');
+        sky.addColorStop(1, '#050711');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, L.w, L.h);
+
+        glow(ctx, L.w * 0.5, L.h * 0.30, Math.max(L.w, L.h) * 0.42, '#38bdf8', 0.16);
+        glow(ctx, L.w * 0.16, L.h * 0.45, Math.max(L.w, L.h) * 0.22, '#a855f7', 0.11);
+        glow(ctx, L.w * 0.86, L.h * 0.45, Math.max(L.w, L.h) * 0.22, '#f472b6', 0.10);
+
+        const cam = makeCam(L, host
+            ? { eye: [0, L.landscape ? 12.5 : 9.4, -5.4], target: [0, 0.2, 4.6], fov: 58 }
+            : { eye: [0, L.landscape ? 6.2 : 4.8, -6.8], target: [0, 0.4, 4.4], fov: 62 });
+
+        /* Arena floor: a wide oval stone platform. */
+        const floorPts = [];
+        const RING = 42;
+        for (let i = 0; i < RING; i++) {
+            const a = (i / RING) * Math.PI * 2;
+            floorPts.push([Math.cos(a) * 9.6, 0, Math.sin(a) * 9.6 + 4.2]);
+        }
+        poly3(ctx, cam, floorPts, { fill: '#1e293b', stroke: 'rgba(148,163,184,.22)', lineWidth: 1 });
+        poly3(ctx, cam, floorPts.map(function (p) { return [p[0] * 0.62, 0.02, p[2] * 0.62 + 1.6]; }), {
+            fill: 'rgba(30,41,59,.82)'
+        });
+
+        /* Safe-centre ring and progress rings. */
+        [[2.1, 'rgba(52,211,153,.42)'], [4.4, 'rgba(250,204,21,.16)'], [6.6, 'rgba(248,113,113,.16)']].forEach(function (ring) {
+            const pts = [];
+            for (let i = 0; i < RING; i++) {
+                const a = (i / RING) * Math.PI * 2;
+                pts.push([Math.cos(a) * ring[0], 0.04, Math.sin(a) * ring[0] + 4.2]);
+            }
+            poly3(ctx, cam, pts, { stroke: ring[1], lineWidth: 1.4, close: true });
+        });
+
+        drawElectricFence(ctx, cam, 8.4, now);
+
+        /* Ink splat on the student's own covered question. */
+        if (r5.me && r5.me.ink && !host) {
+            ctx.save();
+            ctx.globalAlpha = 0.88;
+            ctx.fillStyle = '#0f172a';
+            const cx = L.w * 0.5;
+            const cy = L.h * 0.48;
+            for (let i = 0; i < 9; i++) {
+                const a = i / 9 * Math.PI * 2;
+                const rr = L.w * (0.12 + hash01('ink:' + i) * 0.08);
+                ell(ctx, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.55,
+                    L.w * 0.14, L.w * 0.10);
+            }
+            ell(ctx, cx, cy, L.w * 0.34, L.h * 0.17);
+            ctx.restore();
+        }
+
+        const catScale = Math.max(0.55, Math.min(1.2, L.h / 680));
+
+        /* Ghosts are behind / outside the fence. */
+        ghosts.forEach(function (row, i) {
+            const a = finalsAngle(row) + 0.7 + i * 0.31;
+            const radius = 9.8 + (i % 3) * 0.55;
+            const x = Math.cos(a) * radius;
+            const z = Math.sin(a) * radius + 4.2;
+            drawCatAt(ctx, cam, x, 0, z, catScale * 0.82, row.look, {
+                ghost: true, alpha: 0.50, ring: false
+            });
+            const p = project(cam, x, 1.1, z);
+            if (p && host) pill(ctx, p.x, p.y - 14, '👻 ' + String(row.name || 'Ghost').slice(0, 12), {
+                size: Math.max(7, Math.min(11, L.w * 0.011)),
+                bg: 'rgba(15,23,42,.72)', color: '#c4b5fd'
+            });
+        });
+
+        const playerRow = board.find(function (row) { return row.isMe; }) || null;
+        const living = board.filter(function (row) { return !row.eliminated; });
+        let show = host ? living : living.slice(0, 12);
+        if (!host && playerRow && !show.some(function (row) { return row.isMe; })) {
+            show = show.slice(0, 11).concat(playerRow);
+        }
+        const ordered = show.slice().sort(function (a, b) {
+            return (Number(b.progress) || 0) - (Number(a.progress) || 0);
+        });
+
+        ordered.forEach(function (row, index) {
+            const a = finalsAngle(row);
+            const radius = finalsRadius(row.progress);
+            const x = Math.cos(a) * radius;
+            const z = Math.sin(a) * radius + 4.2;
+            const colour = row.isMe ? '#fde68a' : (index === 0 ? '#fca5a5' : '#a5f3fc');
+            drawCatAt(ctx, cam, x, 0, z, catScale, row.look, {
+                ring: true,
+                ringColor: colour,
+                halo: row.isMe,
+                haloColor: row.isMe ? '#fbbf24' : '#38bdf8'
+            });
+            const p = project(cam, x, 1.15, z);
+            if (!p) return;
+            const label = host
+                ? String(row.name || 'Player').slice(0, 14) + ' · ' + Math.round(row.progress)
+                : (row.isMe ? 'YOU · ' + Math.round(row.progress) : String(row.name || 'Player').slice(0, 12));
+            pill(ctx, p.x, p.y - 18, label, {
+                size: Math.max(7, Math.min(12, L.w * (L.landscape ? 0.011 : 0.026))),
+                bg: row.isMe ? 'rgba(113,63,18,.88)' : 'rgba(8,15,31,.74)',
+                color: row.isMe ? '#fef3c7' : '#e0f2fe',
+                border: row.isMe ? 'rgba(251,191,36,.8)' : 'rgba(56,189,248,.35)'
+            });
+            if (row.combo >= 3) {
+                pill(ctx, p.x, p.y + 2, '🐾 ' + row.combo, {
+                    size: Math.max(7, Math.min(10, L.w * 0.010)),
+                    bg: 'rgba(124,45,18,.8)', color: '#fed7aa'
+                });
+            }
+            if (host && row.ink) {
+                ctx.save();
+                ctx.globalAlpha = 0.82;
+                ctx.fillStyle = '#0f172a';
+                ell(ctx, p.x, p.y - 2, Math.max(12, L.w * 0.025), Math.max(7, L.w * 0.012));
+                ctx.restore();
+                pill(ctx, p.x, p.y - 30, '🖤 ink', {
+                    size: Math.max(7, Math.min(10, L.w * 0.010)),
+                    bg: 'rgba(49,46,129,.85)', color: '#e0e7ff'
+                });
+            }
+        });
+
+        /* Paw-wave arcs when any cat is on a combo. */
+        living.forEach(function (row) {
+            if ((Number(row.combo) || 0) < 3) return;
+            const a = finalsAngle(row);
+            const radius = finalsRadius(row.progress);
+            const p = project(cam, Math.cos(a) * radius, 0.5, Math.sin(a) * radius + 4.2);
+            if (!p) return;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(253,186,116,.42)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 18 + (row.combo % 3) * 8, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        if (host) {
+            pill(ctx, L.w / 2, L.hud + 16, 'ROUND 5 · GRAMMAR FINALS · ' + living.length + ' STILL IN', {
+                size: Math.max(9, Math.min(14, L.w * (L.landscape ? 0.014 : 0.028))),
+                bg: 'rgba(12,74,110,.82)', color: '#a5f3fc', border: 'rgba(34,211,238,.5)'
+            });
+            if (r5.remainingMs != null) {
+                pill(ctx, L.w - 16, L.hud + 16, PSEngineLabelClock(r5.remainingMs), {
+                    size: Math.max(9, Math.min(13, L.w * 0.012)),
+                    bg: 'rgba(8,15,31,.8)', color: '#fef3c7', align: 'right'
+                });
+            }
+        } else if (playerRow) {
+            pill(ctx, L.w / 2, L.h - 14, '⚡ ' + Math.round(playerRow.progress)
+                + ' · combo ' + (playerRow.combo || 0) + '/3 · stay away from the fence', {
+                size: Math.max(8, Math.min(12, L.w * (L.landscape ? 0.013 : 0.025))),
+                bg: 'rgba(8,15,31,.78)', color: '#a5f3fc', border: 'rgba(34,211,238,.35)'
+            });
+        }
+
+        const vig = ctx.createRadialGradient(L.w / 2, L.h * 0.5, L.w * 0.22, L.w / 2, L.h * 0.5, L.w * 0.9);
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(2,6,23,.66)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, L.w, L.h);
+        ctx.restore();
+    };
+
+    /* Local clock label (the renderer does not depend on the engine). */
+    function PSEngineLabelClock(ms) {
+        const total = Math.max(0, Math.ceil((Number(ms) || 0) / 1000));
+        const m = Math.floor(total / 60);
+        const s = total % 60;
+        return '⏱ ' + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    /* ================================================================== */
     /* Prize ceremony — original 3D podium                                */
     /* ================================================================== */
 
@@ -3934,6 +4189,8 @@
             R.drawCeremony(ctx, s);
         } else if (s.mode === 'intro' || Number(s.round) === 0) {
             R.drawIntro(ctx, s);
+        } else if (Number(s.round) === 5 || (s.round5 && (s.round5.me || s.round5.board))) {
+            R.drawRound5(ctx, s);
         } else if (Number(s.round) === 4 || (s.round4 && (s.round4.me || s.round4.board))) {
             R.drawRound4(ctx, s);
         } else if (Number(s.round) === 3) {

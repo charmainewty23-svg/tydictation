@@ -1,7 +1,8 @@
 /* LearniTY — Purr-fect Survival main module.
  *
  * Homepage tile -> create / join lobby -> Round 1 (Red Light, Green Light)
- * -> Round 2 (Glass Stepping Stones) -> Round 3 (Tug of War) -> victory.
+ * -> Round 2 (Glass Stepping Stones) -> Round 3 (Tug of War)
+ * -> Round 4 (Dalgona Candy Carving) -> Round 5 (Grammar Finals) -> victory.
  *
  * Rooms use short polling (no Realtime publication), exactly like Drive &
  * Go!. The host creates the room, picks 1-3 rounds with an independent
@@ -28,13 +29,14 @@
     /* Qualifier beat between rounds: long enough to read ~15–30 names,
        auto-continues so a projector class is never stuck. */
     const QUALIFIER_MS = 7000;
-    const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,round3_started_at,round3_ends_at,round4_started_at,round4_ends_at,phase_schedule,glass_steps,settings,tug_state,tug_questions,created_at,started_at,finished_at,server_now';
+    const ROOM_COLUMNS = 'id,code,host_id,status,subject,source,topic,bank_mode,seed,max_players,finish_distance,current_round,round1_started_at,round1_ends_at,round2_started_at,round2_ends_at,round3_started_at,round3_ends_at,round4_started_at,round4_ends_at,round5_started_at,round5_ends_at,finals_questions,phase_schedule,glass_steps,settings,tug_state,tug_questions,created_at,started_at,finished_at,server_now';
     const ROOM_COLUMNS_LIGHT = ROOM_COLUMNS.replace(',tug_questions', '');
-    /* Every player column the HUD / board reads EXCEPT dalgona_item and
-       dalgona_units: a phone must not receive the rest of a classmate's
-       answer. The round-4 poll fetches the current user's own item in a
-       separate one-row query. */
-    const PLAYER_COLUMNS = 'room_id,user_id,email,nickname,cat,glasses,hat,outfit,distance,red_offences,status,ghost,eliminated_reason,question_index,last_red_phase,reached_finish,finished_at,round1_rank,glass_step,glass_side,glass_active,glass_started_at,glass_finished_at,crossed_glass,tug_team,answer_log,glass_order,is_playing,last_seen,dalgona_pattern,dalgona_progress,dalgona_cracks,dalgona_lick_used,dalgona_finished_at,advanced_round3';
+    /* Every player column the HUD / board reads EXCEPT dalgona_item,
+       dalgona_units and any finals answer payload: a phone must not receive
+       the rest of a classmate's answers. The Round-4 poll fetches the
+       current user's own candy in a separate one-row query, and the finals
+       deck lives on the room (shared, never per-student). */
+    const PLAYER_COLUMNS = 'room_id,user_id,email,nickname,cat,glasses,hat,outfit,distance,red_offences,status,ghost,eliminated_reason,question_index,last_red_phase,reached_finish,finished_at,round1_rank,glass_step,glass_side,glass_active,glass_started_at,glass_finished_at,crossed_glass,tug_team,answer_log,glass_order,is_playing,last_seen,dalgona_pattern,dalgona_progress,dalgona_cracks,dalgona_lick_used,dalgona_finished_at,advanced_round3,finals_progress,finals_combo,finals_ghost_correct,finals_question_index,ink_until,finals_eliminated_at';
 
     let room = null;
     let players = [];
@@ -44,6 +46,15 @@
     let tugQuestions = [];
     let myDalgonaItem = null;
     let dalgonaBanks = null;
+    let finalsQuestions = [];
+    let ghostQuestions = [];
+    let finalsBanks = null;
+    let lastInkUntil = '';
+    let finalsPicks = [];
+    let finalsShownKey = '';
+    let finalsDeadline = 0;
+    let finalsTimer = 0;
+    let finalsTimerKey = '';
     let pollTimer = 0;
     let pollBusy = false;
     let rafId = 0;
@@ -100,7 +111,9 @@
     let demoGlassStepCount = 9;
     let demoTugDuration = 60000;
     let demoDalgonaDuration = 180000;
+    let demoFinalsDuration = 120000;
     let demoDalgonaAssignments = null;
+    let demoFinalsSurvivorOverride = null;
     let demoLoopTimer = 0;
     let demoClassmates = [];
     let demoGlassPairs = [];
@@ -196,6 +209,14 @@
         if (view && view.classList) view.classList.toggle('ps-r4-student', !!on);
     }
 
+    /* Teacher / projector Round 1 only: every visible control label is
+       bumped by 1px (see index.html). The student Round 1 view keeps its
+       original typography. */
+    function setR1HostClass(on) {
+        const view = $('purrfect-survival-view');
+        if (view && view.classList) view.classList.toggle('ps-r1-host', !!on);
+    }
+
     function myNickname() {
         const user = signedInUser();
         if (!user) return 'Guest';
@@ -218,7 +239,8 @@
 
     function roundIsPlayable() {
         return !!room && (room.status === 'round1' || room.status === 'round2'
-            || room.status === 'round3' || room.status === 'round4');
+            || room.status === 'round3' || room.status === 'round4'
+            || room.status === 'round5');
     }
 
     function alivePlayers() {
@@ -239,6 +261,7 @@
         if (!room) return 0;
         const n = Number(room.current_round);
         if (n) return n;
+        if (room.status === 'round5') return 5;
         if (room.status === 'round4') return 4;
         if (room.status === 'round3') return 3;
         if (room.status === 'round2') return 2;
@@ -324,6 +347,61 @@
             : PSEngine.ROUND4.DEFAULT_MS;
     }
 
+    function finalsDuration() {
+        const cfg = roundConfig(5);
+        return cfg && cfg.finalsDuration
+            ? cfg.finalsDuration
+            : PSEngine.ROUND5.DEFAULT_MS;
+    }
+
+    function finalsDeck() {
+        const stored = asArray(room && room.finals_questions);
+        if (stored.length) return stored;
+        return finalsQuestions;
+    }
+
+    function ghostDeck() {
+        if (ghostQuestions.length) return ghostQuestions;
+        if (typeof PSEngine === 'undefined' || !PSEngine.buildGhostDeck) return [];
+        ghostQuestions = PSEngine.buildGhostDeck({
+            seed: PSEngine.coerceSeed((room && room.seed ? room.seed : 1) + 211),
+            count: 12
+        });
+        return ghostQuestions;
+    }
+
+    function isFinalsRelevant(p) {
+        return !!(p && p.is_playing !== false && (
+            p.finals_progress != null || p.finals_combo != null
+            || p.finals_eliminated_at != null || p.dalgona_finished_at != null
+            || p.advanced_round3 === true
+        ));
+    }
+
+    function myFinalsState() {
+        if (!me) return null;
+        return {
+            progress: PSEngine.finalsProgress(me),
+            combo: Math.max(0, Number(me.finals_combo) || 0),
+            ghostCorrect: Math.max(0, Number(me.finals_ghost_correct) || 0),
+            questionIndex: Math.max(0, Number(me.finals_question_index) || 0),
+            eliminated: !PSEngine.isFinalsAlive(me),
+            inkUntil: me.ink_until || null
+        };
+    }
+
+    function inkActive() {
+        if (!me || !me.ink_until) return false;
+        const until = Date.parse(me.ink_until);
+        return isFinite(until) && until > serverNow();
+    }
+
+    function inkRemainingMs() {
+        if (!me || !me.ink_until) return 0;
+        const until = Date.parse(me.ink_until);
+        return isFinite(until) ? Math.max(0, until - serverNow()) : 0;
+    }
+
     /* The current student's own assignment (item + units). Live rows keep
        the item out of the class-wide poll; the demo stores it directly. */
     function myDalgonaState() {
@@ -350,6 +428,38 @@
         return (typeof PSEngine.teacherRound4Board === 'function')
             ? PSEngine.teacherRound4Board(players, {})
             : [];
+    }
+
+    /* Round 5 canvas rows. Living finalists stand inside the fence; ghosts
+       (anyone knocked out earlier or electrocuted in the finals) stand
+       outside. The renderer only needs cosmetic fields. */
+    function finalsArenaRows() {
+        return players.filter(isPlayingPlayer).map(function (p) {
+            const finalist = PSEngine.isFinalsFinalist(p);
+            const alive = PSEngine.isFinalsAlive(p);
+            return {
+                user_id: p.user_id,
+                name: p.nickname || 'Player',
+                progress: PSEngine.finalsProgress(p),
+                combo: Math.max(0, Number(p.finals_combo) || 0),
+                isMe: !!(me && String(me.user_id) === String(p.user_id)),
+                finalist: finalist,
+                eliminated: !alive,
+                ghost: p.ghost === true || !alive,
+                ink: p.ink_until && Date.parse(p.ink_until) > serverNow(),
+                look: playerLook(p)
+            };
+        });
+    }
+
+    function finalsGhostRows() {
+        return finalsArenaRows().filter(function (row) { return row.ghost; });
+    }
+
+    function finalsLivingCount() {
+        return players.filter(function (p) {
+            return isPlayingPlayer(p) && PSEngine.isFinalsAlive(p);
+        }).length;
     }
 
     /* Visual cat-lick window on the Hint button. The lick result itself is
@@ -530,7 +640,7 @@
     }
 
     function sqlHint() {
-        return 'Run supabase/purrfect_survival_tug.sql in the Supabase SQL editor first (project mggnwzirjmibreimrwiq). Paste it after purrfect_survival_host_settings.sql, clear the editor first, do not re-run older incrementals, then reload this page.';
+        return 'Run supabase/purrfect_survival_round5_finals.sql in the Supabase SQL editor (project mggnwzirjmibreimrwiq). Paste it after the older Survival incrementals, clear the editor first, do not re-run older incrementals, then reload this page.';
     }
 
     function errorMessage(error) {
@@ -545,8 +655,8 @@
         if (m.includes('NOT_HOST')) return 'Only the room host can do that.';
         if (m.includes('CANNOT_START')) return 'Wait for at least two players before starting.';
         if (m.includes('NO_QUESTIONS') || m.includes('NO_SCHEDULE') || m.includes('NO_GLASS') || m.includes('INVALID_SCHEDULE') || m.includes('INVALID_GLASS')) return 'The question set could not be built. Reload and try again.';
-        if (m.includes('ROUNDS_NOT_IMPLEMENTED')) return 'That round count is not available on this server yet. Run supabase/purrfect_survival_tug.sql first (rounds 4–5 are still coming soon).';
-        if (m.includes('INVALID_ROUND_COUNT')) return 'Choose 1 or 2 rounds for this class.';
+        if (m.includes('ROUNDS_NOT_IMPLEMENTED')) return 'That round count is not available on this server yet. Run supabase/purrfect_survival_round5_finals.sql first (rounds 1–5 are supported after it runs).';
+        if (m.includes('INVALID_ROUND_COUNT')) return 'Choose 1–5 rounds for this class.';
         if (m.includes('INVALID_SUBJECT')) return 'Pick Vocab or Grammar for that round.';
         if (m.includes('ONE_SUBJECT_ONLY')) return 'One subject per round — do not mix Vocab and Grammar inside the same round.';
         if (m.includes('MISSING_VOCAB_SOURCE')) return 'Choose the word bank for that round.';
@@ -707,7 +817,8 @@
         if (room.status === 'waiting') return 'lobby';
         if (room.status === 'finished') return 'ceremony';
         if (room.status === 'round1' || room.status === 'round2'
-            || room.status === 'round3' || room.status === 'round4') {
+            || room.status === 'round3' || room.status === 'round4'
+            || room.status === 'round5') {
             return 'game';
         }
         return '';
@@ -881,6 +992,7 @@
         show('ps-round2-card', count >= 2);
         show('ps-round3-card', count >= 3);
         show('ps-round4-card', count >= 4);
+        show('ps-round5-card', count >= 5);
         return count;
     }
 
@@ -985,6 +1097,7 @@
             glassSteps: selectValue('ps-glass-steps', '9'),
             tugDuration: selectValue('ps-tug-duration', '60'),
             dalgonaDuration: selectValue('ps-dalgona-duration', '180'),
+            finalsDuration: selectValue('ps-finals-duration', '120'),
             rounds: rounds
         });
         if (!validated.ok) return setError(errorMessage(validated.error));
@@ -1079,7 +1192,10 @@
         questions = asArray(room.questions);
         glassSteps = asArray(room.glass_steps);
         tugQuestions = asArray(room.tug_questions);
+        finalsQuestions = asArray(room.finals_questions);
+        ghostQuestions = [];
         myDalgonaItem = null;
+        lastInkUntil = '';
         lastRedSent = -1;
         lastPhaseKey = '';
         questionsKey = '';
@@ -1104,7 +1220,8 @@
     function pollDelay() {
         if (!room) return POLL_WAITING_MS;
         return (room.status === 'round1' || room.status === 'round2'
-            || room.status === 'round3' || room.status === 'round4') ? POLL_ACTIVE_MS : POLL_WAITING_MS;
+            || room.status === 'round3' || room.status === 'round4'
+            || room.status === 'round5') ? POLL_ACTIVE_MS : POLL_WAITING_MS;
     }
 
     function startPolling() {
@@ -1170,11 +1287,14 @@
             const fetchedTug = asArray(room.tug_questions);
             if (fetchedTug.length) tugQuestions = fetchedTug;
             glassSteps = asArray(room.glass_steps);
+            const fetchedFinals = asArray(room.finals_questions);
+            if (fetchedFinals.length) finalsQuestions = fetchedFinals;
 
-            /* 4-round rooms store candy assignments at Start, so never
-               select * (that would leak classmates' remaining answers
-               during Rounds 1–3 as well). */
-            const playerColumns = (room.status === 'round4' || roomRoundCount() >= 4)
+            /* 4/5-round rooms store hidden answer payloads, so never select
+               * (that would leak classmates' remaining answers during
+               Rounds 1–3 as well). */
+            const playerColumns = (room.status === 'round4' || room.status === 'round5'
+                || roomRoundCount() >= 4)
                 ? PLAYER_COLUMNS
                 : '*';
             const result = await sb.from('purrfect_survival_players')
@@ -1245,7 +1365,10 @@
         questions = [];
         glassSteps = [];
         tugQuestions = [];
+        finalsQuestions = [];
+        ghostQuestions = [];
         myDalgonaItem = null;
+        lastInkUntil = '';
         introPlaying = false;
         resetLobbyRules();
         stopPolling();
@@ -1332,7 +1455,8 @@
         1: '1-2-3 Meow!',
         2: 'Glass Stepping Stones',
         3: 'Tug of War',
-        4: 'Dalgona Candy Carving'
+        4: 'Dalgona Candy Carving',
+        5: 'Grammar Finals'
     };
 
     /* The full bilingual instructions the waiting lobby used before the
@@ -1463,6 +1587,7 @@
     /* ------------------------------------------------------------------ */
 
     function progressTitle(round) {
+        if (round === 5) return 'ROUND 5 · Grammar Finals';
         if (round === 4) return 'ROUND 4 · Dalgona Candy Carving';
         if (round === 3) return 'ROUND 3 · Tug of War';
         if (round === 2) return 'ROUND 2 · Glass Stepping Stones';
@@ -1632,6 +1757,7 @@
 
     function render() {
         setRound4StudentClass(!!room && room.status === 'round4' && !isHostView());
+        setR1HostClass(!!room && room.status === 'round1' && isHostView());
         if (!room) {
             setPanel('lobby');
             setLive(false);
@@ -1661,25 +1787,31 @@
         if (introPlaying) markIntroSeen(room.id);
         setPanel('game');
         setLive(roundIsPlayable());
-        const isR4 = room.status === 'round4' || (room.status === 'finished' && roomRound() === 4);
-        const isR3 = !isR4 && (room.status === 'round3' || (room.status === 'finished' && roomRound() === 3));
-        const isR2 = !isR4 && !isR3 && roomRound() === 2;
-        setText('ps-hud-round', isR4
-            ? 'ROUND 4 · Dalgona Candy Carving'
-            : (isR3 ? 'ROUND 3 · Tug of War'
-                : (isR2 ? 'ROUND 2 · Glass Stepping Stones' : 'ROUND 1 · 1-2-3 Meow!')));
+        const isR5 = room.status === 'round5' || (room.status === 'finished' && roomRound() === 5);
+        const isR4 = !isR5 && (room.status === 'round4' || (room.status === 'finished' && roomRound() === 4));
+        const isR3 = !isR5 && !isR4 && (room.status === 'round3' || (room.status === 'finished' && roomRound() === 3));
+        const isR2 = !isR5 && !isR4 && !isR3 && roomRound() === 2;
+        setText('ps-hud-round', isR5
+            ? 'ROUND 5 · Grammar Finals'
+            : (isR4
+                ? 'ROUND 4 · Dalgona Candy Carving'
+                : (isR3 ? 'ROUND 3 · Tug of War'
+                    : (isR2 ? 'ROUND 2 · Glass Stepping Stones' : 'ROUND 1 · 1-2-3 Meow!'))));
         /* Student phones get a deliberately text-light Round 4 card: the
            long rule paragraph is hidden there, and restored for every other
-           round and for the teacher / projector view. */
+           round and for the teacher / projector view. The Round 5 finals
+           screen hides the long instruction for every role — the short
+           canvas status pill ("ROUND 5 · GRAMMAR FINALS …") still shows. */
         const studentR4 = isR4 && !isHostView();
+        const hideRule = isR5 || studentR4;
         const ruleEl = $('ps-hud-rule');
-        setText('ps-hud-rule', studentR4
+        setText('ps-hud-rule', hideRule
             ? ''
             : (isR4 ? PSEngine.RULE_TEXT.round4
                 : (isR3 ? PSEngine.RULE_TEXT.round3
                     : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1))));
-        if (ruleEl) ruleEl.classList.toggle('hidden', studentR4);
-        const alive = alivePlayers().length;
+        if (ruleEl) ruleEl.classList.toggle('hidden', hideRule);
+        const alive = isR5 ? finalsLivingCount() : alivePlayers().length;
         const total = totalPlayers();
         setText('ps-hud-alive', 'Alive: ' + alive + ' / ' + total);
         lastAlive = alive;
@@ -1697,8 +1829,8 @@
         const endBtn = $('ps-host-end');
         if (endBtn && endable) endBtn.textContent = endRoundLabel(endable);
         show('ps-tug-start-btn', host && isR3 && briefing && !qualifying);
-        if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2, isR3, isR4);
-        else renderSpectator(isR2, isR3, isR4);
+        if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2, isR3, isR4, isR5);
+        else renderSpectator(isR2, isR3, isR4, isR5);
         renderTeacherProgress();
         renderQualifier();
         checkMilestones();
@@ -1706,21 +1838,25 @@
         requestAnimationFrame(() => startFrames());
     }
 
-    function renderSpectator(isR2, isR3, isR4) {
+    function renderSpectator(isR2, isR3, isR4, isR5) {
         if (!me || (demoMode && !isPlayingPlayer(me))) {
             // Teacher / host spectating with no player seat: keep the whole
-            // track, bridge or candy grid unobstructed.
+            // track, bridge, candy grid or arena unobstructed.
             show('ps-question', false);
             show('ps-lick-btn', false);
+            show('ps-ink-btn', false);
             return;
         }
         show('ps-question', true);
         show('ps-lick-btn', false);
+        show('ps-ink-btn', false);
         setText('ps-carved', '');
         setText('ps-prompt', 'Live class view');
         const opts = $('ps-options');
         if (opts) opts.innerHTML = '';
-        if (isR4) {
+        if (isR5) {
+            toast('👀 Watching the Grammar Finals.');
+        } else if (isR4) {
             toast('👀 Watching Round 4.');
         } else if (isR3) {
             const t = tugState();
@@ -1734,10 +1870,15 @@
         }
     }
 
-    function renderPlayerQuestion(isR2, isR3, isR4) {
+    function renderPlayerQuestion(isR2, isR3, isR4, isR5) {
         const box = $('ps-question');
         if (!box) return;
         box.classList.remove('hidden');
+        if (isR5) {
+            renderFinalsTurn();
+            return;
+        }
+        show('ps-ink-btn', false);
         if (me.status === 'eliminated' || me.ghost) {
             show('ps-lick-btn', false);
             setText('ps-prompt', isR4 ? '💥' : '👻 You are out — but you can watch your classmates.');
@@ -2045,6 +2186,173 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Round 5 — Grammar Finals                                           */
+    /* ------------------------------------------------------------------ */
+
+    function finalsKeyFor(q, ghost) {
+        if (!q) return '';
+        return (ghost ? 'g:' : 'f:') + q.id + ':' + (q.prompt || '') + ':' + String(q.answer);
+    }
+
+    function clearFinalsTimer() {
+        if (finalsTimer) clearTimeout(finalsTimer);
+        finalsTimer = 0;
+        finalsDeadline = 0;
+        finalsTimerKey = '';
+    }
+
+    function armFinalsTimer(q, ghost, key) {
+        if (finalsTimerKey === key) return;
+        clearFinalsTimer();
+        finalsTimerKey = key;
+        /* Force the options to rebuild for this question. */
+        finalsShownKey = '';
+        finalsPicks = [];
+        if (ghost || !q) return;
+        const ms = Number(q.ms) || (q.type === 'double_trap' ? PSEngine.ROUND5.DOUBLE_TRAP_MS : PSEngine.ROUND5.ERROR_MS);
+        finalsDeadline = Date.now() + ms;
+        finalsTimer = setTimeout(function () {
+            finalsTimer = 0;
+            if (!room || room.status !== 'round5' || !me) return;
+            if (!PSEngine.isFinalsAlive(me)) return;
+            PS.finalsAnswer(null);
+        }, ms + 40);
+    }
+
+    function setInkCover(on, remainingMs) {
+        const cover = $('ps-ink-cover');
+        if (!cover) return;
+        cover.classList.toggle('hidden', !on);
+        if (on) {
+            const label = cover.querySelector ? cover.querySelector('.ps-ink-time') : null;
+            if (label) label.textContent = Math.max(0.1, (remainingMs || 0) / 1000).toFixed(1) + 's';
+        }
+    }
+
+    function renderFinalsTurn() {
+        const opts = $('ps-options');
+        const box = $('ps-question');
+        if (opts) opts.classList.remove('ps-options-glass', 'ps-options-red', 'ps-options-busy', 'ps-options-letters', 'ps-options-dalgona');
+        if (box) box.classList.remove('ps-danger-frame');
+        show('ps-lick-btn', false);
+
+        const st = myFinalsState();
+        const ghostView = !st || st.eliminated || me.ghost === true || me.status === 'eliminated';
+        const deck = ghostView ? ghostDeck() : finalsDeck();
+        const ink = !ghostView && inkActive();
+
+        setInkCover(ink, inkRemainingMs());
+        if (ink) {
+            clearFinalsTimer();
+            finalsShownKey = '';
+            setText('ps-prompt', '🖤 Ink bomb! Your question is covered.');
+            setText('ps-carved', '');
+            show('ps-ink-btn', false);
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+
+        if (ghostView) {
+            const qIndex = (Number(me.finals_question_index) || 0) % Math.max(1, deck.length);
+            const q = deck[qIndex];
+            if (!q) {
+                setText('ps-prompt', '👻 Waiting for the next revival question…');
+                setText('ps-carved', '');
+                if (opts) opts.innerHTML = '';
+                show('ps-ink-btn', false);
+                return;
+            }
+            const correctCount = Math.max(0, Number(me.finals_ghost_correct) || 0);
+            const leader = PSEngine.leaderForInk(players);
+            setText('ps-prompt', '👻 Ghost revival · ' + correctCount + '/' + PSEngine.ROUND5.GHOST_NEED
+                + ' · ' + (q.prompt || 'Choose the correct sentence.'));
+            setText('ps-carved', '');
+            const key = finalsKeyFor(q, true) + ':' + correctCount;
+            show('ps-ink-btn', correctCount >= PSEngine.ROUND5.GHOST_NEED && !!leader);
+            const inkBtn = $('ps-ink-btn');
+            if (inkBtn) {
+                inkBtn.textContent = leader
+                    ? '🖤 Throw ink bomb at ' + (leader.nickname || 'the leader')
+                    : '🖤 Throw ink bomb';
+                inkBtn.disabled = !leader || correctCount < PSEngine.ROUND5.GHOST_NEED;
+            }
+            if (key === finalsShownKey || !opts) return;
+            finalsShownKey = key;
+            opts.innerHTML = (q.options || []).map(function (label, i) {
+                return '<button type="button" class="ps-opt ps-finals-opt" data-choice="' + i + '" onclick="PS.ghostAnswer(' + i + ')">' +
+                    '<span class="ps-opt-key">' + (i + 1) + '</span>' +
+                    '<span class="ps-opt-text">' + escapeText(label) + '</span>' +
+                    '</button>';
+            }).join('');
+            return;
+        }
+
+        show('ps-ink-btn', false);
+        const qIndex = (Number(me.finals_question_index) || 0) % Math.max(1, deck.length);
+        const q = deck[qIndex];
+        if (!q) {
+            setText('ps-prompt', 'Loading the Grammar Finals…');
+            setText('ps-carved', '');
+            if (opts) opts.innerHTML = '';
+            return;
+        }
+        const key = finalsKeyFor(q, false);
+        armFinalsTimer(q, false, key);
+
+        const progress = PSEngine.finalsProgress(me);
+        const combo = Math.max(0, Number(me.finals_combo) || 0);
+        const timeLeft = finalsDeadline ? Math.max(0, finalsDeadline - Date.now()) : 0;
+        setText('ps-carved', '⚡ ' + progress + ' · combo ' + combo + '/' + PSEngine.ROUND5.COMBO
+            + (timeLeft ? ' · ' + (timeLeft / 1000).toFixed(1) + 's' : ''));
+        setText('ps-prompt', q.type === 'double_trap'
+            ? 'Double-Trap Cloze · both blanks must be right. ' + (q.prompt || '')
+            : 'Error Spotting · tap the part with the mistake. ' + (q.prompt || ''));
+
+        if (opts && key !== finalsShownKey) {
+            finalsShownKey = key;
+            finalsPicks = [];
+            if (q.type === 'error_spotting') {
+                opts.innerHTML = (q.tokens || []).map(function (token, i) {
+                    return '<button type="button" class="ps-opt ps-finals-opt ps-finals-token" data-choice="' + (i + 1) + '" onclick="PS.finalsAnswer(' + (i + 1) + ')">' +
+                        '<span class="ps-opt-key">' + (i + 1) + '</span>' +
+                        '<span class="ps-opt-text">' + escapeText(token) + '</span>' +
+                        '</button>';
+                }).join('');
+            } else {
+                opts.innerHTML = (q.blanks || []).map(function (blank, b) {
+                    return '<div class="ps-finals-blank" data-blank="' + b + '">' +
+                        '<span class="ps-finals-blank-n">' + (b + 1) + '</span>' +
+                        (blank.options || []).map(function (label, i) {
+                            return '<button type="button" class="ps-opt ps-finals-opt" data-blank="' + b + '" data-choice="' + i + '" onclick="PS.finalsPick(' + b + ',' + i + ')">' +
+                                escapeText(label) + '</button>';
+                        }).join('') +
+                        '</div>';
+                }).join('') +
+                '<button id="ps-finals-submit" type="button" class="ps-primary ps-finals-submit" onclick="PS.finalsSubmitTrap()" disabled>Answer both</button>';
+            }
+        }
+        if (q.type === 'double_trap') {
+            const btn = $('ps-finals-submit');
+            const blanks = q.blanks || [];
+            const complete = blanks.every(function (_, i) {
+                const pick = Number(finalsPicks[i]);
+                return isFinite(pick) && finalsPicks[i] != null && finalsPicks[i] !== '';
+            });
+            if (btn) btn.disabled = !complete;
+            const rows = (opts && typeof opts.querySelectorAll === 'function')
+                ? opts.querySelectorAll('.ps-finals-blank') : [];
+            for (let b = 0; b < rows.length; b++) {
+                const chosen = finalsPicks[b];
+                const buttons = (rows[b] && typeof rows[b].querySelectorAll === 'function')
+                    ? rows[b].querySelectorAll('button') : [];
+                for (let i = 0; i < buttons.length; i++) {
+                    buttons[i].classList.toggle('ps-opt-picked', Number(chosen) === i);
+                }
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Round 4 actions                                                    */
     /* ------------------------------------------------------------------ */
 
@@ -2144,6 +2452,134 @@
         }
     };
 
+    /* ---- Round 5 actions --------------------------------------------- */
+
+    PS.finalsPick = function (blank, option) {
+        if (!room || room.status !== 'round5') return;
+        finalsPicks[Number(blank)] = Number(option);
+        renderFinalsTurn();
+    };
+
+    PS.finalsSubmitTrap = function () {
+        if (!room || room.status !== 'round5') return;
+        const deck = finalsDeck();
+        const q = deck[(Number(me && me.finals_question_index) || 0) % Math.max(1, deck.length)];
+        if (!q || q.type !== 'double_trap') return;
+        const blanks = q.blanks || [];
+        const complete = blanks.every(function (_, i) {
+            return finalsPicks[i] != null && finalsPicks[i] !== '';
+        });
+        if (!complete) {
+            toast('Answer both blanks first.');
+            return;
+        }
+        PS.finalsAnswer(finalsPicks.slice(0, blanks.length));
+    };
+
+    PS.finalsAnswer = async function (answer) {
+        if (demoMode) { demoFinalsAnswer(answer); return; }
+        if (busy || !room || room.status !== 'round5' || !me || !isPlayingPlayer(me)) return;
+        if (!PSEngine.isFinalsAlive(me) || inkActive()) return;
+        if (Date.now() < answerLockUntil) return;
+        clearFinalsTimer();
+        busy = true;
+        answerLockUntil = Date.now() + 320;
+        try {
+            const { data, error } = await sb.rpc('submit_purrfect_survival_finals', {
+                p_room_id: room.id,
+                p_answer: answer == null ? null : answer
+            });
+            if (error) return setError(errorMessage(error));
+            const res = Array.isArray(data) ? data[0] : data;
+            if (res && res.player) {
+                me = res.player;
+                const idx = players.findIndex(p => String(p.user_id) === String(me.user_id));
+                if (idx >= 0) players[idx] = me;
+            }
+            if (res && res.room && res.room.id) room = res.room;
+            if (res && res.correct) {
+                sfxCorrect();
+                let msg = '✅ +0 slip · ' + PSEngine.finalsProgress(me) + ' left';
+                if (res.knockback && res.knockback.user_id) {
+                    msg += ' · 🐾 paw-wave knocks #' + String(res.knockback.user_id).slice(0, 4) + ' back ' + (res.knockback.amount || PSEngine.ROUND5.KNOCKBACK);
+                }
+                toast(msg);
+            } else if (res && res.eliminated) {
+                sfxShatter();
+                toast('⚡ Electrocuted at the fence — you are a ghost now.');
+                showGlassOutOverlay('⚡ Electrocuted', 'You reached the fence. Ghosts can still answer revival questions and throw ink.');
+            } else {
+                sfxWrong();
+                toast('❌ Slip 25 · now ' + PSEngine.finalsProgress(me) + ' — one more wrong at 0 is out.');
+            }
+            questionsKey = '';
+            finalsShownKey = '';
+            render();
+        } finally {
+            busy = false;
+        }
+    };
+
+    PS.ghostAnswer = async function (choice) {
+        if (demoMode) { demoGhostAnswer(choice); return; }
+        if (busy || !room || room.status !== 'round5' || !me || !isPlayingPlayer(me)) return;
+        if (PSEngine.isFinalsAlive(me)) return;
+        if (Date.now() < answerLockUntil) return;
+        busy = true;
+        answerLockUntil = Date.now() + 300;
+        try {
+            const { data, error } = await sb.rpc('submit_purrfect_survival_ghost', {
+                p_room_id: room.id,
+                p_answer: Number(choice) || 0
+            });
+            if (error) return setError(errorMessage(error));
+            const res = Array.isArray(data) ? data[0] : data;
+            if (res && res.player) {
+                me = res.player;
+                const idx = players.findIndex(p => String(p.user_id) === String(me.user_id));
+                if (idx >= 0) players[idx] = me;
+            }
+            if (res && res.correct) {
+                sfxCorrect();
+                const n = Math.max(0, Number(me.finals_ghost_correct) || 0);
+                toast(n >= PSEngine.ROUND5.GHOST_NEED
+                    ? '🖤 Ink bomb ready — throw it at the leader!'
+                    : '✅ Revival ' + n + '/' + PSEngine.ROUND5.GHOST_NEED);
+            } else {
+                sfxWrong();
+                toast('❌ Not that one — try the next revival question.');
+            }
+            finalsShownKey = '';
+            render();
+        } finally {
+            busy = false;
+        }
+    };
+
+    PS.throwInk = async function () {
+        if (demoMode) { demoThrowInk(); return; }
+        if (busy || !room || room.status !== 'round5' || !me || !isPlayingPlayer(me)) return;
+        if (Math.max(0, Number(me.finals_ghost_correct) || 0) < PSEngine.ROUND5.GHOST_NEED) return;
+        busy = true;
+        try {
+            const { data, error } = await sb.rpc('throw_purrfect_survival_ink', {
+                p_room_id: room.id
+            });
+            if (error) return setError(errorMessage(error));
+            const res = Array.isArray(data) ? data[0] : data;
+            if (res && res.player) {
+                me = res.player;
+                const idx = players.findIndex(p => String(p.user_id) === String(me.user_id));
+                if (idx >= 0) players[idx] = me;
+            }
+            toast(res && res.ok === false ? 'No leader to ink right now.' : '🖤 Ink bomb thrown — the leader is covered for 1.5s.');
+            finalsShownKey = '';
+            render();
+        } finally {
+            busy = false;
+        }
+    };
+
     /* ------------------------------------------------------------------ */
     /* HUD / canvas frames                                                */
     /* ------------------------------------------------------------------ */
@@ -2152,7 +2588,8 @@
         if (rafId) return;
         if (!room) return;
         if (room.status !== 'waiting' && room.status !== 'round1' && room.status !== 'round2'
-            && room.status !== 'round3' && room.status !== 'round4' && room.status !== 'finished') return;
+            && room.status !== 'round3' && room.status !== 'round4'
+            && room.status !== 'round5' && room.status !== 'finished') return;
         lastFrame = 0;
         rafId = requestAnimationFrame(frame);
     }
@@ -2187,7 +2624,8 @@
         if (!room) return;
         const waiting = room.status === 'waiting';
         const playing = room.status === 'round1' || room.status === 'round2'
-            || room.status === 'round3' || room.status === 'round4';
+            || room.status === 'round3' || room.status === 'round4'
+            || room.status === 'round5';
         const finished = room.status === 'finished';
         if (!waiting && !playing && !finished) return;
 
@@ -2199,14 +2637,15 @@
                 const isR2 = room.status === 'round2';
                 const isR3 = room.status === 'round3';
                 const isR4 = room.status === 'round4';
-                const info = (isR2 || isR3 || isR4) ? null : phaseInfo();
+                const isR5 = room.status === 'round5';
+                const info = (isR2 || isR3 || isR4 || isR5) ? null : phaseInfo();
                 const tug = isR3 ? tugState() : null;
                 const nowMs = serverNow();
                 const viewerGlass = isR2 ? glassStepsForViewer() : glassSteps;
                 const state = {
                     mode: waiting ? 'intro' : 'round',
                     status: room.status,
-                    round: (waiting || finished) ? 0 : (isR4 ? 4 : (isR3 ? 3 : (isR2 ? 2 : 1))),
+                    round: (waiting || finished) ? 0 : (isR5 ? 5 : (isR4 ? 4 : (isR3 ? 3 : (isR2 ? 2 : 1)))),
                     ceremonyElapsed: finished ? Math.max(0, Date.now() - (ceremonyStart || Date.now())) : 0,
                     ceremony: finished ? ceremonyRows() : null,
                     introElapsed: waiting ? introElapsedMs() : 0,
@@ -2262,6 +2701,29 @@
                             look: playerLook(me)
                         } : null,
                         board: dalgonaBoard()
+                    };
+                }
+                if (isR5) {
+                    const st = myFinalsState();
+                    state.round5 = {
+                        padBottom: dalgonaPadBottom(),
+                        me: st ? {
+                            progress: st.progress,
+                            combo: st.combo,
+                            ghostCorrect: st.ghostCorrect,
+                            questionIndex: st.questionIndex,
+                            eliminated: st.eliminated,
+                            inkUntil: st.inkUntil,
+                            ink: inkActive(),
+                            look: playerLook(me)
+                        } : null,
+                        board: finalsArenaRows(),
+                        ghosts: finalsGhostRows(),
+                        living: finalsLivingCount(),
+                        remainingMs: room.round5_ends_at
+                            ? Math.max(0, Date.parse(room.round5_ends_at) - serverNow())
+                            : 0,
+                        nowMs: serverNow()
                     };
                 }
                 if (finished) state.mode = 'ceremony';
@@ -2395,6 +2857,26 @@
                 const ends = room.round4_ends_at ? Date.parse(room.round4_ends_at) : 0;
                 setText('ps-hud-timer', ends ? PSEngine.formatClock(ends - serverNow()) : '—');
             }
+        } else if (room.status === 'round5') {
+            show('ps-hud-place', false);
+            const st = myFinalsState();
+            const hudPhase = $('ps-hud-phase');
+            if (hudPhase) hudPhase.className = 'ps-phase ps-phase-finals';
+            setText('ps-hud-phase', !st ? '⚡ GRAMMAR FINALS'
+                : (st.eliminated
+                    ? (st.ghostCorrect > 0 ? '👻 GHOST · ' + st.ghostCorrect + '/' + PSEngine.ROUND5.GHOST_NEED : '👻 GHOST')
+                    : '⚡ GRAMMAR FINALS'));
+            if (st && !st.eliminated) {
+                setText('ps-hud-you', '⚡ ' + st.progress + ' · combo ' + st.combo + '/' + PSEngine.ROUND5.COMBO
+                    + (inkActive() ? ' · 🖤 inked' : ''));
+            } else if (st) {
+                setText('ps-hud-you', '👻 Ghost · ' + st.ghostCorrect + '/' + PSEngine.ROUND5.GHOST_NEED + ' to ink');
+            } else {
+                setText('ps-hud-you', 'Spectating');
+            }
+            const ends = room.round5_ends_at ? Date.parse(room.round5_ends_at) : 0;
+            setText('ps-hud-timer', ends ? PSEngine.formatClock(ends - serverNow()) : '—');
+            setText('ps-hud-alive', 'Alive: ' + finalsLivingCount() + ' / ' + totalPlayers());
         }
         renderTeacherProgress();
         renderQualifier();
@@ -2666,6 +3148,8 @@
             const built = await buildQuestionSet();
             if (!built) return;
             tugQuestions = asArray(built.tugQuestions).slice();
+            finalsQuestions = asArray(built.finalsQuestions).slice();
+            ghostQuestions = asArray(built.ghostQuestions).slice();
             const seed = Number(room.seed) || 1;
             const roundMs = resolveRoundMs();
             const glass = built.roundCount > 1
@@ -2694,6 +3178,12 @@
             if (built.roundCount >= 4 && built.dalgonaAssignments.length) {
                 startArgs.p_dalgona = built.dalgonaAssignments;
             }
+            if (built.roundCount >= 5 && built.finalsQuestions.length) {
+                startArgs.p_finals = {
+                    questions: built.finalsQuestions,
+                    ghosts: built.ghostQuestions || []
+                };
+            }
             const { data, error } = await sb.rpc('start_purrfect_survival', startArgs);
             if (error) return setError(errorMessage(error));
             const started = Array.isArray(data) ? data[0] : data;
@@ -2702,7 +3192,9 @@
             questions = asArray(room.questions);
             glassSteps = asArray(room.glass_steps);
             tugQuestions = asArray(room.tug_questions).length ? asArray(room.tug_questions) : tugQuestions;
+            finalsQuestions = asArray(room.finals_questions).length ? asArray(room.finals_questions) : finalsQuestions;
             myDalgonaItem = null;
+            finalsShownKey = '';
             lastPhaseKey = '';
             lastRedSent = -1;
             overlayAction = null;
@@ -2719,6 +3211,7 @@
     };
 
     function endRoundLabel(round) {
+        if (round === 5) return '⏹ End round 5';
         if (round === 4) return '⏹ End round 4';
         if (round === 3) return '⏹ End round 3';
         if (round === 2) return '⏹ End round 2';
@@ -2747,6 +3240,10 @@
             if (count < 4 || dalgonaQualifierActive()) return 0;
             return 4;
         }
+        if (room.status === 'round5') {
+            if (count < 5) return 0;
+            return 5;
+        }
         return 0;
     }
 
@@ -2759,6 +3256,9 @@
         }
         if (round === 4) {
             return 'End Dalgona Candy Carving now? Students who have not finished carving will be out.';
+        }
+        if (round === 5) {
+            return 'End the Grammar Finals now? The room will finish immediately and the prize ceremony will rank the cats by their final fence progress.';
         }
         return roomRoundCount() === 1
             ? 'End 1-2-3 Meow! now? The game will finish and every surviving student wins.'
@@ -3023,6 +3523,53 @@
         return { assignments: assignments, banks: dalgonaBanks };
     }
 
+    /* Round 5 uses the existing Grammar Quest banks (tenses / agreement /
+       indefinite pronouns) when they load, and always falls back to the
+       engine's built-in school bank so a demo or offline lesson still has
+       a full deck. No Conditionals items are invented here: if a later
+       generated file sets window.PS_FINALS_CONDITIONALS, the engine adds
+       the unit automatically. */
+    async function loadFinalsBanks(seed) {
+        const raw = [];
+        let grammarFailures = 0;
+        if (typeof DG !== 'undefined' && typeof DG.loadBank === 'function') {
+            for (const topic of PSEngine.FINALS_UNITS) {
+                const modes = PSEngine.GRAMMAR_MODES[topic] || ['mixed'];
+                const mode = modes.indexOf('mixed') !== -1 ? 'mixed' : modes[0];
+                try {
+                    const bank = await DG.loadBank(topic, mode);
+                    (Array.isArray(bank) ? bank : []).forEach(function (q) {
+                        if (q) raw.push(Object.assign({ unit: topic }, q));
+                    });
+                } catch (e) {
+                    grammarFailures++;
+                }
+            }
+        } else {
+            grammarFailures = PSEngine.FINALS_UNITS.length;
+        }
+        const conditionals = (typeof window !== 'undefined' && Array.isArray(window.PS_FINALS_CONDITIONALS))
+            ? window.PS_FINALS_CONDITIONALS
+            : [];
+        const questions = PSEngine.buildFinalsDeck({
+            seed: seed + 401,
+            count: 60,
+            errorItems: raw,
+            conditionals: conditionals
+        });
+        const ghosts = PSEngine.buildGhostDeck({
+            seed: seed + 211,
+            count: 12
+        });
+        finalsBanks = {
+            grammarItems: raw.length,
+            grammarFailures: grammarFailures,
+            conditionals: conditionals.length,
+            deck: questions.length
+        };
+        return { questions: questions, ghosts: ghosts, banks: finalsBanks };
+    }
+
     async function buildQuestionSet() {
         const seed = Number(room.seed) || 1;
         const count = 160;
@@ -3064,11 +3611,19 @@
             dalgonaAssignments = dalgona.assignments;
         }
 
+        let finals = null;
+        if (roundCount >= 5) {
+            finals = await loadFinalsBanks(seed);
+            if (!finals) return null;
+        }
+
         return {
             questions: questions,
             glassPairs: glassPairs,
             tugQuestions: tugQuestions,
             dalgonaAssignments: dalgonaAssignments,
+            finalsQuestions: finals ? finals.questions : [],
+            ghostQuestions: finals ? finals.ghosts : [],
             roundCount: roundCount,
             round1: r1,
             round2: r2
@@ -3080,6 +3635,7 @@
     /* ------------------------------------------------------------------ */
 
     function ceremonyRoundNames(count) {
+        if (count >= 5) return ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War', 'Dalgona Candy Carving', 'Grammar Finals'];
         if (count >= 4) return ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War', 'Dalgona Candy Carving'];
         if (count === 3) return ['1-2-3 Meow!', 'Glass Stepping Stones', 'Tug of War'];
         if (count === 2) return ['1-2-3 Meow!', 'Glass Stepping Stones'];
@@ -3122,6 +3678,11 @@
             else if (r.r4.status === 'shattered') parts.push('R4 ' + pattern + ' shattered');
             else parts.push('R4 ' + pattern + ' ' + (r.r4.progress || 0) + ' carved');
         }
+        if (r.r5 && r.r5.entered) {
+            parts.push(r.r5.eliminated
+                ? 'R5 ⚡ out at ' + (r.r5.progress || 0)
+                : 'R5 ⚡ ' + (r.r5.progress || 0) + ' · combo ' + (r.r5.combo || 0));
+        }
         return parts.join(' · ');
     }
 
@@ -3150,6 +3711,12 @@
             const shattered = rows.filter(row => row.rounds.r4 && row.rounds.r4.status === 'shattered').length;
             items.push('Round 4 · Dalgona Candy Carving — ' + carved + ' carved'
                 + (shattered ? ' · ' + shattered + ' shattered' : ''));
+        }
+        if (count >= 5) {
+            const entered = rows.filter(row => row.rounds.r5 && row.rounds.r5.entered).length;
+            const stillIn = rows.filter(row => row.rounds.r5 && row.rounds.r5.entered && !row.rounds.r5.eliminated).length;
+            items.push('Round 5 · Grammar Finals — ' + entered + ' entered'
+                + (stillIn ? ' · ' + stillIn + ' still in' : ' · skipped (fewer than 2 survivors)'));
         }
         return items.map(item => '<div class="ps-ceremony-summary-row">' + escapeText(item) + '</div>').join('');
     }
@@ -3468,7 +4035,8 @@
 
     function handleKey(event) {
         if (typeof currentView !== 'undefined' && currentView !== VIEW_ID) return;
-        if (!room || (room.status !== 'round1' && room.status !== 'round2' && room.status !== 'round3')) return;
+        if (!room || (room.status !== 'round1' && room.status !== 'round2'
+            && room.status !== 'round3' && room.status !== 'round5')) return;
         if (isTypingTarget(event.target)) return;
         const key = event.key;
         const overlayOpen = $('ps-round-overlay') && !$('ps-round-overlay').classList.contains('hidden');
@@ -3494,6 +4062,31 @@
             if (key >= '1' && key <= '4') {
                 event.preventDefault();
                 PS.tugAnswer(Number(key) - 1);
+            }
+            return;
+        }
+
+        if (room.status === 'round5') {
+            if (!me || !isPlayingPlayer(me)) return;
+            if (!PSEngine.isFinalsAlive(me)) {
+                if (key === '1' || key === '2') {
+                    event.preventDefault();
+                    PS.ghostAnswer(Number(key) - 1);
+                }
+                return;
+            }
+            const deck = finalsDeck();
+            const q = deck[(Number(me.finals_question_index) || 0) % Math.max(1, deck.length)];
+            if (!q) return;
+            if (q.type === 'error_spotting' && key >= '1' && key <= '4') {
+                event.preventDefault();
+                PS.finalsAnswer(Number(key));
+            } else if (q.type === 'double_trap' && key >= '1' && key <= '4') {
+                event.preventDefault();
+                const n = Number(key);
+                const blank = n <= 2 ? 0 : 1;
+                const option = n <= 2 ? n - 1 : n - 3;
+                PS.finalsPick(blank, option);
             }
             return;
         }
@@ -3573,6 +4166,8 @@
         setLive(false);
         stopBgm();
         setRound4StudentClass(false);
+        setR1HostClass(false);
+        clearFinalsTimer();
         resetLobbyRules();
         if (cueTimer) {
             clearTimeout(cueTimer);
@@ -3626,7 +4221,10 @@
         questions = [];
         glassSteps = [];
         tugQuestions = [];
+        finalsQuestions = [];
+        ghostQuestions = [];
         myDalgonaItem = null;
+        lastInkUntil = '';
         introPlaying = false;
         resetLobbyRules();
         clearResume();
@@ -3824,6 +4422,12 @@
             dalgona_units: [],
             dalgona_item: null,
             dalgona_attempts: 0,
+            finals_progress: 100,
+            finals_combo: 0,
+            finals_ghost_correct: 0,
+            finals_question_index: 0,
+            ink_until: null,
+            finals_eliminated_at: null,
             answer_log: []
         };
     }
@@ -3881,6 +4485,18 @@
                 dalgonaDuration: demoDalgonaDuration
             });
         }
+        if (demoRoundCount >= 5) {
+            rounds.push({
+                round: 5,
+                kind: 'finals',
+                subject: demoSubject,
+                topic: isGrammar ? 'demo' : 'Demo Vocab',
+                vocabSource: isGrammar ? '' : 'Demo Vocab',
+                vocabForm: '',
+                bankMode: '',
+                finalsDuration: demoFinalsDuration
+            });
+        }
         return {
             version: 1,
             roundCount: demoRoundCount,
@@ -3889,7 +4505,8 @@
             finishDistance: demoFinishDistance,
             glassSteps: demoGlassStepCount,
             tugDuration: demoTugDuration,
-            dalgonaDuration: demoDalgonaDuration
+            dalgonaDuration: demoDalgonaDuration,
+            finalsDuration: demoFinalsDuration
         };
     }
 
@@ -4004,10 +4621,20 @@
             p.dalgona_units = [];
             p.dalgona_item = null;
             p.dalgona_attempts = 0;
+            p.finals_progress = 100;
+            p.finals_combo = 0;
+            p.finals_ghost_correct = 0;
+            p.finals_question_index = 0;
+            p.ink_until = null;
+            p.finals_eliminated_at = null;
             p.eliminated_reason = null;
             p.answer_log = [];
         });
         demoDalgonaAssignments = null;
+        demoFinalsSurvivorOverride = null;
+        finalsShownKey = '';
+        finalsPicks = [];
+        clearFinalsTimer();
         questionsKey = '';
         lastPhaseKey = '';
         lastRedSent = -1;
@@ -4306,6 +4933,23 @@
                 room.current_round = 4;
                 room.round4_started_at = new Date(now - 60000).toISOString();
                 room.round4_ends_at = new Date(now).toISOString();
+                if (demoRoundCount >= 5) {
+                    const finalists = tugWinners.filter(function (p) { return p.dalgona_finished_at != null; });
+                    finalists.forEach(function (p, i) {
+                        p.finals_progress = Math.max(10, PSEngine.ROUND5.START_PROGRESS - i * 12);
+                        p.finals_combo = i % 3;
+                        p.finals_question_index = i + 1;
+                        p.finals_eliminated_at = i >= 3 ? new Date(now - 4000).toISOString() : null;
+                        if (p.finals_eliminated_at) {
+                            p.status = 'eliminated';
+                            p.ghost = true;
+                            p.eliminated_reason = 'finals';
+                        }
+                    });
+                    room.current_round = 5;
+                    room.round5_started_at = new Date(now - 90000).toISOString();
+                    room.round5_ends_at = new Date(now).toISOString();
+                }
             } else {
                 room.current_round = 3;
             }
@@ -4448,6 +5092,15 @@
                 p.eliminated_reason = 'dalgona_timeout';
             });
             demoFinishRound4(now);
+            return;
+        }
+        if (room.status === 'round5') {
+            room.status = 'finished';
+            room.current_round = 5;
+            room.finished_at = new Date(now).toISOString();
+            finalsShownKey = '';
+            clearFinalsTimer();
+            me = myPlayer();
         }
     }
 
@@ -4709,9 +5362,14 @@
 
     function demoFinishRound4(now) {
         if (!room || room.status !== 'round4') return;
+        const at = now || Date.now();
+        if (demoRoundCount >= 5) {
+            demoEnterRound5(at);
+            return;
+        }
         room.status = 'finished';
         room.current_round = 4;
-        room.finished_at = new Date(now || Date.now()).toISOString();
+        room.finished_at = new Date(at).toISOString();
         shownKeys = {};
         questionsKey = '';
         me = myPlayer();
@@ -4754,6 +5412,237 @@
                 && p.status !== 'eliminated' && !p.ghost;
         });
         if (!left.length) demoFinishRound4(now);
+    }
+
+    /* ------------------------- demo Round 5 --------------------------- */
+
+    function demoFinalsDeck() {
+        if (!finalsQuestions.length) {
+            finalsQuestions = PSEngine.buildFinalsDeck({
+                seed: DEMO_SEED + 401,
+                count: 60,
+                errorItems: PSEngine.DEMO_GRAMMAR.map(function (q, i) {
+                    return Object.assign({ unit: PSEngine.FINALS_UNITS[i % PSEngine.FINALS_UNITS.length] }, q);
+                })
+            });
+        }
+        return finalsQuestions;
+    }
+
+    function demoHonourFinalsEnd(now) {
+        if (!room || room.status !== 'round5') return false;
+        const living = players.filter(function (p) {
+            return isPlayingPlayer(p) && PSEngine.isFinalsAlive(p);
+        });
+        const ends = room.round5_ends_at ? Date.parse(room.round5_ends_at) : 0;
+        if (living.length <= 1 || (ends && now >= ends)) {
+            room.status = 'finished';
+            room.current_round = 5;
+            room.finished_at = new Date(now).toISOString();
+            clearFinalsTimer();
+            finalsShownKey = '';
+            me = myPlayer();
+            return true;
+        }
+        return false;
+    }
+
+    function demoEnterRound5(now) {
+        if (!room) return;
+        const at = now || Date.now();
+        const playing = players.filter(isPlayingPlayer);
+        let survivors = playing.filter(function (p) {
+            return p.dalgona_finished_at != null || PSEngine.normalizeDalgonaState(p).status === 'finished';
+        });
+        if (demoFinalsSurvivorOverride != null) {
+            const visitor = survivors.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+            const keep = [];
+            if (visitor && demoRole === 'student') keep.push(visitor);
+            survivors.forEach(function (p) {
+                if (keep.length >= demoFinalsSurvivorOverride) return;
+                if (keep.indexOf(p) === -1) keep.push(p);
+            });
+            survivors = keep.slice(0, Math.max(0, demoFinalsSurvivorOverride));
+            const kept = {};
+            survivors.forEach(function (p) { kept[p.user_id] = true; });
+            playing.forEach(function (p) {
+                if (kept[p.user_id]) return;
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = p.eliminated_reason || 'dalgona_timeout';
+            });
+        }
+
+        if (demoRoundCount < 5 || survivors.length < PSEngine.ROUND5.MIN_FINALISTS) {
+            room.status = 'finished';
+            room.current_round = demoRoundCount >= 5 ? 5 : 4;
+            room.finished_at = new Date(at).toISOString();
+            finalsShownKey = '';
+            me = myPlayer();
+            return;
+        }
+
+        const kept = {};
+        survivors.forEach(function (p, i) {
+            kept[p.user_id] = true;
+            p.status = 'advanced';
+            p.ghost = false;
+            p.eliminated_reason = null;
+            p.advanced_round3 = true;
+            p.finals_progress = PSEngine.ROUND5.START_PROGRESS;
+            p.finals_combo = 0;
+            p.finals_ghost_correct = 0;
+            p.finals_question_index = 0;
+            p.ink_until = null;
+            p.finals_eliminated_at = null;
+            p.next_finals_at = at + 500 + demoHash01(p.user_id + ':finals') * 2200;
+        });
+        playing.forEach(function (p) {
+            if (kept[p.user_id]) return;
+            p.status = 'eliminated';
+            p.ghost = true;
+            p.eliminated_reason = p.eliminated_reason || 'finals_bench';
+            p.finals_progress = 0;
+        });
+        demoFinalsDeck();
+        ghostQuestions = PSEngine.buildGhostDeck({ seed: DEMO_SEED + 211, count: 12 });
+        room.status = 'round5';
+        room.current_round = 5;
+        room.settings = demoSettings();
+        room.server_now = new Date(at).toISOString();
+        clockOffset = 0;
+        room.round5_started_at = new Date(at).toISOString();
+        room.round5_ends_at = new Date(at + demoFinalsDuration).toISOString();
+        room.finals_questions = finalsQuestions;
+        room.finished_at = null;
+        finalsShownKey = '';
+        finalsPicks = [];
+        clearFinalsTimer();
+        me = myPlayer();
+        PS.hideOverlay();
+    }
+
+    function demoJumpRound5() {
+        demoResetPlayers();
+        if (!questions.length) {
+            const built = PSEngine.buildDemoQuestionSet({ subject: demoSubject, seed: DEMO_SEED });
+            questions = built.questions.slice();
+            demoGlassPairs = built.glassPairs.slice();
+        }
+        const now = Date.now();
+        demoPrepareTugSurvivors(now);
+        const playing = players.filter(isPlayingPlayer);
+        const visitor = playing.find(function (p) { return p.user_id === DEMO_VISITOR_ID; });
+        let winner = 'red';
+        if (visitor && visitor.tug_team) winner = visitor.tug_team;
+        PSEngine.applyTugResult(playing, winner);
+        room.tug_state = Object.assign(PSEngine.emptyTugState(), { phase: 'done', winner: winner });
+        room.round3_started_at = room.round3_started_at || new Date(now - 45000).toISOString();
+        room.round3_ends_at = new Date(now).toISOString();
+        demoEnterRound4(now, true);
+        const winners = players.filter(function (p) {
+            return isPlayingPlayer(p) && p.status === 'advanced' && !p.ghost;
+        });
+        winners.forEach(function (p, i) {
+            p.dalgona_pattern = p.dalgona_pattern || 'fishbone';
+            p.dalgona_units = p.dalgona_units && p.dalgona_units.length ? p.dalgona_units : ['a', 'b'];
+            p.dalgona_progress = p.dalgona_units.length;
+            p.dalgona_finished_at = new Date(now - (i + 1) * 700).toISOString();
+        });
+        room.round4_started_at = new Date(now - PSEngine.ROUND4.QUALIFIER_MS - 3000).toISOString();
+        room.round4_ends_at = new Date(now).toISOString();
+        demoEnterRound5(now);
+    }
+
+    function demoFinalsAnswer(answer) {
+        if (!room || room.status !== 'round5' || !me || !isPlayingPlayer(me)) return;
+        if (!PSEngine.isFinalsAlive(me) || inkActive()) return;
+        if (Date.now() < answerLockUntil) return;
+        const deck = demoFinalsDeck();
+        const q = deck[(Number(me.finals_question_index) || 0) % Math.max(1, deck.length)];
+        if (!q) return;
+        answerLockUntil = Date.now() + 280;
+        const res = PSEngine.applyFinalsTurn({
+            player: me, players: players, question: q, answer: answer, now: Date.now()
+        });
+        if (!res.ok) return;
+        if (res.correct) {
+            sfxCorrect();
+            toast('✅ +0 slip · ' + res.progress + ' left'
+                + (res.knockback ? ' · 🐾 paw-wave pushes an opponent back ' + res.knockback.amount : ''));
+        } else if (res.eliminated) {
+            sfxShatter();
+            toast('⚡ Electrocuted at the fence — you are a ghost now.');
+            showGlassOutOverlay('⚡ Electrocuted', 'Ghosts can still answer revival questions and throw ink.');
+        } else {
+            sfxWrong();
+            toast('❌ Slip 25 · now ' + res.progress + ' — one more wrong at 0 is out.');
+        }
+        finalsShownKey = '';
+        clearFinalsTimer();
+        render();
+        demoHonourFinalsEnd(Date.now());
+        if (room.status === 'finished') render();
+    }
+
+    function demoGhostAnswer(choice) {
+        if (!room || room.status !== 'round5' || !me || PSEngine.isFinalsAlive(me)) return;
+        const deck = ghostDeck();
+        const q = deck[(Number(me.finals_question_index) || 0) % Math.max(1, deck.length)];
+        if (!q) return;
+        const graded = PSEngine.gradeFinalsAnswer(q, Number(choice));
+        me.finals_question_index = (Number(me.finals_question_index) || 0) + 1;
+        if (graded.correct) {
+            me.finals_ghost_correct = Math.max(0, Number(me.finals_ghost_correct) || 0) + 1;
+            sfxCorrect();
+            toast(me.finals_ghost_correct >= PSEngine.ROUND5.GHOST_NEED
+                ? '🖤 Ink bomb ready — throw it at the leader!'
+                : '✅ Revival ' + me.finals_ghost_correct + '/' + PSEngine.ROUND5.GHOST_NEED);
+        } else {
+            sfxWrong();
+            toast('❌ Not that one — try the next revival question.');
+        }
+        finalsShownKey = '';
+        render();
+    }
+
+    function demoThrowInk() {
+        if (!room || room.status !== 'round5' || !me) return;
+        if (Math.max(0, Number(me.finals_ghost_correct) || 0) < PSEngine.ROUND5.GHOST_NEED) return;
+        const leader = PSEngine.leaderForInk(players);
+        if (!leader) {
+            toast('No leader to ink right now.');
+            return;
+        }
+        leader.ink_until = new Date(Date.now() + PSEngine.ROUND5.INK_MS).toISOString();
+        me.finals_ghost_correct = Math.max(0, (Number(me.finals_ghost_correct) || 0) - PSEngine.ROUND5.GHOST_NEED);
+        toast('🖤 Ink bomb thrown — ' + (leader.nickname || 'the leader') + ' is covered for 1.5s.');
+        finalsShownKey = '';
+        render();
+    }
+
+    function demoTickRound5(now) {
+        if (!room || room.status !== 'round5') return;
+        const deck = demoFinalsDeck();
+        const playing = players.filter(isPlayingPlayer);
+        playing.forEach(function (p) {
+            if (p.ghost || !PSEngine.isFinalsAlive(p)) return;
+            if (demoIsVisitor(p)) return;
+            if (p.ink_until && Date.parse(p.ink_until) > now) return;
+            if (p.next_finals_at && now < p.next_finals_at) return;
+            const q = deck[(Number(p.finals_question_index) || 0) % Math.max(1, deck.length)];
+            if (!q) return;
+            const good = demoHash01(p.user_id + ':finals:' + (Number(p.finals_question_index) || 0)) < 0.78;
+            let answer = null;
+            if (good) {
+                if (q.type === 'error_spotting') answer = q.answer;
+                else if (q.type === 'double_trap') answer = q.blanks.map(function (b) { return b.answerIndex; });
+                else answer = q.answer;
+            }
+            PSEngine.applyFinalsTurn({ player: p, players: playing, question: q, answer: answer, now: now });
+            p.next_finals_at = now + 1200 + demoHash01(p.user_id + ':finalspace:' + p.finals_question_index) * 1900;
+        });
+        if (!demoHonourFinalsEnd(now)) room.server_now = new Date(now).toISOString();
     }
 
     function demoDalgonaInput(value) {
@@ -5087,9 +5976,11 @@
         else if (room.status === 'round2') demoTickRound2(Date.now());
         else if (room.status === 'round3') demoTickRound3(Date.now());
         else if (room.status === 'round4') demoTickRound4(Date.now());
+        else if (room.status === 'round5') demoTickRound5(Date.now());
         render();
         if (room && (room.status === 'round1' || room.status === 'round2'
-            || room.status === 'round3' || room.status === 'round4')) startFrames();
+            || room.status === 'round3' || room.status === 'round4'
+            || room.status === 'round5')) startFrames();
     }
 
     function demoStartLoop() {
@@ -5236,6 +6127,7 @@
         if (cfg.glassSteps != null) demoGlassStepCount = PSEngine.normalizeGlassSteps(cfg.glassSteps);
         if (cfg.tugDuration != null) demoTugDuration = PSEngine.normalizeTugDuration(cfg.tugDuration);
         if (cfg.dalgonaDuration != null) demoDalgonaDuration = PSEngine.normalizeDalgonaDuration(cfg.dalgonaDuration);
+        if (cfg.finalsDuration != null) demoFinalsDuration = PSEngine.normalizeFinalsDuration(cfg.finalsDuration);
         if (room) {
             room.finish_distance = demoFinishDistance;
             room.settings = demoSettings();
@@ -5272,6 +6164,19 @@
         demoApplyConfig(opts || {});
         me = myPlayer();
         questionsKey = '';
+        render();
+        return true;
+    };
+
+    /* Demo/test helper: force a 5-round room with only one Dalgona survivor
+       so the finals are skipped and the prize ceremony begins. */
+    PS.demoForceFinalsSkip = function () {
+        if (!demoMode) return false;
+        demoRoundCount = 5;
+        if (room) room.settings = demoSettings();
+        demoJumpRound5();
+        demoFinalsSurvivorOverride = 1;
+        demoEnterRound5(Date.now());
         render();
         return true;
     };
@@ -5319,6 +6224,12 @@
                 if (room) room.settings = demoSettings();
             }
             demoJumpRound4();
+        } else if (target === 'round5' || target === 'finals') {
+            if (demoRoundCount < 5) {
+                demoRoundCount = 5;
+                if (room) room.settings = demoSettings();
+            }
+            demoJumpRound5();
         } else if (target === 'victory' || target === 'finished') demoJumpVictory();
         else demoJumpRound1();
         demoOpenView();

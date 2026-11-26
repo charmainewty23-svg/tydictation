@@ -120,6 +120,8 @@
     <button type="button" id="demo-round2" data-scene="round2" title="Glass Stepping Stones">🧊 Round 2</button>
     <button type="button" id="demo-round3" data-scene="round3" title="Tug of War">🪢 Round 3</button>
     <button type="button" id="demo-round4" data-scene="round4" title="Dalgona Candy Carving">🍬 Round 4</button>
+    <button type="button" id="demo-round5" data-scene="round5" title="Grammar Finals">⚡ Round 5</button>
+    <button type="button" id="demo-skip-finals" title="Show the <2 Dalgona survivors skip">⚠️ Skip finals</button>
     <button type="button" id="demo-victory" data-scene="victory" title="Prize ceremony">🎉 Prize ceremony</button>
     <span class="demo-sep"></span>
     <label class="demo-num" for="demo-round-count">Rounds
@@ -128,6 +130,7 @@
             <option value="2" selected>2</option>
             <option value="3">3</option>
             <option value="4">4</option>
+            <option value="5">5</option>
         </select>
     </label>
     <label class="demo-num" for="demo-finish-distance">Metres
@@ -139,13 +142,16 @@
     <label class="demo-num" for="demo-tug-duration">Tug s
         <input id="demo-tug-duration" type="number" min="30" max="120" step="5" value="60" inputmode="numeric">
     </label>
+    <label class="demo-num" for="demo-finals-duration">Finals s
+        <input id="demo-finals-duration" type="number" min="60" max="180" step="5" value="120" inputmode="numeric">
+    </label>
     <span class="demo-sep"></span>
     <button type="button" id="demo-replay">↺ Replay</button>
 </div>
 
 <div id="demo-stage">
     <iframe id="demo-app" src="/index.html?psdemo=1" allow="autoplay; fullscreen" title="Purr-fect Survival demo"></iframe>
-    <div id="demo-note">Rounds: 1-2-3 Meow · Glass · Tug · Dalgona. Public demo · no login · no saved scores · about 25 cats</div>
+    <div id="demo-note">Rounds: 1-2-3 Meow · Glass · Tug · Dalgona · Finals. Public demo · no login · no saved scores · about 25 cats</div>
 </div>
 
 <script src="js/grammar/participle-clauses-combining-data.js"></script>
@@ -218,7 +224,8 @@
             roundCount: Number(document.getElementById('demo-round-count').value) || 2,
             finishDistance: Number(document.getElementById('demo-finish-distance').value) || 100,
             glassSteps: Number(document.getElementById('demo-glass-steps').value) || 9,
-            tugDuration: Number(document.getElementById('demo-tug-duration').value) || 60
+            tugDuration: Number(document.getElementById('demo-tug-duration').value) || 60,
+            finalsDuration: Number(document.getElementById('demo-finals-duration').value) || 120
         };
     }
 
@@ -317,6 +324,10 @@
 
     function goScene(next) {
         scene = next;
+        if (next === 'round5') {
+            var countSel = document.getElementById('demo-round-count');
+            if (countSel && Number(countSel.value) < 5) countSel.value = '5';
+        }
         setSceneButtonActive();
         callFrame(function (PS) { PS.demoJump(next); });
         focusFrame();
@@ -327,6 +338,17 @@
     document.getElementById('demo-round2').addEventListener('click', function () { goScene('round2'); });
     document.getElementById('demo-round3').addEventListener('click', function () { goScene('round3'); });
     document.getElementById('demo-round4').addEventListener('click', function () { goScene('round4'); });
+    document.getElementById('demo-round5').addEventListener('click', function () { goScene('round5'); });
+    document.getElementById('demo-skip-finals').addEventListener('click', function () {
+        scene = 'round5';
+        var countSel = document.getElementById('demo-round-count');
+        if (countSel) countSel.value = '5';
+        setSceneButtonActive();
+        callFrame(function (PS) {
+            if (typeof PS.demoForceFinalsSkip === 'function') PS.demoForceFinalsSkip();
+        });
+        focusFrame();
+    });
     document.getElementById('demo-victory').addEventListener('click', function () { goScene('victory'); });
 
     function applyDemoSettings() {
@@ -338,7 +360,7 @@
         focusFrame();
     }
 
-    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration'].forEach(function (id) {
+    ['demo-round-count', 'demo-finish-distance', 'demo-glass-steps', 'demo-tug-duration', 'demo-finals-duration'].forEach(function (id) {
         document.getElementById(id).addEventListener('change', applyDemoSettings);
     });
 

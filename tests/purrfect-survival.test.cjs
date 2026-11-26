@@ -1279,13 +1279,13 @@ test('bilingual rules are faithful to the English engine copy', () => {
 /* ---------------------------------------------------------------- */
 
 test('host settings expose an extensible round map and default to two rounds', () => {
-    assert.equal(PS.HOST.MAX_IMPLEMENTED, 4);
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 5);
     assert.equal(PS.HOST.MAX_PLANNED, 5);
     assert.equal(PS.HOST.KINDS[1], 'meow');
     assert.equal(PS.HOST.KINDS[2], 'glass');
     assert.equal(PS.HOST.KINDS[3], 'tug');
     assert.equal(PS.HOST.KINDS[4], 'dalgona');
-    assert.equal(PS.HOST.KINDS[5], 'squid');
+    assert.equal(PS.HOST.KINDS[5], 'finals');
 
     assert.equal(PS.roomRoundCount({}), 2, 'old rooms default to 2 rounds');
     assert.equal(PS.roomRoundCount({ roundCount: 1 }), 1);
@@ -1293,7 +1293,8 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.roomRoundCount({ roundCount: 3 }), 3);
     assert.equal(PS.roomRoundCount({ roundCount: 0 }), 1, 'below 1 clamps to 1');
     assert.equal(PS.roomRoundCount({ roundCount: 4 }), 4);
-    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 4, 'above the implemented max clamps to 4');
+    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 5, 'round 5 is now playable');
+    assert.equal(PS.roomRoundCount({ roundCount: 6 }), 5, 'above the implemented max clamps to 5');
     assert.equal(PS.roomRoundCount(JSON.stringify({ roundCount: 1 })), 1, 'JSON strings are accepted');
 
     assert.equal(PS.shouldPlayRound2({ roundCount: 1 }), false);
@@ -1309,9 +1310,13 @@ test('host settings expose an extensible round map and default to two rounds', (
     assert.equal(PS.round2EndAction({ roundCount: 3 }), 'tug');
     assert.equal(PS.shouldPlayRound4({ roundCount: 3 }), false);
     assert.equal(PS.shouldPlayRound4({ roundCount: 4 }), true);
+    assert.equal(PS.shouldPlayRound5({ roundCount: 4 }), false);
+    assert.equal(PS.shouldPlayRound5({ roundCount: 5 }), true);
     assert.equal(PS.round3EndAction({ roundCount: 3 }), 'finish');
     assert.equal(PS.round3EndAction({ roundCount: 4 }), 'dalgona');
     assert.equal(PS.round4EndAction({ roundCount: 4 }), 'finish');
+    assert.equal(PS.round4EndAction({ roundCount: 5 }), 'finals');
+    assert.equal(PS.round5EndAction(), 'finish');
 });
 
 test('lobbyRoundChips lists only the selected rounds with short names and settings', () => {
@@ -1331,7 +1336,11 @@ test('lobbyRoundChips lists only the selected rounds with short names and settin
         dalgonaDuration: 240000
     });
     assert.deepEqual(custom.map(c => c.note), ['200m', '12 steps', '90s', '240s']);
-    assert.deepEqual(PS.lobbyRoundChips({ roundCount: 9 }).map(c => c.n), [1, 2, 3, 4], 'clamped to implemented rounds');
+    const five = PS.lobbyRoundChips({ roundCount: 5, finalsDuration: 150000 });
+    assert.deepEqual(five.map(c => c.n), [1, 2, 3, 4, 5]);
+    assert.deepEqual(five.map(c => c.short), ['1-2-3 Meow', 'Glass', 'Tug', 'Dalgona', 'Finals']);
+    assert.deepEqual(five.map(c => c.note), ['100m', '9 steps', '60s', '180s', '150s']);
+    assert.deepEqual(PS.lobbyRoundChips({ roundCount: 9 }).map(c => c.n), [1, 2, 3, 4, 5], 'clamped to implemented rounds');
 });
 
 test('validateHostSettings allows mixed subjects across rounds and keeps round-1 summary', () => {
@@ -1509,7 +1518,7 @@ test('roundConfig reads per-round entries and room-level fallback', () => {
     assert.equal(PS.roundConfig({}, 1, { subject: 'vocab', source: 'Shopping' }).vocabSource, 'Shopping');
 });
 
-test('host settings accept 4 rounds, clamp 5 to 4 and reject invalid subjects/topics', () => {
+test('host settings accept 5 rounds and reject invalid subjects/topics', () => {
     const four = PS.validateHostSettings({
         roundCount: 4,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
@@ -1523,7 +1532,9 @@ test('host settings accept 4 rounds, clamp 5 to 4 and reject invalid subjects/to
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
     });
     assert.equal(five.ok, true, five.error);
-    assert.equal(five.roundCount, 4, 'round 5 clamps to 4');
+    assert.equal(five.roundCount, 5, 'round 5 is playable');
+    assert.equal(five.rounds[4].kind, 'finals');
+    assert.equal(five.settings.finalsDuration, 120000);
     assert.equal(PS.validateHostSettings({
         roundCount: 0,
         rounds: [{ round: 1, subject: 'vocab', vocabSource: 'Food' }]
@@ -1565,7 +1576,9 @@ test('lobby HTML has the new host-setting controls and no old one-subject rule',
     assert.ok(html.indexOf('value="3">3 rounds') !== -1, 'round 3 is selectable');
     assert.equal(html.indexOf('value="4" disabled'), -1, 'round 4 is no longer coming soon');
     assert.ok(html.indexOf('value="4">4 rounds') !== -1, 'round 4 is selectable');
-    assert.ok(html.indexOf('value="5" disabled') !== -1, 'round 5 still coming soon');
+    assert.equal(html.indexOf('value="5" disabled'), -1, 'round 5 is no longer coming soon');
+    assert.ok(html.indexOf('value="5">5 rounds · Meow + Glass + Tug + Dalgona + Finals') !== -1,
+        'round 5 is selectable and labelled');
     assert.equal(html.indexOf('One subject per room'), -1, 'the old one-subject-per-room copy is gone');
     assert.ok(html.indexOf('Each round can use a different subject') !== -1, 'copy explains per-round subjects');
     assert.ok(html.indexOf('1 round · 1-2-3 Meow!') !== -1, 'short 1-round label');
@@ -1686,7 +1699,9 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v117") !== -1, 'CACHE_NAME is v117');
+    assert.ok(sw.indexOf("learnity-pwa-v119") !== -1, 'CACHE_NAME is v119');
+    assert.equal(sw.indexOf('learnity-pwa-v117'), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v118'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v116"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v115"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v114"), -1, 'the old cache name is gone');
@@ -2286,7 +2301,7 @@ test('drawCeremony paints a podium in portrait and landscape without bitmaps', (
     });
     const src = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.equal(/drawImage/.test(src), false, 'ceremony still never blits bitmaps');
-    assert.match(RENDERER.VERSION, /^2\.5\./);
+    assert.match(RENDERER.VERSION, /^2\.6\./);
 });
 
 test('the demo victory path builds a finished ceremony room for 1, 2 and 3 rounds', () => {
@@ -2731,7 +2746,7 @@ test('drawRound1 paints the 1280x720 host track and the student track', () => {
             })), 'round 1 ' + role + ' @' + size.join('x'));
         });
     });
-    assert.match(RENDERER.VERSION, /^2\.5\./);
+    assert.match(RENDERER.VERSION, /^2\.6\./);
 });
 
 test('glass panes are lights only: no vocab text on the 3D bridge', () => {
@@ -3173,16 +3188,18 @@ test('Round 4 host board rows match every shared student dalgona state', () => {
     assert.ok(board.findIndex(r => r.user_id === 'b') < board.findIndex(r => r.user_id === 'c'));
 });
 
-test('Round 4 host settings: default 2, 4 plays dalgona, 5 clamps, 3 does not', () => {
-    assert.equal(PS.HOST.MAX_IMPLEMENTED, 4);
+test('Round 4 host settings: default 2, 4 plays dalgona, 5 also plays finals, 3 does not', () => {
+    assert.equal(PS.HOST.MAX_IMPLEMENTED, 5);
     assert.equal(PS.roomRoundCount({}), 2);
     assert.equal(PS.roomRoundCount({ roundCount: 4 }), 4);
-    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 4);
+    assert.equal(PS.roomRoundCount({ roundCount: 5 }), 5);
     assert.equal(PS.shouldPlayRound4({ roundCount: 3 }), false);
     assert.equal(PS.shouldPlayRound4({ roundCount: 4 }), true);
+    assert.equal(PS.shouldPlayRound4({ roundCount: 5 }), true);
     assert.equal(PS.round3EndAction({ roundCount: 4 }), 'dalgona');
     assert.equal(PS.round3EndAction({ roundCount: 3 }), 'finish');
     assert.equal(PS.round4EndAction({ roundCount: 4 }), 'finish');
+    assert.equal(PS.round4EndAction({ roundCount: 5 }), 'finals');
 
     assert.equal(PS.normalizeDalgonaDuration(), 180000);
     assert.equal(PS.normalizeDalgonaDuration('180'), 180000);
@@ -3249,7 +3266,7 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
     assert.ok(render.indexOf('R.drawRound4(ctx, s)') !== -1, 'drawScene dispatches round 4');
     assert.equal(/\.drawImage\s*\(/.test(render), false, 'no drawImage');
     const R = loadRenderer();
-    assert.equal(R.VERSION, '2.5.2');
+    assert.equal(R.VERSION, '2.6.0');
     assert.equal(typeof R.drawRound4, 'function');
     const ctx = mockContext({ width: 390, height: 844 });
     R.drawRound4(ctx, {
@@ -3270,7 +3287,9 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v117') !== -1, 'cache is v117');
+    assert.ok(sw.indexOf('learnity-pwa-v119') !== -1, 'cache is v119');
+    assert.equal(sw.indexOf('learnity-pwa-v117'), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v118'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v116'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v115'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v114'), -1, 'the old cache name is gone');
@@ -3283,7 +3302,7 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
     const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
     assert.ok(demo.indexOf('js/grammar/participle-clauses-combining-data.js') !== -1, 'demo loads the bank');
 
-    assert.equal(PS.VERSION, '1.3.0');
+    assert.equal(PS.VERSION, '1.4.0');
 
     const client = fs.readFileSync(path.join(__dirname, '..', 'js', 'purrfect-survival.js'), 'utf8');
     assert.ok(client.indexOf('dalgona_item') !== -1 && client.indexOf('PLAYER_COLUMNS') !== -1);
@@ -3561,4 +3580,315 @@ test('Round 4 student phone view is decluttered while the host grid keeps its la
     const hostRule = dom.el('ps-hud-rule');
     assert.ok(hostRule.textContent.length > 0, 'the teacher / projector keeps the Round 4 rule');
     assert.equal(hostRule.classList.contains('hidden'), false);
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 5 — Grammar Finals                                          */
+/* ---------------------------------------------------------------- */
+
+function finalsPlayer(id, progress, extra) {
+    return Object.assign({
+        user_id: id,
+        nickname: id.toUpperCase(),
+        is_playing: true,
+        status: 'advanced',
+        ghost: false,
+        dalgona_finished_at: '2026-11-26T08:00:00.000Z',
+        finals_progress: progress,
+        finals_combo: 0,
+        finals_ghost_correct: 0,
+        finals_question_index: 0,
+        ink_until: null,
+        finals_eliminated_at: null
+    }, extra || {});
+}
+
+test('finals duration defaults to 120 s and clamps 60–180 s', () => {
+    assert.equal(PS.ROUND5.DEFAULT_MS, 120000);
+    assert.equal(PS.ROUND5.MIN_MS, 60000);
+    assert.equal(PS.ROUND5.MAX_MS, 180000);
+    assert.equal(PS.normalizeFinalsDuration(), 120000);
+    assert.equal(PS.normalizeFinalsDuration(''), 120000);
+    assert.equal(PS.normalizeFinalsDuration('120'), 120000, 'seconds are accepted');
+    assert.equal(PS.normalizeFinalsDuration(150), 150000);
+    assert.equal(PS.normalizeFinalsDuration(150000), 150000, 'milliseconds are accepted');
+    assert.equal(PS.normalizeFinalsDuration(30), 60000, 'below the range clamps to 60 s');
+    assert.equal(PS.normalizeFinalsDuration(999), 60000, 'a value above 600 is read as milliseconds');
+    assert.equal(PS.normalizeFinalsDuration(999000), 180000, 'above the range clamps to 180 s');
+});
+
+test('shouldEnterRound5 requires a 5-round plan and at least 2 Dalgona survivors', () => {
+    const one = [finalsPlayer('a', 100)];
+    const none = [];
+    const two = [finalsPlayer('a', 100), finalsPlayer('b', 80)];
+    assert.equal(PS.shouldEnterRound5({ roundCount: 5 }, one), false);
+    assert.equal(PS.shouldEnterRound5({ roundCount: 5 }, none), false);
+    assert.equal(PS.shouldEnterRound5({ roundCount: 5 }, two), true);
+    assert.equal(PS.shouldEnterRound5({ roundCount: 4 }, two), false, '4-round rooms never enter the finals');
+    assert.equal(PS.dalgonaSurvivors(two).length, 2);
+    assert.equal(PS.dalgonaSurvivors([
+        finalsPlayer('c', 100, { dalgona_finished_at: null, status: 'eliminated', ghost: true })
+    ]).length, 0, 'students who did not finish Dalgona are not finalists');
+});
+
+test('applySlip slides 25 at a time and only electrocutes at the fence', () => {
+    assert.deepEqual(PS.applySlip(100), { progress: 75, eliminated: false });
+    assert.deepEqual(PS.applySlip(75), { progress: 50, eliminated: false });
+    assert.deepEqual(PS.applySlip(50), { progress: 25, eliminated: false });
+    assert.deepEqual(PS.applySlip(25), { progress: 0, eliminated: false });
+    assert.deepEqual(PS.applySlip(0), { progress: 0, eliminated: true });
+    assert.deepEqual(PS.applyKnockback(60), 45);
+    assert.deepEqual(PS.applyKnockback(10), 0, 'knockback clamps at 0');
+    assert.equal(PS.applyKnockback(0), 0, 'knockback never eliminates');
+});
+
+test('nearestOpponent picks the closest living finalist and the 3rd correct fires a paw-wave', () => {
+    const attacker = finalsPlayer('a', 50);
+    const near = finalsPlayer('b', 60);
+    const far = finalsPlayer('c', 90);
+    const ghost = finalsPlayer('d', 52, { ghost: true, status: 'eliminated' });
+    const players = [attacker, near, far, ghost];
+    assert.equal(PS.nearestOpponent(attacker, players).user_id, 'b');
+
+    const q = { type: 'error_spotting', answer: 2 };
+    for (let i = 1; i <= 3; i++) {
+        const res = PS.applyFinalsTurn({ player: attacker, players: players, question: q, answer: 2, now: 1000 });
+        assert.equal(res.correct, true);
+        assert.equal(attacker.finals_combo, i);
+        if (i < 3) assert.equal(res.knockback, null);
+        if (i === 3) {
+            assert.ok(res.knockback, 'third consecutive correct answer fires a paw-wave');
+            assert.equal(res.knockback.user_id, 'b');
+            assert.equal(near.finals_progress, 45, 'nearest opponent is pushed back 15');
+        }
+    }
+
+    attacker.finals_progress = 0;
+    const wrong = PS.applyFinalsTurn({ player: attacker, players: players, question: q, answer: 1, now: 2000 });
+    assert.equal(wrong.correct, false);
+    assert.equal(wrong.eliminated, true, 'a wrong answer at 0 is electrocuted');
+    assert.equal(attacker.ghost, true);
+    assert.equal(attacker.finals_eliminated_at, 2000);
+});
+
+test('buildFinalsDeck mixes ~60/40 error spotting and double trap, cycling the three units', () => {
+    const deck = PS.buildFinalsDeck({ seed: 7, count: 20 });
+    assert.equal(deck.length, 20);
+    assert.equal(deck.filter(q => q.type === 'error_spotting').length, 12);
+    assert.equal(deck.filter(q => q.type === 'double_trap').length, 8);
+    assert.deepEqual(Array.from(new Set(deck.map(q => q.type))).sort(), ['double_trap', 'error_spotting']);
+    const units = Array.from(new Set(deck.map(q => q.unit))).sort();
+    assert.deepEqual(units, ['agreement', 'indefinite_pronouns', 'tenses']);
+    assert.equal(deck.some(q => q.unit === 'conditionals'), false, 'no invented conditionals');
+
+    const withHook = PS.buildFinalsDeck({
+        seed: 7,
+        count: 10,
+        conditionals: [{
+            unit: 'conditionals',
+            prompt: 'If I ___ more time, I ___ the whole book.',
+            options: ['had', 'have'],
+            answer: 0
+        }]
+    });
+    assert.equal(withHook.some(q => q.unit === 'conditionals'), true, 'the later hook bank is included');
+});
+
+test('finalsErrorFromGrammar converts Drive & Go! primary/options items into Error Spotting', () => {
+    const item = PS.finalsErrorFromGrammar({
+        unit: 'tenses',
+        prompt: 'She ___ to school every day.',
+        primary: 'goes',
+        options: ['go', 'goes', 'went']
+    }, 'tenses', ['gone']);
+    assert.ok(item, 'a grammar-bank item is converted');
+    assert.equal(item.unit, 'tenses');
+    assert.equal(item.tokens.length, 4, 'the converted sentence has four tappable parts');
+    assert.ok(item.tokens.join(' ').toLowerCase().indexOf('goes') === -1, 'the wrong form is shown, not the answer');
+    assert.ok(item.tokens.join(' ').toLowerCase().indexOf('go') !== -1, 'a wrong option is shown');
+    assert.ok(item.answer >= 1 && item.answer <= 4, 'the wrong part is 1–4');
+});
+
+test('Error Spotting keyboard answers 1–4 grade the Neither/students/were/ready item as 3', () => {
+    const item = PS.FINALS_ERROR_SPOTTING.find(q =>
+        q.tokens.join(' ') === 'Neither of the students were ready for the test.');
+    assert.ok(item, 'the required example is in the built-in bank');
+    assert.deepEqual(item.tokens, ['Neither of the', 'students', 'were', 'ready for the test.']);
+    assert.equal(item.answer, 3);
+    const q = { type: 'error_spotting', tokens: item.tokens, answer: item.answer };
+    assert.equal(PS.gradeFinalsAnswer(q, 1).correct, false);
+    assert.equal(PS.gradeFinalsAnswer(q, 2).correct, false);
+    assert.equal(PS.gradeFinalsAnswer(q, 3).correct, true);
+    assert.equal(PS.gradeFinalsAnswer(q, 4).correct, false);
+    assert.equal(PS.gradeFinalsAnswer(q, '3').correct, true);
+    assert.equal(PS.gradeFinalsAnswer(q, null).correct, false, 'a timeout is wrong');
+});
+
+test('Double-Trap Cloze requires both blanks to be correct', () => {
+    const trap = PS.FINALS_DOUBLE_TRAP[0];
+    const q = { type: 'double_trap', blanks: trap.blanks.slice() };
+    assert.equal(PS.gradeFinalsAnswer(q, [1, 0]).correct, true);
+    assert.equal(PS.gradeFinalsAnswer(q, [1, 1]).correct, false, 'one wrong blank fails the whole turn');
+    assert.equal(PS.gradeFinalsAnswer(q, [0, 0]).correct, false);
+    assert.equal(PS.gradeFinalsAnswer(q, [0, 1]).correct, false);
+    assert.equal(PS.gradeFinalsAnswer(q, [trap.blanks[0].options[1], trap.blanks[1].options[0]]).correct, true,
+        'option text is accepted too');
+});
+
+test('Ghost revival deck is two-choice only; two correct answers earn a 1.5 s ink bomb', () => {
+    const deck = PS.buildGhostDeck({ seed: 3, count: 8 });
+    assert.equal(deck.length, 8);
+    deck.forEach(q => {
+        assert.equal(q.type, 'ghost');
+        assert.equal(q.options.length, 2, 'every ghost question has exactly two choices');
+    });
+    const ghost = finalsPlayer('g', 0, { ghost: true, status: 'eliminated', finals_eliminated_at: 1 });
+    assert.equal(PS.ghostCanThrowInk(ghost), false);
+    PS.ghostRevival(ghost, true);
+    assert.equal(ghost.finals_ghost_correct, 1);
+    assert.equal(PS.ghostCanThrowInk(ghost), false);
+    PS.ghostRevival(ghost, true);
+    assert.equal(ghost.finals_ghost_correct, 2);
+    assert.equal(PS.ghostCanThrowInk(ghost), true, 'two correct answers make one ink charge');
+    const leader = finalsPlayer('lead', 90);
+    const ink = PS.applyInk(leader, 5000);
+    assert.equal(ink.durationMs, 1500);
+    assert.equal(leader.ink_until, 6500);
+    assert.equal(PS.ghostRevival(leader, true).ignored, true, 'living finalists do not earn ghost ink');
+});
+
+test('5-round ceremony ranks living finalists by finals progress, then earlier places', () => {
+    const players = [
+        finalsPlayer('a', 20),
+        finalsPlayer('b', 80),
+        finalsPlayer('c', 40, { status: 'eliminated', ghost: true, finals_eliminated_at: '2026-11-26T08:10:00.000Z' }),
+        finalsPlayer('d', 0, { dalgona_finished_at: null, status: 'eliminated', ghost: true, eliminated_reason: 'dalgona' })
+    ];
+    const results = PS.ceremonyResults(players, { roundCount: 5 });
+    assert.deepEqual(results.map(r => r.user_id), ['b', 'a', 'c', 'd']);
+    assert.equal(results[0].survived, true);
+    assert.equal(results[1].survived, true);
+    assert.equal(results[2].survived, false);
+    assert.equal(results[3].survived, false);
+    assert.equal(results[1].rounds.r5.progress, 20);
+    assert.equal(results[2].rounds.r5.eliminated, true);
+});
+
+test('Round 5 demo scene and skip-to-ceremony when fewer than 2 survivors remain', async () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'round5' });
+    let state = dom.PS.state();
+    assert.equal(state.room.status, 'round5');
+    assert.equal(state.room.current_round, 5);
+    assert.ok(state.room.round5_started_at && state.room.round5_ends_at);
+    assert.ok(Array.isArray(state.room.finals_questions) && state.room.finals_questions.length > 0);
+    assert.ok(state.players.some(p => p.finals_progress !== 100 || p.finals_combo >= 0));
+
+    const ok = dom.PS.demoForceFinalsSkip();
+    assert.equal(ok, true);
+    state = dom.PS.state();
+    assert.equal(state.room.status, 'finished', 'the finals are skipped');
+    assert.equal(state.room.current_round, 5);
+    assert.ok(state.room.finished_at);
+});
+
+test('Round 5 renderer draws the player and host arena without throwing', () => {
+    const R = loadRenderer();
+    assert.equal(typeof R.drawRound5, 'function');
+    assert.equal(R.VERSION, '2.6.0');
+    const ctx = mockContext({ width: 390, height: 844 });
+    R.drawRound5(ctx, {
+        w: 390, h: 844, hud: 80, role: 'player', now: 1200,
+        round5: {
+            me: { progress: 60, combo: 2, ink: false, look: { cat: 'Ragdoll' } },
+            board: [
+                { user_id: 'a', name: '4C 16 Demo', progress: 60, combo: 2, isMe: true, look: { cat: 'Ragdoll' } },
+                { user_id: 'b', name: '4C 17 Classmate', progress: 30, combo: 0, look: { cat: 'Ginger' } }
+            ],
+            ghosts: [{ user_id: 'c', name: 'Ghost', progress: 0, ghost: true, look: { cat: 'Garfield' } }],
+            living: 2,
+            remainingMs: 100000
+        }
+    });
+    R.drawRound5(ctx, {
+        w: 1280, h: 720, hud: 80, role: 'host', now: 1200,
+        round5: {
+            me: null,
+            board: [
+                { user_id: 'a', name: 'A', progress: 100, combo: 3, look: {} },
+                { user_id: 'b', name: 'B', progress: 0, combo: 0, look: {} }
+            ],
+            ghosts: [],
+            living: 2,
+            remainingMs: 45000
+        }
+    });
+    R.drawScene(ctx, { w: 390, h: 844, round: 5, role: 'player', round5: { board: [], ghosts: [] } });
+});
+
+test('Round 5 demo page exposes option 5 and a round5 scene button', () => {
+    const demo = fs.readFileSync(path.join(__dirname, '..', 'purrfect-survival-demo.html'), 'utf8');
+    assert.ok(demo.indexOf('<option value="5">5</option>') !== -1, '5-round demo option');
+    assert.ok(demo.indexOf('data-scene="round5"') !== -1, 'Round 5 scene button');
+    assert.ok(demo.indexOf('demo-finals-duration') !== -1, 'finals duration control');
+    assert.ok(demo.indexOf('goScene(\'round5\')') !== -1, 'scene click wiring');
+    assert.ok(demo.indexOf('finalsDuration:') !== -1, 'settings include finalsDuration');
+    assert.ok(demo.indexOf('demo-skip-finals') !== -1, 'a skip-to-ceremony demo control exists');
+    assert.ok(demo.indexOf('PS.demoForceFinalsSkip()') !== -1, 'the skip control calls the demo helper');
+});
+
+test('Round 5 SQL incremental is safe, teacher-run and mirrors the engine rules', () => {
+    const sqlPath = path.join(__dirname, '..', 'supabase', 'purrfect_survival_round5_finals.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    assert.ok(/Safe to re-run/i.test(sql));
+    assert.ok(/Do NOT re-run/i.test(sql));
+    assert.ok(/plugin, CLI or agent/i.test(sql));
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1);
+    ['round5_started_at', 'round5_ends_at', 'finals_questions', 'finals_progress',
+        'finals_combo', 'finals_ghost_correct', 'finals_question_index', 'ink_until',
+        'finals_eliminated_at', 'purrfect_survival_enter_round5',
+        'submit_purrfect_survival_finals', 'submit_purrfect_survival_ghost',
+        'throw_purrfect_survival_ink', 'purrfect_survival_finals_duration'].forEach(token => {
+        assert.ok(sql.indexOf(token) !== -1, token + ' exists');
+    });
+    assert.ok(sql.indexOf("check (status in ('waiting', 'round1', 'round2', 'round3', 'round4', 'round5', 'finished'))") !== -1);
+    assert.ok(sql.indexOf('v_survivors < 2') !== -1, 'skips the finals when fewer than 2 survivors remain');
+    assert.ok(/make_interval\(secs => \(v_duration \/ 1000\.0\)/.test(sql), 'default 120 s uses make_interval');
+    assert.ok(sql.indexOf('interval \'1.5 seconds\'') !== -1, 'ink lasts 1500 ms');
+    assert.ok(sql.indexOf("interval '5 seconds'") !== -1, 'glass thinking time is still 5 seconds');
+    assert.ok(sql.indexOf('return least(5, greatest(1, v_raw::int))') !== -1, 'round count max is 5');
+    assert.ok(sql.indexOf("if v_room.status = 'round5' then") !== -1, 'end round handles round 5');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);
+
+    const copy = '/workspace/purrfect_survival_round5_finals.sql';
+    assert.ok(fs.existsSync(copy), 'workspace copy exists');
+    assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches');
+});
+
+test('canonical SQL picks up the 5-round finals while keeping the historical clamp string', () => {
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf('least(3, greatest(1') !== -1, 'historical test string stays');
+    assert.ok(canonical.indexOf('return least(5, greatest(1, v_raw::int))') !== -1, 'live definition clamps to 5');
+    assert.ok(canonical.indexOf('purrfect_survival_enter_round5') !== -1);
+    assert.ok(canonical.indexOf('submit_purrfect_survival_finals') !== -1);
+    assert.ok(canonical.indexOf('finals_questions') !== -1);
+    assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'the guard is still present for > 5');
+});
+
+test('Round 5 music/HUD wiring treats round5 as a gameplay round', () => {
+    const client = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(client.indexOf("room.status === 'round5'") !== -1, 'round5 branches exist');
+    assert.ok(client.indexOf('finals_questions') !== -1, 'polls the shared finals deck');
+    assert.ok(client.indexOf("sb.rpc('submit_purrfect_survival_finals'") !== -1);
+    assert.ok(client.indexOf("sb.rpc('submit_purrfect_survival_ghost'") !== -1);
+    assert.ok(client.indexOf("sb.rpc('throw_purrfect_survival_ink'") !== -1);
+    assert.ok(client.indexOf("return '⏹ End round 5'") !== -1, 'host End label covers round 5');
+    assert.ok(client.indexOf("if (room.status === 'round5') {") !== -1, 'round 5 is host-endable');
+    const musicFn = client.slice(client.indexOf('function desiredMusicKind'), client.indexOf('function startTrack'));
+    assert.ok(musicFn.indexOf("room.status === 'round5'") !== -1, 'finals use the gameplay music');
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.equal(html.indexOf('value="5" disabled'), -1, 'lobby option 5 is enabled');
+    assert.ok(html.indexOf('ps-round5-card') !== -1);
+    assert.ok(html.indexOf('ps-finals-duration') !== -1);
+    assert.ok(html.indexOf('ps-ink-cover') !== -1);
 });

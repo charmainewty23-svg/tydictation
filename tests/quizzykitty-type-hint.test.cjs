@@ -282,7 +282,7 @@ test('the old gap hint incremental file is gone', () => {
     assert.equal(fs.existsSync(path.join(ROOT, 'supabase/quizzykitty_gap_hint.sql')), false);
 });
 
-test('service worker cache is v117 for the host lobby rules toggle', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v117';/);
-    assert.doesNotMatch(sw, /learnity-pwa-v109|learnity-pwa-v110|learnity-pwa-v111|learnity-pwa-v113|learnity-pwa-v114|learnity-pwa-v115|learnity-pwa-v116/);
+test('service worker cache is v118 for the host lobby rules toggle', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v119';/);
+    assert.doesNotMatch(sw, /learnity-pwa-v109|learnity-pwa-v110|learnity-pwa-v111|learnity-pwa-v113|learnity-pwa-v114|learnity-pwa-v115|learnity-pwa-v116|learnity-pwa-v117|learnity-pwa-v118/);
 });

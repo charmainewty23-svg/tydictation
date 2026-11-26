@@ -8,9 +8,10 @@
  * Round 2  — Glass Stepping Stones
  * Round 3  — Tug of War (team life-or-death)
  * Round 4  — Dalgona Candy Carving (carve a shape before the clock)
- * Round 5 (Squid Circle) is deliberately not implemented; the room keeps
- * current_round / status extensible. When each later round ships, its host
- * settings must ship in the same change.
+ * Round 5  — Grammar Finals (an electric-fence arena: error spotting,
+ *            double-trap cloze, combo knockback and ghost ink bombs)
+ * The room keeps current_round / status extensible. When each later round
+ * ships, its host settings must ship in the same change.
  */
 (function (root) {
     'use strict';
@@ -21,7 +22,7 @@
     /* Constants                                                           */
     /* ------------------------------------------------------------------ */
 
-    PS.VERSION = '1.3.0';
+    PS.VERSION = '1.4.0';
 
     PS.ROUND1 = {
         GREEN_MIN_MS: 4000,
@@ -80,6 +81,34 @@
         LICK_ANIM_MS: 1000
     };
 
+    /* Round 5 — Grammar Finals. Every Dalgona survivor enters a circular
+       arena. 100 = safely near the centre, 0 = at the electric fence.
+       Wrong answers (and error-spotting timeouts) slip 25 progress back;
+       a wrong answer at 0 is electrocuted. Every third correct answer in a
+       row fires a paw-wave that knocks the nearest opponent 15 back.
+       Eliminated students become ghosts: two easy revival questions earn
+       one ink bomb, which covers the leader's question for 1.5 s. */
+    PS.ROUND5 = {
+        DEFAULT_MS: 120000,
+        MIN_MS: 60000,
+        MAX_MS: 180000,
+        ERROR_MS: 6000,
+        DOUBLE_TRAP_MS: 8000,
+        SLIP: 25,
+        KNOCKBACK: 15,
+        COMBO: 3,
+        START_PROGRESS: 100,
+        INK_MS: 1500,
+        GHOST_NEED: 2,
+        MIN_FINALISTS: 2
+    };
+
+    /* Fixed Round-5 bank order. Conditionals are deliberately NOT invented
+       here: if a later generated file exposes a non-empty
+       window.PS_FINALS_CONDITIONALS array, finalsUnitsAvailable() adds the
+       'conditionals' unit automatically. */
+    PS.FINALS_UNITS = ['agreement', 'indefinite_pronouns', 'tenses'];
+
     /* Pure helper for the visual cat-lick window. Returns null outside the
        window, otherwise a 0..1 progress value. The window is inclusive at
        both ends so a renderer never sees a gap between clear frames. */
@@ -94,11 +123,11 @@
         return p;
     };
 
-    /* Host settings are extensible by design. Rounds 1–4 are implemented;
-       Round 5 (Squid Circle) is NOT playable yet. When it is implemented,
-       that game AND its host settings must ship in the same change. */
+    /* Host settings are extensible by design. Rounds 1–5 are implemented.
+       Round 5 is the Grammar Finals; any later round must ship its game AND
+       its host settings in the same change. */
     PS.HOST = {
-        MAX_IMPLEMENTED: 4,
+        MAX_IMPLEMENTED: 5,
         MAX_PLANNED: 5,
         DEFAULT_ROUNDS: 2,
         KINDS: {
@@ -106,7 +135,7 @@
             2: 'glass',
             3: 'tug',
             4: 'dalgona',
-            5: 'squid'
+            5: 'finals'
         }
     };
 
@@ -143,7 +172,8 @@
         round1: 'Green: answer to sprint +10 m. Yellow: 2 s warning, answers still count. Red: 3 s — do not answer. Pressing in red costs 30 m, then 15 m, then you are out. Reach 100 m. First 15 survivors cross to the bridge.',
         round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.',
         round3: 'Survivors are split into a red team and a blue team. Both teams answer at the same time: every correct answer pulls the rope +1. Five correct answers in a row trigger 爆走拉力 2x for 5 seconds (each correct then pulls +2). A wrong answer breaks the combo. Pull the golden salmon 20 steps past the centre to win — or be ahead when the clock runs out. The losing team falls into the abyss.',
-        round4: 'The Tug of War winners each receive a golden dalgona candy with a stamped shape: fishbone (spell the word from its Chinese hint), cat paw (build the grammar answer from word blocks) or crown cat (combine the two participle-clause sentences). Carve every dash before the clock runs out. The Cat Needle fills one segment per correct letter or block. A first mistake is a black crack and a warning; a second mistake splits the candy and you are out. One lick per player auto-fills the next segment. Finish the pattern to survive.'
+        round4: 'The Tug of War winners each receive a golden dalgona candy with a stamped shape: fishbone (spell the word from its Chinese hint), cat paw (build the grammar answer from word blocks) or crown cat (combine the two participle-clause sentences). Carve every dash before the clock runs out. The Cat Needle fills one segment per correct letter or block. A first mistake is a black crack and a warning; a second mistake splits the candy and you are out. One lick per player auto-fills the next segment. Finish the pattern to survive.',
+        round5: 'Every Dalgona survivor enters the Grammar Finals: a circular arena with an electric fence. You start at 100, near the safe centre; 0 is the fence. Error Spotting shows a sentence with four tappable parts — find the grammar mistake in 6 seconds. Double-Trap Cloze hides two blanks and both answers must be right. A wrong answer or a timeout slips you 25 back; a wrong answer while already at 0 is electrocuted. Every 3 correct answers in a row fires a paw-wave that knocks the nearest living opponent 15 back. The finals last 120 seconds (the host can set 60–180). If only one cat is left, the finals end early. If fewer than 2 Dalgona survivors remain, the finals are skipped and the prize ceremony starts. Eliminated students spectate as ghosts: two correct easy revival questions earn an ink bomb that covers the current 1st-place question for 1.5 seconds.'
     };
 
     /* Traditional Chinese (Hong Kong) sibling of RULE_TEXT. The English
@@ -152,7 +182,8 @@
         round1: '綠燈：作答向前衝 +10 米。黃燈：2 秒警告，作答仍然計分。紅燈：3 秒——唔好作答。紅燈時撳會扣 30 米，再撳扣 15 米，第三次出局。跑到 100 米，最先 15 位生存者過橋。',
         round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。',
         round3: '生存者會平均分去紅隊同藍隊。兩隊同時作答：每答啱一題，條繩就會向自己隊拉 +1。連續答啱 5 題會爆發「爆走拉力 2x」5 秒，期間每題 +2。答錯會斷連勝。將金色三文魚拉過中線 20 步就贏；時間到就由三文魚喺邊一邊定勝負。輸咗嗰隊會跌落深淵。',
-        round4: '拔河勝出嘅同學每人會得到一塊金色椪糖，上面有一個壓印圖案：魚骨（睇中文提示串英文字）、貓掌（用字塊砌出文法答案）或者皇冠貓（合併兩句分詞子句）。時間完之前要雕好所有虛線。每答啱一個字母或字塊，貓爪鋼針就會雕好一段。第一次錯會爆出黑色裂痕兼警告；第二次錯椪糖會裂開，你就會出局。每人有一次「舔一口椪糖」機會，會自動填下一個正確答案。雕完成個圖案就過關。'
+        round4: '拔河勝出嘅同學每人會得到一塊金色椪糖，上面有一個壓印圖案：魚骨（睇中文提示串英文字）、貓掌（用字塊砌出文法答案）或者皇冠貓（合併兩句分詞子句）。時間完之前要雕好所有虛線。每答啱一個字母或字塊，貓爪鋼針就會雕好一段。第一次錯會爆出黑色裂痕兼警告；第二次錯椪糖會裂開，你就會出局。每人有一次「舔一口椪糖」機會，會自動填下一個正確答案。雕完成個圖案就過關。',
+        round5: '所有椪糖生存者會進入 Grammar Finals：一個圓形競技場，外圍有電網。一開始進度係 100，靠近安全中心；0 就係電網。Error Spotting 會顯示一句句子，入面有四塊可以撳嘅字詞，6 秒內找出文法錯誤。Double-Trap Cloze 一句有兩個空格，兩個都要答啱。答錯或者逾時會向後滑 25；如果已經喺 0 再答錯就會觸電出局。連續答啱 3 題會發出貓爪衝擊波，將最近嘅對手向後推 15。決賽限時 120 秒（老師可以設定 60–180 秒）。如果只剩一隻貓，決賽會提早結束。如果椪糖生存者少過 2 個，就會跳過決賽直接頒獎。出局嘅同學會變成鬼貓：答啱 2 條簡單復活題就可以賺到一個墨汁炸彈，掟中目前第 1 名，遮住佢條問題 1.5 秒。'
     };
 
     /* ------------------------------------------------------------------ */
@@ -390,6 +421,18 @@
         return Math.max(PS.ROUND4.MIN_MS, Math.min(PS.ROUND4.MAX_MS, n));
     };
 
+    /* Round-5 finals duration. The lobby input is in SECONDS; a value
+       <= 600 is read as seconds, larger values as milliseconds. Default
+       120 s, clamped to 60–180 s. */
+    PS.normalizeFinalsDuration = function (value) {
+        if (value == null || value === '') return PS.ROUND5.DEFAULT_MS;
+        let n = Number(value);
+        if (!isFinite(n) || n <= 0) return PS.ROUND5.DEFAULT_MS;
+        if (n <= 600) n = n * 1000;
+        n = Math.round(n);
+        return Math.max(PS.ROUND5.MIN_MS, Math.min(PS.ROUND5.MAX_MS, n));
+    };
+
     function clampRoundMs(value) {
         const n = Number(value);
         if (!isFinite(n) || n <= 0) return PS.ROUND1.DEFAULT_ROUND_MS;
@@ -474,9 +517,17 @@
         return PS.shouldPlayRound4(settings) ? 'dalgona' : 'finish';
     };
 
-    /* Round 5 (Squid Circle) is not implemented, so Round 4 always leads to
-       the prize ceremony. */
-    PS.round4EndAction = function () {
+    PS.shouldPlayRound5 = function (settings) {
+        return PS.roomRoundCount(settings) >= 5;
+    };
+
+    /* Round 4 leads to the Grammar Finals only when the host picked 5
+       rounds. The finals themselves always lead to the ceremony. */
+    PS.round4EndAction = function (settings) {
+        return PS.shouldPlayRound5(settings) ? 'finals' : 'finish';
+    };
+
+    PS.round5EndAction = function () {
         return 'finish';
     };
 
@@ -547,6 +598,9 @@
         const dalgonaRaw = entry.dalgonaDuration != null ? entry.dalgonaDuration
             : (s.dalgonaDuration != null ? s.dalgonaDuration : undefined);
         const dalgonaDuration = PS.normalizeDalgonaDuration(dalgonaRaw);
+        const finalsRaw = entry.finalsDuration != null ? entry.finalsDuration
+            : (s.finalsDuration != null ? s.finalsDuration : undefined);
+        const finalsDuration = PS.normalizeFinalsDuration(finalsRaw);
 
         return {
             round: roundNo,
@@ -561,7 +615,8 @@
             roundMs: roundMs,
             glassSteps: glassSteps,
             tugDuration: tugDuration,
-            dalgonaDuration: dalgonaDuration
+            dalgonaDuration: dalgonaDuration,
+            finalsDuration: finalsDuration
         };
     };
 
@@ -577,7 +632,8 @@
             1: '1-2-3 Meow',
             2: 'Glass',
             3: 'Tug',
-            4: 'Dalgona'
+            4: 'Dalgona',
+            5: 'Finals'
         };
         const chips = [];
         for (let n = 1; n <= count; n++) {
@@ -587,6 +643,7 @@
             else if (n === 2) note = cfg.glassSteps + ' steps';
             else if (n === 3) note = Math.round(cfg.tugDuration / 1000) + 's';
             else if (n === 4) note = Math.round(cfg.dalgonaDuration / 1000) + 's';
+            else if (n === 5) note = Math.round(cfg.finalsDuration / 1000) + 's';
             chips.push({
                 n: n,
                 kind: PS.HOST.KINDS[n] || '',
@@ -610,10 +667,8 @@
         if (!isFinite(roundCount) || Math.floor(roundCount) !== roundCount || roundCount < 1) {
             return { ok: false, error: 'INVALID_ROUND_COUNT' };
         }
-        // Round 5 is not implemented yet: a request above 4 clamps to 4
-        // instead of failing the whole room (old behaviour kept 4 and 5
-        // unplayable, but a clamped class is friendlier and matches
-        // roomRoundCount).
+        // Rounds 1–5 are implemented. A request above 5 clamps to 5
+        // instead of failing the whole room, matching roomRoundCount().
         roundCount = Math.min(PS.HOST.MAX_IMPLEMENTED, roundCount);
 
         const finishDistance = PS.normalizeFinishDistance(
@@ -635,6 +690,12 @@
             dalgonaEntry && dalgonaEntry.dalgonaDuration != null ? dalgonaEntry.dalgonaDuration
                 : (raw.dalgonaDuration != null ? raw.dalgonaDuration
                     : (raw.dalgona_duration != null ? raw.dalgona_duration : undefined))
+        );
+        const finalsEntry = rawRounds.find(item => item && Number(item.round) === 5);
+        const finalsDuration = PS.normalizeFinalsDuration(
+            finalsEntry && finalsEntry.finalsDuration != null ? finalsEntry.finalsDuration
+                : (raw.finalsDuration != null ? raw.finalsDuration
+                    : (raw.finals_duration != null ? raw.finals_duration : undefined))
         );
 
         const rounds = [];
@@ -678,6 +739,12 @@
                 const dalgonaRaw = entry && entry.dalgonaDuration != null ? entry.dalgonaDuration : dalgonaDuration;
                 cfg.dalgonaDuration = PS.normalizeDalgonaDuration(dalgonaRaw);
             }
+            if (n === 5) {
+                /* The finals bank is fixed, so the round keeps the previous
+                   round's subject only as an internal placeholder. */
+                const finalsRaw = entry && entry.finalsDuration != null ? entry.finalsDuration : finalsDuration;
+                cfg.finalsDuration = PS.normalizeFinalsDuration(finalsRaw);
+            }
             rounds.push(cfg);
             previous = cfg;
         }
@@ -691,7 +758,8 @@
             finishDistance: r1.finishDistance,
             glassSteps: rounds[1] ? rounds[1].glassSteps : null,
             tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration,
-            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration
+            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration,
+            finalsDuration: rounds[4] ? rounds[4].finalsDuration : finalsDuration
         };
 
         return {
@@ -708,7 +776,8 @@
             roundMs: r1.roundMs,
             glassSteps: rounds[1] ? rounds[1].glassSteps : null,
             tugDuration: rounds[2] ? rounds[2].tugDuration : tugDuration,
-            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration
+            dalgonaDuration: rounds[3] ? rounds[3].dalgonaDuration : dalgonaDuration,
+            finalsDuration: rounds[4] ? rounds[4].finalsDuration : finalsDuration
         };
     };
 
@@ -1060,7 +1129,7 @@
        the leaders first; round 3 groups Red, Blue, then watchers. */
     PS.teacherProgress = function (players, opts) {
         const o = opts || {};
-        const round = Math.max(1, Math.min(3, Math.floor(Number(o.round) || 1)));
+        const round = Math.max(1, Math.min(5, Math.floor(Number(o.round) || 1)));
         const finish = o.finishDistance == null ? PS.ROUND1.FINISH_DISTANCE : Number(o.finishDistance);
         const stepCount = Math.max(1, Number(o.stepCount) || PS.ROUND2.STEP_COUNT);
         const list = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
@@ -1105,6 +1174,40 @@
                 return compareFurthest(a, b);
             });
             return ordered.map((p, i) => teacherRound2Row(p, i + 1, stepCount));
+        }
+
+        if (round === 5) {
+            const finalist = (p) => PS.dalgonaSurvivors([p]).length > 0 || PS.isFinalsFinalist(p);
+            const ordered = list.slice().sort((a, b) => {
+                const aa = PS.isFinalsAlive(a) ? 0 : (finalist(a) ? 1 : 2);
+                const bb = PS.isFinalsAlive(b) ? 0 : (finalist(b) ? 1 : 2);
+                if (aa !== bb) return aa - bb;
+                if (aa <= 1) {
+                    const pa = PS.finalsProgress(a);
+                    const pb = PS.finalsProgress(b);
+                    if (pa !== pb) return pb - pa;
+                }
+                return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+            });
+            return ordered.map((p, i) => {
+                const inFinals = finalist(p);
+                const alive = PS.isFinalsAlive(p);
+                return {
+                    user_id: PS.userKey(p),
+                    name: PS.playerName(p),
+                    place: i + 1,
+                    detail: inFinals
+                        ? '⚡ ' + PS.finalsProgress(p) + ' · combo ' + Math.max(0, Number(p.finals_combo) || 0) + '/' + PS.ROUND5.COMBO
+                        : '—',
+                    status: alive ? 'In finals' : (inFinals ? '⚡ Out' : 'Spectator'),
+                    status_key: alive ? 'alive' : (inFinals ? 'eliminated' : 'watching'),
+                    team: '',
+                    combo: Math.max(0, Number(p.finals_combo) || 0),
+                    distance: PS.finalsProgress(p),
+                    step: 0,
+                    near: false
+                };
+            });
         }
 
         const tug = PS.normalizeTugState(o.tug);
@@ -2227,6 +2330,554 @@
     ];
 
     /* ------------------------------------------------------------------ */
+    /* Round 5 — Grammar Finals                                            */
+    /* ------------------------------------------------------------------ */
+
+    /* A finalist is a playing Dalgona survivor. The SQL mirror uses
+       dalgona_finished_at as the same signal. */
+    PS.dalgonaSurvivors = function (players) {
+        return (Array.isArray(players) ? players : []).filter(function (p) {
+            if (!p || p.is_playing === false) return false;
+            if (p.dalgona_finished_at != null && p.dalgona_finished_at !== '') return true;
+            return PS.normalizeDalgonaState(p).status === 'finished';
+        });
+    };
+
+    PS.shouldEnterRound5 = function (settings, players) {
+        if (!PS.shouldPlayRound5(settings)) return false;
+        return PS.dalgonaSurvivors(players).length >= PS.ROUND5.MIN_FINALISTS;
+    };
+
+    PS.finalsProgress = function (player) {
+        if (!player) return PS.ROUND5.START_PROGRESS;
+        const raw = player.finals_progress != null ? player.finals_progress : player.finalsProgress;
+        const n = Number(raw);
+        if (!isFinite(n)) return PS.ROUND5.START_PROGRESS;
+        return Math.max(0, Math.min(PS.ROUND5.START_PROGRESS, n));
+    };
+
+    /* Wrong answer / timeout. A cat already at the fence is electrocuted;
+       otherwise it just slides back. */
+    PS.applySlip = function (progress) {
+        const p = Math.max(0, Math.min(PS.ROUND5.START_PROGRESS, Number(progress) || 0));
+        if (p <= 0) return { progress: 0, eliminated: true };
+        return { progress: Math.max(0, p - PS.ROUND5.SLIP), eliminated: false };
+    };
+
+    /* Combo knockback never electrocutes: it only clamps at 0. */
+    PS.applyKnockback = function (progress) {
+        const p = Math.max(0, Math.min(PS.ROUND5.START_PROGRESS, Number(progress) || 0));
+        return Math.max(0, p - PS.ROUND5.KNOCKBACK);
+    };
+
+    PS.isFinalsFinalist = function (player) {
+        if (!player || player.is_playing === false) return false;
+        /* finals_progress has a SQL default of 100 for every row, so it is
+           NOT proof of entry. Dalgona completion (or an explicit flag from
+           a test/demo row) is the real finalist signal. */
+        return player.entered_finals === true || player.dalgona_finished_at != null;
+    };
+
+    PS.isFinalsAlive = function (player) {
+        if (!PS.isFinalsFinalist(player)) return false;
+        if (player.ghost === true) return false;
+        if (player.finals_eliminated_at != null && player.finals_eliminated_at !== '') return false;
+        const status = String(player.status || 'alive');
+        if (status === 'eliminated' || status === 'out' || status === 'ghost') return false;
+        return PS.finalsProgress(player) >= 0;
+    };
+
+    /* Nearest other living finalist by absolute progress difference. Ties
+       prefer the higher progress, then the stable user key. */
+    PS.nearestOpponent = function (attacker, players) {
+        if (!attacker) return null;
+        const meKey = PS.userKey(attacker);
+        const meProgress = PS.finalsProgress(attacker);
+        let best = null;
+        (Array.isArray(players) ? players : []).forEach(function (p) {
+            if (!p || PS.userKey(p) === meKey) return;
+            if (!PS.isFinalsAlive(p)) return;
+            const progress = PS.finalsProgress(p);
+            const diff = Math.abs(progress - meProgress);
+            if (!best) {
+                best = { player: p, diff: diff, progress: progress };
+                return;
+            }
+            if (diff < best.diff) {
+                best = { player: p, diff: diff, progress: progress };
+                return;
+            }
+            if (diff === best.diff && progress > best.progress) {
+                best = { player: p, diff: diff, progress: progress };
+                return;
+            }
+            if (diff === best.diff && progress === best.progress
+                && PS.userKey(p) < PS.userKey(best.player)) {
+                best = { player: p, diff: diff, progress: progress };
+            }
+        });
+        return best ? best.player : null;
+    };
+
+    /* 1st place among living finalists (higher progress, then user key). */
+    PS.leaderForInk = function (players) {
+        const living = (Array.isArray(players) ? players : []).filter(PS.isFinalsAlive);
+        if (!living.length) return null;
+        living.sort(function (a, b) {
+            const diff = PS.finalsProgress(b) - PS.finalsProgress(a);
+            if (diff !== 0) return diff;
+            return PS.userKey(a) < PS.userKey(b) ? -1 : (PS.userKey(a) > PS.userKey(b) ? 1 : 0);
+        });
+        return living[0];
+    };
+
+    /* Conditionals are only available when a later generated file fills the
+       hook. Nothing in this engine invents conditionals questions. */
+    PS.finalsUnitsAvailable = function () {
+        const units = PS.FINALS_UNITS.slice();
+        const hook = (typeof window !== 'undefined' && Array.isArray(window.PS_FINALS_CONDITIONALS))
+            ? window.PS_FINALS_CONDITIONALS
+            : [];
+        if (hook.length) units.push('conditionals');
+        return units;
+    };
+
+    /* Built-in school-English banks. The demo and node:test always have a
+       full deck even with no network or Google Sheet. */
+    PS.FINALS_ERROR_SPOTTING = [
+        { unit: 'agreement', tokens: ['Neither of the', 'students', 'were', 'ready for the test.'], answer: 3 },
+        { unit: 'agreement', tokens: ['The list of items', 'were', 'left', 'on the desk.'], answer: 2 },
+        { unit: 'agreement', tokens: ['Each of the players', 'have', 'a', 'water bottle.'], answer: 2 },
+        { unit: 'agreement', tokens: ['My friends', 'is', 'coming', 'to the party.'], answer: 2 },
+        { unit: 'indefinite_pronouns', tokens: ['Everyone', 'have', 'finished', 'their homework.'], answer: 2 },
+        { unit: 'indefinite_pronouns', tokens: ['Somebody', 'have', 'forgotten', 'their umbrella.'], answer: 2 },
+        { unit: 'indefinite_pronouns', tokens: ['Nothing', 'were', 'left', 'in the fridge.'], answer: 2 },
+        { unit: 'indefinite_pronouns', tokens: ['Neither of the answers', 'are', 'correct', 'today.'], answer: 2 },
+        { unit: 'tenses', tokens: ['Yesterday, she', 'go', 'to the library', 'after school.'], answer: 2 },
+        { unit: 'tenses', tokens: ['By the time we arrived,', 'the film', 'has started', 'without us.'], answer: 3 },
+        { unit: 'tenses', tokens: ['He', 'is', 'living here', 'since 2019.'], answer: 2 },
+        { unit: 'tenses', tokens: ['We', 'have seen', 'that movie', 'last week.'], answer: 2 }
+    ];
+
+    PS.FINALS_DOUBLE_TRAP = [
+        {
+            unit: 'agreement',
+            prompt: 'Neither the teacher nor the students ___ ready, so the test ___ postponed.',
+            blanks: [{ options: ['was', 'were'], answerIndex: 1 }, { options: ['was', 'were'], answerIndex: 0 }]
+        },
+        {
+            unit: 'tenses',
+            prompt: 'By the time we arrived, the film ___ and the credits ___.',
+            blanks: [{ options: ['had started', 'has started'], answerIndex: 0 }, { options: ['were rolling', 'rolled'], answerIndex: 0 }]
+        },
+        {
+            unit: 'indefinite_pronouns',
+            prompt: 'Everyone ___ finished, but nobody ___ brought their notes.',
+            blanks: [{ options: ['has', 'have'], answerIndex: 0 }, { options: ['has', 'have'], answerIndex: 0 }]
+        },
+        {
+            unit: 'tenses',
+            prompt: 'She ___ English for three years before she ___ to Hong Kong.',
+            blanks: [{ options: ['had studied', 'studies'], answerIndex: 0 }, { options: ['moved', 'moves'], answerIndex: 0 }]
+        },
+        {
+            unit: 'agreement',
+            prompt: 'The number of students ___ small, and the lists ___ on the desk.',
+            blanks: [{ options: ['is', 'are'], answerIndex: 0 }, { options: ['is', 'are'], answerIndex: 1 }]
+        },
+        {
+            unit: 'indefinite_pronouns',
+            prompt: 'Somebody ___ left a bag, and everyone ___ looking for the owner.',
+            blanks: [{ options: ['has', 'have'], answerIndex: 0 }, { options: ['is', 'are'], answerIndex: 0 }]
+        },
+        {
+            unit: 'tenses',
+            prompt: 'Every day he ___ up early, but yesterday he ___ until noon.',
+            blanks: [{ options: ['gets', 'got'], answerIndex: 0 }, { options: ['slept', 'sleeps'], answerIndex: 0 }]
+        },
+        {
+            unit: 'agreement',
+            prompt: 'Each of the girls ___ a book, and the boys ___ their own notes.',
+            blanks: [{ options: ['has', 'have'], answerIndex: 0 }, { options: ['has', 'have'], answerIndex: 1 }]
+        }
+    ];
+
+    PS.FINALS_GHOST_CHOICE = [
+        { prompt: 'Choose the correct sentence.', options: ['She goes to school every day.', 'She go to school every day.'], answer: 0 },
+        { prompt: 'Choose the correct sentence.', options: ['Everyone has finished.', 'Everyone have finished.'], answer: 0 },
+        { prompt: 'Choose the correct sentence.', options: ['I seen him yesterday.', 'I saw him yesterday.'], answer: 1 },
+        { prompt: 'Choose the correct sentence.', options: ['There is two cats.', 'There are two cats.'], answer: 1 },
+        { prompt: 'Choose the correct sentence.', options: ['He do not like tea.', 'He does not like tea.'], answer: 1 },
+        { prompt: 'Choose the correct sentence.', options: ['We was late.', 'We were late.'], answer: 1 },
+        { prompt: 'Choose the correct sentence.', options: ['Somebody left a bag.', 'Somebody leave a bag.'], answer: 0 },
+        { prompt: 'Choose the correct sentence.', options: ['She have a new phone.', 'She has a new phone.'], answer: 1 }
+    ];
+
+    /* Turn one Grammar Quest MC question into an Error Spotting item when it
+       has a ___ blank and options. This is how the live finals reuse the
+       existing tenses / agreement / indefinite-pronouns banks. */
+    PS.finalsErrorFromGrammar = function (raw, unit, pool) {
+        if (!raw) return null;
+        if (Array.isArray(raw.tokens) && raw.tokens.length >= 2 && raw.answer != null) {
+            return {
+                unit: unit || raw.unit || 'agreement',
+                tokens: raw.tokens.slice(0, 4),
+                answer: Math.max(1, Math.min(raw.tokens.length, Number(raw.answer) || 1))
+            };
+        }
+        const text = String(raw.prompt || raw.q || '');
+        const options = Array.isArray(raw.options) ? raw.options : [];
+        if (!text || !/_{2,}/.test(text)) return null;
+        let wrong = null;
+        if (raw.primary != null && String(raw.primary).trim() !== '') {
+            /* Grammar Quest / Drive & Go! items carry the correct answer in
+               `primary`. Only use their own listed choices: borrowing an
+               unrelated verb from another question can accidentally produce
+               a grammatical sentence, which would make a bad Error Spotting
+               item. Gap-fill items without choices fall back to the built-in
+               bank below. */
+            const correct = String(raw.primary).trim().toLowerCase();
+            wrong = options.find(function (option) {
+                return option != null
+                    && String(option).trim() !== ''
+                    && String(option).trim().toLowerCase() !== correct;
+            });
+        } else {
+            const answerIndex = Number(raw.answer);
+            if (options.length < 2 || !isFinite(answerIndex)) return null;
+            wrong = options.find(function (option, i) {
+                return i !== answerIndex && option != null && String(option).trim() !== '';
+            });
+        }
+        if (wrong == null) return null;
+        const sentence = text.replace(/_{2,}/, String(wrong));
+        const words = sentence.split(/\s+/).filter(Boolean);
+        if (words.length < 4) {
+            const padded = words.slice();
+            while (padded.length < 4) padded.push('—');
+            const answerPos = padded.findIndex(function (w) {
+                return String(w).toLowerCase() === String(wrong).toLowerCase();
+            });
+            return {
+                unit: unit || raw.unit || 'agreement',
+                tokens: padded,
+                answer: answerPos >= 0 ? answerPos + 1 : 1
+            };
+        }
+        const wrongWords = String(wrong).split(/\s+/).filter(Boolean);
+        let wrongStart = -1;
+        for (let i = 0; i + wrongWords.length <= words.length; i++) {
+            if (words.slice(i, i + wrongWords.length).join(' ').toLowerCase() === wrongWords.join(' ').toLowerCase()) {
+                wrongStart = i;
+                break;
+            }
+        }
+        const bounds = [0];
+        for (let k = 1; k < 4; k++) bounds.push(Math.round(words.length * k / 4));
+        bounds.push(words.length);
+        let answerChunk = 1;
+        for (let c = 0; c < 4; c++) {
+            if (wrongStart >= bounds[c] && wrongStart < bounds[c + 1]) answerChunk = c + 1;
+        }
+        const tokens = [];
+        for (let c = 0; c < 4; c++) {
+            tokens.push(words.slice(bounds[c], bounds[c + 1]).join(' '));
+        }
+        return { unit: unit || raw.unit || 'agreement', tokens: tokens, answer: answerChunk };
+    };
+
+    function finalsShuffled(values, rng) {
+        const copy = (Array.isArray(values) ? values : []).slice();
+        PS.shuffleInPlace(copy, rng);
+        return copy;
+    }
+
+    /* Build the shared finals deck. Roughly 60% Error Spotting and 40%
+       Double-Trap Cloze, cycling the available units. External banks are
+       used when their items already match the final shape or when a
+       Grammar-Quest MC question can be converted. */
+    PS.buildFinalsDeck = function (opts) {
+        const o = opts || {};
+        const count = Math.max(1, Math.min(200, Math.floor(Number(o.count) || 40)));
+        const rng = PS.mulberry32(coerceSeed(o.seed));
+        const externalErrors = Array.isArray(o.errorItems) ? o.errorItems : [];
+        const externalTraps = Array.isArray(o.trapItems) ? o.trapItems : [];
+        const hookConditionals = (typeof window !== 'undefined' && Array.isArray(window.PS_FINALS_CONDITIONALS))
+            ? window.PS_FINALS_CONDITIONALS
+            : [];
+        const conditionals = Array.isArray(o.conditionals) ? o.conditionals : hookConditionals;
+
+        const requestedUnits = (Array.isArray(o.units) && o.units.length)
+            ? o.units.map(function (u) { return String(u); })
+            : PS.FINALS_UNITS.slice();
+        const units = requestedUnits.filter(function (u) {
+            return PS.FINALS_UNITS.indexOf(u) !== -1 || u === 'conditionals';
+        });
+        if (!units.length) PS.FINALS_UNITS.forEach(function (u) { units.push(u); });
+        if (conditionals.length && units.indexOf('conditionals') === -1) units.push('conditionals');
+
+        const errorsByUnit = {};
+        const trapsByUnit = {};
+        units.forEach(function (unit) { errorsByUnit[unit] = []; trapsByUnit[unit] = []; });
+        PS.FINALS_ERROR_SPOTTING.forEach(function (item) {
+            if (errorsByUnit[item.unit]) errorsByUnit[item.unit].push(item);
+        });
+        PS.FINALS_DOUBLE_TRAP.forEach(function (item) {
+            if (trapsByUnit[item.unit]) trapsByUnit[item.unit].push(item);
+        });
+        externalErrors.forEach(function (raw) {
+            const unit = String((raw && raw.unit) || 'agreement');
+            if (!errorsByUnit[unit]) return;
+            const item = PS.finalsErrorFromGrammar(raw, unit);
+            if (item) errorsByUnit[unit].push(item);
+        });
+        externalTraps.forEach(function (raw) {
+            if (!raw || !Array.isArray(raw.blanks) || raw.blanks.length !== 2) return;
+            const unit = String(raw.unit || 'agreement');
+            if (!trapsByUnit[unit]) return;
+            trapsByUnit[unit].push(raw);
+        });
+        conditionals.forEach(function (raw) {
+            if (!errorsByUnit.conditionals) errorsByUnit.conditionals = [];
+            if (!trapsByUnit.conditionals) trapsByUnit.conditionals = [];
+            const item = PS.finalsErrorFromGrammar(raw, 'conditionals');
+            if (item) errorsByUnit.conditionals.push(item);
+            else if (raw && Array.isArray(raw.blanks) && raw.blanks.length === 2) trapsByUnit.conditionals.push(raw);
+        });
+
+        const activeUnits = units.filter(function (unit) {
+            return (errorsByUnit[unit] && errorsByUnit[unit].length)
+                || (trapsByUnit[unit] && trapsByUnit[unit].length);
+        });
+        const usable = activeUnits.length ? activeUnits : PS.FINALS_UNITS.slice();
+        const errorCursor = {};
+        const trapCursor = {};
+        usable.forEach(function (unit) {
+            errorsByUnit[unit] = finalsShuffled(errorsByUnit[unit] || [], rng);
+            trapsByUnit[unit] = finalsShuffled(trapsByUnit[unit] || [], rng);
+            errorCursor[unit] = 0;
+            trapCursor[unit] = 0;
+        });
+
+        function pick(list, cursorKey, cursors) {
+            if (!list || !list.length) return null;
+            const i = cursors[cursorKey] % list.length;
+            cursors[cursorKey] += 1;
+            return list[i];
+        }
+
+        const deck = [];
+        for (let i = 0; i < count; i++) {
+            const unit = usable[i % usable.length];
+            const wantError = (i % 5) < 3;
+            if (wantError) {
+                const source = pick(errorsByUnit[unit], unit, errorCursor)
+                    || PS.FINALS_ERROR_SPOTTING[i % PS.FINALS_ERROR_SPOTTING.length];
+                deck.push({
+                    id: 'finals:' + i,
+                    type: 'error_spotting',
+                    unit: unit,
+                    prompt: 'Tap the part with the grammar mistake.',
+                    tokens: source.tokens.slice(),
+                    answer: Number(source.answer) || 1,
+                    ms: PS.ROUND5.ERROR_MS
+                });
+            } else {
+                const source = pick(trapsByUnit[unit], unit, trapCursor)
+                    || PS.FINALS_DOUBLE_TRAP[i % PS.FINALS_DOUBLE_TRAP.length];
+                deck.push({
+                    id: 'finals:' + i,
+                    type: 'double_trap',
+                    unit: unit,
+                    prompt: source.prompt,
+                    blanks: source.blanks.map(function (blank) {
+                        return { options: blank.options.slice(), answerIndex: Number(blank.answerIndex) || 0 };
+                    }),
+                    ms: PS.ROUND5.DOUBLE_TRAP_MS
+                });
+            }
+        }
+        return deck;
+    };
+
+    /* Ghost revival questions are deliberately simple two-choice items. */
+    PS.buildGhostDeck = function (opts) {
+        const o = opts || {};
+        const count = Math.max(1, Math.min(100, Math.floor(Number(o.count) || 8)));
+        const rng = PS.mulberry32(coerceSeed(o.seed));
+        const source = (Array.isArray(o.items) ? o.items : []).filter(function (item) {
+            return item && Array.isArray(item.options) && item.options.length === 2;
+        });
+        const pool = finalsShuffled(source.length ? source : PS.FINALS_GHOST_CHOICE, rng);
+        const deck = [];
+        for (let i = 0; i < count; i++) {
+            const item = pool[i % pool.length];
+            deck.push({
+                id: 'ghost:' + i,
+                type: 'ghost',
+                prompt: item.prompt,
+                options: item.options.slice(0, 2),
+                answer: Math.max(0, Math.min(1, Number(item.answer) || 0))
+            });
+        }
+        return deck;
+    };
+
+    /* Ghost revival: two correct easy answers earn one ink bomb. The count
+       is reduced by two after the throw; this helper only tracks the count. */
+    PS.ghostRevival = function (player, correct) {
+        if (!player || PS.isFinalsAlive(player)) {
+            return { ok: false, ignored: true, ghostCorrect: 0, canInk: false };
+        }
+        const had = Math.max(0, Number(player.finals_ghost_correct) || 0);
+        const next = correct ? had + 1 : had;
+        player.finals_ghost_correct = next;
+        return {
+            ok: true,
+            correct: !!correct,
+            ghostCorrect: next,
+            canInk: next >= PS.ROUND5.GHOST_NEED
+        };
+    };
+
+    PS.ghostCanThrowInk = function (player) {
+        if (!player || PS.isFinalsAlive(player)) return false;
+        return Math.max(0, Number(player.finals_ghost_correct) || 0) >= PS.ROUND5.GHOST_NEED;
+    };
+
+    /* Cover the leader's question for 1.5 s. Purely additive. */
+    PS.applyInk = function (target, now) {
+        if (!target) return null;
+        const at = now == null ? 0 : Number(now);
+        const until = at + PS.ROUND5.INK_MS;
+        target.ink_until = until;
+        return { user_id: PS.userKey(target), ink_until: until, durationMs: PS.ROUND5.INK_MS };
+    };
+
+    /* Grade one finals answer. Error Spotting uses 1-based part numbers;
+       Double-Trap accepts indices or option text for both blanks; ghost
+       revival accepts 1–2 or a 0-based index. */
+    PS.gradeFinalsAnswer = function (question, answer) {
+        const q = question || {};
+        if (!q || answer == null) {
+            return { correct: false, answer: null, reason: 'blank' };
+        }
+        if (q.type === 'ghost') {
+            const n = Number(answer);
+            if (!isFinite(n)) return { correct: false, answer: null };
+            const expected = Number(q.answer) || 0;
+            const ok = n === expected || n === expected + 1;
+            return { correct: ok, answer: q.options ? q.options[expected] : expected };
+        }
+        if (q.type === 'error_spotting') {
+            const n = Number(answer);
+            const expected = Number(q.answer) || 1;
+            return { correct: isFinite(n) && n === expected, answer: expected };
+        }
+        if (q.type === 'double_trap') {
+            const blanks = Array.isArray(q.blanks) ? q.blanks : [];
+            let values = answer;
+            if (values && !Array.isArray(values) && typeof values === 'object') {
+                values = Object.keys(values).sort().map(function (k) { return values[k]; });
+            }
+            if (!Array.isArray(values)) return { correct: false, answer: blanks.map(function (b) { return b.answerIndex; }) };
+            let all = values.length === blanks.length;
+            const results = [];
+            for (let i = 0; i < blanks.length; i++) {
+                const blank = blanks[i] || {};
+                const expectedIndex = Number(blank.answerIndex) || 0;
+                const expectedText = String((blank.options || [])[expectedIndex] == null
+                    ? '' : (blank.options || [])[expectedIndex]).trim().toLowerCase();
+                const raw = values[i];
+                const num = Number(raw);
+                let ok;
+                if (isFinite(num) && String(raw).trim() !== '') {
+                    /* Double-Trap sends 0-based option indices. Being strict
+                       here is what makes "both blanks must be right" true:
+                       the second option of an index-0 blank is wrong. */
+                    ok = num === expectedIndex;
+                } else {
+                    ok = String(raw == null ? '' : raw).trim().toLowerCase() === expectedText;
+                }
+                results.push(ok);
+                if (!ok) all = false;
+            }
+            return {
+                correct: all,
+                answer: blanks.map(function (b) {
+                    const opts = b.options || [];
+                    return opts[Number(b.answerIndex) || 0];
+                }),
+                blanks: results
+            };
+        }
+        return { correct: false, answer: null };
+    };
+
+    /* Apply one turn. Wrong answers / timeouts slip; every third consecutive
+       correct answer knocks the nearest living opponent 15 back. */
+    PS.applyFinalsTurn = function (opts) {
+        const o = opts || {};
+        const player = o.player;
+        if (!player) return { ok: false, correct: false, eliminated: false };
+        if (player.ghost === true || String(player.status || '') === 'eliminated'
+            || (player.finals_eliminated_at != null && player.finals_eliminated_at !== '')) {
+            return { ok: false, ignored: true, correct: false, eliminated: true, progress: PS.finalsProgress(player) };
+        }
+        const graded = PS.gradeFinalsAnswer(o.question, o.answer);
+        const now = o.now != null ? o.now : null;
+        player.finals_question_index = (Number(player.finals_question_index) || 0) + 1;
+        const before = PS.finalsProgress(player);
+        if (graded.correct) {
+            const combo = (Number(player.finals_combo) || 0) + 1;
+            player.finals_combo = combo;
+            player.finals_progress = before;
+            let knockback = null;
+            if (combo % PS.ROUND5.COMBO === 0) {
+                const target = PS.nearestOpponent(player, o.players);
+                if (target) {
+                    const from = PS.finalsProgress(target);
+                    const to = PS.applyKnockback(from);
+                    target.finals_progress = to;
+                    knockback = {
+                        user_id: PS.userKey(target),
+                        from: from,
+                        to: to,
+                        amount: from - to
+                    };
+                }
+            }
+            return {
+                ok: true,
+                correct: true,
+                eliminated: false,
+                progress: player.finals_progress,
+                combo: combo,
+                knockback: knockback,
+                answer: graded.answer
+            };
+        }
+        const slip = PS.applySlip(before);
+        player.finals_progress = slip.progress;
+        player.finals_combo = 0;
+        if (slip.eliminated) {
+            player.finals_eliminated_at = now;
+            player.status = 'eliminated';
+            player.ghost = true;
+            player.eliminated_reason = 'finals';
+        }
+        return {
+            ok: true,
+            correct: false,
+            slip: true,
+            eliminated: slip.eliminated,
+            progress: player.finals_progress,
+            combo: 0,
+            answer: graded.answer
+        };
+    };
+
+    /* ------------------------------------------------------------------ */
     /* Prize ceremony — ranking + Paws                                     */
     /*                                                                    */
     /* This is the single source of truth for the end-of-class ceremony.  */
@@ -2294,41 +2945,72 @@
         const eligible = (Array.isArray(players) ? players : []).filter(p => p && p.is_playing !== false);
         let survivedOf = round1Survivor;
 
-        const ordered = eligible.slice().sort((a, b) => {
-            if (roundCount >= 4) {
-                /* Round 4 ranking: carvers who finished first (by finish
-                   time), then still-carving / danger by progress desc, then
-                   shattered / non-players. */
-                const dg = (p) => PS.normalizeDalgonaState(p);
-                const carver = (p) => p.advanced_round3 === true
-                    || p.dalgona_finished_at != null
-                    || String(p.eliminated_reason || '') === 'dalgona'
-                    || String(p.eliminated_reason || '') === 'dalgona_timeout';
-                const bucket = (p) => {
-                    const st = dg(p);
-                    if (st.status === 'finished') return 0;
-                    return carver(p) ? 1 : 2;
-                };
-                const sa = dg(a);
-                const sb = dg(b);
-                const fa = bucket(a);
-                const fb = bucket(b);
-                if (fa !== fb) return fa - fb;
-                if (fa === 0) {
-                    const ta = ceremonyTimeValue(sa.finishedAt != null ? sa.finishedAt : a.dalgona_finished_at);
-                    const tb = ceremonyTimeValue(sb.finishedAt != null ? sb.finishedAt : b.dalgona_finished_at);
-                    if (ta !== tb) return ta < tb ? -1 : 1;
-                    return compareCeremonyUser(a, b);
-                }
-                if (sa.progress !== sb.progress) return sb.progress - sa.progress;
-                const ta = ceremonyTimeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
-                const tb = ceremonyTimeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+        /* Shared Round-4 ranking, also used for non-finalists once a 5-round
+           room has finished so their earlier places stay unchanged. */
+        const round4Compare = (a, b) => {
+            const dg = (p) => PS.normalizeDalgonaState(p);
+            const carver = (p) => p.advanced_round3 === true
+                || p.dalgona_finished_at != null
+                || String(p.eliminated_reason || '') === 'dalgona'
+                || String(p.eliminated_reason || '') === 'dalgona_timeout';
+            const bucket = (p) => {
+                const st = dg(p);
+                if (st.status === 'finished') return 0;
+                return carver(p) ? 1 : 2;
+            };
+            const sa = dg(a);
+            const sb = dg(b);
+            const fa = bucket(a);
+            const fb = bucket(b);
+            if (fa !== fb) return fa - fb;
+            if (fa === 0) {
+                const ta = ceremonyTimeValue(sa.finishedAt != null ? sa.finishedAt : a.dalgona_finished_at);
+                const tb = ceremonyTimeValue(sb.finishedAt != null ? sb.finishedAt : b.dalgona_finished_at);
                 if (ta !== tb) return ta < tb ? -1 : 1;
-                const ra = ceremonyRankValue(a.round1_rank);
-                const rb = ceremonyRankValue(b.round1_rank);
-                if (ra !== rb) return ra < rb ? -1 : 1;
                 return compareCeremonyUser(a, b);
             }
+            if (sa.progress !== sb.progress) return sb.progress - sa.progress;
+            const ta = ceremonyTimeValue(a.glass_finished_at != null ? a.glass_finished_at : a.glass_finished_at_ms);
+            const tb = ceremonyTimeValue(b.glass_finished_at != null ? b.glass_finished_at : b.glass_finished_at_ms);
+            if (ta !== tb) return ta < tb ? -1 : 1;
+            const ra = ceremonyRankValue(a.round1_rank);
+            const rb = ceremonyRankValue(b.round1_rank);
+            if (ra !== rb) return ra < rb ? -1 : 1;
+            return compareCeremonyUser(a, b);
+        };
+
+        /* 5-round ranking: living finalists first (progress descending,
+           farther from the fence is better), then electrocuted finalists,
+           then every non-finalist in their normal Round-4 order. */
+        const finalsGroup = (p) => {
+            const finalist = PS.isFinalsFinalist(p);
+            if (!finalist) return 2;
+            if (PS.isFinalsAlive(p)) return 0;
+            return 1;
+        };
+        const finalsCompare = (a, b) => {
+            const ga = finalsGroup(a);
+            const gb = finalsGroup(b);
+            if (ga !== gb) return ga - gb;
+            if (ga === 2) return round4Compare(a, b);
+            const pa = PS.finalsProgress(a);
+            const pb = PS.finalsProgress(b);
+            if (pa !== pb) return pb - pa;
+            const ta = ceremonyTimeValue(PS.normalizeDalgonaState(a).finishedAt != null
+                ? PS.normalizeDalgonaState(a).finishedAt : a.dalgona_finished_at);
+            const tb = ceremonyTimeValue(PS.normalizeDalgonaState(b).finishedAt != null
+                ? PS.normalizeDalgonaState(b).finishedAt : b.dalgona_finished_at);
+            if (ta !== tb) return ta < tb ? -1 : 1;
+            const ra = ceremonyRankValue(a.round1_rank);
+            const rb = ceremonyRankValue(b.round1_rank);
+            if (ra !== rb) return ra < rb ? -1 : 1;
+            return compareCeremonyUser(a, b);
+        };
+
+        const ordered = eligible.slice().sort((a, b) => {
+            if (roundCount >= 5) return finalsCompare(a, b);
+
+            if (roundCount >= 4) return round4Compare(a, b);
 
             if (roundCount >= 3) {
                 const groupOf = (p) => {
@@ -2393,7 +3075,14 @@
             return compareCeremonyUser(a, b);
         });
 
-        if (roundCount >= 4) {
+        if (roundCount >= 5) {
+            /* Anyone still in the finals at the end survived. The finals end
+               early when one cat remains or when the clock expires, so this
+               also covers the winner and every cat still in at time-up. */
+            survivedOf = function (p) {
+                return PS.isFinalsAlive(p);
+            };
+        } else if (roundCount >= 4) {
             survivedOf = function (p) {
                 return PS.normalizeDalgonaState(p).status === 'finished';
             };
@@ -2440,6 +3129,15 @@
                     cracks: dg.cracks,
                     finished_at: dg.finishedAt != null ? dg.finishedAt : null,
                     status: dg.status
+                };
+            }
+            if (roundCount >= 5) {
+                rounds.r5 = {
+                    entered: PS.isFinalsFinalist(player),
+                    progress: PS.finalsProgress(player),
+                    combo: Math.max(0, Number(player.finals_combo) || 0),
+                    eliminated: !PS.isFinalsAlive(player),
+                    eliminated_reason: player.eliminated_reason || null
                 };
             }
             return {

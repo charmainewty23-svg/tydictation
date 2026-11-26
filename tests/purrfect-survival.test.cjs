@@ -572,7 +572,7 @@ test('a wrong jump eliminates the player but reveals the correct pane for the cl
     assert.equal(step.shattered_side, 'right');
 });
 
-test('a 5 s timeout eliminates the player and does NOT reveal the pane', () => {
+test('a 7 s timeout eliminates the player and does NOT reveal the pane', () => {
     const step = glassStep('right');
     const p = player('a', 100, { glass_step: 0, round1_rank: 1 });
     const result = PS.applyGlassJump(p, step, '', { stepCount: 9, timedOut: true });
@@ -582,8 +582,9 @@ test('a 5 s timeout eliminates the player and does NOT reveal the pane', () => {
     assert.equal(step.revealed, false);
     assert.equal(step.revealed_side, null);
 
-    assert.equal(PS.glassWindowExpired(1000, 5999, 5000), false);
-    assert.equal(PS.glassWindowExpired(1000, 6000, 5000), true);
+    assert.equal(PS.ROUND2.WINDOW_MS, 7000, 'the glass thinking window is 7 seconds');
+    assert.equal(PS.glassWindowExpired(1000, 1000 + 6999, PS.ROUND2.WINDOW_MS), false);
+    assert.equal(PS.glassWindowExpired(1000, 1000 + 7000, PS.ROUND2.WINDOW_MS), true);
 });
 
 test('crossing all 9 steps advances the player to the mid-victory state', () => {
@@ -1268,10 +1269,13 @@ test('bilingual rules are faithful to the English engine copy', () => {
     assert.equal(typeof PS.RULE_TEXT_ZH, 'object');
     assert.match(PS.RULE_TEXT_ZH.round1, /綠燈/);
     assert.match(PS.RULE_TEXT_ZH.round1, /100 米/);
-    assert.match(PS.RULE_TEXT_ZH.round2, /5 秒/);
+    assert.match(PS.RULE_TEXT_ZH.round2, /7 秒/);
+    assert.equal(/5 秒/.test(PS.RULE_TEXT_ZH.round2), false, 'the old 5-second glass copy is gone');
     assert.match(PS.RULE_TEXT_ZH.round2, /玻璃/);
     assert.equal(typeof PS.RULE_TEXT.round1, 'string');
     assert.ok(PS.RULE_TEXT.round1.indexOf('+10 m') !== -1);
+    assert.ok(PS.RULE_TEXT.round2.indexOf('7 s') !== -1, 'English glass rules say 7 s');
+    assert.equal(PS.RULE_TEXT.round2.indexOf('5 s'), -1, 'English glass rules no longer say 5 s');
 });
 
 /* ---------------------------------------------------------------- */
@@ -1686,7 +1690,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v117") !== -1, 'CACHE_NAME is v117');
+    assert.ok(sw.indexOf("learnity-pwa-v118") !== -1, 'CACHE_NAME is v118');
+    assert.equal(sw.indexOf("learnity-pwa-v117"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v116"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v115"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v114"), -1, 'the old cache name is gone');
@@ -2677,6 +2682,54 @@ test('lobby Show-rules text is projector-readable and never shrinks in landscape
         'short landscape no longer shrinks the rules');
 });
 
+test('glass 7-second window SQL is a safe, teacher-run incremental with a workspace copy', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_glass_window_7s.sql');
+    const sql = fs.readFileSync(file, 'utf8');
+
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1,
+        'live project URL is in the install header');
+    assert.ok(/Clear the editor completely/i.test(sql), 'tells the teacher to clear the editor');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(/after the existing Survival incrementals/i.test(sql), 'installs after the other incrementals');
+    assert.ok(sql.indexOf('notify pgrst') !== -1, 'reloads the PostgREST schema');
+
+    assert.ok(sql.indexOf('create or replace function public.tick_purrfect_survival') !== -1,
+        'replaces the tick that times out glass jumpers');
+    assert.ok(sql.indexOf('create or replace function public.glass_jump_purrfect_survival') !== -1,
+        'replaces the glass jump RPC');
+
+    const glassIntervals = sql.match(/interval '7 seconds'/g) || [];
+    assert.ok(glassIntervals.length >= 2, 'both the tick and the glass jump use a 7-second window');
+    assert.ok(/v_now - glass_started_at >= interval '7 seconds'/.test(sql), 'tick times out at 7 s');
+    assert.ok(/now\(\) - v_player\.glass_started_at >= interval '7 seconds'/.test(sql),
+        'glass_jump times out at 7 s');
+    assert.equal(/glass_started_at[^\n]*interval '5 seconds'/.test(sql), false,
+        'no glass timeout still uses the old 5-second interval');
+
+    assert.ok(/revoke all on function public\.tick_purrfect_survival\(uuid\) from public, anon/i.test(sql),
+        'tick is locked down from public/anon');
+    assert.ok(/revoke all on function public\.glass_jump_purrfect_survival\(uuid, text\) from public, anon/i.test(sql),
+        'glass_jump is locked down from public/anon');
+    assert.ok(/grant execute on function public\.tick_purrfect_survival\(uuid\) to authenticated/i.test(sql),
+        'authenticated players can call tick');
+    assert.ok(/grant execute on function public\.glass_jump_purrfect_survival\(uuid, text\) to authenticated/i.test(sql),
+        'authenticated players can jump');
+
+    const copy = fs.readFileSync(path.join(__dirname, '..', '..', 'purrfect_survival_glass_window_7s.sql'), 'utf8');
+    assert.equal(copy, sql, 'the /workspace copy is byte-for-byte identical');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(/v_now - glass_started_at >= interval '7 seconds'/.test(canonical),
+        'fresh installs also time out glass jumpers at 7 s');
+    assert.ok(/now\(\) - v_player\.glass_started_at >= interval '7 seconds'/.test(canonical),
+        'fresh installs also enforce 7 s inside glass_jump');
+    assert.equal(/glass_started_at[^\n]*interval '5 seconds'/.test(canonical), false,
+        'the canonical install no longer enforces a 5-second glass window');
+    assert.ok(canonical.indexOf('+ 5000') !== -1, 'the 5-second tug rage is unchanged');
+});
+
 test('qualifier SQL is a safe, teacher-run incremental', () => {
     const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_qualifier.sql');
     const sql = fs.readFileSync(file, 'utf8');
@@ -3270,7 +3323,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v117') !== -1, 'cache is v117');
+    assert.ok(sw.indexOf('learnity-pwa-v118') !== -1, 'cache is v118');
+    assert.equal(sw.indexOf('learnity-pwa-v117'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v116'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v115'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v114'), -1, 'the old cache name is gone');

@@ -1419,7 +1419,7 @@ $$;
 
 -- Idempotent heartbeat: callable by any member. Uses server time to end
 -- round 1 at 15 finishers / the time limit, time out glass jumpers after
--- 5 s, release the next queued player and finish the room when no living
+-- 7 s, release the next queued player and finish the room when no living
 -- player remains.
 create or replace function public.tick_purrfect_survival(p_room_id uuid)
 returns public.purrfect_survival_rooms
@@ -1493,7 +1493,7 @@ begin
           and is_playing
           and glass_active
           and glass_started_at is not null
-          and v_now - glass_started_at >= interval '5 seconds';
+          and v_now - glass_started_at >= interval '7 seconds';
 
         if v_room.round2_ends_at is not null and v_now >= v_room.round2_ends_at then
             update public.purrfect_survival_players
@@ -1874,10 +1874,10 @@ end;
 $$;
 
 -- Glass jump. correct -> next step; wrong -> fall (correct pane is lit);
--- no jump within 5 s -> fall with no reveal. The next queued player is
+-- no jump within 7 s -> fall with no reveal. The next queued player is
 -- released as soon as step 0 is clear.
 -- Glass jump. correct -> next step; wrong -> fall (correct pane is lit);
--- no jump within 5 s -> fall with no reveal. Each player is validated
+-- no jump within 7 s -> fall with no reveal. Each player is validated
 -- against their own glass_order, never the shared array as if everybody
 -- had already revealed it. The shared bank is not mutated with reveal
 -- flags, so the next jumper starts clean.
@@ -1946,10 +1946,10 @@ begin
     v_step := case when v_bank_index >= 0 and v_bank_index < v_len
         then v_steps -> v_bank_index else null end;
 
-    -- Server-side 5 second window. The pane text is logged for the
+    -- Server-side 7 second window. The pane text is logged for the
     -- post-ceremony report, but the class is not shown the answer.
     if v_player.glass_started_at is not null
-       and now() - v_player.glass_started_at >= interval '5 seconds' then
+       and now() - v_player.glass_started_at >= interval '7 seconds' then
         if v_step is not null then
             v_log := jsonb_build_array(jsonb_build_object(
                 'round', 2,

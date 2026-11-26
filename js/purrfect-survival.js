@@ -2637,7 +2637,7 @@
             } else if (res.outcome === 'timeout') {
                 sfxShatter();
                 toast('⏱ Time up! No jump — you fell.');
-                showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
+                showGlassOutOverlay('⏱ No jump', 'The 7-second window closed and you fell. The correct pane was not revealed.');
             }
             questionsKey = '';
             renderPlayerQuestion(true);
@@ -3386,7 +3386,7 @@
         } else if (n === 3) {
             el.innerHTML = '<b>🪢 ROUND 3 · Tug of War</b><span>Answer 1–4 · pull +1 · five in a row = 爆走拉力 2x</span>';
         } else if (n === 2) {
-            el.innerHTML = '<b>🧊 ROUND 2 · Glass Stepping Stones</b><span>Pick the tempered pane before 5 s</span>';
+            el.innerHTML = '<b>🧊 ROUND 2 · Glass Stepping Stones</b><span>Pick the tempered pane before 7 s</span>';
         } else {
             el.innerHTML = '<b>🟢 ROUND 1 · 1-2-3 Meow!</b><span>Green = answer · Red = freeze</span>';
         }
@@ -4980,7 +4980,7 @@
         if (demoIsVisitor(p)) {
             sfxShatter();
             toast('⏱ Time up! No jump — you fell.');
-            showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
+            showGlassOutOverlay('⏱ No jump', 'The 7-second window closed and you fell. The correct pane was not revealed.');
             questionsKey = '';
             renderPlayerQuestion(true);
         }
@@ -5212,7 +5212,7 @@
                 left: step.left, right: step.right, choice: null, answer: step.correct_side
             });
             toast('⏱ Time up! No jump — you fell.');
-            showGlassOutOverlay('⏱ No jump', 'The 5-second window closed and you fell. The correct pane was not revealed.');
+            showGlassOutOverlay('⏱ No jump', 'The 7-second window closed and you fell. The correct pane was not revealed.');
         } else if (result.outcome !== 'ignored') {
             return;
         }

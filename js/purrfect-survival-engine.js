@@ -45,7 +45,7 @@
         STEP_COUNT: 9,
         MIN_STEPS: 3,
         MAX_STEPS: 15,
-        WINDOW_MS: 5000,
+        WINDOW_MS: 7000,
         DEFAULT_ROUND_MS: 600000
     };
 
@@ -170,7 +170,7 @@
 
     PS.RULE_TEXT = {
         round1: 'Green: answer to sprint +10 m. Yellow: 2 s warning, answers still count. Red: 3 s — do not answer. Pressing in red costs 30 m, then 15 m, then you are out. Reach 100 m. First 15 survivors cross to the bridge.',
-        round2: 'Pick the tempered pane before the 5 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.',
+        round2: 'Pick the tempered pane before the 7 s timer runs out. A wrong pane (or no jump) drops you out. Every jump, right or wrong, lights the correct pane for the classmates behind you.',
         round3: 'Survivors are split into a red team and a blue team. Both teams answer at the same time: every correct answer pulls the rope +1. Five correct answers in a row trigger 爆走拉力 2x for 5 seconds (each correct then pulls +2). A wrong answer breaks the combo. Pull the golden salmon 20 steps past the centre to win — or be ahead when the clock runs out. The losing team falls into the abyss.',
         round4: 'The Tug of War winners each receive a golden dalgona candy with a stamped shape: fishbone (spell the word from its Chinese hint), cat paw (build the grammar answer from word blocks) or crown cat (combine the two participle-clause sentences). Carve every dash before the clock runs out. The Cat Needle fills one segment per correct letter or block. A first mistake is a black crack and a warning; a second mistake splits the candy and you are out. One lick per player auto-fills the next segment. Finish the pattern to survive.',
         round5: 'Every Dalgona survivor enters the Grammar Finals: a circular arena with an electric fence. You start at 100, near the safe centre; 0 is the fence. Error Spotting shows a sentence with four tappable parts — find the grammar mistake in 6 seconds. Double-Trap Cloze hides two blanks and both answers must be right. A wrong answer or a timeout slips you 25 back; a wrong answer while already at 0 is electrocuted. Every 3 correct answers in a row fires a paw-wave that knocks the nearest living opponent 15 back. The finals last 120 seconds (the host can set 60–180). If only one cat is left, the finals end early. If fewer than 2 Dalgona survivors remain, the finals are skipped and the prize ceremony starts. Eliminated students spectate as ghosts: two correct easy revival questions earn an ink bomb that covers the current 1st-place question for 1.5 seconds.'
@@ -180,7 +180,7 @@
        strings above stay untouched because the in-game HUD uses them. */
     PS.RULE_TEXT_ZH = {
         round1: '綠燈：作答向前衝 +10 米。黃燈：2 秒警告，作答仍然計分。紅燈：3 秒——唔好作答。紅燈時撳會扣 30 米，再撳扣 15 米，第三次出局。跑到 100 米，最先 15 位生存者過橋。',
-        round2: '5 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。',
+        round2: '7 秒內揀強化玻璃。揀錯（或者唔跳）就會跌落。無論啱定錯，每次跳都會點亮正確嘅玻璃，等後面同學睇到。',
         round3: '生存者會平均分去紅隊同藍隊。兩隊同時作答：每答啱一題，條繩就會向自己隊拉 +1。連續答啱 5 題會爆發「爆走拉力 2x」5 秒，期間每題 +2。答錯會斷連勝。將金色三文魚拉過中線 20 步就贏；時間到就由三文魚喺邊一邊定勝負。輸咗嗰隊會跌落深淵。',
         round4: '拔河勝出嘅同學每人會得到一塊金色椪糖，上面有一個壓印圖案：魚骨（睇中文提示串英文字）、貓掌（用字塊砌出文法答案）或者皇冠貓（合併兩句分詞子句）。時間完之前要雕好所有虛線。每答啱一個字母或字塊，貓爪鋼針就會雕好一段。第一次錯會爆出黑色裂痕兼警告；第二次錯椪糖會裂開，你就會出局。每人有一次「舔一口椪糖」機會，會自動填下一個正確答案。雕完成個圖案就過關。',
         round5: '所有椪糖生存者會進入 Grammar Finals：一個圓形競技場，外圍有電網。一開始進度係 100，靠近安全中心；0 就係電網。Error Spotting 會顯示一句句子，入面有四塊可以撳嘅字詞，6 秒內找出文法錯誤。Double-Trap Cloze 一句有兩個空格，兩個都要答啱。答錯或者逾時會向後滑 25；如果已經喺 0 再答錯就會觸電出局。連續答啱 3 題會發出貓爪衝擊波，將最近嘅對手向後推 15。決賽限時 120 秒（老師可以設定 60–180 秒）。如果只剩一隻貓，決賽會提早結束。如果椪糖生存者少過 2 個，就會跳過決賽直接頒獎。出局嘅同學會變成鬼貓：答啱 2 條簡單復活題就可以賺到一個墨汁炸彈，掟中目前第 1 名，遮住佢條問題 1.5 秒。'

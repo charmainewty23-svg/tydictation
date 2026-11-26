@@ -5174,7 +5174,7 @@ begin
                         v_ok := false;
                     end if;
                 else
-                    v_text := lower(btrim(both '"' from (p_answer -> i)::text));
+                    v_text := lower(btrim((p_answer -> i)::text, '"'));
                     v_exp := lower(coalesce(((v_q -> 'blanks' -> i -> 'options' -> v_bi) #>> '{}'), ''));
                     if v_text <> v_exp then
                         v_ok := false;

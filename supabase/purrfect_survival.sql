@@ -1247,6 +1247,143 @@ begin
 end;
 $$;
 
+-- Host early-end for rounds 2–4. Round 1 keeps using the older
+-- end_purrfect_survival_round1() above while this one mirrors the time-up
+-- rules in tick_purrfect_survival(). The current live body also ships as
+-- supabase/purrfect_survival_end_rounds.sql (run after the incrementals).
+create or replace function public.end_purrfect_survival_round(p_room_id uuid)
+returns public.purrfect_survival_rooms
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+    v_room public.purrfect_survival_rooms;
+    v_now timestamptz := now();
+    v_state jsonb;
+    v_pos int;
+    v_winner text;
+    v_alive int;
+begin
+    if auth.uid() is null then
+        raise exception 'NOT_AUTHENTICATED';
+    end if;
+
+    select * into v_room
+    from public.purrfect_survival_rooms
+    where id = p_room_id
+    for update;
+
+    if not found then
+        raise exception 'ROOM_NOT_FOUND';
+    end if;
+    if v_room.host_id <> auth.uid() then
+        raise exception 'NOT_HOST';
+    end if;
+
+    if v_room.status in ('waiting', 'finished') then
+        return v_room;
+    end if;
+
+    if v_room.status = 'round1' then
+        return public.purrfect_survival_complete_round1(p_room_id);
+    end if;
+
+    if v_room.status = 'round2' then
+        update public.purrfect_survival_players
+        set status = 'eliminated',
+            ghost = true,
+            eliminated_reason = 'round2_timeout',
+            glass_active = false
+        where room_id = p_room_id
+          and status = 'alive'
+          and is_playing;
+
+        v_room := public.purrfect_survival_finish_if_done(p_room_id);
+        return v_room;
+    end if;
+
+    if v_room.status = 'round3' then
+        v_state := coalesce(v_room.tug_state, public.purrfect_survival_empty_tug());
+
+        if coalesce(v_state ->> 'phase', 'briefing') <> 'playing' then
+            return v_room;
+        end if;
+
+        if coalesce((v_state ->> 'suddenDeath')::boolean, false) then
+            return v_room;
+        end if;
+
+        v_pos := coalesce((v_state ->> 'bluePull')::int, 0)
+               - coalesce((v_state ->> 'redPull')::int, 0);
+
+        if v_pos = 0 then
+            v_state := jsonb_set(v_state, '{suddenDeath}', 'true'::jsonb, true);
+            update public.purrfect_survival_rooms
+            set tug_state = v_state,
+                round3_ends_at = null,
+                server_now = now()
+            where id = p_room_id
+            returning * into v_room;
+            return v_room;
+        end if;
+
+        v_winner := case when v_pos > 0 then 'blue' else 'red' end;
+        v_state := jsonb_set(v_state, '{phase}', to_jsonb('done'::text), true);
+        v_state := jsonb_set(v_state, '{winner}', to_jsonb(v_winner), true);
+        v_state := jsonb_set(v_state, '{position}', to_jsonb(v_pos), true);
+
+        update public.purrfect_survival_rooms
+        set tug_state = v_state,
+            server_now = now()
+        where id = p_room_id
+        returning * into v_room;
+
+        return public.purrfect_survival_enter_round4(p_room_id, v_winner);
+    end if;
+
+    if v_room.status = 'round4' then
+        if v_room.round4_started_at is null
+           or v_now < v_room.round4_started_at + interval '7 seconds' then
+            return v_room;
+        end if;
+
+        update public.purrfect_survival_players
+        set status = 'eliminated',
+            ghost = true,
+            eliminated_reason = 'dalgona_timeout'
+        where room_id = p_room_id
+          and is_playing
+          and dalgona_pattern is not null
+          and dalgona_finished_at is null
+          and status <> 'eliminated';
+
+        select count(*) into v_alive
+        from public.purrfect_survival_players
+        where room_id = p_room_id
+          and is_playing
+          and dalgona_pattern is not null
+          and dalgona_finished_at is null
+          and status <> 'eliminated'
+          and not ghost;
+
+        if v_alive = 0 then
+            update public.purrfect_survival_rooms
+            set status = 'finished',
+                current_round = 4,
+                finished_at = coalesce(finished_at, v_now),
+                server_now = now()
+            where id = p_room_id
+            returning * into v_room;
+        end if;
+
+        return v_room;
+    end if;
+
+    return v_room;
+end;
+$fn$;
+
 create or replace function public.start_purrfect_survival_round2(p_room_id uuid)
 returns public.purrfect_survival_rooms
 language plpgsql
@@ -2421,6 +2558,7 @@ revoke all on function public.rejoin_purrfect_survival(uuid) from public, anon;
 revoke all on function public.start_purrfect_survival(uuid, jsonb, jsonb, jsonb, int, jsonb) from public, anon;
 revoke all on function public.start_purrfect_survival_round3(uuid, jsonb) from public, anon;
 revoke all on function public.end_purrfect_survival_round1(uuid) from public, anon;
+revoke all on function public.end_purrfect_survival_round(uuid) from public, anon;
 revoke all on function public.start_purrfect_survival_round2(uuid) from public, anon;
 revoke all on function public.tick_purrfect_survival(uuid) from public, anon;
 revoke all on function public.submit_purrfect_survival_answer(uuid, int) from public, anon;
@@ -2433,6 +2571,7 @@ grant execute on function public.rejoin_purrfect_survival(uuid) to authenticated
 grant execute on function public.start_purrfect_survival(uuid, jsonb, jsonb, jsonb, int, jsonb) to authenticated;
 grant execute on function public.start_purrfect_survival_round3(uuid, jsonb) to authenticated;
 grant execute on function public.end_purrfect_survival_round1(uuid) to authenticated;
+grant execute on function public.end_purrfect_survival_round(uuid) to authenticated;
 grant execute on function public.start_purrfect_survival_round2(uuid) to authenticated;
 grant execute on function public.tick_purrfect_survival(uuid) to authenticated;
 grant execute on function public.submit_purrfect_survival_answer(uuid, int) to authenticated;

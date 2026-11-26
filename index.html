@@ -4331,10 +4331,10 @@
         .ps-cine-howto {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
             width: 100%;
             max-width: 760px;
-            max-height: min(44vh, 320px);
+            max-height: min(58vh, 560px);
             margin: 0 auto;
             padding: 2px;
             overflow-y: auto;
@@ -4343,41 +4343,42 @@
         }
         .ps-cine-howto.hidden { display: none; }
         .ps-rule-card {
-            padding: 10px 12px;
-            border-radius: 14px;
+            padding: 14px 18px;
+            border-radius: 16px;
             background: rgba(9, 13, 24, .9);
             border: 1px solid rgba(255, 255, 255, .16);
             box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
         }
         .ps-rule-card h3 {
-            margin: 0 0 5px;
-            font-size: 13px;
+            margin: 0 0 8px;
+            font-size: 22px;
             font-weight: 800;
+            line-height: 1.3;
             letter-spacing: .02em;
             color: #fdf2f8;
         }
         .ps-rule-tag {
             display: inline-block;
-            margin-right: 6px;
-            padding: 2px 7px;
+            margin-right: 8px;
+            padding: 3px 9px;
             border-radius: 999px;
             background: rgba(236, 72, 153, .28);
             color: #fbcfe8;
-            font-size: 9px;
+            font-size: 11px;
             letter-spacing: .12em;
         }
         .ps-rule-en {
             margin: 0;
-            font-size: 12px;
+            font-size: 20px;
             font-weight: 600;
-            line-height: 1.42;
+            line-height: 1.55;
             color: #e2e8f0;
         }
         .ps-rule-zh {
-            margin: 4px 0 0;
-            font-size: 11.5px;
+            margin: 6px 0 0;
+            font-size: 19px;
             font-weight: 600;
-            line-height: 1.5;
+            line-height: 1.6;
             color: #f5d0e4;
         }
         .ps-cine-bottom {
@@ -4484,19 +4485,23 @@
             .ps-cine .ps-player-list,
             .ps-cine .ps-wait-note { justify-content: flex-start; text-align: left; }
             .ps-cine .ps-wait-actions { justify-content: flex-start; }
-            .ps-cine-howto { max-height: min(50vh, 340px); }
-            .ps-rule-en { font-size: 11px; }
-            .ps-rule-zh { font-size: 10.5px; }
+            /* Projector readability: never shrink the rules below the
+               portrait size — landscape gets a touch larger instead. */
+            .ps-cine-howto { max-height: min(60vh, 620px); }
+            .ps-rule-card { padding: 16px 20px; }
+            .ps-rule-card h3 { font-size: 23px; }
+            .ps-rule-en { font-size: 21px; }
+            .ps-rule-zh { font-size: 20px; }
         }
         @media (max-height: 560px) and (orientation: landscape) {
             .ps-cine { gap: 6px; padding: 6px 10px; }
             .ps-cine-code { font-size: 19px; }
             .ps-cine-kicker { display: none; }
-            .ps-cine-howto { max-height: 44vh; }
-            .ps-rule-card { padding: 7px 9px; }
-            .ps-rule-card h3 { font-size: 11.5px; margin-bottom: 3px; }
-            .ps-rule-en { font-size: 10.5px; line-height: 1.32; }
-            .ps-rule-zh { font-size: 10px; line-height: 1.4; margin-top: 2px; }
+            .ps-cine-howto { max-height: min(60vh, 420px); }
+            .ps-rule-card { padding: 12px 16px; }
+            .ps-rule-card h3 { font-size: 21px; margin-bottom: 6px; }
+            .ps-rule-en { font-size: 20px; line-height: 1.5; }
+            .ps-rule-zh { font-size: 19px; line-height: 1.55; margin-top: 4px; }
             .ps-round-chip { padding: 5px 10px; font-size: 11px; }
             .ps-round-chip-note { font-size: 10px; }
             .ps-cine .ps-player-list { max-height: 58px; }
@@ -5126,9 +5131,12 @@
         .ps-ceremony.hidden { display: none; }
         .ps-ceremony-card {
             pointer-events: auto;
+            position: relative;
+            display: flex;
+            flex-direction: column;
             width: min(720px, 100%);
             max-height: 46%;
-            overflow: auto;
+            overflow: hidden;
             padding: 14px 16px 16px;
             border-radius: 1.25rem;
             background: rgba(17, 10, 30, .94);
@@ -5136,7 +5144,49 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .06) inset;
             color: #f8fafc;
         }
-        .ps-ceremony-head { text-align: center; }
+        /* The ceremony must never trap a class: the close control and the
+           footer sit outside the scrolling ranking, so leaving is always
+           one tap away even with 24 students plus a mistake report. */
+        .ps-ceremony-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 3;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 999px;
+            border: 1px solid rgba(251, 191, 36, .55);
+            background: rgba(9, 13, 24, .92);
+            color: #fef3c7;
+            font: inherit;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .ps-ceremony-close:hover { background: rgba(251, 191, 36, .18); }
+        .ps-ceremony-head { text-align: center; padding: 0 34px; flex: 0 0 auto; }
+        .ps-ceremony-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        .ps-ceremony-actions {
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(251, 191, 36, .28);
+        }
+        .ps-ceremony-actions .ps-primary {
+            width: 100%;
+            max-width: 320px;
+            min-height: 46px;
+            margin: 0 auto;
+        }
         .ps-ceremony-kicker {
             margin: 0;
             font-size: 9.5px;
@@ -5274,7 +5324,7 @@
             font-weight: 700;
             color: #bbf7d0;
         }
-        .ps-ceremony-card .ps-primary { max-width: 260px; margin: 0 auto; }
+        .ps-ceremony-card .ps-primary { max-width: 320px; margin: 0 auto; }
 
         /* ---------- landscape / projector ---------- */
         @media (orientation: landscape) and (min-width: 700px) {
@@ -5359,6 +5409,9 @@
             .ps-overlay-card p { font-size: 12.5px; margin-bottom: 10px; }
             .ps-primary { min-height: 44px; }
             .ps-ceremony-card { padding: 9px 11px 11px; max-height: calc(100% - 10px); }
+            .ps-ceremony-head { padding: 0 26px; }
+            .ps-ceremony-actions { margin-top: 5px; padding-top: 5px; }
+            .ps-ceremony-actions .ps-primary { min-height: 44px; font-size: 11px; }
             .ps-ceremony-sub { margin-bottom: 5px; font-size: 9.5px; }
             .ps-ceremony-summary { margin-bottom: 5px; padding: 5px 7px; }
             .ps-ceremony-summary-row { font-size: 9px; }
@@ -6566,7 +6619,7 @@
                                     <span id="ps-hud-place" class="ps-place hidden">🏅 1st / 0</span>
                                     <span id="ps-hud-phase" class="ps-phase ps-phase-green">🟢 GREEN — RUN!</span>
                                     <span id="ps-hud-timer" class="ps-timer">3:00</span>
-                                    <button id="ps-host-end" type="button" class="ps-host-btn hidden" onclick="PS.endRound1Now()">⏹ End round 1</button>
+                                    <button id="ps-host-end" type="button" class="ps-host-btn hidden" onclick="PS.endRoundNow()">⏹ End round 1</button>
                                     <button id="ps-tug-start-btn" type="button" class="ps-host-btn hidden" onclick="PS.startRound3Now()">▶ Start Tug of War</button>
                                     <button id="ps-sound-btn" type="button" class="ps-icon-btn" onclick="PS.toggleSound()" aria-label="Mute sound">🔊</button>
                                     <button type="button" class="ps-icon-btn" onclick="PS.backToHub()" aria-label="Back to Hub">✕</button>
@@ -6617,20 +6670,25 @@
 
                             <div id="ps-ceremony" class="ps-ceremony hidden" role="dialog" aria-label="Prize ceremony">
                                 <div class="ps-ceremony-card">
+                                    <button id="ps-ceremony-close" type="button" class="ps-ceremony-close" onclick="PS.backToHub()" aria-label="Close the prize ceremony and return to Hub">✕</button>
                                     <header class="ps-ceremony-head">
                                         <p class="ps-ceremony-kicker">PURR-FECT SURVIVAL</p>
                                         <h2 id="ps-ceremony-title">🏆 Prize Ceremony</h2>
                                         <p id="ps-ceremony-sub" class="ps-ceremony-sub"></p>
                                     </header>
-                                    <div id="ps-ceremony-summary" class="ps-ceremony-summary"></div>
-                                    <div id="ps-ceremony-list" class="ps-ceremony-list"></div>
-                                    <section id="ps-mistake-report" class="ps-mistake-report" aria-label="Mistake report">
-                                        <h3 id="ps-mistake-title" class="ps-mistake-title">📕 Your mistakes</h3>
-                                        <p id="ps-mistake-sub" class="ps-mistake-sub"></p>
-                                        <div id="ps-mistake-list" class="ps-mistake-list"></div>
-                                    </section>
-                                    <p id="ps-ceremony-note" class="ps-ceremony-note"></p>
-                                    <button type="button" class="ps-primary" onclick="PS.backToHub()">← Back to Hub</button>
+                                    <div class="ps-ceremony-body">
+                                        <div id="ps-ceremony-summary" class="ps-ceremony-summary"></div>
+                                        <div id="ps-ceremony-list" class="ps-ceremony-list"></div>
+                                        <section id="ps-mistake-report" class="ps-mistake-report" aria-label="Mistake report">
+                                            <h3 id="ps-mistake-title" class="ps-mistake-title">📕 Your mistakes</h3>
+                                            <p id="ps-mistake-sub" class="ps-mistake-sub"></p>
+                                            <div id="ps-mistake-list" class="ps-mistake-list"></div>
+                                        </section>
+                                        <p id="ps-ceremony-note" class="ps-ceremony-note"></p>
+                                    </div>
+                                    <div class="ps-ceremony-actions">
+                                        <button id="ps-ceremony-exit" type="button" class="ps-primary" onclick="PS.backToHub()">← Back to Hub</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

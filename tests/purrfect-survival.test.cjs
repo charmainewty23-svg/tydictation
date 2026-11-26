@@ -1686,7 +1686,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v116") !== -1, 'CACHE_NAME is v116');
+    assert.ok(sw.indexOf("learnity-pwa-v117") !== -1, 'CACHE_NAME is v117');
+    assert.equal(sw.indexOf("learnity-pwa-v116"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v115"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v114"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v113"), -1, 'the old cache name is gone');
@@ -2506,13 +2507,174 @@ test('ceremony card no longer covers the podium in landscape or portrait', () =>
     assert.equal(html.indexOf('min(460px, 46vw)'), -1, 'the old wide right-hand card is gone');
     assert.ok(html.indexOf('width: min(420px, 34vw)') !== -1, 'landscape card is a slim column');
     assert.ok(html.indexOf('max-height: 46%') !== -1, 'portrait card leaves the stands visible above it');
-    assert.ok(/\.ps-ceremony-card\s*\{[^}]*overflow:\s*auto/s.test(html), 'the full list scrolls inside the card');
+    assert.ok(/\.ps-ceremony-card\s*\{[^}]*overflow:\s*hidden/s.test(html), 'the card itself does not scroll the exit away');
+    assert.ok(/\.ps-ceremony-body\s*\{[^}]*overflow-y:\s*auto/s.test(html), 'only the ranking body scrolls');
 
     const render = fs.readFileSync(RENDER_PATH, 'utf8');
     assert.ok(render.indexOf('groupShift') !== -1, 'the 3D podium group shifts away from the card');
     assert.ok(render.indexOf('const spread = L.landscape ? 4.3 : 3.1') !== -1, 'portrait podium stays on screen');
     assert.ok(render.indexOf('id="ps-ceremony-list"') === -1);
     assert.ok(html.indexOf('id="ps-ceremony-list"') !== -1, 'the full ranking list still exists');
+});
+
+test('ceremony exit controls sit outside the scrolling ranking', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+
+    const close = html.match(/<button id="ps-ceremony-close"[^>]*onclick="PS\.backToHub\(\)"/);
+    assert.ok(close, 'the card has its own always-visible close control');
+    const exit = html.match(/<button id="ps-ceremony-exit"[^>]*onclick="PS\.backToHub\(\)"/);
+    assert.ok(exit, 'the footer still offers Back to Hub');
+
+    const closeAt = html.indexOf('id="ps-ceremony-close"');
+    const bodyAt = html.indexOf('<div class="ps-ceremony-body">');
+    const actionsAt = html.indexOf('<div class="ps-ceremony-actions">');
+    assert.ok(closeAt !== -1 && bodyAt !== -1 && actionsAt !== -1, 'ceremony parts exist');
+    assert.ok(closeAt < bodyAt, 'the close control is outside and above the scroll body');
+    assert.ok(actionsAt > bodyAt, 'the footer follows the scroll body');
+
+    const body = html.slice(bodyAt, actionsAt);
+    assert.equal(body.indexOf('Back to Hub'), -1, 'the exit button is not inside the scrolling body');
+    assert.equal(body.indexOf('ps-ceremony-close'), -1, 'the close control is not inside the scrolling body');
+
+    assert.ok(/\.ps-ceremony-actions\s*\{[^}]*flex-shrink:\s*0/s.test(html),
+        'the footer never collapses with the ranking');
+    assert.ok(/\.ps-ceremony-close\s*\{[^}]*position:\s*absolute/s.test(html),
+        'the close control floats over the card');
+    assert.ok(/\.ps-ceremony-close\s*\{[^}]*pointer-events:\s*auto/s.test(html),
+        'the close control is tappable even outside the card hit area');
+});
+
+test('host can end rounds 2–4; students never see the control', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], currentUser: null, isGuestUser: function () { return false; } });
+    const btn = dom.el('ps-host-end');
+    assert.ok(btn, 'the End-round button exists');
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 2, scene: 'round2' });
+    assert.equal(btn.classList.contains('hidden'), false, 'host sees End round 2 during the glass bridge');
+    assert.match(btn.textContent, /End round 2/);
+
+    dom.PS.setDemoRole('student');
+    assert.equal(btn.classList.contains('hidden'), true, 'students never get the End-round control');
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 3, scene: 'round3' });
+    assert.equal(btn.classList.contains('hidden'), false, 'host sees End round 3 during the tug');
+    assert.match(btn.textContent, /End round 3/);
+
+    dom.PS.setDemoRole('student');
+    assert.equal(btn.classList.contains('hidden'), true, 'students never get the tug End-round control');
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 4, scene: 'round4' });
+    assert.equal(btn.classList.contains('hidden'), false, 'host sees End round 4 after the qualifier board');
+    assert.match(btn.textContent, /End round 4/);
+
+    dom.PS.setDemoRole('student');
+    assert.equal(btn.classList.contains('hidden'), true, 'students never get the Dalgona End-round control');
+});
+
+test('demo early-end applies the same rules as the round clocks', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], currentUser: null, isGuestUser: function () { return false; } });
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 2, scene: 'round2' });
+    dom.PS.endRoundNow();
+    let state = dom.PS.state();
+    assert.equal(state.room.status, 'finished', 'ending a two-round glass bridge finishes the room');
+    assert.equal(state.room.current_round, 2);
+    state.players.filter(p => p.is_playing !== false && p.status === 'eliminated').forEach(p => {
+        if (p.eliminated_reason) {
+            assert.ok(['round2_timeout', 'round1_cut'].indexOf(p.eliminated_reason) !== -1,
+                'glass early-end uses the existing timeout reason');
+        }
+    });
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 3, scene: 'round3' });
+    dom.PS.endRoundNow();
+    state = dom.PS.state();
+    assert.equal(state.room.status, 'round3', 'a level tug does not invent a winner');
+    assert.equal(state.room.tug_state.suddenDeath, true, 'a level rope goes to sudden death like the clock');
+    dom.PS.endRoundNow();
+    assert.equal(dom.PS.state().room.status, 'round3', 'sudden death cannot be ended early');
+
+    dom.PS.startDemo({ role: 'teacher', roundCount: 4, scene: 'round4' });
+    dom.PS.endRoundNow();
+    state = dom.PS.state();
+    assert.equal(state.room.status, 'finished', 'ending Dalgona finishes the room');
+    assert.equal(state.room.current_round, 4);
+    state.players.filter(p => p.is_playing !== false && p.dalgona_pattern && !p.dalgona_finished_at).forEach(p => {
+        assert.equal(p.status, 'eliminated', 'unfinished carvers are eliminated');
+        assert.equal(p.eliminated_reason, 'dalgona_timeout', 'same reason as the carving clock');
+    });
+});
+
+test('end-round SQL is a safe, teacher-run incremental with a workspace copy', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_end_rounds.sql');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1,
+        'live project URL is in the install header');
+    assert.ok(/Clear the editor completely/i.test(sql), 'tells the teacher to clear the editor');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(/after the existing Survival incrementals/i.test(sql), 'installs after the other incrementals');
+    assert.ok(sql.indexOf('notify pgrst') !== -1, 'reloads the PostgREST schema');
+
+    assert.ok(sql.indexOf('end_purrfect_survival_round') !== -1, 'new host-only RPC');
+    assert.ok(/returns public\.purrfect_survival_rooms/.test(sql), 'returns the room row');
+    assert.ok(/NOT_AUTHENTICATED/.test(sql) && /NOT_HOST/.test(sql), 'same auth checks as End round 1');
+    ['round1', 'round2', 'round3', 'round4'].forEach(round => {
+        assert.ok(sql.indexOf("status = '" + round + "'") !== -1, 'handles ' + round);
+    });
+    assert.ok(sql.indexOf('purrfect_survival_complete_round1') !== -1, 'round 1 reuses the existing helper');
+    assert.ok(sql.indexOf('purrfect_survival_finish_if_done') !== -1, 'round 2 mirrors the tick');
+    assert.ok(sql.indexOf('purrfect_survival_enter_round4') !== -1, 'round 3 mirrors the tick');
+    assert.ok(/interval '7 seconds'/.test(sql), 'round 4 respects the qualifier board');
+    assert.ok(sql.indexOf('dalgona_timeout') !== -1, 'round 4 uses the existing timeout reason');
+    assert.ok(/revoke all on function public\.end_purrfect_survival_round\(uuid\) from public, anon/i.test(sql),
+        'locked down from public/anon');
+    assert.ok(/grant execute on function public\.end_purrfect_survival_round\(uuid\) to authenticated/i.test(sql),
+        'authenticated hosts can call it');
+
+    const copy = fs.readFileSync(path.join(__dirname, '..', '..', 'purrfect_survival_end_rounds.sql'), 'utf8');
+    assert.equal(copy, sql, 'the /workspace copy is byte-for-byte identical');
+
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    assert.ok(canonical.indexOf('end_purrfect_survival_round') !== -1,
+        'fresh installs also define the host early-end function');
+
+    const main = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(main.indexOf("'end_purrfect_survival_round1'") !== -1, 'round 1 keeps the old RPC');
+    assert.ok(main.indexOf("'end_purrfect_survival_round'") !== -1, 'rounds 2–4 use the new RPC');
+    assert.ok(main.indexOf('purrfect_survival_end_rounds.sql') !== -1,
+        'a missing new RPC surfaces the install filename instead of failing silently');
+});
+
+test('lobby Show-rules text is projector-readable and never shrinks in landscape', () => {
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+
+    assert.ok(/\.ps-cine-howto\s*\{[^}]*max-height:\s*min\(58vh, 560px\)/s.test(html),
+        'the howto panel has room for enlarged rules');
+    assert.ok(/\.ps-rule-card h3\s*\{[^}]*font-size:\s*22px/s.test(html), 'headings are larger than body text');
+    assert.ok(/\.ps-rule-en\s*\{[^}]*font-size:\s*20px/s.test(html), 'English body is ~20px');
+    assert.ok(/\.ps-rule-zh\s*\{[^}]*font-size:\s*19px/s.test(html), 'Chinese body follows the English size');
+    assert.ok(/\.ps-rule-en\s*\{[^}]*line-height:\s*1\.55/s.test(html), 'comfortable line height');
+    assert.ok(/\.ps-rule-card\s*\{[^}]*padding:\s*14px 18px/s.test(html), 'more padding for projection');
+
+    const landscapeStart = html.indexOf('@media (orientation: landscape) and (min-width: 700px) {');
+    const shortStart = html.indexOf('@media (max-height: 560px) and (orientation: landscape) {', landscapeStart);
+    assert.ok(landscapeStart !== -1 && shortStart > landscapeStart, 'both landscape blocks exist');
+    const landscape = html.slice(landscapeStart, shortStart);
+    assert.ok(/\.ps-rule-en\s*\{\s*font-size:\s*21px/.test(landscape),
+        'landscape is a touch larger, never smaller, than portrait');
+    assert.equal(/\.ps-rule-en\s*\{[^}]*font-size:\s*(?:[0-9]|1[0-9])px/.test(landscape), false,
+        'landscape no longer shrinks the English rules');
+    assert.ok(/\.ps-cine-howto\s*\{\s*max-height:\s*min\(60vh, 620px\)/.test(landscape),
+        'landscape panel is taller, still scrollable');
+
+    const shortEnd = html.indexOf('/* ---------- live game', shortStart);
+    const short = html.slice(shortStart, shortEnd);
+    assert.ok(/\.ps-rule-en\s*\{\s*font-size:\s*20px/.test(short),
+        'short landscape keeps the base size');
+    assert.equal(/\.ps-rule-en\s*\{[^}]*font-size:\s*(?:[0-9]|1[0-9])px/.test(short), false,
+        'short landscape no longer shrinks the rules');
 });
 
 test('qualifier SQL is a safe, teacher-run incremental', () => {
@@ -3108,7 +3270,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v116') !== -1, 'cache is v116');
+    assert.ok(sw.indexOf('learnity-pwa-v117') !== -1, 'cache is v117');
+    assert.equal(sw.indexOf('learnity-pwa-v116'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v115'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v114'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v113'), -1, 'the old cache name is gone');

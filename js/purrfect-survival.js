@@ -1692,7 +1692,10 @@
         const tug = isR3 ? tugState() : null;
         const briefing = !!(tug && tug.phase === 'briefing');
         const qualifying = !!qualifierInfo();
-        show('ps-host-end', host && !isR2 && !isR3 && !isR4);
+        const endable = hostEndableRound();
+        show('ps-host-end', !!endable);
+        const endBtn = $('ps-host-end');
+        if (endBtn && endable) endBtn.textContent = endRoundLabel(endable);
         show('ps-tug-start-btn', host && isR3 && briefing && !qualifying);
         if (me && isPlayingPlayer(me)) renderPlayerQuestion(isR2, isR3, isR4);
         else renderSpectator(isR2, isR3, isR4);
@@ -2715,18 +2718,78 @@
         }
     };
 
-    PS.endRound1Now = async function () {
-        if (demoMode) { demoEndRound1(); render(); return; }
-        if (busy || !room || !isHost() || room.status !== 'round1') return;
+    function endRoundLabel(round) {
+        if (round === 4) return '⏹ End round 4';
+        if (round === 3) return '⏹ End round 3';
+        if (round === 2) return '⏹ End round 2';
+        return '⏹ End round 1';
+    }
+
+    /* Which round the host can end right now, or 0 when the button should
+       stay hidden. Only rounds that are actually in this room's plan and
+       still in play count; a briefing / sudden-death tug is not endable. */
+    function hostEndableRound() {
+        if (!room || !isHost()) return 0;
         const count = roomRoundCount();
-        const message = count === 1
+        if (room.status === 'round1') return count >= 1 ? 1 : 0;
+        if (room.status === 'round2') {
+            if (count < 2 || qualifierInfo()) return 0;
+            return 2;
+        }
+        if (room.status === 'round3') {
+            if (count < 3 || qualifierInfo()) return 0;
+            const tug = tugState();
+            if (tug.phase !== 'playing') return 0;
+            if (tug.suddenDeath) return 0;
+            return 3;
+        }
+        if (room.status === 'round4') {
+            if (count < 4 || dalgonaQualifierActive()) return 0;
+            return 4;
+        }
+        return 0;
+    }
+
+    function endRoundConfirmText(round) {
+        if (round === 2) {
+            return 'End Glass Stepping Stones now? Every student still crossing will drop out and the room will move on.';
+        }
+        if (round === 3) {
+            return 'End Tug of War now? The team that is ahead wins; a level rope goes to sudden death.';
+        }
+        if (round === 4) {
+            return 'End Dalgona Candy Carving now? Students who have not finished carving will be out.';
+        }
+        return roomRoundCount() === 1
             ? 'End 1-2-3 Meow! now? The game will finish and every surviving student wins.'
             : 'End Round 1 now and move the first 15 survivors to the glass bridge?';
-        if (typeof window.confirm === 'function' && !window.confirm(message)) return;
+    }
+
+    PS.endRoundNow = async function () {
+        if (demoMode) {
+            if (!isHost()) return;
+            demoEndRoundNow();
+            render();
+            return;
+        }
+        const round = hostEndableRound();
+        if (busy || !round) return;
+        if (typeof window.confirm === 'function' && !window.confirm(endRoundConfirmText(round))) return;
         busy = true;
         try {
-            const { data, error } = await sb.rpc('end_purrfect_survival_round1', { p_room_id: room.id });
-            if (error) return setError(errorMessage(error));
+            /* Round 1 keeps the original RPC so older installs still work;
+               rounds 2–4 use the newer host-only end-round function. */
+            const rpc = round === 1
+                ? 'end_purrfect_survival_round1'
+                : 'end_purrfect_survival_round';
+            const { data, error } = await sb.rpc(rpc, { p_room_id: room.id });
+            if (error) {
+                const missing = round > 1 && /does not exist|Could not find|PGRST20|42P01|schema cache/i
+                    .test(String(error.message || error));
+                return setError(missing
+                    ? 'Run supabase/purrfect_survival_end_rounds.sql in the Supabase SQL editor (project mggnwzirjmibreimrwiq), clear the editor first, then reload this page.'
+                    : errorMessage(error));
+            }
             const updated = Array.isArray(data) ? data[0] : data;
             if (updated && updated.id) room = updated;
             poll(true);
@@ -2734,6 +2797,8 @@
             busy = false;
         }
     };
+
+    PS.endRound1Now = PS.endRoundNow;
 
     PS.startRound2Now = PS.endRound1Now;
 
@@ -4338,6 +4403,52 @@
         if (!room || room.status !== 'round1') return;
         if (demoRoundCount <= 1) demoFinishRound1Victory(Date.now());
         else demoAdvanceToRound2();
+    }
+
+    /* Host "End round" for the demo: mirrors the demo time-up paths, so the
+       same elimination rules apply whether the clock runs out or the
+       teacher stops the round early. */
+    function demoEndRoundNow() {
+        if (!room) return;
+        const now = Date.now();
+        if (room.status === 'round1') { demoEndRound1(); return; }
+        if (room.status === 'round2') {
+            if (qualifierInfo()) return;
+            players.filter(isPlayingPlayer).forEach(function (p) {
+                if (p.status !== 'alive') return;
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = 'round2_timeout';
+                p.glass_active = false;
+            });
+            demoFinishRound2(now);
+            return;
+        }
+        if (room.status === 'round3') {
+            if (qualifierInfo()) return;
+            const state = PSEngine.normalizeTugState(room.tug_state);
+            if (state.phase !== 'playing' || state.suddenDeath) return;
+            const resolved = PSEngine.resolveTugAtTimeUp(state, now);
+            room.tug_state = resolved;
+            if (resolved.winner) {
+                demoFinishTug(resolved.winner, now);
+                return;
+            }
+            /* Level rope: sudden death exactly like the time-up tick. */
+            room.round3_ends_at = null;
+            return;
+        }
+        if (room.status === 'round4') {
+            if (qualifierInfo()) return;
+            players.filter(isPlayingPlayer).forEach(function (p) {
+                if (!p.dalgona_pattern || p.dalgona_finished_at) return;
+                if (p.status === 'eliminated') return;
+                p.status = 'eliminated';
+                p.ghost = true;
+                p.eliminated_reason = 'dalgona_timeout';
+            });
+            demoFinishRound4(now);
+        }
     }
 
     function demoFinishRound2(now) {

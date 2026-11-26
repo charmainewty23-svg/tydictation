@@ -1373,7 +1373,7 @@
         const panel = $('ps-cine-howto');
         if (btn) {
             btn.classList.toggle('hidden', !can);
-            btn.textContent = lobbyRulesOpen ? '收起規則' : '展示規則';
+            btn.textContent = lobbyRulesOpen ? 'Hide rules' : 'Show rules';
             btn.setAttribute('aria-expanded', lobbyRulesOpen ? 'true' : 'false');
         }
         if (panel) panel.classList.toggle('hidden', !(can && lobbyRulesOpen));

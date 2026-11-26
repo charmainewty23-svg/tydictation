@@ -1049,7 +1049,7 @@ test('teacher rules panel starts hidden and host can show or hide it', () => {
     const button = dom.el('ps-rules-toggle');
     assert.ok(panel.classList.contains('hidden'), 'full rules start hidden');
     assert.ok(!button.classList.contains('hidden'), 'the host sees the toggle');
-    assert.ok(button.textContent.indexOf('展示') !== -1, 'collapsed label tells the host to show the rules');
+    assert.ok(button.textContent.indexOf('Show rules') !== -1, 'collapsed label tells the host to show the rules');
     assert.equal(dom.PS.lobbyRulesOpen(), false);
     assert.ok(dom.el('ps-cine-rules').innerHTML.indexOf('Dalgona') !== -1, 'short chips stay visible');
 
@@ -1057,11 +1057,11 @@ test('teacher rules panel starts hidden and host can show or hide it', () => {
     assert.ok(!panel.classList.contains('hidden'), 'panel opens on toggle');
     assert.ok(panel.innerHTML.indexOf('Pressing in red costs 30 m') !== -1, 'opened panel has the full R1 rule');
     assert.ok(panel.innerHTML.indexOf('舔一口椪糖') !== -1, 'opened panel has the Chinese Dalgona rule');
-    assert.ok(button.textContent.indexOf('收起') !== -1, 'open label tells the host to hide the rules');
+    assert.ok(button.textContent.indexOf('Hide rules') !== -1, 'open label tells the host to hide the rules');
 
     assert.equal(dom.PS.toggleLobbyRules(), false);
     assert.ok(panel.classList.contains('hidden'), 'panel hides on the second toggle');
-    assert.ok(button.textContent.indexOf('展示') !== -1, 'collapsed label is restored');
+    assert.ok(button.textContent.indexOf('Show rules') !== -1, 'collapsed label is restored');
 });
 
 test('students get no rules toggle and stay on the compact lobby', () => {
@@ -1257,7 +1257,7 @@ test('index.html hosts the cinematic waiting overlay, compact round chips and ho
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
     assert.ok(html.indexOf('PS.toggleLobbyRules()') !== -1, 'the host toggle is wired to PS.toggleLobbyRules()');
-    assert.ok(html.indexOf('展示規則') !== -1, 'the collapsed label reads 展示規則');
+    assert.ok(html.indexOf('Show rules') !== -1, 'the collapsed label reads Show rules');
     assert.ok(html.indexOf('ps-cine-howto hidden') !== -1, 'the full rules panel starts hidden');
     assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
     assert.equal(html.indexOf('玻璃橋'), -1, 'the Chinese bridge title is gone');
@@ -1686,7 +1686,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v115") !== -1, 'CACHE_NAME is v115');
+    assert.ok(sw.indexOf("learnity-pwa-v116") !== -1, 'CACHE_NAME is v116');
+    assert.equal(sw.indexOf("learnity-pwa-v115"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v114"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v113"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v112"), -1, 'the old cache name is gone');
@@ -3107,7 +3108,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v115') !== -1, 'cache is v115');
+    assert.ok(sw.indexOf('learnity-pwa-v116') !== -1, 'cache is v116');
+    assert.equal(sw.indexOf('learnity-pwa-v115'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v114'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v113'), -1, 'the old cache name is gone');
     const assets = sw.slice(sw.indexOf('const CORE_ASSETS'), sw.indexOf('];', sw.indexOf('const CORE_ASSETS')));

@@ -71,7 +71,10 @@
     let introPlaying = false;
     let introSeen = {};
     let cueTimer = 0;
-    let rulesPainted = false;
+    let cineChipKey = '';
+    let cineRuleKey = '';
+    let lobbyRulesOpen = false;
+    let lobbyRulesRoomKey = '';
     let ceremonyStart = 0;
     let ceremonyRoomId = '';
     let ceremonyCache = null;
@@ -400,16 +403,6 @@
     function finishDistance() {
         const cfg = roundConfig(1);
         return cfg ? cfg.finishDistance : PSEngine.ROUND1.FINISH_DISTANCE;
-    }
-
-    function roundConfigLabel(cfg) {
-        if (!cfg) return '';
-        if (cfg.subject === 'grammar') {
-            const topic = String(cfg.topic || 'tenses').replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
-            return 'Grammar · ' + topic + (cfg.bankMode ? ' · ' + cfg.bankMode : '');
-        }
-        return 'Vocab · ' + (cfg.vocabSource || cfg.topic || 'Vocab') + (cfg.vocabForm ? ' · ' + cfg.vocabForm : '')
-            + (cfg.vocabScope && cfg.vocabScope !== 'all' ? ' · ' + cfg.vocabScope : '');
     }
 
     function asArray(value) {
@@ -1254,6 +1247,7 @@
         tugQuestions = [];
         myDalgonaItem = null;
         introPlaying = false;
+        resetLobbyRules();
         stopPolling();
         setLive(false);
         clearResume();
@@ -1304,54 +1298,110 @@
     /* Waiting room                                                       */
     /* ------------------------------------------------------------------ */
 
+    /* Compact waiting-lobby chips: names only, never the long rule text. */
+    function lobbyChips() {
+        if (typeof PSEngine === 'undefined' || !PSEngine.lobbyRoundChips) return [];
+        const settings = Object.assign({}, (room && room.settings) || {});
+        settings.roundCount = roomRoundCount();
+        if (room && room.finish_distance != null && settings.finishDistance == null) {
+            settings.finishDistance = room.finish_distance;
+        }
+        return PSEngine.lobbyRoundChips(settings);
+    }
+
     function paintCineRules() {
-        if (rulesPainted) return;
-        const r1en = $('ps-cine-rule1-en');
-        const r1zh = $('ps-cine-rule1-zh');
-        const r2en = $('ps-cine-rule2-en');
-        const r2zh = $('ps-cine-rule2-zh');
-        const r3en = $('ps-cine-rule3-en');
-        const r3zh = $('ps-cine-rule3-zh');
-        const r4en = $('ps-cine-rule4-en');
-        const r4zh = $('ps-cine-rule4-zh');
-        if (!r1en || !r2en) return;
+        const host = $('ps-cine-rules');
+        if (host) {
+            const chips = lobbyChips();
+            const key = JSON.stringify(chips);
+            if (key !== cineChipKey || !host.innerHTML) {
+                cineChipKey = key;
+                host.innerHTML = chips.map((chip) =>
+                    '<span class="ps-round-chip" data-round="' + chip.n + '">' +
+                        '<span class="ps-round-chip-n">R' + chip.n + '</span>' +
+                        '<span class="ps-round-chip-name">' + escapeText(chip.short) + '</span>' +
+                        (chip.note ? '<span class="ps-round-chip-note">' + escapeText(chip.note) + '</span>' : '') +
+                    '</span>'
+                ).join('');
+            }
+        }
+        paintCineHowto();
+    }
+
+    const LOBBY_RULE_TITLES = {
+        1: '1-2-3 Meow!',
+        2: 'Glass Stepping Stones',
+        3: 'Tug of War',
+        4: 'Dalgona Candy Carving'
+    };
+
+    /* The full bilingual instructions the waiting lobby used before the
+       compact chips. They live in a collapsed panel so the chips, room
+       code, player list and Start stay uncluttered. */
+    function paintCineHowto() {
+        const host = $('ps-cine-howto');
+        if (!host) return;
+        const count = roomRoundCount();
+        const key = count + '|' + (room && room.id ? room.id : '');
+        if (key === cineRuleKey && host.innerHTML) return;
+        cineRuleKey = key;
         const en = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT) ? PSEngine.RULE_TEXT : null;
         const zh = (typeof PSEngine !== 'undefined' && PSEngine.RULE_TEXT_ZH) ? PSEngine.RULE_TEXT_ZH : null;
-        r1en.textContent = en ? en.round1 : '';
-        r1zh.textContent = zh ? zh.round1 : '';
-        r2en.textContent = en ? en.round2 : '';
-        r2zh.textContent = zh ? zh.round2 : '';
-        if (r3en) r3en.textContent = en ? en.round3 : '';
-        if (r3zh) r3zh.textContent = zh ? zh.round3 : '';
-        if (r4en) r4en.textContent = en ? en.round4 : '';
-        if (r4zh) r4zh.textContent = zh ? zh.round4 : '';
-        rulesPainted = true;
+        let html = '';
+        for (let n = 1; n <= count; n++) {
+            html += '<div id="ps-cine-rule' + n + '" class="ps-rule-card">' +
+                '<h3><span class="ps-rule-tag">ROUND ' + n + '</span> ' + escapeText(LOBBY_RULE_TITLES[n] || '') + '</h3>' +
+                '<p id="ps-cine-rule' + n + '-en" class="ps-rule-en">' +
+                    escapeText(en ? en['round' + n] : '') + '</p>' +
+                '<p id="ps-cine-rule' + n + '-zh" class="ps-rule-zh">' +
+                    escapeText(zh ? zh['round' + n] : '') + '</p>' +
+                '</div>';
+        }
+        host.innerHTML = html;
+    }
+
+    /* The host detection for the rules toggle matches the Start button:
+       a live host stays host even when they also joined as a player. The
+       official demo teacher / projector mirrors that. */
+    function hostCanToggleRules() {
+        return isHost() || !!(demoMode && demoRole === 'teacher');
+    }
+
+    function applyLobbyRulesUI() {
+        const can = hostCanToggleRules();
+        const btn = $('ps-rules-toggle');
+        const panel = $('ps-cine-howto');
+        if (btn) {
+            btn.classList.toggle('hidden', !can);
+            btn.textContent = lobbyRulesOpen ? 'Hide rules' : 'Show rules';
+            btn.setAttribute('aria-expanded', lobbyRulesOpen ? 'true' : 'false');
+        }
+        if (panel) panel.classList.toggle('hidden', !(can && lobbyRulesOpen));
+    }
+
+    PS.toggleLobbyRules = function (force) {
+        if (!hostCanToggleRules()) return false;
+        lobbyRulesOpen = typeof force === 'boolean' ? force : !lobbyRulesOpen;
+        applyLobbyRulesUI();
+        return lobbyRulesOpen;
+    };
+
+    PS.lobbyRulesOpen = function () {
+        return !!lobbyRulesOpen;
+    };
+
+    function resetLobbyRules() {
+        lobbyRulesOpen = false;
+        lobbyRulesRoomKey = '';
+        cineRuleKey = '';
     }
 
     function updateIntroChrome() {
         if (!room || room.status !== 'waiting') return;
         const elapsed = introElapsedMs();
         const revealAll = !introPlaying;
-        const r1 = $('ps-cine-rule1');
-        const r2 = $('ps-cine-rule2');
-        const r3 = $('ps-cine-rule3');
-        const r4 = $('ps-cine-rule4');
-        const playRound2 = roomRoundCount() > 1;
-        const playRound3 = roomRoundCount() >= 3;
-        const playRound4 = roomRoundCount() >= 4;
-        if (r1) r1.classList.toggle('is-in', revealAll || elapsed >= 6800);
-        if (r2) {
-            r2.classList.toggle('hidden', !playRound2);
-            r2.classList.toggle('is-in', playRound2 && (revealAll || elapsed >= 10800));
-        }
-        if (r3) {
-            r3.classList.toggle('hidden', !playRound3);
-            r3.classList.toggle('is-in', playRound3 && (revealAll || elapsed >= 14400));
-        }
-        if (r4) {
-            r4.classList.toggle('hidden', !playRound4);
-            r4.classList.toggle('is-in', playRound4 && (revealAll || elapsed >= 14400));
-        }
+        const chips = $('ps-cine-rules');
+        if (chips) chips.classList.toggle('is-in', revealAll || elapsed >= 6800);
         const skip = $('ps-intro-skip');
         if (skip) skip.classList.toggle('hidden', !introPlaying);
         const cine = $('ps-cine');
@@ -1366,21 +1416,19 @@
         setPanel('waiting');
         ensureIntro();
         setLive(true);
+        const roomKey = room ? String(room.id || room.code || '') : '';
+        if (roomKey !== lobbyRulesRoomKey) {
+            lobbyRulesRoomKey = roomKey;
+            lobbyRulesOpen = false;
+        }
         paintCineRules();
+        applyLobbyRulesUI();
 
         setText('ps-code', room.code || '----');
         const total = totalPlayers();
         setText('ps-player-count', total + ' player' + (total === 1 ? '' : 's') + ' joined');
         const count = roomRoundCount();
-        const r1 = roundConfig(1);
-        const r2 = roundConfig(2);
-        const r3 = roundConfig(3);
-        let meta = count + ' round' + (count === 1 ? '' : 's')
-            + ' · R1 ' + roundConfigLabel(r1) + ' · ' + r1.finishDistance + ' m';
-        if (count >= 2) meta += ' · R2 ' + roundConfigLabel(r2) + ' · ' + r2.glassSteps + ' steps';
-        if (count >= 3) meta += ' · R3 Tug of War · ' + Math.round(r3.tugDuration / 1000) + ' s';
-        if (count >= 4) meta += ' · R4 Dalgona Candy Carving · ' + Math.round(dalgonaDuration() / 1000) + ' s';
-        setText('ps-room-meta', meta);
+        setText('ps-room-meta', count + ' round' + (count === 1 ? '' : 's') + ' · get ready');
         const list = $('ps-player-list');
         if (list) {
             list.innerHTML = players.filter(isPlayingPlayer).map((p) => {
@@ -3460,6 +3508,7 @@
         setLive(false);
         stopBgm();
         setRound4StudentClass(false);
+        resetLobbyRules();
         if (cueTimer) {
             clearTimeout(cueTimer);
             cueTimer = 0;
@@ -3514,6 +3563,7 @@
         tugQuestions = [];
         myDalgonaItem = null;
         introPlaying = false;
+        resetLobbyRules();
         clearResume();
         stopPolling();
         stopBgm();
@@ -3915,6 +3965,7 @@
 
     function demoJumpLobby() {
         demoResetPlayers();
+        resetLobbyRules();
         room.status = 'waiting';
         room.current_round = 1;
         room.round1_started_at = null;

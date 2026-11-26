@@ -565,6 +565,38 @@
         };
     };
 
+    /* Compact lobby chips. The waiting screen only needs the round names
+       (plus one very short setting) instead of four bilingual rule cards.
+       Accepts either a round count or a full settings object. */
+    PS.lobbyRoundChips = function (input) {
+        const s = (input && typeof input === 'object')
+            ? settingsObject(input)
+            : { roundCount: input };
+        const count = PS.roomRoundCount(s);
+        const labels = {
+            1: '1-2-3 Meow',
+            2: 'Glass',
+            3: 'Tug',
+            4: 'Dalgona'
+        };
+        const chips = [];
+        for (let n = 1; n <= count; n++) {
+            const cfg = PS.roundConfig(s, n);
+            let note = '';
+            if (n === 1) note = cfg.finishDistance + 'm';
+            else if (n === 2) note = cfg.glassSteps + ' steps';
+            else if (n === 3) note = Math.round(cfg.tugDuration / 1000) + 's';
+            else if (n === 4) note = Math.round(cfg.dalgonaDuration / 1000) + 's';
+            chips.push({
+                n: n,
+                kind: PS.HOST.KINDS[n] || '',
+                short: labels[n] || '',
+                note: note
+            });
+        }
+        return chips;
+    };
+
     /* Validate the full host config. A room-level mix is allowed (round 1
        vocab, round 2 grammar), but each individual round must not mix the
        two subjects. Returns the normalized settings plus the room-level

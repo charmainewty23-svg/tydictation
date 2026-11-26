@@ -3874,3 +3874,38 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   伸出 → 橫掃（-1→1 swipe）→ 縮回；最新一條 carved dash 仍然
   0.55 前遮住。`drawCatLick` 只收 4 個參數都仍然 work（look = `{}`）。
 
+### 10.18h Compact 3＋／4-round waiting lobby（2026-11 加）
+
+- Waiting lobby（`#ps-cine`）唔再塞四張雙語規則卡。`paintCineRules()` 改用
+  engine 新 helper `PSEngine.lobbyRoundChips(settings | roundCount)` 出
+  **短名 chips**：`1-2-3 Meow`／`Glass`／`Tug`／`Dalgona`，只顯示已揀嘅
+  回合，每粒附一個短設定（`100m`／`9 steps`／`60s`／`180s`）。
+  `#ps-cine-rules` 係 flex-wrap chip row；`#ps-room-meta` 只寫
+  `N rounds · get ready`，唔再重複 bank／回合名。
+- 1／2／3／4 回合共用同一個 block，所以全部都係 chips，冇長段落。
+  `PSEngine.RULE_TEXT`／`RULE_TEXT_ZH` **冇改**，in-game HUD 照用。
+- Create form：hero 收短、`#ps-round-count` 選項改短名、`#ps-host-note`
+  收成兩句（仍保留「Each round can use a different subject」）。所有
+  per-round subject／bank／distance／steps／timers 控制保留。
+- 官方 demo lobby 自動跟同一個 overlay；`#demo-note` 亦改短名。
+- **冇新 SQL**；SQL／RPC／玩法／ceremony／Dalgona 全部冇改。
+  `PS.VERSION`／`PSRender.VERSION` 不變。`sw.js` `CACHE_NAME` 升到
+  **`learnity-pwa-v114`**。
+
+### 10.18i Teacher 展示／收起 lobby rules（2026-11 加）
+
+- 保留 10.18h 嘅短 chips、room code、player list、Start 同短 `#ps-room-meta`。
+- 老師／host（live `isHost()`，包括落場做玩家嘅 host；官方 demo 嘅
+  teacher／projector）多一個 `#ps-rules-toggle` 掣：收起時寫 **Show rules**，
+  打開時寫 **Hide rules**。學生電話冇掣，長規則亦一定保持收起。
+- 完整雙語規則喺 `#ps-cine-howto`，由 `paintCineHowto()` 用原本
+  `PSEngine.RULE_TEXT`／`RULE_TEXT_ZH` 填（只出已揀回合，1–4），
+  標題照舊 `1-2-3 Meow!`／`Glass Stepping Stones`／`Tug of War`／
+  `Dalgona Candy Carving`。**預設 hidden**；面板自己 scroll
+  （`max-height`＋`overflow-y:auto`），唔會推走 Start／player list。
+- 狀態係 client-only（`PS.toggleLobbyRules()`／`PS.lobbyRulesOpen()`）；
+  `renderWaiting()` 唔會每次 poll 重設，離開房／重新入 waiting 才回預設收起。
+- **冇新 SQL／room column／RPC 改動**。`PS.VERSION`（`1.3.0`）同
+  `R.VERSION`（`2.5.2`）不變。`sw.js` `CACHE_NAME` 升到
+  **`learnity-pwa-v116`**。
+

@@ -5133,6 +5133,22 @@
             margin-top: 6px;
             font-size: 13px;
         }
+        /* Teacher / projector Round 1 only: every visible control label is
+           exactly 1px larger than the normal size. The student Round 1 view
+           (no .ps-r1-host class) is unchanged. */
+        #purrfect-survival-view.ps-r1-host .ps-badge,
+        #purrfect-survival-view.ps-r1-host .ps-alive,
+        #purrfect-survival-view.ps-r1-host .ps-phase,
+        #purrfect-survival-view.ps-r1-host .ps-timer,
+        #purrfect-survival-view.ps-r1-host .ps-place { font-size: 12.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 11.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-host-btn,
+        #purrfect-survival-view.ps-r1-host .ps-icon-btn { font-size: 12px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-title { font-size: 11.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-count { font-size: 10.5px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 11px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 11px; }
+        #purrfect-survival-view.ps-r1-host .ps-progress-status { font-size: 9.5px; }
         .ps-danger-frame {
             box-shadow: 0 0 0 4px rgba(239, 68, 68, .55), 0 16px 40px rgba(0, 0, 0, .28) !important;
             animation: psDangerPulse .9s ease-in-out infinite;
@@ -5456,6 +5472,18 @@
             .ps-progress-row { font-size: 9px; padding: 2px 4px; gap: 4px; }
             .ps-progress-detail { font-size: 8.5px; }
             .ps-progress-status { font-size: 8px; }
+            /* Teacher / projector Round 1 keeps the same +1px bump here. */
+            #purrfect-survival-view.ps-r1-host .ps-badge,
+            #purrfect-survival-view.ps-r1-host .ps-alive,
+            #purrfect-survival-view.ps-r1-host .ps-phase,
+            #purrfect-survival-view.ps-r1-host .ps-timer,
+            #purrfect-survival-view.ps-r1-host .ps-place { font-size: 11.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 10.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-host-btn,
+            #purrfect-survival-view.ps-r1-host .ps-icon-btn { font-size: 11px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 10px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 9.5px; }
+            #purrfect-survival-view.ps-r1-host .ps-progress-status { font-size: 9px; }
             .ps-qualifier-list { grid-template-columns: 1fr 1fr; }
             .ps-qualifier-card { width: min(720px, 78vw); padding: 12px 16px; }
             .ps-qualifier-card h2 { font-size: 20px; }
@@ -5476,6 +5504,8 @@
             .ps-progress { top: calc(52px + env(safe-area-inset-top)); width: min(230px, 24vw); max-height: calc(100% - 62px); }
             .ps-progress-head { padding: 4px 6px; }
             .ps-progress-row { font-size: 8.5px; padding: 1px 4px; }
+            /* Teacher / projector Round 1 +1px on the short landscape HUD. */
+            #purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 9.5px; }
             .ps-qualifier-card { padding: 9px 12px; }
             .ps-qualifier-list { gap: 3px; margin-bottom: 5px; }
             .ps-qualifier-row { font-size: 9px; padding: 2px 4px; }
@@ -5491,6 +5521,7 @@
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+            #purrfect-survival-view.ps-r1-host .ps-rule { font-size: 9.5px; }
             .ps-question { bottom: 6px; left: 6px; width: min(390px, 46vw); padding: 6px 8px 8px; }
             .ps-prompt { min-height: 0; margin-bottom: 4px; font-size: 12.5px; }
             .ps-opt { min-height: 36px; font-size: 11.5px; }

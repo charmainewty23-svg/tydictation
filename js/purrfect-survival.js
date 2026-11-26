@@ -209,6 +209,14 @@
         if (view && view.classList) view.classList.toggle('ps-r4-student', !!on);
     }
 
+    /* Teacher / projector Round 1 only: every visible control label is
+       bumped by 1px (see index.html). The student Round 1 view keeps its
+       original typography. */
+    function setR1HostClass(on) {
+        const view = $('purrfect-survival-view');
+        if (view && view.classList) view.classList.toggle('ps-r1-host', !!on);
+    }
+
     function myNickname() {
         const user = signedInUser();
         if (!user) return 'Guest';
@@ -1749,6 +1757,7 @@
 
     function render() {
         setRound4StudentClass(!!room && room.status === 'round4' && !isHostView());
+        setR1HostClass(!!room && room.status === 'round1' && isHostView());
         if (!room) {
             setPanel('lobby');
             setLive(false);
@@ -1790,16 +1799,18 @@
                     : (isR2 ? 'ROUND 2 · Glass Stepping Stones' : 'ROUND 1 · 1-2-3 Meow!'))));
         /* Student phones get a deliberately text-light Round 4 card: the
            long rule paragraph is hidden there, and restored for every other
-           round and for the teacher / projector view. */
+           round and for the teacher / projector view. The Round 5 finals
+           screen hides the long instruction for every role — the short
+           canvas status pill ("ROUND 5 · GRAMMAR FINALS …") still shows. */
         const studentR4 = isR4 && !isHostView();
+        const hideRule = isR5 || studentR4;
         const ruleEl = $('ps-hud-rule');
-        setText('ps-hud-rule', studentR4
+        setText('ps-hud-rule', hideRule
             ? ''
-            : (isR5 ? PSEngine.RULE_TEXT.round5
-                : (isR4 ? PSEngine.RULE_TEXT.round4
-                    : (isR3 ? PSEngine.RULE_TEXT.round3
-                        : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1)))));
-        if (ruleEl) ruleEl.classList.toggle('hidden', studentR4);
+            : (isR4 ? PSEngine.RULE_TEXT.round4
+                : (isR3 ? PSEngine.RULE_TEXT.round3
+                    : (isR2 ? PSEngine.RULE_TEXT.round2 : PSEngine.RULE_TEXT.round1))));
+        if (ruleEl) ruleEl.classList.toggle('hidden', hideRule);
         const alive = isR5 ? finalsLivingCount() : alivePlayers().length;
         const total = totalPlayers();
         setText('ps-hud-alive', 'Alive: ' + alive + ' / ' + total);
@@ -4155,6 +4166,7 @@
         setLive(false);
         stopBgm();
         setRound4StudentClass(false);
+        setR1HostClass(false);
         clearFinalsTimer();
         resetLobbyRules();
         if (cueTimer) {

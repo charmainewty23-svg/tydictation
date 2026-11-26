@@ -3318,7 +3318,7 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
     assert.ok(render.indexOf('R.drawRound4(ctx, s)') !== -1, 'drawScene dispatches round 4');
     assert.equal(/\.drawImage\s*\(/.test(render), false, 'no drawImage');
     const R = loadRenderer();
-    assert.equal(R.VERSION, '2.6.0');
+    assert.equal(R.VERSION, '2.6.1');
     assert.equal(typeof R.drawRound4, 'function');
     const ctx = mockContext({ width: 390, height: 844 });
     R.drawRound4(ctx, {
@@ -3847,7 +3847,7 @@ test('Round 5 demo scene and skip-to-ceremony when fewer than 2 survivors remain
 test('Round 5 renderer draws the player and host arena without throwing', () => {
     const R = loadRenderer();
     assert.equal(typeof R.drawRound5, 'function');
-    assert.equal(R.VERSION, '2.6.0');
+    assert.equal(R.VERSION, '2.6.1');
     const ctx = mockContext({ width: 390, height: 844 });
     R.drawRound5(ctx, {
         w: 390, h: 844, hud: 80, role: 'player', now: 1200,
@@ -3949,4 +3949,148 @@ test('Round 5 music/HUD wiring treats round5 as a gameplay round', () => {
     assert.ok(html.indexOf('ps-round5-card') !== -1);
     assert.ok(html.indexOf('ps-finals-duration') !== -1);
     assert.ok(html.indexOf('ps-ink-cover') !== -1);
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 5 finals UI: no long rule, lobby rules kept                  */
+/* ---------------------------------------------------------------- */
+
+test('Round 5 finals hides the long in-game rule for students AND the teacher / projector', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], currentUser: null });
+    ['student', 'teacher'].forEach(role => {
+        dom.PS.startDemo({ role: role, scene: 'round5' });
+        assert.equal(dom.PS.state().room.status, 'round5');
+        const rule = dom.el('ps-hud-rule');
+        assert.ok(rule.textContent === '' || rule.classList.contains('hidden'),
+            'the long Round 5 rule is hidden for the ' + role);
+        const label = String(dom.el('ps-hud-round').textContent || '');
+        assert.ok(label.indexOf('ROUND 5') !== -1, 'the short status pill stays for the ' + role);
+    });
+
+    const client = fs.readFileSync(MAIN_PATH, 'utf8');
+    const start = client.indexOf('const studentR4');
+    const end = client.indexOf('const alive =', start);
+    assert.ok(start !== -1 && end > start, 'the HUD rule block is found');
+    const block = client.slice(start, end);
+    assert.ok(block.indexOf('const hideRule = isR5 || studentR4;') !== -1,
+        'round 5 hides the rule for every role');
+    assert.ok(block.indexOf("ruleEl.classList.toggle('hidden', hideRule)") !== -1);
+    assert.equal(block.indexOf('RULE_TEXT.round5'), -1,
+        'the in-game HUD no longer fills the long round 5 paragraph');
+
+    /* The finals prompts / ink cover / ghost revival copy must stay. */
+    assert.ok(client.indexOf("ps-ink-cover") !== -1 || client.indexOf('inkCover') !== -1);
+    assert.ok(client.indexOf('finals_questions') !== -1);
+});
+
+test('the waiting lobby still carries the full Round 5 rules and the Show rules cards', () => {
+    assert.equal(typeof PS.RULE_TEXT.round5, 'string');
+    assert.ok(PS.RULE_TEXT.round5.length > 120, 'the English Round 5 rules are still present');
+    assert.ok(PS.RULE_TEXT.round5.indexOf('Grammar Finals') !== -1);
+    assert.equal(typeof PS.RULE_TEXT_ZH.round5, 'string');
+    assert.ok(PS.RULE_TEXT_ZH.round5.length > 60, 'the Chinese Round 5 rules are still present');
+
+    const client = fs.readFileSync(MAIN_PATH, 'utf8');
+    assert.ok(client.indexOf('ps-cine-rule') !== -1, 'the lobby still writes the ps-cine-rule cards');
+    assert.ok(client.indexOf("'Show rules'") !== -1, 'the host Show rules toggle stays');
+
+    const dom = loadMainWithDom({ sheetNames: ['Food'], currentUser: null });
+    dom.PS.startDemo({ role: 'teacher', scene: 'lobby' });
+    dom.PS.setDemoSettings({ roundCount: 5 });
+    const howto = dom.el('ps-cine-howto');
+    assert.ok(String(howto.innerHTML).indexOf('ps-cine-rule5-en') !== -1,
+        'the collapsed lobby panel has the Round 5 English card');
+    assert.ok(String(howto.innerHTML).indexOf('ps-cine-rule5-zh') !== -1,
+        'the collapsed lobby panel has the Round 5 Chinese card');
+    assert.ok(String(howto.innerHTML).indexOf('Grammar Finals') !== -1);
+    const toggle = dom.el('ps-rules-toggle');
+    assert.equal(toggle.classList.contains('hidden'), false, 'the teacher can still open the rules');
+    assert.equal(toggle.textContent, 'Show rules');
+    dom.PS.toggleLobbyRules(true);
+    assert.equal(dom.el('ps-cine-howto').classList.contains('hidden'), false,
+        'opening Show rules reveals the full cards');
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 1 teacher/projector +1px typography                          */
+/* ---------------------------------------------------------------- */
+
+test('teacher Round 1 gets ps-r1-host with +1px text; the student view is unchanged', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food'], currentUser: null });
+    const view = dom.el('purrfect-survival-view');
+
+    dom.PS.startDemo({ role: 'teacher', scene: 'round1' });
+    assert.equal(dom.PS.state().room.status, 'round1');
+    assert.equal(view.classList.contains('ps-r1-host'), true, 'teacher round 1 adds ps-r1-host');
+
+    dom.PS.startDemo({ role: 'student', scene: 'round1' });
+    assert.equal(dom.PS.state().room.status, 'round1');
+    assert.equal(view.classList.contains('ps-r1-host'), false, 'student round 1 has no ps-r1-host');
+
+    dom.PS.startDemo({ role: 'teacher', scene: 'round2' });
+    assert.equal(view.classList.contains('ps-r1-host'), false, 'ps-r1-host is Round 1 only');
+
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-badge {') === -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-alive,') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-rule { font-size: 11.5px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-host-btn,') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-title { font-size: 11.5px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-count { font-size: 10.5px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 11px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 11px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-status { font-size: 9.5px; }') !== -1);
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 10px; }') !== -1,
+        'the landscape override is +1 too (9 + 1)');
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-detail { font-size: 9.5px; }') !== -1,
+        'the landscape detail override is +1 too (8.5 + 1)');
+    assert.ok(html.indexOf('#purrfect-survival-view.ps-r1-host .ps-progress-row { font-size: 9.5px; }') !== -1,
+        'the short-landscape row override is +1 too (8.5 + 1)');
+
+    /* Every +1 rule is scoped to the id, so students can never match it. */
+    html.split('\n').filter(line => /\.ps-r1-host\s*[{,]/.test(line)).forEach(line => {
+        assert.ok(line.trim().indexOf('#purrfect-survival-view.ps-r1-host') === 0,
+            'unscoped ps-r1-host selector: ' + line.trim());
+    });
+
+    /* The base (student) sizes are untouched. */
+    assert.ok(html.indexOf('font-size: 11.5px;\n            font-weight: 800;\n            letter-spacing: .04em;') !== -1,
+        'the base HUD chip size is still 11.5px');
+
+    const render = fs.readFileSync(RENDER_PATH, 'utf8');
+    const bumpCount = (render.match(/\+ \(L\.host \? 1 : 0\)/g) || []).length;
+    assert.ok(bumpCount >= 3, 'host canvas text is +1px in the title, name pills and metre marks');
+    assert.ok(render.indexOf('const titleSize = Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027)));') !== -1);
+});
+
+/* ---------------------------------------------------------------- */
+/* Round 2 / Round 3 teacher glass + tug camera                       */
+/* ---------------------------------------------------------------- */
+
+test('host glass/tug cameras are wider and still overhead of the students', () => {
+    const host = RENDERER.layout(1280, 720, 'host');
+    const player = RENDERER.layout(1280, 720, 'player');
+    ['cam2', 'cam3'].forEach(key => {
+        assert.ok(host[key].fov < 58, key + ' landscape host fov is tighter than the old 58');
+        assert.ok(host[key].fov < player[key].fov, key + ' host fov is tighter than the student fov');
+        assert.ok(host[key].eye[0] < 0, key + ' landscape host eye shifts left');
+        assert.ok(host[key].target[0] < 0, key + ' landscape host target shifts left');
+        assert.ok(host[key].eye[1] > player[key].eye[1], key + ' host stays overhead in landscape');
+    });
+
+    const portraitHost = RENDERER.layout(390, 844, 'host');
+    const portraitPlayer = RENDERER.layout(390, 844, 'player');
+    ['cam2', 'cam3'].forEach(key => {
+        assert.ok(portraitHost[key].eye[1] > portraitPlayer[key].eye[1],
+            key + ' host stays overhead in portrait');
+        assert.ok(portraitHost[key].fov <= 60, key + ' portrait host fov is tighter / unchanged');
+    });
+    assert.ok(portraitHost.cam2.eye[2] > -4.4, 'portrait host cam2 is slightly closer');
+    assert.ok(portraitHost.cam3.eye[2] > -5.0, 'portrait host cam3 is slightly closer');
+
+    /* Side-list width is untouched by this change. */
+    const html = fs.readFileSync(INDEX_PATH, 'utf8');
+    assert.ok(html.indexOf('width: min(310px, 30vw);') !== -1, 'base .ps-progress width unchanged');
+    assert.ok(html.indexOf('width: min(280px, 26vw);') !== -1, 'landscape .ps-progress width unchanged');
+    assert.ok(html.indexOf('width: min(230px, 24vw);') !== -1, 'short-landscape .ps-progress width unchanged');
 });

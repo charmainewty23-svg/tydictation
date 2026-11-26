@@ -37,7 +37,7 @@
 
     const R = {};
 
-    R.VERSION = '2.6.0';
+    R.VERSION = '2.6.1';
 
     /* ================================================================== */
     /* Small maths / colour helpers                                       */
@@ -719,11 +719,11 @@
             ? { startZ: 0.8, finishZ: 9.95, dollZ: 10.2 }
             : { startZ: 5.0, finishZ: 9.8, dollZ: 10.15 };
         const hostCam2 = landscape
-            ? { eye: [0, 11.0, -9.0], target: [0, 0.0, 7.6], fov: 58 }
-            : { eye: [0, 8.4, -4.4], target: [0, 0.0, 7.6], fov: 64 };
+            ? { eye: [-1.4, 10.6, -8.6], target: [-1.4, 0.0, 7.6], fov: 54 }
+            : { eye: [0, 8.0, -4.0], target: [0, 0.0, 7.6], fov: 60 };
         const hostCam3 = landscape
-            ? { eye: [0, 11.0, -8.0], target: [0, 0.4, 5.8], fov: 58 }
-            : { eye: [0, 8.4, -5.0], target: [0, 0.4, 5.8], fov: 60 };
+            ? { eye: [-1.4, 10.6, -7.6], target: [-1.4, 0.4, 5.8], fov: 54 }
+            : { eye: [0, 8.0, -4.6], target: [0, 0.4, 5.8], fov: 56 };
         return {
             w: width,
             h: height,
@@ -1822,7 +1822,7 @@
                 { stroke: m === 0 ? 'rgba(255,255,255,.55)' : 'rgba(120,88,44,.28)', lineWidth: m === 0 ? 2 : 1, dash: m === 0 ? null : [6, 8] });
             if (m % 20 === 0) {
                 const lp = project(cam, pg.wide ? -5.9 : -3.2, 0.28, z);
-                if (lp) pill(ctx, lp.x, lp.y, m + ' m', { size: Math.max(8, Math.min(12, lp.s * 0.16)), align: 'right' });
+                if (lp) pill(ctx, lp.x, lp.y, m + ' m', { size: Math.max(8, Math.min(12, lp.s * 0.16)) + (L.host ? 1 : 0), align: 'right' });
             }
         }
         // checkered finish strip
@@ -1958,8 +1958,11 @@
         drawLight(ctx, L, s, cam);
 
         ctx.save();
+        /* Teacher / projector Round 1 text is 1px larger (the student
+           camera and typography are unchanged). */
+        const titleSize = Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027)));
         pill(ctx, 14, L.hud + 16, '1-2-3 Meow! · RED LIGHT, GREEN LIGHT', {
-            size: Math.max(9, Math.min(13, L.w * (L.landscape ? 0.011 : 0.027))), align: 'left'
+            size: titleSize + (L.host ? 1 : 0), align: 'left'
         });
         ctx.restore();
     };
@@ -2052,7 +2055,7 @@
                 if (name) {
                     const rank = rankOf[pid];
                     const label = (rank ? rank + ' · ' : '') + name;
-                    const fs = Math.max(7, Math.min(12, anchor.scale * 15));
+                    const fs = Math.max(7, Math.min(12, anchor.scale * 15)) + (L.host ? 1 : 0);
                     pill(ctx, anchor.x, anchor.y - (isMe ? 152 : 140) * anchor.scale - 5, label, {
                         size: fs,
                         bg: isMe ? 'rgba(120,80,0,.8)' : 'rgba(8,12,24,.55)',

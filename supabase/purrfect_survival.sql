@@ -446,9 +446,12 @@ begin
     while v_i > 0 loop
         v_a := (v_a + 1831565813) & 4294967295;
         v_t := (v_a # (v_a >> 15)) & 4294967295;
-        v_t := (v_t * ((1 | v_a) & 4294967295)) & 4294967295;
+        -- uint32 multiply: the raw product can exceed signed bigint, so wrap it
+        -- with numeric modulo 2^32 before casting back to bigint.
+        v_t := mod(v_t::numeric * ((1 | v_a) & 4294967295)::numeric, 4294967296)::bigint;
         v_u := (v_t # (v_t >> 7)) & 4294967295;
-        v_u := (v_u * ((61 | v_t) & 4294967295)) & 4294967295;
+        -- uint32 multiply: same overflow guard as above.
+        v_u := mod(v_u::numeric * ((61 | v_t) & 4294967295)::numeric, 4294967296)::bigint;
         v_t := ((v_t + v_u) & 4294967295) # v_t;
         v_j := floor(
             ((((v_t # (v_t >> 14)) & 4294967295)::double precision) / 4294967296.0)

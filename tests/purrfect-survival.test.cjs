@@ -2771,6 +2771,85 @@ test('round-2 answer/order SQL is a safe teacher-run incremental', () => {
     assert.equal(fs.readFileSync(copy, 'utf8'), sql, 'workspace copy matches the repo incremental');
 });
 
+function glassOrderBody(sql) {
+    const start = sql.indexOf('create or replace function public.purrfect_survival_glass_order');
+    assert.ok(start !== -1, 'glass_order function exists');
+    const end = sql.indexOf('$$;', start);
+    assert.ok(end > start, 'glass_order function body ends');
+    return sql.slice(start, end);
+}
+
+const UNSAFE_GLASS_T = 'v_t := (v_t * ((1 | v_a) & 4294967295)) & 4294967295;';
+const UNSAFE_GLASS_U = 'v_u := (v_u * ((61 | v_t) & 4294967295)) & 4294967295;';
+
+test('the glass-order bigint incremental is a safe teacher-run fix', () => {
+    const file = path.join(__dirname, '..', 'supabase', 'purrfect_survival_glass_order_bigint.sql');
+    assert.ok(fs.existsSync(file), 'incremental SQL file exists');
+    const sql = fs.readFileSync(file, 'utf8');
+    assert.ok(sql.indexOf('https://supabase.com/dashboard/project/mggnwzirjmibreimrwiq/sql/new') !== -1, 'live project URL');
+    assert.ok(/Clear the editor/i.test(sql), 'tells the teacher to clear the editor');
+    assert.ok(/Safe to re-run/i.test(sql), 'safe to re-run');
+    assert.ok(/Do NOT re-run older incrementals/i.test(sql), 'tells the teacher not to re-run older files');
+    assert.ok(/plugin, CLI or agent/i.test(sql), 'never run via a plugin');
+    assert.ok(/round2_answers\.sql/i.test(sql), 'says to run after round2-answers');
+    assert.ok(/Dalgona/i.test(sql), 'says to run after the Dalgona file');
+    assert.ok(sql.indexOf('purrfect_survival_glass_order') !== -1, 'replaces the glass order function');
+    assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1, 'notifies PostgREST');
+
+    assert.ok(sql.indexOf(UNSAFE_GLASS_T) === -1, 'no unsafe v_t multiply');
+    assert.ok(sql.indexOf(UNSAFE_GLASS_U) === -1, 'no unsafe v_u multiply');
+    assert.ok(sql.indexOf('mod(v_t::numeric * ((1 | v_a) & 4294967295)::numeric, 4294967296)::bigint') !== -1,
+        'v_t multiply wraps with numeric modulo');
+    assert.ok(sql.indexOf('mod(v_u::numeric * ((61 | v_t) & 4294967295)::numeric, 4294967296)::bigint') !== -1,
+        'v_u multiply wraps with numeric modulo');
+    assert.ok((sql.match(/mod\(/g) || []).length >= 2, 'both multiplies use mod');
+    assert.ok((sql.match(/numeric/g) || []).length >= 2, 'both multiplies use numeric');
+    assert.ok((sql.match(/4294967296/g) || []).length >= 2, 'both multiplies wrap at 2^32');
+});
+
+test('canonical glass-order SQL uses the safe multiplies and the workspace copy matches', () => {
+    const canonical = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'purrfect_survival.sql'), 'utf8');
+    const body = glassOrderBody(canonical);
+    assert.ok(body.indexOf(UNSAFE_GLASS_T) === -1, 'canonical has no unsafe v_t multiply');
+    assert.ok(body.indexOf(UNSAFE_GLASS_U) === -1, 'canonical has no unsafe v_u multiply');
+    assert.ok(body.indexOf('mod(v_t::numeric * ((1 | v_a) & 4294967295)::numeric, 4294967296)::bigint') !== -1,
+        'canonical v_t multiply wraps with numeric modulo');
+    assert.ok(body.indexOf('mod(v_u::numeric * ((61 | v_t) & 4294967295)::numeric, 4294967296)::bigint') !== -1,
+        'canonical v_u multiply wraps with numeric modulo');
+
+    const repo = path.join(__dirname, '..', 'supabase', 'purrfect_survival_glass_order_bigint.sql');
+    const copy = '/workspace/purrfect_survival_glass_order_bigint.sql';
+    assert.ok(fs.existsSync(copy), 'workspace copy exists');
+    assert.equal(fs.readFileSync(copy, 'utf8'), fs.readFileSync(repo, 'utf8'),
+        'workspace copy matches the repo incremental byte-for-byte');
+});
+
+test('the documented seed really overflows a signed bigint before the uint32 mask', () => {
+    const text = '1|00000000-0000-0000-0000-000000000001|glass';
+    const MASK = 0xFFFFFFFFn;
+    const MAX_BIGINT = 9223372036854775807n;
+    let hash = 2166136261n;
+    for (let i = 0; i < text.length; i++) {
+        hash = ((hash ^ BigInt(text.charCodeAt(i))) * 16777619n) & MASK;
+    }
+    let a = hash;
+    let overflow = null;
+    for (let i = 8; i > 0; i--) {
+        a = (a + 1831565813n) & MASK;
+        const t = (a ^ (a >> 15n)) & MASK;
+        const tProduct = t * ((1n | a) & MASK);
+        const tMasked = tProduct & MASK;
+        const u = (tMasked ^ (tMasked >> 7n)) & MASK;
+        const uProduct = u * ((61n | tMasked) & MASK);
+        if (!overflow) {
+            if (tProduct > MAX_BIGINT) overflow = { step: i, kind: 't', product: tProduct };
+            else if (uProduct > MAX_BIGINT) overflow = { step: i, kind: 'u', product: uProduct };
+        }
+    }
+    assert.ok(overflow, 'at least one raw product exceeds signed bigint');
+    assert.ok(overflow.product > MAX_BIGINT, 'the raw product is bigger than 2^63-1');
+});
+
 /* ---------------------------------------------------------------- */
 /* Round 4 — Dalgona Candy Carving                                  */
 /* ---------------------------------------------------------------- */

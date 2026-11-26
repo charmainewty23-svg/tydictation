@@ -3892,3 +3892,20 @@ where user_id = '3c922ca5-ab23-4a2b-8d05-22bcf4f0ae60';
   `PS.VERSION`／`PSRender.VERSION` 不變。`sw.js` `CACHE_NAME` 升到
   **`learnity-pwa-v114`**。
 
+### 10.18i Teacher 展示／收起 lobby rules（2026-11 加）
+
+- 保留 10.18h 嘅短 chips、room code、player list、Start 同短 `#ps-room-meta`。
+- 老師／host（live `isHost()`，包括落場做玩家嘅 host；官方 demo 嘅
+  teacher／projector）多一個 `#ps-rules-toggle` 掣：收起時寫 **展示規則**，
+  打開時寫 **收起規則**。學生電話冇掣，長規則亦一定保持收起。
+- 完整雙語規則喺 `#ps-cine-howto`，由 `paintCineHowto()` 用原本
+  `PSEngine.RULE_TEXT`／`RULE_TEXT_ZH` 填（只出已揀回合，1–4），
+  標題照舊 `1-2-3 Meow!`／`Glass Stepping Stones`／`Tug of War`／
+  `Dalgona Candy Carving`。**預設 hidden**；面板自己 scroll
+  （`max-height`＋`overflow-y:auto`），唔會推走 Start／player list。
+- 狀態係 client-only（`PS.toggleLobbyRules()`／`PS.lobbyRulesOpen()`）；
+  `renderWaiting()` 唔會每次 poll 重設，離開房／重新入 waiting 才回預設收起。
+- **冇新 SQL／room column／RPC 改動**。`PS.VERSION`（`1.3.0`）同
+  `R.VERSION`（`2.5.2`）不變。`sw.js` `CACHE_NAME` 升到
+  **`learnity-pwa-v115`**。
+

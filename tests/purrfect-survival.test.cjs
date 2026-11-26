@@ -234,6 +234,8 @@ function loadMainWithDom(options) {
     add('ps-code-chip', 'div');
     add('ps-room-meta', 'div');
     add('ps-cine-rules', 'div');
+    add('ps-rules-toggle', 'button').classList.add('hidden');
+    add('ps-cine-howto', 'div').classList.add('hidden');
     add('ps-player-list', 'div');
     add('ps-start-btn', 'button');
     add('ps-wait-msg', 'p');
@@ -1015,6 +1017,70 @@ test('3-round and 4-round waiting lobbies use compact chips, not rule paragraphs
     assert.ok(student.el('ps-code').textContent === 'DEMO', 'student still sees the room code');
 });
 
+test('teacher lobby keeps the full bilingual rule set inside the howto panel', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'teacher', scene: 'lobby' });
+
+    dom.PS.setDemoSettings({ roundCount: 3 });
+    const three = dom.el('ps-cine-howto').innerHTML;
+    assert.ok(three.indexOf('Pressing in red costs 30 m') !== -1, '3-round panel has the R1 rule');
+    assert.ok(three.indexOf('lights the correct pane') !== -1, '3-round panel has the R2 rule');
+    assert.ok(three.indexOf('losing team falls into the abyss') !== -1, '3-round panel has the Tug rule');
+    assert.equal(three.indexOf('One lick per player'), -1, '3 rounds has no Dalgona rule');
+    assert.ok(three.indexOf('紅燈時撳會扣 30 米') !== -1, '3-round panel keeps the Chinese R1 copy');
+    assert.equal(three.indexOf('舔一口椪糖'), -1, '3 rounds has no Chinese Dalgona copy');
+    assert.ok(three.indexOf('Tug of War') !== -1, 'Tug title is present');
+    assert.equal(three.indexOf('Dalgona Candy Carving'), -1, 'Dalgona title is absent');
+
+    dom.PS.setDemoSettings({ roundCount: 4 });
+    const four = dom.el('ps-cine-howto').innerHTML;
+    assert.ok(four.indexOf('One lick per player') !== -1, '4-round panel has the Dalgona rule');
+    assert.ok(four.indexOf('舔一口椪糖') !== -1, '4-round panel keeps the Chinese Dalgona copy');
+    assert.ok(four.indexOf('Tug of War') !== -1, '4-round panel still has Tug');
+    assert.ok(four.indexOf('Dalgona Candy Carving') !== -1, '4-round panel has Dalgona');
+});
+
+test('teacher rules panel starts hidden and host can show or hide it', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'teacher', scene: 'lobby' });
+    dom.PS.setDemoSettings({ roundCount: 4 });
+
+    const panel = dom.el('ps-cine-howto');
+    const button = dom.el('ps-rules-toggle');
+    assert.ok(panel.classList.contains('hidden'), 'full rules start hidden');
+    assert.ok(!button.classList.contains('hidden'), 'the host sees the toggle');
+    assert.ok(button.textContent.indexOf('展示') !== -1, 'collapsed label tells the host to show the rules');
+    assert.equal(dom.PS.lobbyRulesOpen(), false);
+    assert.ok(dom.el('ps-cine-rules').innerHTML.indexOf('Dalgona') !== -1, 'short chips stay visible');
+
+    assert.equal(dom.PS.toggleLobbyRules(), true);
+    assert.ok(!panel.classList.contains('hidden'), 'panel opens on toggle');
+    assert.ok(panel.innerHTML.indexOf('Pressing in red costs 30 m') !== -1, 'opened panel has the full R1 rule');
+    assert.ok(panel.innerHTML.indexOf('舔一口椪糖') !== -1, 'opened panel has the Chinese Dalgona rule');
+    assert.ok(button.textContent.indexOf('收起') !== -1, 'open label tells the host to hide the rules');
+
+    assert.equal(dom.PS.toggleLobbyRules(), false);
+    assert.ok(panel.classList.contains('hidden'), 'panel hides on the second toggle');
+    assert.ok(button.textContent.indexOf('展示') !== -1, 'collapsed label is restored');
+});
+
+test('students get no rules toggle and stay on the compact lobby', () => {
+    const dom = loadMainWithDom({ sheetNames: ['Food', 'School'], currentUser: null });
+    dom.PS.startDemo({ role: 'student', scene: 'lobby' });
+    dom.PS.setDemoSettings({ roundCount: 4 });
+
+    assert.ok(dom.el('ps-rules-toggle').classList.contains('hidden'), 'no toggle on student phones');
+    assert.ok(dom.el('ps-cine-howto').classList.contains('hidden'), 'long rules stay hidden for students');
+    assert.equal(dom.PS.toggleLobbyRules(), false, 'students cannot open the rules');
+    assert.ok(dom.el('ps-cine-howto').classList.contains('hidden'), 'still hidden after a blocked toggle');
+    const chips = dom.el('ps-cine-rules').innerHTML;
+    ['1-2-3 Meow', 'Glass', 'Tug', 'Dalgona'].forEach(name => {
+        assert.ok(chips.indexOf(name) !== -1, 'student still sees the ' + name + ' chip');
+    });
+    assert.ok(dom.el('ps-code').textContent === 'DEMO', 'student still sees the room code');
+    assert.ok(dom.el('ps-start-btn').classList.contains('hidden'), 'students do not get Start');
+});
+
 /* 3D renderer: exports, drawing safety and original artwork         */
 /* ---------------------------------------------------------------- */
 
@@ -1184,13 +1250,15 @@ test('the waiting room goes full-stage with the live canvas and keeps the Start 
     assert.ok(src.indexOf('showRoundCue') !== -1, 'a non-blocking round cue exists');
 });
 
-test('index.html hosts the cinematic waiting overlay, compact round chips and skip control', () => {
+test('index.html hosts the cinematic waiting overlay, compact round chips and host rules toggle', () => {
     const html = fs.readFileSync(INDEX_PATH, 'utf8');
-    ['ps-cine', 'ps-cine-rules', 'ps-intro-skip', 'ps-round-cue', 'ps-player-list', 'ps-start-btn']
+    ['ps-cine', 'ps-cine-rules', 'ps-rules-toggle', 'ps-cine-howto', 'ps-intro-skip',
+        'ps-round-cue', 'ps-player-list', 'ps-start-btn']
         .forEach(id => assert.ok(html.indexOf('id="' + id + '"') !== -1, id + ' exists'));
     assert.ok(html.indexOf('Skip intro') !== -1, 'a discreet skip control exists');
-    assert.equal(html.indexOf('id="ps-cine-rule1"'), -1, 'the long rule cards are gone');
-    assert.equal(html.indexOf('id="ps-cine-rule1-zh"'), -1, 'the bilingual rule cards are gone');
+    assert.ok(html.indexOf('PS.toggleLobbyRules()') !== -1, 'the host toggle is wired to PS.toggleLobbyRules()');
+    assert.ok(html.indexOf('展示規則') !== -1, 'the collapsed label reads 展示規則');
+    assert.ok(html.indexOf('ps-cine-howto hidden') !== -1, 'the full rules panel starts hidden');
     assert.ok(html.indexOf('1-2-3 Meow!') !== -1, 'Round 1 uses the official 1-2-3 Meow! title');
     assert.equal(html.indexOf('玻璃橋'), -1, 'the Chinese bridge title is gone');
     assert.equal(html.indexOf('貓咪拔河大賽'), -1, 'the Chinese tug title is gone');
@@ -1616,9 +1684,10 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
     assert.ok(canonical.indexOf('ROUNDS_NOT_IMPLEMENTED') !== -1, 'canonical SQL rejects rounds 3–5');
 });
 
-test('service worker cache is bumped for the compact lobby', () => {
+test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v114") !== -1, 'CACHE_NAME is v114');
+    assert.ok(sw.indexOf("learnity-pwa-v115") !== -1, 'CACHE_NAME is v115');
+    assert.equal(sw.indexOf("learnity-pwa-v114"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v113"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v112"), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v111"), -1, 'the old cache name is gone');
@@ -3038,7 +3107,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v114') !== -1, 'cache is v114');
+    assert.ok(sw.indexOf('learnity-pwa-v115') !== -1, 'cache is v115');
+    assert.equal(sw.indexOf('learnity-pwa-v114'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v113'), -1, 'the old cache name is gone');
     const assets = sw.slice(sw.indexOf('const CORE_ASSETS'), sw.indexOf('];', sw.indexOf('const CORE_ASSETS')));
     assert.equal(/\.mp3/.test(assets), false, 'no mp3 in CORE_ASSETS');

@@ -4313,6 +4313,73 @@
             font-size: 11px;
             font-weight: 700;
         }
+        .ps-rules-toggle {
+            min-height: 40px;
+            padding: 0 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(251, 191, 36, .55);
+            background: rgba(8, 12, 24, .82);
+            color: #fde68a;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .04em;
+            cursor: pointer;
+        }
+        .ps-rules-toggle.hidden { display: none; }
+        .ps-rules-toggle:hover { background: rgba(251, 191, 36, .16); }
+        .ps-cine-howto {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            max-width: 760px;
+            max-height: min(44vh, 320px);
+            margin: 0 auto;
+            padding: 2px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        .ps-cine-howto.hidden { display: none; }
+        .ps-rule-card {
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(9, 13, 24, .9);
+            border: 1px solid rgba(255, 255, 255, .16);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
+        }
+        .ps-rule-card h3 {
+            margin: 0 0 5px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            color: #fdf2f8;
+        }
+        .ps-rule-tag {
+            display: inline-block;
+            margin-right: 6px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(236, 72, 153, .28);
+            color: #fbcfe8;
+            font-size: 9px;
+            letter-spacing: .12em;
+        }
+        .ps-rule-en {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.42;
+            color: #e2e8f0;
+        }
+        .ps-rule-zh {
+            margin: 4px 0 0;
+            font-size: 11.5px;
+            font-weight: 600;
+            line-height: 1.5;
+            color: #f5d0e4;
+        }
         .ps-cine-bottom {
             margin-top: auto;
             display: flex;
@@ -4417,11 +4484,19 @@
             .ps-cine .ps-player-list,
             .ps-cine .ps-wait-note { justify-content: flex-start; text-align: left; }
             .ps-cine .ps-wait-actions { justify-content: flex-start; }
+            .ps-cine-howto { max-height: min(50vh, 340px); }
+            .ps-rule-en { font-size: 11px; }
+            .ps-rule-zh { font-size: 10.5px; }
         }
         @media (max-height: 560px) and (orientation: landscape) {
             .ps-cine { gap: 6px; padding: 6px 10px; }
             .ps-cine-code { font-size: 19px; }
             .ps-cine-kicker { display: none; }
+            .ps-cine-howto { max-height: 44vh; }
+            .ps-rule-card { padding: 7px 9px; }
+            .ps-rule-card h3 { font-size: 11.5px; margin-bottom: 3px; }
+            .ps-rule-en { font-size: 10.5px; line-height: 1.32; }
+            .ps-rule-zh { font-size: 10px; line-height: 1.4; margin-top: 2px; }
             .ps-round-chip { padding: 5px 10px; font-size: 11px; }
             .ps-round-chip-note { font-size: 10px; }
             .ps-cine .ps-player-list { max-height: 58px; }
@@ -6468,6 +6543,8 @@
                                 <div class="ps-cine-mid">
                                     <p id="ps-room-meta" class="ps-cine-meta"></p>
                                     <div id="ps-cine-rules" class="ps-cine-rules" aria-label="Rounds in this room"></div>
+                                    <button id="ps-rules-toggle" type="button" class="ps-rules-toggle hidden" onclick="PS.toggleLobbyRules()" aria-expanded="false" aria-controls="ps-cine-howto">展示規則</button>
+                                    <div id="ps-cine-howto" class="ps-cine-howto hidden" aria-label="Full rules for this room"></div>
                                 </div>
 
                                 <div class="ps-cine-bottom">

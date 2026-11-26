@@ -3350,7 +3350,7 @@ begin
           and is_playing
           and glass_active
           and glass_started_at is not null
-          and v_now - glass_started_at >= interval '5 seconds';
+          and v_now - glass_started_at >= interval '7 seconds';
 
         if v_room.round2_ends_at is not null and v_now >= v_room.round2_ends_at then
             update public.purrfect_survival_players
@@ -4961,7 +4961,7 @@ begin
           and is_playing
           and glass_active
           and glass_started_at is not null
-          and v_now - glass_started_at >= interval '5 seconds';
+          and v_now - glass_started_at >= interval '7 seconds';
 
         if v_room.round2_ends_at is not null and v_now >= v_room.round2_ends_at then
             update public.purrfect_survival_players

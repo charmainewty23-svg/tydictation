@@ -3907,7 +3907,13 @@ test('Round 5 SQL incremental is safe, teacher-run and mirrors the engine rules'
     assert.ok(sql.indexOf('v_survivors < 2') !== -1, 'skips the finals when fewer than 2 survivors remain');
     assert.ok(/make_interval\(secs => \(v_duration \/ 1000\.0\)/.test(sql), 'default 120 s uses make_interval');
     assert.ok(sql.indexOf('interval \'1.5 seconds\'') !== -1, 'ink lasts 1500 ms');
-    assert.ok(sql.indexOf("interval '5 seconds'") !== -1, 'glass thinking time is still 5 seconds');
+    assert.ok(/v_now - glass_started_at >= interval '7 seconds'/.test(sql), 'tick keeps the 7-second glass window');
+    assert.ok(/now\(\) - v_player\.glass_started_at >= interval '7 seconds'/.test(sql),
+        'glass_jump keeps the 7-second window');
+    assert.equal(/glass_started_at[^\n]*interval '5 seconds'/.test(sql), false,
+        'pasting this file will not revert glass to 5 seconds');
+    assert.ok(sql.indexOf('create or replace function public.glass_jump_purrfect_survival') !== -1,
+        'single paste also replaces glass_jump');
     assert.ok(sql.indexOf('return least(5, greatest(1, v_raw::int))') !== -1, 'round count max is 5');
     assert.ok(sql.indexOf("if v_room.status = 'round5' then") !== -1, 'end round handles round 5');
     assert.ok(sql.indexOf("notify pgrst, 'reload schema';") !== -1);

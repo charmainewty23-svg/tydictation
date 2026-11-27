@@ -265,6 +265,13 @@
             white-space: nowrap;
         }
 
+        .dse-banner-heading {
+            text-decoration-line: underline;
+            text-decoration-color: #fb923c;
+            text-decoration-thickness: 1.5px;
+            text-underline-offset: 0.16em;
+        }
+
         .dse-banner-meta {
             margin: 0;
             font-size: 0.76rem;
@@ -302,11 +309,29 @@
         }
 
         .dse-banner-days {
+            display: inline-block;
             font-size: 1.65rem;
             font-weight: 700;
             line-height: 1;
             letter-spacing: -0.02em;
             color: #c2410c;
+            animation: dse-banner-bounce 2.1s ease-in-out infinite;
+        }
+
+        @keyframes dse-banner-bounce {
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-3px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .dse-banner-days {
+                animation: none;
+            }
         }
 
         .dse-banner-unit {
@@ -324,6 +349,18 @@
             color: #c2410c;
         }
 
+        .dse-banner-kitten {
+            position: absolute;
+            right: 0.55rem;
+            bottom: 0;
+            z-index: 0;
+            width: auto;
+            height: 52px;
+            opacity: 0.55;
+            pointer-events: none;
+            user-select: none;
+        }
+
         @media (max-width: 680px) {
             /* Keep phones free of the faint background star; the two inline ones stay. */
             .dse-banner-star-bg { display: none; }
@@ -332,6 +369,10 @@
         @media (max-width: 480px) {
             /* Stars alone on phone widths, so the bar always stays one slim row. */
             .dse-banner-cheer { display: none; }
+            .dse-banner-kitten {
+                height: 38px;
+                opacity: 0.48;
+            }
         }
 
         @media (max-width: 380px) {
@@ -5894,8 +5935,9 @@
             <div id="hub-view" class="view grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                 <section id="hub-dse-countdown" class="dse-banner md:col-span-2" data-mode="countdown" aria-label="2027 HKDSE English countdown">
                     <svg class="dse-banner-star dse-banner-star-bg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg>
+                    <img class="dse-banner-kitten" src="images/dse-countdown-kitten.png" alt="" aria-hidden="true" width="320" height="512">
                     <div class="dse-banner-left">
-                        <p class="dse-banner-title"><svg class="dse-banner-star dse-banner-star-title" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg>2027 DSE English <span class="dse-banner-cheer">加油</span></p>
+                        <p class="dse-banner-title"><svg class="dse-banner-star dse-banner-star-title" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg><span class="dse-banner-heading">2027 DSE</span> English <span class="dse-banner-cheer">加油</span></p>
                         <p class="dse-banner-meta">Paper 1 &amp; 2 · 9 Apr 2027</p>
                         <p class="dse-banner-meta dse-banner-meta-quiet">Paper 3 · 10 Apr 2027</p>
                     </div>

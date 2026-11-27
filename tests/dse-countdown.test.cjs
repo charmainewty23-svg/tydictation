@@ -240,10 +240,10 @@ test('index.html loads the helper after shared.js and shows both paper dates', (
     assert.match(html, /aria-live="polite"/);
 });
 
-test('service worker v122 precaches the countdown helper and kitten, and v121 is gone', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v122';/);
-    assert.equal(sw.indexOf('learnity-pwa-v121'), -1, 'the old cache name is gone');
-    assert.equal(sw.indexOf('learnity-pwa-v120'), -1, 'the older cache name is gone');
+test('service worker v123 precaches the countdown helper and kitten, and v122 is gone', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v123';/);
+    assert.equal(sw.indexOf('learnity-pwa-v122'), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v121'), -1, 'the older cache name is gone');
     assert.ok(sw.indexOf("'/js/dse-countdown.js'") !== -1, 'the helper is in CORE_ASSETS');
     assert.ok(sw.indexOf("'/images/dse-countdown-kitten.png'") !== -1, 'the kitten is precached');
 });
@@ -310,7 +310,7 @@ test('only the day count bounces, gently and with translateY only', () => {
     assert.match(reduced, /\.dse-banner-days\s*\{[^}]*animation:\s*none;/, 'reduced motion disables the bounce');
 });
 
-test('the kitten is a small, faded, never-animated corner decoration', () => {
+test('the kitten is a small, faded, never-animated gap decoration between the text blocks', () => {
     const banner = bannerHtml();
     const img = banner.match(/<img class="dse-banner-kitten"[^>]*>/);
     assert.ok(img, 'the kitten img is inside the banner');
@@ -320,13 +320,25 @@ test('the kitten is a small, faded, never-animated corner decoration', () => {
     assert.match(img[0], /width="320"/);
     assert.match(img[0], /height="512"/);
 
+    // It sits in-flow BETWEEN the left text block and the right day-count block,
+    // so it can never paint over either cluster's words.
+    const left = banner.indexOf('<div class="dse-banner-left">');
+    const kitten = banner.indexOf('<img class="dse-banner-kitten"');
+    const right = banner.indexOf('<div class="dse-banner-right">');
+    assert.ok(left !== -1, 'left cluster exists');
+    assert.ok(kitten !== -1, 'kitten exists');
+    assert.ok(right !== -1, 'right cluster exists');
+    assert.ok(kitten > left && kitten < right, 'the kitten is the middle flex sibling');
+
     const css = cssRule('.dse-banner-kitten');
-    assert.match(css, /position:\s*absolute;/, 'the kitten does not take layout space');
+    assert.doesNotMatch(css, /position:\s*(?:absolute|fixed);/, 'not pinned to a corner');
+    assert.match(css, /position:\s*(?:relative|static);/, 'the kitten stays in flow');
+    assert.doesNotMatch(css, /(?:^|[\s{;])(?:right|bottom)\s*:/, 'no corner offsets');
+    assert.match(css, /flex:\s*0\s+(?:0|1)\s+auto;/, 'the kitten is a flex sibling');
+    assert.match(css, /align-self:\s*center;/, 'vertically centred in the bar');
     assert.match(css, /pointer-events:\s*none;/, 'the kitten never steals taps');
-    const zIndex = Number(css.match(/z-index:\s*(-?\d+);/)[1]);
-    assert.ok(zIndex <= 0, 'the kitten sits below the z-index: 1 text');
+    assert.match(css, /user-select:\s*none;/, 'the kitten is not selectable');
     assert.match(css, /width:\s*auto;/, 'width follows the aspect ratio');
-    assert.match(css, /bottom:/, 'pinned to the bottom edge');
     assert.doesNotMatch(css, /animation\s*:/, 'the kitten is not animated');
     assert.doesNotMatch(css, /padding|margin/, 'the kitten adds no spacing to the bar');
 
@@ -334,14 +346,21 @@ test('the kitten is a small, faded, never-animated corner decoration', () => {
     assert.ok(opacity > 0 && opacity < 1, 'slightly faded: ' + opacity);
 
     const desktopHeight = Number(css.match(/height:\s*(\d+)px;/)[1]);
-    assert.ok(desktopHeight >= 44 && desktopHeight <= 56, 'modest desktop height: ' + desktopHeight + 'px');
+    assert.ok(desktopHeight >= 44 && desktopHeight <= 52, 'modest desktop height: ' + desktopHeight + 'px');
 
     const phone = mediaContaining('(max-width: 480px)', '.dse-banner-kitten');
     const phoneRule = phone.match(/\.dse-banner-kitten\s*\{([^}]*)\}/);
     assert.ok(phoneRule, 'phones get a smaller kitten');
     const phoneHeight = Number(phoneRule[1].match(/height:\s*(\d+)px;/)[1]);
     assert.ok(phoneHeight < desktopHeight, 'phone kitten is smaller');
-    assert.ok(phoneHeight >= 30 && phoneHeight <= 44, 'phone height stays modest: ' + phoneHeight + 'px');
+    assert.ok(phoneHeight >= 28 && phoneHeight <= 34, 'phone height stays modest: ' + phoneHeight + 'px');
+
+    const narrow = mediaContaining('(max-width: 380px)', '.dse-banner-kitten');
+    const narrowRule = narrow.match(/\.dse-banner-kitten\s*\{([^}]*)\}/);
+    assert.ok(narrowRule, 'very narrow phones shrink the kitten again');
+    const narrowHeight = Number(narrowRule[1].match(/height:\s*(\d+)px;/)[1]);
+    assert.ok(narrowHeight < phoneHeight, 'very narrow kitten is smaller still: ' + narrowHeight + 'px');
+    assert.ok(narrowHeight >= 24 && narrowHeight <= 28, 'very narrow height stays tiny: ' + narrowHeight + 'px');
 });
 
 test('「加油」 is still hidden on narrow phone widths', () => {

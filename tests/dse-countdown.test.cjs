@@ -29,6 +29,50 @@ function loadDse() {
 
 const dse = loadDse();
 
+function bannerHtml() {
+    const start = html.indexOf('id="hub-dse-countdown"');
+    assert.ok(start !== -1, '#hub-dse-countdown exists');
+    return html.slice(start, html.indexOf('</section>', start));
+}
+
+// The CSS rule body for a single selector, from "selector {" to its own "}".
+function cssRule(selector) {
+    const start = html.indexOf(selector + ' {');
+    assert.ok(start !== -1, selector + ' rule exists');
+    const end = html.indexOf('}', start);
+    assert.ok(end > start, selector + ' rule closes');
+    return html.slice(start, end + 1);
+}
+
+// Brace-counted block starting at or after startIndex (handles nesting).
+function cssBlock(startIndex) {
+    const open = html.indexOf('{', startIndex);
+    assert.ok(open !== -1, 'block opens');
+    let depth = 0;
+    for (let i = open; i < html.length; i += 1) {
+        if (html[i] === '{') {
+            depth += 1;
+        } else if (html[i] === '}') {
+            depth -= 1;
+            if (depth === 0) return html.slice(startIndex, i + 1);
+        }
+    }
+    return html.slice(startIndex);
+}
+
+// The first "@media <query>" block that actually contains marker.
+function mediaContaining(query, marker) {
+    let from = 0;
+    while (true) {
+        const start = html.indexOf('@media ' + query, from);
+        if (start === -1) break;
+        const block = cssBlock(start);
+        if (block.indexOf(marker) !== -1) return block;
+        from = start + 1;
+    }
+    assert.fail('no @media ' + query + ' block contains ' + marker);
+}
+
 function calendarDays(fromIso, toIso) {
     const from = fromIso.split('-').map(Number);
     const to = toIso.split('-').map(Number);
@@ -188,7 +232,7 @@ test('index.html loads the helper after shared.js and shows both paper dates', (
     assert.ok(dseTag !== -1, 'dse-countdown.js script tag exists');
     assert.ok(dseTag > sharedTag, 'dse-countdown.js loads after shared.js');
 
-    assert.match(html, /2027 DSE English/);
+    assert.match(html, /2027 DSE(?:\s*<\/span>)?\s*English/, 'the heading copy is still present');
     assert.match(html, /9 Apr 2027/);
     assert.match(html, /10 Apr 2027/);
     assert.match(html, /Paper 1 &amp; 2/);
@@ -196,10 +240,12 @@ test('index.html loads the helper after shared.js and shows both paper dates', (
     assert.match(html, /aria-live="polite"/);
 });
 
-test('service worker v121 precaches the countdown helper and v120 is gone', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v121';/);
-    assert.equal(sw.indexOf('learnity-pwa-v120'), -1, 'the old cache name is gone');
+test('service worker v123 precaches the countdown helper and kitten, and v122 is gone', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v123';/);
+    assert.equal(sw.indexOf('learnity-pwa-v122'), -1, 'the old cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v121'), -1, 'the older cache name is gone');
     assert.ok(sw.indexOf("'/js/dse-countdown.js'") !== -1, 'the helper is in CORE_ASSETS');
+    assert.ok(sw.indexOf("'/images/dse-countdown-kitten.png'") !== -1, 'the kitten is precached');
 });
 
 test('the decorative stars are small, hidden from assistive tech and emoji-free', () => {
@@ -221,13 +267,103 @@ test('the decorative stars are small, hidden from assistive tech and emoji-free'
 });
 
 test('the coloured stars keep the slim bar static and compact', () => {
-    const start = html.indexOf('.dse-banner {');
-    const end = html.indexOf('.dse-banner[hidden]', start);
-    assert.ok(start !== -1 && end > start);
-    const css = html.slice(start, end);
+    // Only the .dse-banner rule itself, not the whole banner CSS section.
+    const css = cssRule('.dse-banner');
 
     assert.match(css, /padding: 0\.55rem 0\.95rem;/, 'padding stays compact');
     assert.match(css, /overflow: hidden;/, 'stars cannot spill out of the rounded box');
     assert.doesNotMatch(css, /animation\s*:/, 'no layout-shifting animation');
     assert.doesNotMatch(css, /transform\s*:/, 'no transform on the bar');
+});
+
+test('only "2027 DSE" is underlined, in a warm orange', () => {
+    const banner = bannerHtml();
+    assert.equal((banner.match(/class="dse-banner-heading"/g) || []).length, 1, 'exactly one heading span');
+    assert.match(banner, /<span class="dse-banner-heading">2027 DSE<\/span>\s*English/, 'the span wraps exactly 2027 DSE');
+    assert.doesNotMatch(banner, /<span class="dse-banner-heading">[^<]*English/, 'English stays outside the span');
+    assert.doesNotMatch(banner, /<span class="dse-banner-heading">[^<]*加油/, 'the cheer stays outside the span');
+
+    const css = cssRule('.dse-banner-heading');
+    assert.match(css, /text-decoration-line:\s*underline;/, 'the heading is underlined');
+    assert.match(css, /text-decoration-color:\s*#(?:fb923c|ea580c|fdba74);/i, 'warm orange, not the default black underline');
+    assert.match(css, /text-decoration-thickness:\s*1\.5px;/, 'thin tidy underline');
+    assert.match(css, /text-underline-offset:/, 'a little offset');
+});
+
+test('only the day count bounces, gently and with translateY only', () => {
+    const days = cssRule('.dse-banner-days');
+    assert.match(days, /display:\s*inline-block;/, 'the span can take a transform');
+    const animation = days.match(/animation:\s*dse-banner-bounce\s+([\d.]+)s\s+ease-in-out\s+infinite/);
+    assert.ok(animation, '.dse-banner-days has the infinite bounce animation');
+    const duration = Number(animation[1]);
+    assert.ok(duration >= 1.8 && duration <= 2.4, 'slow and cute, not frantic: ' + duration + 's');
+
+    const frames = cssBlock(html.indexOf('@keyframes dse-banner-bounce'));
+    assert.match(frames, /transform:\s*translateY\(/, 'the bounce moves with translateY');
+    assert.doesNotMatch(frames, /\b(?:top|left|right|bottom|margin|height|padding|line-height)\s*:/, 'no layout properties in the keyframes');
+    const offsets = Array.from(frames.matchAll(/translateY\((-?[\d.]+)px\)/g)).map((m) => Math.abs(Number(m[1])));
+    assert.ok(offsets.length > 0, 'translateY keyframes exist');
+    assert.ok(Math.max.apply(null, offsets) >= 2.5 && Math.max.apply(null, offsets) <= 3.5,
+        'a soft 2.5–3.5px hop');
+
+    const reduced = mediaContaining('(prefers-reduced-motion: reduce)', '.dse-banner-days');
+    assert.match(reduced, /\.dse-banner-days\s*\{[^}]*animation:\s*none;/, 'reduced motion disables the bounce');
+});
+
+test('the kitten is a small, faded, never-animated gap decoration between the text blocks', () => {
+    const banner = bannerHtml();
+    const img = banner.match(/<img class="dse-banner-kitten"[^>]*>/);
+    assert.ok(img, 'the kitten img is inside the banner');
+    assert.match(img[0], /src="images\/dse-countdown-kitten\.png"/);
+    assert.match(img[0], /alt=""/, 'decorative image has an empty alt');
+    assert.match(img[0], /aria-hidden="true"/, 'hidden from assistive tech');
+    assert.match(img[0], /width="320"/);
+    assert.match(img[0], /height="512"/);
+
+    // It sits in-flow BETWEEN the left text block and the right day-count block,
+    // so it can never paint over either cluster's words.
+    const left = banner.indexOf('<div class="dse-banner-left">');
+    const kitten = banner.indexOf('<img class="dse-banner-kitten"');
+    const right = banner.indexOf('<div class="dse-banner-right">');
+    assert.ok(left !== -1, 'left cluster exists');
+    assert.ok(kitten !== -1, 'kitten exists');
+    assert.ok(right !== -1, 'right cluster exists');
+    assert.ok(kitten > left && kitten < right, 'the kitten is the middle flex sibling');
+
+    const css = cssRule('.dse-banner-kitten');
+    assert.doesNotMatch(css, /position:\s*(?:absolute|fixed);/, 'not pinned to a corner');
+    assert.match(css, /position:\s*(?:relative|static);/, 'the kitten stays in flow');
+    assert.doesNotMatch(css, /(?:^|[\s{;])(?:right|bottom)\s*:/, 'no corner offsets');
+    assert.match(css, /flex:\s*0\s+(?:0|1)\s+auto;/, 'the kitten is a flex sibling');
+    assert.match(css, /align-self:\s*center;/, 'vertically centred in the bar');
+    assert.match(css, /pointer-events:\s*none;/, 'the kitten never steals taps');
+    assert.match(css, /user-select:\s*none;/, 'the kitten is not selectable');
+    assert.match(css, /width:\s*auto;/, 'width follows the aspect ratio');
+    assert.doesNotMatch(css, /animation\s*:/, 'the kitten is not animated');
+    assert.doesNotMatch(css, /padding|margin/, 'the kitten adds no spacing to the bar');
+
+    const opacity = Number(css.match(/opacity:\s*([\d.]+);/)[1]);
+    assert.ok(opacity > 0 && opacity < 1, 'slightly faded: ' + opacity);
+
+    const desktopHeight = Number(css.match(/height:\s*(\d+)px;/)[1]);
+    assert.ok(desktopHeight >= 44 && desktopHeight <= 52, 'modest desktop height: ' + desktopHeight + 'px');
+
+    const phone = mediaContaining('(max-width: 480px)', '.dse-banner-kitten');
+    const phoneRule = phone.match(/\.dse-banner-kitten\s*\{([^}]*)\}/);
+    assert.ok(phoneRule, 'phones get a smaller kitten');
+    const phoneHeight = Number(phoneRule[1].match(/height:\s*(\d+)px;/)[1]);
+    assert.ok(phoneHeight < desktopHeight, 'phone kitten is smaller');
+    assert.ok(phoneHeight >= 28 && phoneHeight <= 34, 'phone height stays modest: ' + phoneHeight + 'px');
+
+    const narrow = mediaContaining('(max-width: 380px)', '.dse-banner-kitten');
+    const narrowRule = narrow.match(/\.dse-banner-kitten\s*\{([^}]*)\}/);
+    assert.ok(narrowRule, 'very narrow phones shrink the kitten again');
+    const narrowHeight = Number(narrowRule[1].match(/height:\s*(\d+)px;/)[1]);
+    assert.ok(narrowHeight < phoneHeight, 'very narrow kitten is smaller still: ' + narrowHeight + 'px');
+    assert.ok(narrowHeight >= 24 && narrowHeight <= 28, 'very narrow height stays tiny: ' + narrowHeight + 'px');
+});
+
+test('「加油」 is still hidden on narrow phone widths', () => {
+    const phone = mediaContaining('(max-width: 480px)', '.dse-banner-cheer');
+    assert.match(phone, /\.dse-banner-cheer\s*\{\s*display:\s*none;/, 'the cheer stays hidden on phones');
 });

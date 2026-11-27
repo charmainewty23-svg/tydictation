@@ -2610,6 +2610,7 @@
             
             if (viewId === 'hub-view') {
                 updateMascot("Awesome! What would you like to learn next?");
+                if (typeof DSE2027 !== 'undefined' && typeof DSE2027.paint === 'function') DSE2027.paint();
                 battleRenderRejoin();
                 if (typeof WJC !== 'undefined') WJC.renderRejoin();
             }
@@ -2699,4 +2700,5 @@
             loadAllCategoriesFromSheet();
             loadIfClauseData();
             loadPCData();
+            if (typeof DSE2027 !== 'undefined' && typeof DSE2027.paint === 'function') DSE2027.paint();
         };

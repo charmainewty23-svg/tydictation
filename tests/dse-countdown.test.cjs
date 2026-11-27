@@ -196,8 +196,38 @@ test('index.html loads the helper after shared.js and shows both paper dates', (
     assert.match(html, /aria-live="polite"/);
 });
 
-test('service worker v120 precaches the countdown helper and v119 is gone', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v120';/);
-    assert.equal(sw.indexOf('learnity-pwa-v119'), -1, 'the old cache name is gone');
+test('service worker v121 precaches the countdown helper and v120 is gone', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v121';/);
+    assert.equal(sw.indexOf('learnity-pwa-v120'), -1, 'the old cache name is gone');
     assert.ok(sw.indexOf("'/js/dse-countdown.js'") !== -1, 'the helper is in CORE_ASSETS');
+});
+
+test('the decorative stars are small, hidden from assistive tech and emoji-free', () => {
+    const start = html.indexOf('id="hub-dse-countdown"');
+    assert.ok(start !== -1);
+    const banner = html.slice(start, html.indexOf('</section>', start));
+
+    const stars = banner.match(/<svg class="dse-banner-star[^>]*>/g) || [];
+    assert.ok(stars.length >= 2 && stars.length <= 3, 'two or three stars only, not a sticker explosion');
+    stars.forEach((tag) => {
+        assert.match(tag, /aria-hidden="true"/, 'every star is decorative');
+        assert.match(tag, /focusable="false"/, 'every star is skipped by keyboard focus');
+        assert.doesNotMatch(tag, /width="\d{2,}"/, 'no oversized star markup');
+    });
+
+    // Soft copy is allowed, but only one short touch and no emoji spam.
+    assert.match(banner, /dse-banner-cheer">加油</);
+    assert.doesNotMatch(banner, /[⭐🌟✨💫]/);
+});
+
+test('the coloured stars keep the slim bar static and compact', () => {
+    const start = html.indexOf('.dse-banner {');
+    const end = html.indexOf('.dse-banner[hidden]', start);
+    assert.ok(start !== -1 && end > start);
+    const css = html.slice(start, end);
+
+    assert.match(css, /padding: 0\.55rem 0\.95rem;/, 'padding stays compact');
+    assert.match(css, /overflow: hidden;/, 'stars cannot spill out of the rounded box');
+    assert.doesNotMatch(css, /animation\s*:/, 'no layout-shifting animation');
+    assert.doesNotMatch(css, /transform\s*:/, 'no transform on the bar');
 });

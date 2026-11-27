@@ -182,6 +182,7 @@
         /* ---- 2027 HKDSE English countdown (homepage hub only) ---- */
         .dse-banner {
             box-sizing: border-box;
+            position: relative;
             max-width: 100%;
             display: flex;
             align-items: center;
@@ -189,15 +190,57 @@
             flex-wrap: wrap;
             gap: 0.35rem 1rem;
             padding: 0.55rem 0.95rem;
-            border: 2px solid #ffedd5;
+            border: 2px solid #fed7aa;
             border-radius: 1rem;
             background:
-                radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.9), transparent 58%),
-                linear-gradient(105deg, #fff7ed 0%, #ffedd5 100%);
-            box-shadow: 0 4px 14px rgba(249, 115, 22, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+                radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.92), transparent 58%),
+                radial-gradient(circle at 92% 110%, rgba(251, 146, 60, 0.2), transparent 62%),
+                linear-gradient(105deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%);
+            box-shadow: 0 4px 14px rgba(249, 115, 22, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9);
             text-align: left;
             line-height: 1.15;
             overflow: hidden;
+        }
+
+        .dse-banner-star {
+            display: inline-block;
+            flex: 0 0 auto;
+            pointer-events: none;
+        }
+
+        .dse-banner-star-bg {
+            position: absolute;
+            top: -0.9rem;
+            right: 16%;
+            width: 3rem;
+            height: 3rem;
+            color: #fdba74;
+            opacity: 0.26;
+        }
+
+        .dse-banner-star-title {
+            width: 0.82rem;
+            height: 0.82rem;
+            margin-right: 0.28rem;
+            vertical-align: -0.08em;
+            color: #f59e0b;
+        }
+
+        .dse-banner-star-count {
+            width: 0.78rem;
+            height: 0.78rem;
+            margin-right: 0.1rem;
+            align-self: center;
+            color: #fb923c;
+        }
+
+        .dse-banner-cheer {
+            margin-left: 0.22rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #ea580c;
+            opacity: 0.78;
         }
 
         .dse-banner[hidden] {
@@ -205,6 +248,8 @@
         }
 
         .dse-banner-left {
+            position: relative;
+            z-index: 1;
             min-width: 0;
             display: flex;
             flex-direction: column;
@@ -235,6 +280,8 @@
         }
 
         .dse-banner-right {
+            position: relative;
+            z-index: 1;
             margin-left: auto;
             display: flex;
             align-items: center;
@@ -275,6 +322,16 @@
             font-size: 0.8rem;
             font-weight: 700;
             color: #c2410c;
+        }
+
+        @media (max-width: 680px) {
+            /* Keep phones free of the faint background star; the two inline ones stay. */
+            .dse-banner-star-bg { display: none; }
+        }
+
+        @media (max-width: 480px) {
+            /* Stars alone on phone widths, so the bar always stays one slim row. */
+            .dse-banner-cheer { display: none; }
         }
 
         @media (max-width: 380px) {
@@ -5836,13 +5893,15 @@
             <!-- Hub View -->
             <div id="hub-view" class="view grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                 <section id="hub-dse-countdown" class="dse-banner md:col-span-2" data-mode="countdown" aria-label="2027 HKDSE English countdown">
+                    <svg class="dse-banner-star dse-banner-star-bg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg>
                     <div class="dse-banner-left">
-                        <p class="dse-banner-title">2027 DSE English</p>
+                        <p class="dse-banner-title"><svg class="dse-banner-star dse-banner-star-title" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg>2027 DSE English <span class="dse-banner-cheer">加油</span></p>
                         <p class="dse-banner-meta">Paper 1 &amp; 2 · 9 Apr 2027</p>
                         <p class="dse-banner-meta dse-banner-meta-quiet">Paper 3 · 10 Apr 2027</p>
                     </div>
                     <div class="dse-banner-right">
                         <p class="dse-banner-count" id="hub-dse-count" aria-live="polite" aria-atomic="true">
+                            <svg class="dse-banner-star dse-banner-star-count" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 1.9l3.09 6.26 6.91 1.01-5 4.87 1.18 6.88L12 17.65l-6.18 3.27L7 14.04l-5-4.87 6.91-1.01L12 1.9z" fill="currentColor"/></svg>
                             <span class="dse-banner-days" id="hub-dse-days">—</span>
                             <span class="dse-banner-unit" id="hub-dse-unit">days</span>
                         </p>

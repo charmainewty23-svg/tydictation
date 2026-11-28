@@ -140,6 +140,8 @@
             fsBtn: document.getElementById('dg-fs-btn'),
             musicBtn: document.getElementById('dg-music-btn')
         };
+        DG.bindLiveRaceLayout();
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
         DG.bindRaceInput();
         DG.syncRaceFsUi();
@@ -190,6 +192,75 @@
             DG.three.camera.aspect = w / Math.max(1, h);
             DG.three.camera.updateProjectionMatrix();
         }
+    };
+
+    /* ---------------- live race viewport ---------------- */
+
+    // iOS Safari / in-app WKWebViews can report a 100dvh layout that is taller
+    // than the webview the student actually sees (URL bar + bottom browser
+    // toolbar). The fixed race view is therefore pinned to the exact visible
+    // rectangle from visualViewport, and the canvas is measured after that.
+    DG.liveViewportListeners = DG.liveViewportListeners || [];
+
+    DG.liveRaceViewNode = function () {
+        return document.getElementById('drive-and-go-view');
+    };
+
+    DG.layoutLiveRaceView = function () {
+        const view = DG.liveRaceViewNode();
+        if (!view || !view.classList || !view.classList.contains('dg-live')) return;
+        const vv = window.visualViewport;
+        let top = 0;
+        let left = 0;
+        let width = window.innerWidth || (vv && vv.width) || 0;
+        let height = window.innerHeight || (vv && vv.height) || 0;
+        if (vv) {
+            top = Number(vv.offsetTop) || 0;
+            left = Number(vv.offsetLeft) || 0;
+            width = Number(vv.width) || width;
+            height = Number(vv.height) || height;
+        }
+        view.style.top = Math.round(top) + 'px';
+        view.style.left = Math.round(left) + 'px';
+        view.style.right = 'auto';
+        view.style.bottom = 'auto';
+        view.style.width = Math.round(Math.max(1, width)) + 'px';
+        view.style.height = Math.round(Math.max(1, height)) + 'px';
+        DG.resizeCanvas();
+    };
+
+    DG.clearLiveRaceLayout = function () {
+        const view = DG.liveRaceViewNode();
+        if (!view || !view.style) return;
+        view.style.top = '';
+        view.style.left = '';
+        view.style.right = '';
+        view.style.bottom = '';
+        view.style.width = '';
+        view.style.height = '';
+    };
+
+    DG.bindLiveRaceLayout = function () {
+        DG.unbindLiveRaceLayout();
+        const add = (target, type) => {
+            if (!target || !target.addEventListener) return;
+            target.addEventListener(type, DG.layoutLiveRaceView);
+            DG.liveViewportListeners.push({ target, type, fn: DG.layoutLiveRaceView });
+        };
+        const vv = window.visualViewport;
+        if (vv) {
+            add(vv, 'resize');
+            add(vv, 'scroll');
+        }
+        add(window, 'resize');
+        add(window, 'orientationchange');
+    };
+
+    DG.unbindLiveRaceLayout = function () {
+        DG.liveViewportListeners.forEach((item) => {
+            try { item.target.removeEventListener(item.type, item.fn); } catch (e) {}
+        });
+        DG.liveViewportListeners = [];
     };
 
     DG.startRace = function (opts) {
@@ -300,9 +371,14 @@
         const raceView = document.getElementById('drive-and-go-view');
         if (raceView) raceView.classList.add('dg-live');
         if (!DG.mountRace()) {
+            DG.unbindLiveRaceLayout();
+            DG.clearLiveRaceLayout();
+            document.body.classList.remove('dg-racing');
+            if (raceView) raceView.classList.remove('dg-live');
             DG.toast('The race view could not be opened.');
             return;
         }
+        DG.loadSceneArt(S.scene);
         DG.initThree();
         DG.startMusic();
         DG.spawnGates();
@@ -329,10 +405,12 @@
         if (S.raf) cancelAnimationFrame(S.raf);
         S.raf = 0;
         DG.unbindRaceInput();
+        DG.unbindLiveRaceLayout();
         if (typeof DG.mpStopRacePoll === 'function') DG.mpStopRacePoll();
         document.body.classList.remove('dg-racing');
         const raceView = document.getElementById('drive-and-go-view');
         if (raceView) raceView.classList.remove('dg-live');
+        DG.clearLiveRaceLayout();
         DG.hideMpProgress();
         DG.hideOverlay();
         if (DG.raceEls && DG.raceEls.toast) DG.raceEls.toast.classList.remove('show');
@@ -837,6 +915,7 @@
 
     DG.onResize = function () {
         if (!S.active) return;
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
     };
 
@@ -1681,40 +1760,55 @@
 
     // One palette + roadside set per course. Track geometry (curves, hills,
     // projection, gate spacing) is identical for all three; only the colours,
-    // backdrop and scenery kinds change.
+    // backdrop and scenery kinds change. Each palette follows its original
+    // stylised course art: golden-hour canyon, night arena and misty jungle.
     const SCENE_STYLES = {
         desert: {
-            sky: [[0, '#9fc6dc'], [0.22, '#cfe2ec'], [0.40, '#f2d79c'], [0.58, '#f8e6bb']],
-            fog: '#f2d89a',
-            ground: '#d7b06b',
-            bandA: '#d7b06b', bandB: '#c9a25c',
-            roadA: '#8f7a56', roadB: '#836f4d',
-            kerbA: '#b45309', kerbB: '#fde68a',
-            dash: 'rgba(255,250,235,.72)', edge: 'rgba(255,255,255,.5)',
-            kinds: ['cactus', 'rock', 'rock', 'bone', 'plant', 'sign', 'lamp'],
-            density: 0.46
+            // Golden hour canyon: pale blue sky fading into peach and gold,
+            // warm sandstone shoulders and an unpacked dirt trail.
+            sky: [[0, '#8fb7d6'], [0.18, '#bcd3dd'], [0.34, '#f2c187'], [0.50, '#ffd79e'], [0.58, '#ffe6bd']],
+            fog: '#f0cf9c',
+            fogNear: 110,
+            fogFar: 0.9,
+            ground: '#c28a52',
+            bandA: '#cf9c5f', bandB: '#c28f52',
+            roadA: '#b58f66', roadB: '#a9835a',
+            kerbA: '#a9743f', kerbB: '#c9a06a',
+            dash: 'rgba(255,240,209,.18)', edge: 'rgba(255,244,222,.28)',
+            roadTex: 'dirt',
+            kinds: ['cactus', 'cactus', 'rock', 'rock', 'butte', 'plant', 'sign'],
+            density: 0.5
         },
         stadium: {
-            sky: [[0, '#6fb7e8'], [0.22, '#a9d9f6'], [0.40, '#ffd9e4'], [0.58, '#fff0e0']],
-            fog: '#fbe0da',
-            ground: '#e7d3cf',
-            bandA: '#e7d3cf', bandB: '#dcc3be',
-            roadA: '#66707d', roadB: '#5b6572',
-            kerbA: '#e11d48', kerbB: '#f8fafc',
-            dash: 'rgba(255,255,255,.8)', edge: 'rgba(255,255,255,.62)',
-            kinds: ['grandstand', 'floodlight', 'flag', 'stall', 'lamp'],
-            density: 0.64
+            // Night-time indoor arena: near-black sky, dark floor, pale
+            // concrete track and red / white kerbs under floodlights.
+            sky: [[0, '#02040a'], [0.30, '#06101f'], [0.50, '#0b1830'], [0.58, '#10203c']],
+            fog: '#0a1424',
+            fogNear: 85,
+            fogFar: 0.95,
+            ground: '#1b2433',
+            bandA: '#1b2433', bandB: '#151d2a',
+            roadA: '#c3c7cc', roadB: '#b6bbc2',
+            kerbA: '#d81f3f', kerbB: '#f8fafc',
+            dash: 'rgba(248,250,252,.35)', edge: 'rgba(255,255,255,.55)',
+            roadTex: 'concrete',
+            kinds: ['grandstand', 'grandstand', 'floodlight', 'ledbanner', 'flag', 'stall', 'lamp'],
+            density: 0.68
         },
         jungle: {
-            sky: [[0, '#1c4a32'], [0.22, '#3c7d4b'], [0.40, '#a8d888'], [0.58, '#e4f6c3']],
-            fog: '#b8d88e',
-            ground: '#2f5d2c',
-            bandA: '#2f5d2c', bandB: '#386b31',
-            roadA: '#6b5a41', roadB: '#5e4f39',
-            kerbA: '#4d7c0f', kerbB: '#d9f99d',
-            dash: 'rgba(240,253,230,.62)', edge: 'rgba(236,252,203,.55)',
-            kinds: ['palm', 'jungleTree', 'jungleTree', 'fern', 'dino', 'rock'],
-            density: 0.6
+            sky: [[0, '#6d9f76'], [0.22, '#9dc295'], [0.42, '#cfe3b4'], [0.58, '#e9f2d3']],
+            fog: '#cbe0b8',
+            fogNear: 42,
+            fogFar: 0.8,
+            ground: '#2a4a2a',
+            bandA: '#2a4a2a', bandB: '#33582f',
+            // Damp asphalt with warm yellow lane paint and earthy shoulders.
+            roadA: '#343b36', roadB: '#2d332f',
+            kerbA: '#4a4034', kerbB: '#5a6b3f',
+            dash: '#f4c430', edge: 'rgba(214,228,190,.32)',
+            roadTex: 'asphalt',
+            kinds: ['palm', 'palm', 'jungleTree', 'jungleTree', 'fern', 'fern', 'rock', 'dino'],
+            density: 0.76
         }
     };
 
@@ -1847,8 +1941,10 @@
                 const kind = kinds[Math.floor(rng() * kinds.length)];
                 let offset = 1.5 + rng() * 0.9;
                 if (kind === 'lamp' || kind === 'floodlight') offset = 1.3 + rng() * 0.16;
+                else if (kind === 'ledbanner') offset = 1.45 + rng() * 0.2;
                 else if (kind === 'car' || kind === 'stall') offset = 1.3 + rng() * 0.24;
                 else if (kind === 'grandstand') offset = 1.72 + rng() * 1.1;
+                else if (kind === 'butte') offset = 2.0 + rng() * 1.4;
                 else if (kind === 'dino') offset = 1.9 + rng() * 0.9;
                 else if (kind === 'building') offset = 1.6 + rng() * 1.1;
                 S.scenery.push({
@@ -1867,7 +1963,7 @@
     DG.drawSceneryItem = function (ctx, it, x, baseY, sc, w, h) {
         const size = it.size;
         if (it.kind === 'cactus') {
-            const bh = h * 0.14 * sc * size;
+            const bh = h * 0.17 * sc * size;
             const bw = Math.max(2, w * 0.016 * sc * size);
             if (bh < 5) return;
             ctx.fillStyle = it.tone === 0 ? '#4d7c0f' : (it.tone === 1 ? '#3f6212' : '#65a30d');
@@ -1892,7 +1988,10 @@
             const rw = w * 0.075 * sc * size;
             const rh = h * 0.05 * sc * size;
             if (rw < 2 || rh < 2) return;
-            ctx.fillStyle = it.tone === 0 ? '#b08a5a' : (it.tone === 1 ? '#9c7a4f' : '#c6a06c');
+            const jungle = DG.normalizeScene(S.scene) === 'jungle';
+            ctx.fillStyle = jungle
+                ? (it.tone === 0 ? '#6b7a6a' : (it.tone === 1 ? '#7d8a72' : '#5c6b5a'))
+                : (it.tone === 0 ? '#b08a5a' : (it.tone === 1 ? '#9c7a4f' : '#c6a06c'));
             ctx.beginPath();
             ctx.moveTo(x - rw / 2, baseY);
             ctx.lineTo(x - rw * 0.32, baseY - rh * 0.85);
@@ -1901,6 +2000,32 @@
             ctx.lineTo(x + rw * 0.38, baseY);
             ctx.closePath();
             ctx.fill();
+            if (jungle) {
+                ctx.fillStyle = 'rgba(90,124,58,.75)';
+                ctx.beginPath();
+                ctx.ellipse(x, baseY - rh * 0.92, rw * 0.32, rh * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            return;
+        }
+        if (it.kind === 'butte') {
+            const bw = w * 0.16 * sc * size;
+            const bh = h * 0.11 * sc * size;
+            if (bw < 4) return;
+            const top = baseY - bh;
+            ctx.fillStyle = it.tone === 0 ? '#b5743f' : (it.tone === 1 ? '#a9653a' : '#c98a52');
+            ctx.beginPath();
+            ctx.moveTo(x - bw * 0.55, baseY);
+            ctx.lineTo(x - bw * 0.42, top + bh * 0.12);
+            ctx.lineTo(x - bw * 0.3, top);
+            ctx.lineTo(x + bw * 0.3, top);
+            ctx.lineTo(x + bw * 0.42, top + bh * 0.12);
+            ctx.lineTo(x + bw * 0.55, baseY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = 'rgba(120,68,38,.28)';
+            ctx.fillRect(x - bw * 0.4, top + bh * 0.3, bw * 0.8, Math.max(1, bh * 0.08));
+            ctx.fillRect(x - bw * 0.36, top + bh * 0.56, bw * 0.72, Math.max(1, bh * 0.06));
             return;
         }
         if (it.kind === 'bone') {
@@ -1936,7 +2061,7 @@
             return;
         }
         if (it.kind === 'palm') {
-            const trunkH = h * 0.16 * sc * size;
+            const trunkH = h * 0.19 * sc * size;
             const trunkW = Math.max(1, w * 0.011 * sc * size);
             if (trunkH < 4) return;
             ctx.strokeStyle = '#7c5a2e';
@@ -1979,14 +2104,14 @@
             return;
         }
         if (it.kind === 'fern') {
-            const fh = h * 0.055 * sc * size;
+            const fh = h * 0.07 * sc * size;
             if (fh < 2) return;
             ctx.strokeStyle = it.tone === 0 ? '#22c55e' : '#15803d';
             ctx.lineWidth = Math.max(1, 1.8 * sc);
             for (let i = -3; i <= 3; i++) {
                 ctx.beginPath();
                 ctx.moveTo(x, baseY);
-                ctx.quadraticCurveTo(x + i * fh * 0.45, baseY - fh * 0.8, x + i * fh * 0.9, baseY - fh * 1.2);
+                ctx.quadraticCurveTo(x + i * fh * 0.5, baseY - fh * 0.7, x + i * fh * 1.05, baseY - fh * 1.05);
                 ctx.stroke();
             }
             return;
@@ -2048,7 +2173,7 @@
             return;
         }
         if (it.kind === 'floodlight') {
-            const poleH = h * 0.19 * sc * size;
+            const poleH = h * 0.26 * sc * size;
             const poleW = Math.max(1, 2.4 * sc);
             if (poleH < 4) return;
             ctx.strokeStyle = '#94a3b8';
@@ -2066,6 +2191,30 @@
             for (let i = 0; i < lamps; i++) {
                 ctx.fillStyle = '#fef9c3';
                 ctx.fillRect(x - bankW / 2 + stepX * i + stepX * 0.2, baseY - poleH - bankH * 0.75, stepX * 0.6, bankH * 0.5);
+            }
+            return;
+        }
+        if (it.kind === 'ledbanner') {
+            const bw = w * 0.17 * sc * size;
+            const bh = h * 0.032 * sc * size;
+            if (bw < 8 || bh < 3) return;
+            const postH = h * 0.035 * sc * size;
+            const postW = Math.max(1, 1.6 * sc);
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(x - bw * 0.44, baseY - postH, postW, postH);
+            ctx.fillRect(x + bw * 0.44 - postW, baseY - postH, postW, postH);
+            ctx.fillStyle = '#0b1220';
+            ctx.fillRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            ctx.strokeStyle = 'rgba(56,189,248,.7)';
+            ctx.lineWidth = Math.max(1, 1.2 * sc);
+            ctx.strokeRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            if (bw > 34 && bh > 9) {
+                ctx.fillStyle = '#7dd3fc';
+                ctx.font = '700 ' + Math.max(5, Math.round(bh * 0.55)) + 'px Fredoka, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(it.tone % 2 ? 'Drive & Go' : 'LearniTY', x, baseY - postH - bh * 0.48);
+                ctx.textBaseline = 'alphabetic';
             }
             return;
         }
@@ -2219,6 +2368,50 @@
         }
     };
 
+    // Mix a hex colour with transparency. Used by the 2D ground fade so the
+    // wide course art still shows a band below the horizon.
+    DG.rgbaColor = function (hex, alpha) {
+        const h = String(hex || '').replace('#', '');
+        let r = 0, g = 0, b = 0;
+        if (h.length === 3) {
+            r = parseInt(h.charAt(0) + h.charAt(0), 16);
+            g = parseInt(h.charAt(1) + h.charAt(1), 16);
+            b = parseInt(h.charAt(2) + h.charAt(2), 16);
+        } else if (h.length === 6) {
+            const n = parseInt(h, 16);
+            r = (n >> 16) & 255;
+            g = (n >> 8) & 255;
+            b = n & 255;
+        }
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha == null ? 1 : alpha) + ')';
+    };
+
+    // Wide cinematic course still behind the horizon, with a gentle parallax
+    // drift as the player steers. Returns false while the artwork is still
+    // loading (or missing) so each scene can keep its palette fallback.
+    DG.drawSceneArtBackdrop = function (ctx, camZ, horizonY) {
+        const img = DG.sceneArtImage(S.scene);
+        if (!img || !img.width || !img.height) return false;
+        const w = DG.view.w, h = DG.view.h;
+        const heading = DG.trackCurve(camZ);
+        const bandBottom = horizonY + h * 0.17;
+        const targetH = Math.max(bandBottom, h * 0.46);
+        const scale = Math.max(w / img.width, targetH / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        const spareX = Math.max(0, dw - w);
+        let x = -spareX * 0.5 - spareX * 0.45 * Math.sin(camZ * 0.0018 + heading * 1.2);
+        x = Math.max(-spareX, Math.min(0, x));
+        const y = bandBottom - dh;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, bandBottom);
+        ctx.clip();
+        ctx.drawImage(img, x, y, dw, dh);
+        ctx.restore();
+        return true;
+    };
+
     DG.drawBackdrop = function (ctx, camZ, horizonY) {
         const scene = DG.normalizeScene(S.scene);
         if (scene === 'stadium') return DG.drawStadiumBackdrop(ctx, camZ, horizonY);
@@ -2229,44 +2422,49 @@
     DG.drawDesertBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.05) % (w * 2);
         const shift = scroll + heading * w * 0.5;
 
-        // Sun.
-        ctx.fillStyle = 'rgba(255,247,214,.9)';
-        ctx.beginPath();
-        ctx.arc(w * 0.72 - heading * w * 0.12, horizonY - h * 0.13, h * 0.05, 0, Math.PI * 2);
-        ctx.fill();
+        // Low golden-hour sun.
+        const sx = w * 0.72 - heading * w * 0.12;
+        const sy = horizonY - h * 0.1;
+        const glow = ctx.createRadialGradient(sx, sy, h * 0.01, sx, sy, h * 0.12);
+        glow.addColorStop(0, 'rgba(255,241,196,.95)');
+        glow.addColorStop(0.4, 'rgba(255,213,140,.55)');
+        glow.addColorStop(1, 'rgba(255,196,112,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(sx - h * 0.12, sy - h * 0.12, h * 0.24, h * 0.24);
 
-        // Far flat-top mesas.
-        ctx.fillStyle = '#c99a5f';
+        // Far flat-top sandstone buttes.
+        ctx.fillStyle = '#c08a4f';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 8) {
             const t = (x + shift * 0.4) / w;
             const mesa = Math.max(0, Math.sin(t * Math.PI * 5 + 0.7)) * 0.7 +
                 Math.max(0, Math.sin(t * Math.PI * 11 + 2.1)) * 0.3;
-            ctx.lineTo(x, horizonY - h * (0.045 + 0.05 * mesa));
+            ctx.lineTo(x, horizonY - h * (0.045 + 0.055 * mesa));
         }
         ctx.lineTo(w, horizonY + 2);
         ctx.closePath();
         ctx.fill();
 
         // Nearer dunes.
-        ctx.fillStyle = '#b4833f';
+        ctx.fillStyle = '#a9753c';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 4);
         for (let x = 0; x <= w; x += w / 10) {
             const hy = horizonY - (0.5 + 0.5 * Math.sin((x + shift) / w * Math.PI * 2.1 + 1.4)) * h * 0.035;
             ctx.lineTo(x, hy);
         }
-        ctx.lineTo(w, horizonY + h * 0.06);
-        ctx.lineTo(0, horizonY + h * 0.06);
+        ctx.lineTo(w, horizonY + h * 0.07);
+        ctx.lineTo(0, horizonY + h * 0.07);
         ctx.closePath();
         ctx.fill();
 
         // Distant cacti silhouettes.
-        ctx.fillStyle = 'rgba(87,83,35,.5)';
+        ctx.fillStyle = 'rgba(74,68,32,.5)';
         for (let i = 0; i < 4; i++) {
             const cx = ((i * 0.27 + 0.08) * w + shift * 0.6) % w;
             const ch = h * (0.022 + (i % 2) * 0.012);
@@ -2278,11 +2476,12 @@
     DG.drawStadiumBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.07) % (w * 2);
         const shift = scroll + heading * w * 0.45;
 
-        // Distant roof / upper tier.
-        ctx.fillStyle = '#f7b7c8';
+        // Dark roof / upper tier under the night sky.
+        ctx.fillStyle = '#1e293b';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 6) {
@@ -2294,37 +2493,47 @@
         ctx.closePath();
         ctx.fill();
 
-        // Crowd blocks along the far straight.
+        // Roof truss line and gantry.
+        ctx.strokeStyle = 'rgba(148,163,184,.35)';
+        ctx.lineWidth = Math.max(1, w * 0.004);
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY - h * 0.062);
+        ctx.lineTo(w, horizonY - h * 0.05);
+        ctx.stroke();
+
+        // Dim crowd blocks along the far straight.
         const blockW = w * 0.11;
         const blockShift = (shift * 0.6) % blockW;
         for (let i = -1; i <= Math.ceil(w / blockW); i++) {
             const bx = i * blockW - blockShift;
             const bh = h * (0.036 + ((i % 2) ? 0.016 : 0));
             const top = horizonY - bh;
-            ctx.fillStyle = (i % 2) ? '#fbcfe8' : '#fda4af';
+            ctx.fillStyle = (i % 2) ? '#24324a' : '#1b2740';
             ctx.fillRect(bx, top, blockW * 0.94, bh);
             const cols = 7, rows = 3;
             const cw = blockW * 0.94 / cols;
             const chh = bh / rows;
-            const palette = ['#ef4444', '#2563eb', '#facc15', '#f8fafc', '#a855f7'];
+            const palette = ['#f87171', '#60a5fa', '#facc15', '#e2e8f0', '#c084fc'];
+            ctx.globalAlpha = 0.75;
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     ctx.fillStyle = palette[(r + c + i + 6) % palette.length];
                     ctx.fillRect(bx + c * cw + cw * 0.2, top + r * chh + chh * 0.25, cw * 0.55, chh * 0.42);
                 }
             }
+            ctx.globalAlpha = 1;
         }
 
         // Banners hanging from the roof.
-        const bannerCols = ['#ec4899', '#f97316', '#8b5cf6', '#22c55e'];
+        const bannerCols = ['#be123c', '#b45309', '#6d28d9', '#15803d'];
         for (let i = 0; i < 6; i++) {
             const bx = ((i * 0.19 + 0.05) * w - (shift * 0.9) % (w * 0.3) + w) % w;
             ctx.fillStyle = bannerCols[i % bannerCols.length];
             ctx.fillRect(bx, horizonY - h * 0.025, w * 0.035, h * 0.018);
         }
 
-        // Floodlight towers.
-        ctx.strokeStyle = '#94a3b8';
+        // Floodlight towers with cool-white lamps.
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = Math.max(1, w * 0.0035);
         for (let i = 0; i < 4; i++) {
             const fx = ((i * 0.28 + 0.1) * w - heading * w * 0.2 + w) % w;
@@ -2333,23 +2542,32 @@
             ctx.moveTo(fx, horizonY);
             ctx.lineTo(fx, horizonY - fh);
             ctx.stroke();
-            ctx.fillStyle = '#1f2937';
+            ctx.fillStyle = '#0f172a';
             ctx.fillRect(fx - w * 0.02, horizonY - fh - h * 0.012, w * 0.04, h * 0.014);
-            ctx.fillStyle = '#fef9c3';
+            ctx.fillStyle = '#fefce8';
             for (let l = 0; l < 3; l++) {
                 ctx.fillRect(fx - w * 0.016 + l * w * 0.012, horizonY - fh - h * 0.008, w * 0.008, h * 0.007);
             }
+            const halo = ctx.createRadialGradient(
+                fx, horizonY - fh - h * 0.004, 0,
+                fx, horizonY - fh - h * 0.004, h * 0.05
+            );
+            halo.addColorStop(0, 'rgba(254,252,232,.35)');
+            halo.addColorStop(1, 'rgba(254,252,232,0)');
+            ctx.fillStyle = halo;
+            ctx.fillRect(fx - h * 0.05, horizonY - fh - h * 0.054, h * 0.1, h * 0.1);
         }
     };
 
     DG.drawJungleBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.06) % (w * 2);
         const shift = scroll + heading * w * 0.5;
 
         // Distant canopy haze.
-        ctx.fillStyle = '#2f6b3d';
+        ctx.fillStyle = '#7fa87a';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 7) {
@@ -2362,7 +2580,7 @@
         ctx.fill();
 
         // Nearer tree line.
-        ctx.fillStyle = '#245a34';
+        ctx.fillStyle = '#355c2f';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 6);
         for (let x = 0; x <= w; x += 9) {
@@ -2375,8 +2593,16 @@
         ctx.closePath();
         ctx.fill();
 
+        // Warm mist band above the tree line.
+        const mist = ctx.createLinearGradient(0, horizonY - h * 0.1, 0, horizonY + h * 0.02);
+        mist.addColorStop(0, 'rgba(235,244,214,0)');
+        mist.addColorStop(0.6, 'rgba(224,238,201,.32)');
+        mist.addColorStop(1, 'rgba(224,238,201,0)');
+        ctx.fillStyle = mist;
+        ctx.fillRect(0, horizonY - h * 0.1, w, h * 0.12);
+
         // Palm silhouettes at the horizon.
-        ctx.strokeStyle = 'rgba(20,83,45,.85)';
+        ctx.strokeStyle = 'rgba(24,58,30,.8)';
         for (let i = 0; i < 5; i++) {
             const px = ((i * 0.23 + 0.06) * w + shift * 0.5 + w) % w;
             const ph = h * (0.045 + (i % 3) * 0.01);
@@ -2430,30 +2656,19 @@
             ctx.closePath();
             ctx.fill();
 
-            // Alternating kerbs just outside the road.
-            const kerb = band ? style.kerbA : style.kerbB;
-            const sides = [[-1, 1.13, 1.0], [1, 1.0, 1.13]];
-            for (let s = 0; s < sides.length; s++) {
-                const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
-                ctx.fillStyle = kerb;
-                ctx.beginPath();
-                ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
-                ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
-                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
-                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            // Dashes between the three lanes (divider offsets ±0.32).
-            if (Math.floor(far.z / 40) % 2 === 0) {
-                ctx.fillStyle = style.dash;
-                const offs = [-0.32, 0.32];
-                for (let d = 0; d < offs.length; d++) {
-                    const farW = Math.max(0.6, far.p.roadHalf * 0.032);
-                    const nearW = Math.max(0.8, near.p.roadHalf * 0.032);
-                    const fx = far.p.centerX + offs[d] * far.p.roadHalf;
-                    const nx = near.p.centerX + offs[d] * near.p.roadHalf;
+            // Painted markings / shoulders follow the course material.
+            const roadKind = style.roadTex || 'asphalt';
+            if (roadKind === 'dirt') {
+                // Unpacked earth: two worn tyre ruts, no painted kerbs or
+                // lane dashes. The shoulder bands behind the road already
+                // give a soft dusty edge.
+                ctx.fillStyle = 'rgba(92,66,42,.16)';
+                const ruts = [-0.24, 0.24];
+                for (let d = 0; d < ruts.length; d++) {
+                    const farW = Math.max(1.2, far.p.roadHalf * 0.075);
+                    const nearW = Math.max(1.6, near.p.roadHalf * 0.075);
+                    const fx = far.p.centerX + ruts[d] * far.p.roadHalf;
+                    const nx = near.p.centerX + ruts[d] * near.p.roadHalf;
                     ctx.beginPath();
                     ctx.moveTo(fx - farW, far.p.y);
                     ctx.lineTo(fx + farW, far.p.y);
@@ -2461,6 +2676,55 @@
                     ctx.lineTo(nx - nearW, near.p.y);
                     ctx.closePath();
                     ctx.fill();
+                }
+            } else if (roadKind === 'concrete') {
+                // Bold red / white block kerbs around pale concrete.
+                const kerb = band ? style.kerbA : style.kerbB;
+                const sides = [[-1, 1.13, 1.0], [1, 1.0, 1.13]];
+                for (let s = 0; s < sides.length; s++) {
+                    const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
+                    ctx.fillStyle = kerb;
+                    ctx.beginPath();
+                    ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
+                    ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else {
+                // Damp jungle asphalt: narrow dark-soil / moss shoulders
+                // instead of bright racing kerbs.
+                const shoulder = band ? style.kerbA : style.kerbB;
+                const sides = [[-1, 1.1, 1.0], [1, 1.0, 1.1]];
+                for (let s = 0; s < sides.length; s++) {
+                    const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
+                    ctx.fillStyle = shoulder;
+                    ctx.beginPath();
+                    ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
+                    ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                // Two yellow dash rows keep the three lanes readable.
+                if (Math.floor(far.z / 40) % 2 === 0) {
+                    ctx.fillStyle = style.dash;
+                    const offs = [-0.32, 0.32];
+                    for (let d = 0; d < offs.length; d++) {
+                        const farW = Math.max(0.6, far.p.roadHalf * 0.032);
+                        const nearW = Math.max(0.8, near.p.roadHalf * 0.032);
+                        const fx = far.p.centerX + offs[d] * far.p.roadHalf;
+                        const nx = near.p.centerX + offs[d] * near.p.roadHalf;
+                        ctx.beginPath();
+                        ctx.moveTo(fx - farW, far.p.y);
+                        ctx.lineTo(fx + farW, far.p.y);
+                        ctx.lineTo(nx + nearW, near.p.y);
+                        ctx.lineTo(nx - nearW, near.p.y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
                 }
             }
         }
@@ -2548,10 +2812,12 @@
     // The new viewport only lands a frame or two after the request settles,
     // so the canvas is measured once now and again when it has.
     DG.scheduleRaceResize = function () {
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
         if (DG.raceFsResizeTimer) clearTimeout(DG.raceFsResizeTimer);
         DG.raceFsResizeTimer = setTimeout(() => {
             DG.raceFsResizeTimer = 0;
+            DG.layoutLiveRaceView();
             DG.resizeCanvas();
             if (DG.raceEls && S.player) DG.drawRace();
         }, 260);
@@ -2666,7 +2932,7 @@
     const THREE_SEGMENTS = 160;
     const THREE_LANE = 7;
     const THREE_GROUND_Y = -1.4;
-    const THREE_SCENERY_CAP = 40;
+    const THREE_SCENERY_CAP = 52;
 
     DG.threeRoadX = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
@@ -2684,6 +2950,85 @@
         const laneCenter = (laneCount - 1) / 2;
         const unit = THREE_LANE * 2 / (laneCount - 1);
         return DG.threeRoadX(rel) + ((laneX == null ? laneCenter : laneX) - laneCenter) * unit;
+    };
+
+    /* ---------------- course art backdrop ---------------- */
+
+    // Shared lazy loader for images/dg-scene-<id>.jpg. The file may still be
+    // landing on the CDN, so every caller must tolerate "not ready yet" and
+    // keep drawing the palette fallback until onload fires.
+    DG.sceneArtEntry = function (value) {
+        const id = DG.normalizeScene(value);
+        const cache = DG._sceneArtCache || (DG._sceneArtCache = {});
+        if (cache[id]) return cache[id];
+        const entry = { id: id, img: null, ready: false, failed: false };
+        cache[id] = entry;
+        try {
+            if (typeof Image === 'undefined') {
+                entry.failed = true;
+                return entry;
+            }
+            const img = new Image();
+            entry.img = img;
+            img.onload = function () {
+                entry.ready = true;
+                entry.failed = false;
+                try { DG.sceneArtReady(entry); } catch (e) {}
+            };
+            img.onerror = function () { entry.failed = true; };
+            img.src = (typeof DG.sceneArtUrl === 'function')
+                ? DG.sceneArtUrl(id)
+                : ('images/dg-scene-' + id + '.jpg');
+        } catch (e) {
+            entry.failed = true;
+        }
+        return entry;
+    };
+
+    DG.loadSceneArt = function (value) {
+        return DG.sceneArtEntry(value);
+    };
+
+    DG.sceneArtImage = function (value) {
+        const entry = DG.sceneArtEntry(value);
+        return entry.ready && entry.img ? entry.img : null;
+    };
+
+    // THREE texture built from the already-decoded image, cached per scene.
+    DG.sceneArtTexture = function (value) {
+        const id = DG.normalizeScene(value);
+        const cache = DG._sceneArtTextureCache || (DG._sceneArtTextureCache = {});
+        if (cache[id]) return cache[id];
+        if (typeof THREE === 'undefined') return null;
+        const img = DG.sceneArtImage(id);
+        if (!img) return null;
+        try {
+            const tex = new THREE.Texture(img);
+            tex.needsUpdate = true;
+            if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            cache[id] = tex;
+            return tex;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    // Called from Image.onload. Swaps the far art plane from invisible to the
+    // real texture, without rebuilding the scene or resetting the race.
+    DG.sceneArtReady = function (entry) {
+        const t = DG.three;
+        if (!t || !t.artBackdrop || !entry) return;
+        if (t.artBackdrop.scene !== entry.id) return;
+        const tex = DG.sceneArtTexture(entry.id);
+        if (!tex) return;
+        const mat = t.artBackdrop.material;
+        mat.map = tex;
+        mat.opacity = 1;
+        mat.needsUpdate = true;
     };
 
     DG.threeSkyTexture = function (style) {
@@ -2708,27 +3053,182 @@
         c.width = 256;
         c.height = 1024;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = style.roadA;
-        ctx.fillRect(0, 0, 256, 1024);
-        ctx.globalAlpha = 0.22;
-        ctx.fillStyle = style.roadB;
-        for (let y = 0; y < 1024; y += 64) ctx.fillRect(0, y, 256, 30);
-        ctx.globalAlpha = 1;
-        for (let y = 0; y < 1024; y += 64) {
-            ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
-            ctx.fillRect(0, y, 14, 64);
-            ctx.fillRect(242, y, 14, 64);
+        const roadKind = style.roadTex || 'asphalt';
+        // Deterministic speckle so the same course always regenerates the
+        // same texture (and tests do not depend on Math.random).
+        let seed = 0x9e3779b9;
+        const rand = function () {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+
+        if (roadKind === 'dirt') {
+            // Unpacked earth / sand: warm base, two worn tyre ruts and
+            // gravel speckles. No painted kerbs and no lane dashes.
+            const base = ctx.createLinearGradient(0, 0, 256, 0);
+            base.addColorStop(0, style.roadB);
+            base.addColorStop(0.18, style.roadA);
+            base.addColorStop(0.5, style.roadA);
+            base.addColorStop(0.82, style.roadA);
+            base.addColorStop(1, style.roadB);
+            ctx.fillStyle = base;
+            ctx.fillRect(0, 0, 256, 1024);
+
+            // Broad dusty patches.
+            ctx.globalAlpha = 0.18;
+            for (let i = 0; i < 70; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                const r = 12 + rand() * 46;
+                ctx.fillStyle = i % 3 === 0 ? '#d9be92' : style.roadB;
+                ctx.beginPath();
+                ctx.ellipse(x, y, r, r * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Two worn tyre ruts, soft-edged and slightly darker.
+            [-0.28, 0.28].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 26, 0, cx + 26, 0);
+                g.addColorStop(0, 'rgba(92,66,42,0)');
+                g.addColorStop(0.5, 'rgba(86,60,38,.22)');
+                g.addColorStop(1, 'rgba(92,66,42,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 26, 0, 52, 1024);
+            });
+            // Lighter ridge between the ruts.
+            const ridge = ctx.createLinearGradient(110, 0, 146, 0);
+            ridge.addColorStop(0, 'rgba(233,205,164,0)');
+            ridge.addColorStop(0.5, 'rgba(233,205,164,.14)');
+            ridge.addColorStop(1, 'rgba(233,205,164,0)');
+            ctx.fillStyle = ridge;
+            ctx.fillRect(110, 0, 36, 1024);
+
+            // Gravel / pebble speckles.
+            for (let i = 0; i < 2200; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                const s = 0.6 + rand() * 2.2;
+                ctx.globalAlpha = 0.12 + rand() * 0.25;
+                ctx.fillStyle = i % 4 === 0 ? '#6f5236' : (i % 4 === 1 ? '#d9be92' : (i % 4 === 2 ? '#8f6b45' : '#c3a173'));
+                ctx.fillRect(x, y, s, s);
+            }
+            ctx.globalAlpha = 1;
+
+            // Soft dusty edges, no painted racing kerb.
+            const leftDust = ctx.createLinearGradient(0, 0, 30, 0);
+            leftDust.addColorStop(0, 'rgba(207,156,95,.55)');
+            leftDust.addColorStop(1, 'rgba(207,156,95,0)');
+            ctx.fillStyle = leftDust;
+            ctx.fillRect(0, 0, 30, 1024);
+            const rightDust = ctx.createLinearGradient(226, 0, 256, 0);
+            rightDust.addColorStop(0, 'rgba(207,156,95,0)');
+            rightDust.addColorStop(1, 'rgba(207,156,95,.55)');
+            ctx.fillStyle = rightDust;
+            ctx.fillRect(226, 0, 30, 1024);
+        } else if (roadKind === 'concrete') {
+            // Pale smooth concrete with slab seams, tyre marks and bold
+            // red / white block kerbs. No yellow dashes.
+            ctx.fillStyle = style.roadA;
+            ctx.fillRect(0, 0, 256, 1024);
+            ctx.globalAlpha = 0.1;
+            for (let y = 0; y < 1024; y += 128) {
+                ctx.fillStyle = style.roadB;
+                ctx.fillRect(0, y, 256, 64);
+            }
+            ctx.globalAlpha = 1;
+            // Concrete grain.
+            for (let i = 0; i < 2600; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                ctx.globalAlpha = 0.03 + rand() * 0.09;
+                ctx.fillStyle = i % 2 ? '#64748b' : '#f8fafc';
+                ctx.fillRect(x, y, 0.8 + rand() * 1.6, 0.8 + rand() * 1.4);
+            }
+            ctx.globalAlpha = 1;
+            // Faint slab seams.
+            ctx.fillStyle = 'rgba(100,116,139,.28)';
+            for (let y = 0; y < 1024; y += 128) ctx.fillRect(0, y, 256, 1);
+            ctx.fillStyle = 'rgba(100,116,139,.16)';
+            ctx.fillRect(84, 0, 1, 1024);
+            ctx.fillRect(170, 0, 1, 1024);
+            // Faint tyre marks.
+            [-0.24, 0.24].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 22, 0, cx + 22, 0);
+                g.addColorStop(0, 'rgba(51,65,85,0)');
+                g.addColorStop(0.5, 'rgba(51,65,85,.14)');
+                g.addColorStop(1, 'rgba(51,65,85,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 22, 0, 44, 1024);
+            });
+            // Bold alternating red / white kerb blocks.
+            for (let y = 0; y < 1024; y += 64) {
+                ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
+                ctx.fillRect(0, y, 16, 64);
+                ctx.fillRect(240, y, 16, 64);
+            }
+            // Thin white edge line.
+            ctx.fillStyle = style.edge;
+            ctx.fillRect(16, 0, 4, 1024);
+            ctx.fillRect(236, 0, 4, 1024);
+        } else {
+            // Damp jungle asphalt: dark flecks and soft wet streaks, dark
+            // soil / moss shoulders, plus two clear yellow dash rows.
+            ctx.fillStyle = style.roadA;
+            ctx.fillRect(0, 0, 256, 1024);
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = style.roadB;
+            for (let y = 0; y < 1024; y += 96) ctx.fillRect(0, y, 256, 44);
+            ctx.globalAlpha = 1;
+            // Wet streaks.
+            [-0.34, -0.08, 0.22, 0.42].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
+                g.addColorStop(0, 'rgba(148,163,184,0)');
+                g.addColorStop(0.5, 'rgba(148,163,184,.1)');
+                g.addColorStop(1, 'rgba(148,163,184,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 16, 0, 32, 1024);
+            });
+            // Asphalt flecks.
+            for (let i = 0; i < 2400; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                ctx.globalAlpha = 0.1 + rand() * 0.24;
+                ctx.fillStyle = i % 3 === 0 ? '#94a3b8' : (i % 3 === 1 ? '#0f172a' : '#1f2937');
+                ctx.fillRect(x, y, 0.8 + rand() * 1.8, 0.8 + rand() * 1.8);
+            }
+            ctx.globalAlpha = 1;
+            // Dark soil / mossy shoulders instead of lime racing kerbs.
+            ctx.fillStyle = style.kerbA;
+            ctx.fillRect(0, 0, 14, 1024);
+            ctx.fillStyle = style.kerbB;
+            ctx.fillRect(242, 0, 14, 1024);
+            ctx.globalAlpha = 0.5;
+            for (let y = 0; y < 1024; y += 11) {
+                ctx.fillStyle = (y % 22 < 11) ? '#6b7a4a' : '#3a442f';
+                ctx.fillRect(1 + (y % 7), y, 5 + (y % 5), 4);
+                ctx.fillRect(247 - (y % 6), y, 5 + (y % 4), 4);
+            }
+            ctx.globalAlpha = 1;
+            // Subtle pale edge line.
+            ctx.fillStyle = style.edge;
+            ctx.fillRect(14, 0, 3, 1024);
+            ctx.fillRect(239, 0, 3, 1024);
+            // Two yellow dash rows.
+            ctx.fillStyle = style.dash;
+            for (let y = 0; y < 1024; y += 104) {
+                ctx.fillRect(83, y, 10, 54);
+                ctx.fillRect(163, y, 10, 54);
+            }
         }
-        ctx.fillStyle = style.edge;
-        ctx.fillRect(14, 0, 5, 1024);
-        ctx.fillRect(237, 0, 5, 1024);
-        ctx.fillStyle = style.dash;
-        for (let y = 0; y < 1024; y += 104) {
-            ctx.fillRect(83, y, 10, 54);
-            ctx.fillRect(163, y, 10, 54);
-        }
+
         const tex = new THREE.CanvasTexture(c);
         if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
         tex.wrapS = THREE.ClampToEdgeWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         return tex;
@@ -2947,41 +3447,140 @@
             g.add(m);
             return m;
         };
-        const green = [0x2f7d32, 0x4d7c0f, 0x3f6212][tone % 3];
-        const grey = [0x78716c, 0x9ca3af, 0x57534e][tone % 3];
+        const addGlow = (geo, color, x, y, z) => {
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: color }));
+            m.position.set(x, y, z);
+            g.add(m);
+            return m;
+        };
+        const green = [0x3f6b34, 0x5a7d33, 0x2f5a24][tone % 3];
+        const leaf = [0x2f5a24, 0x3f6b34, 0x4c7a36][tone % 3];
+        const grey = [0x8a7a63, 0xa39a8a, 0x6b6157][tone % 3];
+        const mossy = [0x6b7a6a, 0x7d8a72, 0x5c6b5a][tone % 3];
+        const sand = [0xb5743f, 0xa9653a, 0xc98a52][tone % 3];
+        const crowd = [0xf87171, 0x60a5fa, 0xfacc15, 0xe2e8f0, 0xc084fc, 0x34d399];
         if (kind === 'cactus') {
-            add(new THREE.CylinderGeometry(0.55, 0.65, 4, 7), green, 0, 2, 0);
-            add(new THREE.CylinderGeometry(0.3, 0.3, 1.6, 6), green, -0.9, 2.5, 0).rotation.z = 0.9;
-            add(new THREE.CylinderGeometry(0.3, 0.3, 1.4, 6), green, 0.9, 3.0, 0).rotation.z = -0.9;
+            // Taller saguaro with two raised arms.
+            add(new THREE.CylinderGeometry(0.5, 0.66, 5.4, 7), green, 0, 2.7, 0);
+            const armA = add(new THREE.CylinderGeometry(0.28, 0.3, 2.0, 6), green, -1.05, 3.3, 0);
+            armA.rotation.z = 0.9;
+            add(new THREE.CylinderGeometry(0.28, 0.3, 1.3, 6), green, -1.75, 4.0, 0);
+            const armB = add(new THREE.CylinderGeometry(0.28, 0.3, 1.7, 6), green, 1.05, 3.7, 0);
+            armB.rotation.z = -0.9;
+            add(new THREE.CylinderGeometry(0.28, 0.3, 1.2, 6), green, 1.7, 4.3, 0);
         } else if (kind === 'rock') {
-            const r = add(new THREE.DodecahedronGeometry(1.6, 0), grey, 0, 0.9, 0);
+            const r = add(new THREE.DodecahedronGeometry(1.6, 0), mossy, 0, 0.9, 0);
             r.scale.set(1.2, 0.8, 1);
+            // A mossy cap so jungle rocks read green-grey, not bare stone.
+            const cap = add(new THREE.SphereGeometry(1.05, 7, 5), 0x5a7c3a, 0, 1.45, 0);
+            cap.scale.set(1.1, 0.35, 0.9);
+        } else if (kind === 'butte') {
+            // Layered sandstone butte.
+            add(new THREE.CylinderGeometry(2.5, 3.4, 4.2, 7), sand, 0, 2.1, 0);
+            add(new THREE.CylinderGeometry(2.1, 2.6, 2.6, 7), [0xa9653a, 0xb5743f, 0x9c5c33][tone % 3], 0, 5.5, 0);
+            add(new THREE.CylinderGeometry(1.5, 2.0, 1.6, 7), sand, 0, 7.6, 0);
         } else if (kind === 'bone') {
             add(new THREE.BoxGeometry(3.3, 0.5, 0.5), 0xf5f5f4, 0, 0.5, 0);
             add(new THREE.SphereGeometry(0.45, 6, 6), 0xf5f5f4, -1.6, 0.5, 0);
             add(new THREE.SphereGeometry(0.45, 6, 6), 0xf5f5f4, 1.6, 0.5, 0);
-        } else if (kind === 'plant' || kind === 'fern') {
-            add(new THREE.ConeGeometry(1.4, 2.6, 7), green, 0, 1.3, 0);
-        } else if (kind === 'palm' || kind === 'jungleTree') {
-            add(new THREE.CylinderGeometry(0.35, 0.55, 5.5, 7), 0x8b5a2b, 0, 2.75, 0);
-            const crown = add(new THREE.SphereGeometry(2.4, 8, 6), green, 0, 5.6, 0);
-            crown.scale.set(1.2, 0.55, 1.2);
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, -1.8, 5.2, 0).rotation.z = 0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 1.8, 5.2, 0).rotation.z = -0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, -1.8).rotation.x = 0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, 1.8).rotation.x = -0.8;
+        } else if (kind === 'plant') {
+            // Low desert shrub.
+            const s = add(new THREE.SphereGeometry(1.1, 7, 5), [0x6b7a3a, 0x7d8a45, 0x5c6b32][tone % 3], 0, 0.7, 0);
+            s.scale.set(1.3, 0.7, 1.1);
+            add(new THREE.SphereGeometry(0.7, 6, 5), 0x8a9a4a, -1.0, 0.5, 0.2);
+            add(new THREE.SphereGeometry(0.6, 6, 5), 0x6b7a3a, 1.0, 0.45, -0.1);
+        } else if (kind === 'fern') {
+            // Lower and wider than a palm: a fan of flattened fronds.
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const frond = add(new THREE.ConeGeometry(0.5, 2.2, 4), leaf,
+                    Math.cos(a) * 1.0, 1.0, Math.sin(a) * 1.0);
+                frond.scale.set(1.5, 1, 0.5);
+                frond.rotation.z = Math.cos(a) * 0.7;
+                frond.rotation.x = -Math.sin(a) * 0.7;
+            }
+            add(new THREE.SphereGeometry(0.8, 7, 5), leaf, 0, 0.7, 0).scale.set(1.4, 0.5, 1.4);
+        } else if (kind === 'palm') {
+            // Taller trunk and a fuller frond crown.
+            add(new THREE.CylinderGeometry(0.3, 0.6, 7.8, 7), 0x8b5a2b, 0, 3.9, 0);
+            add(new THREE.CylinderGeometry(0.24, 0.32, 1.4, 6), 0x7c4f26, 0.25, 7.9, 0).rotation.z = -0.25;
+            const crown = add(new THREE.SphereGeometry(2.2, 8, 6), leaf, 0, 8.2, 0);
+            crown.scale.set(1.3, 0.45, 1.3);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const frond = add(new THREE.ConeGeometry(0.6, 3.4, 4), leaf,
+                    Math.cos(a) * 1.6, 8.0, Math.sin(a) * 1.6);
+                frond.scale.set(1.2, 1, 0.45);
+                frond.rotation.z = Math.cos(a) * 1.0;
+                frond.rotation.x = -Math.sin(a) * 1.0;
+            }
+            add(new THREE.SphereGeometry(0.4, 6, 5), 0xa16207, 0, 7.7, 0);
+        } else if (kind === 'jungleTree') {
+            // Fuller layered canopy.
+            add(new THREE.CylinderGeometry(0.45, 0.72, 7.2, 7), 0x4b3621, 0, 3.6, 0);
+            const canopy = [leaf, 0x356b2c, 0x4c7a36];
+            for (let i = 0; i < 3; i++) {
+                const blob = add(new THREE.SphereGeometry(2.7 - i * 0.35, 8, 6), canopy[(tone + i) % 3], 0, 7.1 + i * 1.1, 0);
+                blob.scale.set(1.25, 0.8, 1.25);
+            }
+            add(new THREE.SphereGeometry(1.9, 7, 6), canopy[(tone + 1) % 3], -2.1, 7.3, 0.4);
+            add(new THREE.SphereGeometry(1.8, 7, 6), canopy[(tone + 2) % 3], 2.2, 7.8, -0.3);
         } else if (kind === 'sign') {
             add(new THREE.CylinderGeometry(0.16, 0.16, 3.2, 6), 0x6b7280, 0, 1.6, 0);
             add(new THREE.BoxGeometry(2.4, 1.1, 0.25), 0xf59e0b, 0, 3.1, 0);
-        } else if (kind === 'lamp' || kind === 'floodlight') {
+        } else if (kind === 'lamp') {
             add(new THREE.CylinderGeometry(0.16, 0.2, 5, 6), 0x6b7280, 0, 2.5, 0);
-            if (kind === 'floodlight') add(new THREE.BoxGeometry(1.5, 0.7, 0.4), 0xfef08a, 0, 5.2, 0);
-            else add(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
+            addGlow(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
+        } else if (kind === 'floodlight') {
+            // Taller gantry with a glowing head (no PointLight per mesh).
+            add(new THREE.CylinderGeometry(0.2, 0.28, 9.2, 6), 0x6b7280, 0, 4.6, 0);
+            add(new THREE.BoxGeometry(2.4, 0.18, 0.18), 0x94a3b8, 0, 8.2, 0);
+            const head = addGlow(new THREE.BoxGeometry(2.6, 1.0, 0.5), 0xfffbe6, 0, 9.0, 0);
+            head.rotation.z = 0.05;
+            for (let i = 0; i < 3; i++) {
+                addGlow(new THREE.BoxGeometry(0.6, 0.45, 0.12), 0xfff7cc, -0.8 + i * 0.8, 8.95, 0.3);
+            }
+        } else if (kind === 'ledbanner') {
+            // Trackside LED banner. The only text is the app's own name,
+            // never a third-party sponsor.
+            add(new THREE.CylinderGeometry(0.14, 0.18, 2.4, 6), 0x475569, -2.5, 1.2, 0);
+            add(new THREE.CylinderGeometry(0.14, 0.18, 2.4, 6), 0x475569, 2.5, 1.2, 0);
+            const bc = document.createElement('canvas');
+            bc.width = 512;
+            bc.height = 128;
+            const bctx = bc.getContext('2d');
+            bctx.fillStyle = '#0b1220';
+            bctx.fillRect(0, 0, 512, 128);
+            bctx.strokeStyle = 'rgba(56,189,248,.8)';
+            bctx.lineWidth = 6;
+            bctx.strokeRect(4, 4, 504, 120);
+            bctx.fillStyle = '#7dd3fc';
+            bctx.font = '800 68px Fredoka, system-ui, sans-serif';
+            bctx.textAlign = 'center';
+            bctx.textBaseline = 'middle';
+            bctx.fillText(tone % 2 ? 'Drive & Go' : 'LearniTY', 256, 68, 470);
+            const btex = new THREE.CanvasTexture(bc);
+            if (THREE.sRGBEncoding != null) btex.encoding = THREE.sRGBEncoding;
+            btex.minFilter = THREE.LinearFilter;
+            const banner = new THREE.Mesh(
+                new THREE.PlaneGeometry(6.4, 1.6),
+                new THREE.MeshBasicMaterial({ map: btex, transparent: true, side: THREE.DoubleSide })
+            );
+            banner.position.set(0, 2.9, 0);
+            g.add(banner);
         } else if (kind === 'grandstand') {
-            add(new THREE.BoxGeometry(6, 1.0, 3), 0xcbd5e1, 0, 0.5, 0);
-            add(new THREE.BoxGeometry(5.2, 0.8, 2.6), 0x94a3b8, 0, 1.3, 0);
-            add(new THREE.BoxGeometry(4.4, 0.7, 2.2), 0x64748b, 0, 2.0, 0);
-            add(new THREE.BoxGeometry(6, 0.35, 3), 0xef4444, 0, 2.55, 0);
+            // Taller packed grandstand with crowd-dot rows.
+            add(new THREE.BoxGeometry(7, 1.2, 3.2), 0x334155, 0, 0.6, 0);
+            add(new THREE.BoxGeometry(6.4, 1.0, 2.8), 0x475569, 0, 1.8, -0.1);
+            add(new THREE.BoxGeometry(5.6, 0.95, 2.4), 0x3b4a63, 0, 2.9, -0.2);
+            add(new THREE.BoxGeometry(4.8, 0.9, 2.0), 0x1e293b, 0, 3.9, -0.3);
+            add(new THREE.BoxGeometry(8.2, 0.3, 3.6), 0xe11d48, 0, 4.5, -0.2);
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 7; c++) {
+                    add(new THREE.BoxGeometry(0.36, 0.44, 0.28), crowd[(r * 7 + c + tone) % crowd.length],
+                        -2.7 + c * 0.9, 1.35 + r * 1.05, 1.35 - r * 0.1);
+                }
+            }
         } else if (kind === 'flag') {
             add(new THREE.CylinderGeometry(0.14, 0.14, 4.5, 6), 0x6b7280, 0, 2.25, 0);
             const flag = add(new THREE.PlaneGeometry(1.7, 1.1), 0xef4444, 0.95, 4.0, 0);
@@ -3183,6 +3782,9 @@
             }
         } catch (e) {}
         DG.three = null;
+        // Textures were disposed by the traversal above; drop the per-race
+        // cache so a restart builds a fresh THREE texture from the image.
+        DG._sceneArtTextureCache = {};
     };
 
     DG.addThreeBackdrop = function (scene, style) {
@@ -3195,39 +3797,91 @@
             group.add(mesh);
             return mesh;
         };
+
+        // Wide far backdrop showing the original course art. It sits beyond
+        // the playable road (z = -1600) so nearer 3D geometry always draws in
+        // front of it. It is invisible until the art decodes, so the
+        // procedural silhouette below acts as the temporary stand-in; onload
+        // just swaps the texture in.
+        const artTex = DG.sceneArtTexture(sceneId);
+        const artMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            map: artTex || null,
+            transparent: true,
+            opacity: artTex ? 1 : 0,
+            depthWrite: false,
+            fog: false
+        });
+        const artPlane = new THREE.Mesh(new THREE.PlaneGeometry(6000, 3375), artMat);
+        artPlane.position.set(0, 1560, -1600);
+        artPlane.frustumCulled = false;
+        group.add(artPlane);
+        group.userData.artBackdrop = { scene: sceneId, mesh: artPlane, material: artMat };
+
+        // Thin atmospheric veil in front of the art so it fades into the
+        // distance instead of looking pasted on.
+        const hazeMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(style.fog || '#ffffff'),
+            transparent: true,
+            opacity: 0.22,
+            depthWrite: false,
+            fog: false
+        });
+        const haze = new THREE.Mesh(new THREE.PlaneGeometry(6000, 3375), hazeMat);
+        haze.position.set(0, 1560, -1500);
+        haze.frustumCulled = false;
+        group.add(haze);
+
         if (sceneId === 'stadium') {
+            // Dark arena shell. Fogged by the night palette, and mostly hidden
+            // once the wide arena art has loaded.
             for (let i = 0; i < 7; i++) {
                 const h = 35 + (i % 3) * 22;
-                add(new THREE.BoxGeometry(24 + i * 3, h, 18), i % 2 ? 0x94a3b8 : 0x64748b, -150 + i * 50, h / 2, -1750);
+                add(new THREE.BoxGeometry(24 + i * 3, h, 18), i % 2 ? 0x1e293b : 0x334155, -150 + i * 50, h / 2, -1750);
+            }
+            // Roof truss / gantry line above the far straight.
+            add(new THREE.BoxGeometry(520, 5, 8), 0x0f172a, 0, 82, -1700);
+            add(new THREE.BoxGeometry(520, 2, 6), 0x475569, 0, 62, -1690);
+            for (let i = 0; i < 7; i++) {
+                add(new THREE.BoxGeometry(3, 34, 3), 0x1e293b, -240 + i * 80, 46, -1705);
             }
         } else if (sceneId === 'jungle') {
             for (let i = 0; i < 6; i++) {
-                add(new THREE.ConeGeometry(90 + i * 12, 90 + (i % 3) * 40, 7), i % 2 ? 0x2f5d2c : 0x3c7d4b, -220 + i * 90, 20, -1760);
+                add(new THREE.ConeGeometry(90 + i * 12, 90 + (i % 3) * 40, 7), i % 2 ? 0x2b4a25 : 0x3a6330, -220 + i * 90, 20, -1760);
             }
         } else {
             for (let i = 0; i < 5; i++) {
                 add(new THREE.CylinderGeometry(55 + i * 8, 85 + i * 9, 90 + (i % 3) * 35, 6), i % 2 ? 0xb0895a : 0x9c7648, -210 + i * 105, 20, -1760);
             }
         }
-        for (let i = 0; i < 5; i++) {
-            const cloud = add(new THREE.SphereGeometry(18, 8, 6), 0xffffff, -180 + i * 90, 70 + (i % 2) * 18, -1050 - (i % 3) * 180, 2.8, 0.8, 1.2);
-            cloud.material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82 });
+
+        if (sceneId !== 'stadium') {
+            // Soft clouds only in the outdoor courses; a night arena has none.
+            for (let i = 0; i < 5; i++) {
+                const cloud = add(new THREE.SphereGeometry(18, 8, 6), 0xffffff, -180 + i * 90, 70 + (i % 2) * 18, -1050 - (i % 3) * 180, 2.8, 0.8, 1.2);
+                cloud.material = new THREE.MeshBasicMaterial({
+                    color: sceneId === 'jungle' ? 0xf4f7e6 : 0xfff6de,
+                    transparent: true,
+                    opacity: sceneId === 'jungle' ? 0.5 : 0.7
+                });
+            }
         }
-        if (sceneId !== 'jungle') {
+        if (sceneId === 'desert') {
             const c = document.createElement('canvas');
             c.width = 128;
             c.height = 128;
             const ctx = c.getContext('2d');
             const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
             g.addColorStop(0, 'rgba(255,248,180,1)');
-            g.addColorStop(0.35, 'rgba(255,236,120,.85)');
-            g.addColorStop(1, 'rgba(255,236,120,0)');
+            g.addColorStop(0.35, 'rgba(255,214,120,.85)');
+            g.addColorStop(1, 'rgba(255,200,110,0)');
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, 128, 128);
             const tex = new THREE.CanvasTexture(c);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-            sprite.position.set(-230, 170, -1700);
-            sprite.scale.set(150, 150, 1);
+            // Low golden-hour sun.
+            sprite.position.set(-260, 118, -1500);
+            sprite.scale.set(170, 170, 1);
             group.add(sprite);
         }
         scene.add(group);
@@ -3250,11 +3904,68 @@
             const scene = new THREE.Scene();
             const style = DG.sceneStyle();
             scene.background = DG.threeSkyTexture(style);
-            scene.fog = new THREE.Fog(new THREE.Color(style.fog || style.sky[style.sky.length - 1][1]), 110, THREE_ROAD_LEN * 0.92);
+            scene.fog = new THREE.Fog(
+                new THREE.Color(style.fog || style.sky[style.sky.length - 1][1]),
+                style.fogNear || 110,
+                THREE_ROAD_LEN * (style.fogFar || 0.92)
+            );
             scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(style.ground), 0.9));
             const sun = new THREE.DirectionalLight(0xffffff, 0.8);
             sun.position.set(-80, 140, 50);
             scene.add(sun);
+
+            // Scene-specific lighting. Lambert materials on the road, kerbs
+            // and terrain mean these lights actually shade the course.
+            const sceneId = DG.normalizeScene(S.scene);
+            const floodLights = [];
+            if (sceneId === 'stadium') {
+                // Night indoor arena: a dim cool ambience, practically no
+                // sun, and a few white floodlights following the track.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0x9fb6e6);
+                        light.groundColor.set(0x111827);
+                        light.intensity = 0.38;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xdfe8ff);
+                        light.intensity = 0.16;
+                        light.position.set(-40, 160, 60);
+                    }
+                });
+                for (let i = 0; i < 5; i++) {
+                    const lamp = new THREE.PointLight(0xfff6de, 1.0, 300, 2);
+                    lamp.userData.rel = 220 + i * 340;
+                    lamp.userData.side = i % 2 ? 1 : -1;
+                    scene.add(lamp);
+                    floodLights.push(lamp);
+                }
+            } else if (sceneId === 'jungle') {
+                // Warm sunlit morning with shafts from the upper left.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0xf2f6cf);
+                        light.groundColor.set(0x2a4a2a);
+                        light.intensity = 1.0;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xffe6a8);
+                        light.intensity = 1.05;
+                        light.position.set(-110, 150, 70);
+                    }
+                });
+            } else {
+                // Golden hour: warm low sun from the side.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0xffd9a8);
+                        light.groundColor.set(0x8a6a45);
+                        light.intensity = 0.78;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xffb066);
+                        light.intensity = 1.0;
+                        light.position.set(-140, 46, 95);
+                    }
+                });
+            }
 
             const camera = new THREE.PerspectiveCamera(60, DG.view.w / DG.view.h, 0.5, THREE_ROAD_LEN + 400);
             camera.position.set(0, 4.8, 16.5);
@@ -3278,7 +3989,7 @@
             roadGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
             roadGeo.setIndex(indices);
             const roadTex = DG.threeRoadTexture(style);
-            const road = new THREE.Mesh(roadGeo, new THREE.MeshBasicMaterial({ map: roadTex, side: THREE.DoubleSide }));
+            const road = new THREE.Mesh(roadGeo, new THREE.MeshLambertMaterial({ map: roadTex, side: THREE.DoubleSide }));
             scene.add(road);
 
             const kerbColors = [new THREE.Color(style.kerbA), new THREE.Color(style.kerbB)];
@@ -3303,7 +4014,7 @@
                 geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
                 geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
                 geo.setIndex(idx);
-                const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+                const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
                 mesh.userData.side = side;
                 scene.add(mesh);
                 return mesh;
@@ -3325,7 +4036,7 @@
             terrainGeo.setIndex(terrainIdx);
             const terrain = new THREE.Mesh(
                 terrainGeo,
-                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
             terrain.frustumCulled = false;
             scene.add(terrain);
@@ -3333,13 +4044,13 @@
             // Fallback floor far below the deepest dip; fog hides it.
             const under = new THREE.Mesh(
                 new THREE.PlaneGeometry(2600, THREE_ROAD_LEN + 1600),
-                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
             under.rotation.x = -Math.PI / 2;
             under.position.set(0, -140, -THREE_ROAD_LEN / 2);
             scene.add(under);
 
-            DG.addThreeBackdrop(scene, style);
+            const backdrop = DG.addThreeBackdrop(scene, style);
 
             const kartGroup = new THREE.Group();
             const gateGroup = new THREE.Group();
@@ -3352,6 +4063,8 @@
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
                 kerbL, kerbR, terrain,
+                floodLights: floodLights,
+                artBackdrop: backdrop && backdrop.userData ? backdrop.userData.artBackdrop : null,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
                 projectiles: [], bursts: [],
                 kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup
@@ -3396,7 +4109,29 @@
         if (terrainPos) terrainPos.needsUpdate = true;
         if (leftPos) leftPos.needsUpdate = true;
         if (rightPos) rightPos.needsUpdate = true;
+        // Lambert materials need valid normals after the ribbon moves.
+        if (t.road.geometry.computeVertexNormals) t.road.geometry.computeVertexNormals();
+        if (t.terrain && t.terrain.geometry.computeVertexNormals) t.terrain.geometry.computeVertexNormals();
+        if (t.kerbL && t.kerbL.geometry.computeVertexNormals) t.kerbL.geometry.computeVertexNormals();
+        if (t.kerbR && t.kerbR.geometry.computeVertexNormals) t.kerbR.geometry.computeVertexNormals();
         t.roadTex.offset.y = (S.player.dist / 40) % 1;
+        DG.updateThreeFloodLights();
+    };
+
+    // Keep the stadium floodlights beside the visible stretch of track.
+    DG.updateThreeFloodLights = function () {
+        const t = DG.three;
+        if (!t || !t.floodLights || !t.floodLights.length) return;
+        const p = S.player;
+        if (!p) return;
+        for (let i = 0; i < t.floodLights.length; i++) {
+            const lamp = t.floodLights[i];
+            const rel = lamp.userData.rel || (220 + i * 340);
+            const side = lamp.userData.side || 1;
+            const x = DG.threeRoadX(rel) + side * (THREE_ROAD_W / 2 + 13);
+            const y = DG.threeRoadY(rel) + 16;
+            lamp.position.set(x, y, -rel);
+        }
     };
 
     DG.updateThreeCamera = function () {
@@ -3612,7 +4347,13 @@
 
         const horizonY = DG.trackHorizonY();
         DG.drawBackdrop(ctx, p.dist, horizonY);
-        ctx.fillStyle = style.ground;
+        // Fade the near ground in instead of painting a hard line at the
+        // horizon, so the wide course art keeps a far ground band visible.
+        const groundFade = Math.max(36, h * 0.14);
+        const groundGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + groundFade);
+        groundGrad.addColorStop(0, DG.rgbaColor(style.ground, 0));
+        groundGrad.addColorStop(1, DG.rgbaColor(style.ground, 1));
+        ctx.fillStyle = groundGrad;
         ctx.fillRect(0, horizonY, w, h - horizonY);
 
         DG.ensureScenery(p.dist);

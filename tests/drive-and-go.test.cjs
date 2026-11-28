@@ -433,6 +433,178 @@ test('Solo flow is session → topic → challenge → cat → controls → coun
     assert.ok(html.indexOf('Game mode') === -1);
 });
 
+test('course picker shows the official names with emoji and flavour text', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.sessionMode = 'solo';
+    DG.showSceneStep();
+    const html = content();
+    ['Desert Hills', 'Peach Stadium', 'Dino Dino Jungle'].forEach(name => {
+        assert.ok(html.indexOf(name) !== -1, name + ' is listed');
+    });
+    // The picker uses the emoji buttons, not the wide artwork cards.
+    assert.ok(/class="dg-choice( active)?"/.test(html), 'cards use the dg-choice class');
+    assert.ok(html.indexOf('dg-choice-emoji') !== -1, 'each card has an emoji');
+    ['🏜️', '🏟️', '🦕'].forEach(emoji => {
+        assert.ok(html.indexOf(emoji) !== -1, emoji + ' is shown');
+    });
+    assert.equal(html.indexOf('dg-scene-card'), -1, 'the scene-card picker class is gone');
+    assert.equal(html.indexOf('dg-scene-art'), -1, 'the picker no longer embeds the artwork');
+    ['images/dg-scene-desert.jpg', 'images/dg-scene-stadium.jpg', 'images/dg-scene-jungle.jpg'].forEach(src => {
+        assert.equal(html.indexOf(src), -1, src + ' is not in the picker markup');
+    });
+    [
+        'Pale-gold dunes, cactus and sun-bleached rocks.',
+        'Peach grandstands, floodlights and painted kerbs.',
+        'Humid canopy, palms and friendly dinosaurs.'
+    ].forEach(flavour => {
+        assert.ok(html.indexOf(flavour) !== -1, 'flavour text is shown: ' + flavour);
+    });
+    // The race (2D fallback / 3D backdrop) still uses the same art map.
+    assert.equal(DG.sceneArtUrl('jungle'), 'images/dg-scene-jungle.jpg');
+    assert.equal(DG.sceneArtUrl('stadium'), 'images/dg-scene-stadium.jpg');
+    assert.equal(DG.sceneArtUrl('volcano'), 'images/dg-scene-desert.jpg');
+});
+
+test('scene palettes match the jungle, stadium and desert course art', () => {
+    const DG = loadDG();
+    loadRace(DG);
+    const S = DG.raceState;
+    const rgb = (value) => {
+        const v = String(value || '').replace('#', '');
+        if (v.length === 3) {
+            return {
+                r: parseInt(v.charAt(0) + v.charAt(0), 16),
+                g: parseInt(v.charAt(1) + v.charAt(1), 16),
+                b: parseInt(v.charAt(2) + v.charAt(2), 16)
+            };
+        }
+        const n = parseInt(v, 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    };
+
+    S.scene = 'desert';
+    const desert = DG.sceneStyle();
+    assert.equal(desert.roadTex, 'dirt');
+    const dirtA = rgb(desert.roadA);
+    const dirtB = rgb(desert.roadB);
+    assert.ok(dirtA.r > dirtA.b + 40 && dirtB.r > dirtB.b + 40,
+        'desert road is warm earth, not a grey highway');
+
+    S.scene = 'stadium';
+    const stadium = DG.sceneStyle();
+    assert.equal(stadium.roadTex, 'concrete');
+    const sky = rgb(stadium.sky[stadium.sky.length - 1][1]);
+    const fog = rgb(stadium.fog);
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    assert.ok(lum(sky) < 60, 'stadium sky is night-dark');
+    assert.ok(lum(fog) < 60, 'stadium fog is night-dark');
+    const kerbA = rgb(stadium.kerbA);
+    const kerbB = rgb(stadium.kerbB);
+    assert.ok(kerbA.r > 150 && kerbA.g < 90 && kerbA.b < 100, 'stadium kerb A is red');
+    assert.ok(kerbB.r > 225 && kerbB.g > 225 && kerbB.b > 225, 'stadium kerb B is white');
+    assert.notDeepEqual([desert.kerbA, desert.kerbB], [stadium.kerbA, stadium.kerbB],
+        'desert shoulders are not the stadium red / white pair');
+
+    S.scene = 'jungle';
+    const jungle = DG.sceneStyle();
+    assert.equal(jungle.roadTex, 'asphalt');
+    const dash = rgb(jungle.dash);
+    assert.ok(dash.r > 180 && dash.g > 140 && dash.b < 120, 'jungle centre dash is yellow paint');
+});
+
+test('vendor three.js and the course art are pinned in the app shell', () => {
+    const sw = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v126';/);
+    assert.equal(sw.indexOf('learnity-pwa-v125'), -1, 'the v125 cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v124'), -1, 'the v124 cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the v123 cache name is gone');
+    assert.ok(sw.indexOf("'/js/vendor/three.min.js'") !== -1, 'three.js is precached locally');
+    assert.ok(sw.indexOf("'/images/dg-scene-desert.jpg'") !== -1);
+    assert.ok(sw.indexOf("'/images/dg-scene-stadium.jpg'") !== -1);
+    assert.ok(sw.indexOf("'/images/dg-scene-jungle.jpg'") !== -1);
+    assert.ok(htmlSource.indexOf('js/vendor/three.min.js') !== -1, 'index.html loads the local build');
+    assert.equal(htmlSource.indexOf('cdn.jsdelivr.net/npm/three'), -1, 'three.js is no longer loaded from the CDN');
+});
+
+test('the live race view fills the visible viewport instead of 100dvh', () => {
+    const sw = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
+    const liveRule = htmlSource.match(/#drive-and-go-view\.dg-live \{([\s\S]*?)\}/);
+    assert.ok(liveRule, 'the .dg-live rule exists');
+    const live = liveRule[1];
+    assert.doesNotMatch(live, /100dvh|100vh|100vw/, 'the view does not rely on a dvh/vh/vw height');
+    assert.match(live, /position:\s*fixed/);
+    assert.match(live, /top:\s*0/);
+    assert.match(live, /right:\s*0/);
+    assert.match(live, /bottom:\s*0/);
+    assert.match(live, /left:\s*0/);
+    assert.match(live, /width:\s*100%/);
+    assert.match(live, /height:\s*100%/);
+    assert.match(live, /z-index:\s*2000/, 'the race sits above the 850 FABs and below the ~10050 modals');
+
+    const stageRule = htmlSource.match(/#drive-and-go-view\.dg-live \.dg-stage \{([\s\S]*?)\}/);
+    assert.ok(stageRule, 'the live stage rule exists');
+    const stage = stageRule[1];
+    assert.doesNotMatch(stage, /78dvh|100dvh|100vh/, 'the live stage is not a second viewport unit');
+    assert.match(stage, /position:\s*absolute/);
+    assert.match(stage, /inset:\s*0/);
+    assert.match(stage, /height:\s*100%/);
+    assert.match(stage, /min-height:\s*0/);
+    assert.match(stage, /max-height:\s*none/);
+
+    assert.match(htmlSource, /body\.dg-racing #app,[\s\S]*?body\.dg-racing\.has-music-fab #app \{\s*padding:\s*0;?\s*\}/,
+        'the race cancels the shell tab-bar / music-fab padding');
+    ['#home-music-btn', '#me-store-music-btn', '#bottom-nav'].forEach((id) => {
+        assert.ok(htmlSource.indexOf('body.dg-racing ' + id) !== -1, id + ' is hidden during the race');
+    });
+
+    // The helper must size the fixed node from visualViewport when present,
+    // and the visualViewport listeners must be cleaned up on teardown.
+    const DG = loadDG();
+    const node = { classList: { contains: (c) => c === 'dg-live' }, style: {} };
+    const added = [];
+    const removed = [];
+    const fakeWindow = {
+        DG,
+        innerWidth: 390,
+        innerHeight: 844,
+        visualViewport: {
+            offsetTop: 64, offsetLeft: 4, width: 390, height: 700,
+            addEventListener(type, fn) { added.push({ type, fn }); },
+            removeEventListener(type, fn) { removed.push({ type, fn }); }
+        },
+        addEventListener(type, fn) { added.push({ type, fn }); },
+        removeEventListener(type, fn) { removed.push({ type, fn }); }
+    };
+    const context = vm.createContext({
+        window: fakeWindow,
+        globalThis: {},
+        document: { getElementById: () => node },
+        console
+    });
+    vm.runInContext(raceSource, context);
+    assert.equal(typeof DG.layoutLiveRaceView, 'function');
+    assert.ok(raceSource.indexOf('window.visualViewport') !== -1, 'the helper reads visualViewport');
+    DG.layoutLiveRaceView();
+    assert.equal(node.style.top, '64px');
+    assert.equal(node.style.left, '4px');
+    assert.equal(node.style.width, '390px');
+    assert.equal(node.style.height, '700px');
+    assert.equal(node.style.right, 'auto');
+    assert.equal(node.style.bottom, 'auto');
+
+    DG.bindLiveRaceLayout();
+    const types = added.map((l) => l.type);
+    assert.ok(types.indexOf('resize') !== -1);
+    assert.ok(types.indexOf('scroll') !== -1, 'visualViewport scroll is tracked');
+    assert.ok(types.indexOf('orientationchange') !== -1);
+    DG.unbindLiveRaceLayout();
+    assert.equal(removed.length, added.length, 'every live viewport listener is removed');
+    assert.equal(DG.liveViewportListeners.length, 0);
+
+    DG.clearLiveRaceLayout();
+    assert.equal(node.style.height, '', 'leaving the race clears the inline pin');
+});
+
 test('Multiplayer asks Create or Join before any settings', () => {
     const { DG, content } = loadDGWithDom();
     DG.sessionMode = 'multi';

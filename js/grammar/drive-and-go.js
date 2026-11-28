@@ -56,6 +56,15 @@ const DG = {
     SCENES: ['desert', 'stadium', 'jungle'],
     SCENE_LABEL: { desert: 'Desert Hills', stadium: 'Peach Stadium', jungle: 'Dino Dino Jungle' },
     SCENE_EMOJI: { desert: '🏜️', stadium: '🏟️', jungle: '🦕' },
+    // Original stylised course art used by the race backdrop only.
+    // Kept in one map so the 2D fallback and 3D backdrop agree.
+    SCENE_ART: {
+        desert: 'images/dg-scene-desert.jpg',
+        stadium: 'images/dg-scene-stadium.jpg',
+        jungle: 'images/dg-scene-jungle.jpg'
+    },
+    SCENE_ART_W: 1280,
+    SCENE_ART_H: 720,
     SCENE_FLAVOUR: {
         desert: 'Pale-gold dunes, cactus and sun-bleached rocks.',
         stadium: 'Peach grandstands, floodlights and painted kerbs.',
@@ -230,6 +239,13 @@ const DG = {
 
     sceneLabel(value) {
         return DG.SCENE_LABEL[DG.normalizeScene(value)];
+    },
+
+    // Public path of the course art. Used by the 2D fallback backdrop and
+    // the 3D far backdrop texture loader during a race.
+    sceneArtUrl(value) {
+        const id = DG.normalizeScene(value);
+        return (DG.SCENE_ART && DG.SCENE_ART[id]) || ('images/dg-scene-' + id + '.jpg');
     },
 
     /* Analog tilt helpers, shared by the race engine and the unit tests.

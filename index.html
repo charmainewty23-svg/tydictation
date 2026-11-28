@@ -3186,6 +3186,27 @@
         .dg-choice-emoji { font-size: 34px; line-height: 1.1; }
         .dg-choice-title { font-size: 18px; font-weight: 700; color: #166534; }
         .dg-choice-sub { font-size: 12px; font-weight: 700; color: #78716c; line-height: 1.35; }
+        /* Course picker cards: wide original art plus the official name. */
+        .dg-scene-card {
+            padding: 0 0 12px;
+            gap: 6px;
+            overflow: hidden;
+            border-radius: 18px;
+            background: linear-gradient(160deg, #fef3c7, #ffedd5);
+        }
+        .dg-scene-art {
+            display: block;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            height: auto;
+            object-fit: cover;
+            object-position: center;
+            border-radius: 14px 14px 0 0;
+            background: #f9e2b8;
+        }
+        .dg-scene-card .dg-choice-title,
+        .dg-scene-card .dg-choice-sub { padding: 0 12px; }
+        .dg-scene-card .dg-choice-sub { margin-top: -2px; }
         .dg-chip {
             border: 2px solid #ffedd5;
             background: #fff;
@@ -7868,7 +7889,7 @@
     <script src="js/grammar/participle-phrases-data.js"></script>
     <script src="js/grammar/participle-clauses-combining-data.js"></script>
     <script src="js/grammar/drive-and-go.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="js/vendor/three.min.js"></script>
     <script src="js/grammar/drive-and-go-race.js"></script>
     <script src="js/grammar/drive-and-go-multiplayer.js"></script>
     <script src="js/purrfect-survival-engine.js"></script>

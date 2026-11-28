@@ -303,6 +303,7 @@
             DG.toast('The race view could not be opened.');
             return;
         }
+        DG.loadSceneArt(S.scene);
         DG.initThree();
         DG.startMusic();
         DG.spawnGates();
@@ -1681,40 +1682,53 @@
 
     // One palette + roadside set per course. Track geometry (curves, hills,
     // projection, gate spacing) is identical for all three; only the colours,
-    // backdrop and scenery kinds change.
+    // backdrop and scenery kinds change. Each palette follows its original
+    // stylised course art: golden-hour canyon, night arena and misty jungle.
     const SCENE_STYLES = {
         desert: {
-            sky: [[0, '#9fc6dc'], [0.22, '#cfe2ec'], [0.40, '#f2d79c'], [0.58, '#f8e6bb']],
-            fog: '#f2d89a',
-            ground: '#d7b06b',
-            bandA: '#d7b06b', bandB: '#c9a25c',
-            roadA: '#8f7a56', roadB: '#836f4d',
-            kerbA: '#b45309', kerbB: '#fde68a',
-            dash: 'rgba(255,250,235,.72)', edge: 'rgba(255,255,255,.5)',
+            sky: [[0, '#e7a865'], [0.22, '#f0bb7d'], [0.40, '#f7d29a'], [0.58, '#fbe6bd']],
+            fog: '#efc78f',
+            fogNear: 120,
+            fogFar: 0.9,
+            ground: '#c9904e',
+            bandA: '#c9904e', bandB: '#bd8340',
+            roadA: '#a9825a', roadB: '#9b7650',
+            kerbA: '#b45309', kerbB: '#e8ca92',
+            dash: 'rgba(255,240,209,.40)', edge: 'rgba(255,244,222,.30)',
+            roadTex: 'dirt',
             kinds: ['cactus', 'rock', 'rock', 'bone', 'plant', 'sign', 'lamp'],
             density: 0.46
         },
         stadium: {
-            sky: [[0, '#6fb7e8'], [0.22, '#a9d9f6'], [0.40, '#ffd9e4'], [0.58, '#fff0e0']],
-            fog: '#fbe0da',
-            ground: '#e7d3cf',
-            bandA: '#e7d3cf', bandB: '#dcc3be',
-            roadA: '#66707d', roadB: '#5b6572',
+            // Night-time indoor arena: near-black sky, dark floor, pale
+            // concrete track and red / white kerbs under floodlights.
+            sky: [[0, '#050a17'], [0.30, '#0a1428'], [0.50, '#132140'], [0.58, '#1b2c4e']],
+            fog: '#101c33',
+            fogNear: 90,
+            fogFar: 0.95,
+            ground: '#232b3c',
+            bandA: '#232b3c', bandB: '#1c2332',
+            roadA: '#b8bec8', roadB: '#aab1bc',
             kerbA: '#e11d48', kerbB: '#f8fafc',
-            dash: 'rgba(255,255,255,.8)', edge: 'rgba(255,255,255,.62)',
+            dash: 'rgba(248,250,252,.72)', edge: 'rgba(255,255,255,.5)',
+            roadTex: 'concrete',
             kinds: ['grandstand', 'floodlight', 'flag', 'stall', 'lamp'],
             density: 0.64
         },
         jungle: {
-            sky: [[0, '#1c4a32'], [0.22, '#3c7d4b'], [0.40, '#a8d888'], [0.58, '#e4f6c3']],
-            fog: '#b8d88e',
-            ground: '#2f5d2c',
-            bandA: '#2f5d2c', bandB: '#386b31',
-            roadA: '#6b5a41', roadB: '#5e4f39',
+            sky: [[0, '#7fa87a'], [0.22, '#a6c79b'], [0.40, '#cfe2b4'], [0.58, '#e8f0cf']],
+            fog: '#c8dcae',
+            fogNear: 45,
+            fogFar: 0.8,
+            ground: '#2b4a25',
+            bandA: '#2b4a25', bandB: '#345a2c',
+            // Damp asphalt with warm yellow lane paint.
+            roadA: '#3c433d', roadB: '#343b36',
             kerbA: '#4d7c0f', kerbB: '#d9f99d',
-            dash: 'rgba(240,253,230,.62)', edge: 'rgba(236,252,203,.55)',
+            dash: 'rgba(250,204,21,.66)', edge: 'rgba(226,244,180,.4)',
+            roadTex: 'asphalt',
             kinds: ['palm', 'jungleTree', 'jungleTree', 'fern', 'dino', 'rock'],
-            density: 0.6
+            density: 0.68
         }
     };
 
@@ -2219,6 +2233,50 @@
         }
     };
 
+    // Mix a hex colour with transparency. Used by the 2D ground fade so the
+    // wide course art still shows a band below the horizon.
+    DG.rgbaColor = function (hex, alpha) {
+        const h = String(hex || '').replace('#', '');
+        let r = 0, g = 0, b = 0;
+        if (h.length === 3) {
+            r = parseInt(h.charAt(0) + h.charAt(0), 16);
+            g = parseInt(h.charAt(1) + h.charAt(1), 16);
+            b = parseInt(h.charAt(2) + h.charAt(2), 16);
+        } else if (h.length === 6) {
+            const n = parseInt(h, 16);
+            r = (n >> 16) & 255;
+            g = (n >> 8) & 255;
+            b = n & 255;
+        }
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha == null ? 1 : alpha) + ')';
+    };
+
+    // Wide cinematic course still behind the horizon, with a gentle parallax
+    // drift as the player steers. Returns false while the artwork is still
+    // loading (or missing) so each scene can keep its palette fallback.
+    DG.drawSceneArtBackdrop = function (ctx, camZ, horizonY) {
+        const img = DG.sceneArtImage(S.scene);
+        if (!img || !img.width || !img.height) return false;
+        const w = DG.view.w, h = DG.view.h;
+        const heading = DG.trackCurve(camZ);
+        const bandBottom = horizonY + h * 0.17;
+        const targetH = Math.max(bandBottom, h * 0.46);
+        const scale = Math.max(w / img.width, targetH / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        const spareX = Math.max(0, dw - w);
+        let x = -spareX * 0.5 - spareX * 0.45 * Math.sin(camZ * 0.0018 + heading * 1.2);
+        x = Math.max(-spareX, Math.min(0, x));
+        const y = bandBottom - dh;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, bandBottom);
+        ctx.clip();
+        ctx.drawImage(img, x, y, dw, dh);
+        ctx.restore();
+        return true;
+    };
+
     DG.drawBackdrop = function (ctx, camZ, horizonY) {
         const scene = DG.normalizeScene(S.scene);
         if (scene === 'stadium') return DG.drawStadiumBackdrop(ctx, camZ, horizonY);
@@ -2229,44 +2287,49 @@
     DG.drawDesertBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.05) % (w * 2);
         const shift = scroll + heading * w * 0.5;
 
-        // Sun.
-        ctx.fillStyle = 'rgba(255,247,214,.9)';
-        ctx.beginPath();
-        ctx.arc(w * 0.72 - heading * w * 0.12, horizonY - h * 0.13, h * 0.05, 0, Math.PI * 2);
-        ctx.fill();
+        // Low golden-hour sun.
+        const sx = w * 0.72 - heading * w * 0.12;
+        const sy = horizonY - h * 0.1;
+        const glow = ctx.createRadialGradient(sx, sy, h * 0.01, sx, sy, h * 0.12);
+        glow.addColorStop(0, 'rgba(255,241,196,.95)');
+        glow.addColorStop(0.4, 'rgba(255,213,140,.55)');
+        glow.addColorStop(1, 'rgba(255,196,112,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(sx - h * 0.12, sy - h * 0.12, h * 0.24, h * 0.24);
 
-        // Far flat-top mesas.
-        ctx.fillStyle = '#c99a5f';
+        // Far flat-top sandstone buttes.
+        ctx.fillStyle = '#c08a4f';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 8) {
             const t = (x + shift * 0.4) / w;
             const mesa = Math.max(0, Math.sin(t * Math.PI * 5 + 0.7)) * 0.7 +
                 Math.max(0, Math.sin(t * Math.PI * 11 + 2.1)) * 0.3;
-            ctx.lineTo(x, horizonY - h * (0.045 + 0.05 * mesa));
+            ctx.lineTo(x, horizonY - h * (0.045 + 0.055 * mesa));
         }
         ctx.lineTo(w, horizonY + 2);
         ctx.closePath();
         ctx.fill();
 
         // Nearer dunes.
-        ctx.fillStyle = '#b4833f';
+        ctx.fillStyle = '#a9753c';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 4);
         for (let x = 0; x <= w; x += w / 10) {
             const hy = horizonY - (0.5 + 0.5 * Math.sin((x + shift) / w * Math.PI * 2.1 + 1.4)) * h * 0.035;
             ctx.lineTo(x, hy);
         }
-        ctx.lineTo(w, horizonY + h * 0.06);
-        ctx.lineTo(0, horizonY + h * 0.06);
+        ctx.lineTo(w, horizonY + h * 0.07);
+        ctx.lineTo(0, horizonY + h * 0.07);
         ctx.closePath();
         ctx.fill();
 
         // Distant cacti silhouettes.
-        ctx.fillStyle = 'rgba(87,83,35,.5)';
+        ctx.fillStyle = 'rgba(74,68,32,.5)';
         for (let i = 0; i < 4; i++) {
             const cx = ((i * 0.27 + 0.08) * w + shift * 0.6) % w;
             const ch = h * (0.022 + (i % 2) * 0.012);
@@ -2278,11 +2341,12 @@
     DG.drawStadiumBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.07) % (w * 2);
         const shift = scroll + heading * w * 0.45;
 
-        // Distant roof / upper tier.
-        ctx.fillStyle = '#f7b7c8';
+        // Dark roof / upper tier under the night sky.
+        ctx.fillStyle = '#1e293b';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 6) {
@@ -2294,37 +2358,47 @@
         ctx.closePath();
         ctx.fill();
 
-        // Crowd blocks along the far straight.
+        // Roof truss line and gantry.
+        ctx.strokeStyle = 'rgba(148,163,184,.35)';
+        ctx.lineWidth = Math.max(1, w * 0.004);
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY - h * 0.062);
+        ctx.lineTo(w, horizonY - h * 0.05);
+        ctx.stroke();
+
+        // Dim crowd blocks along the far straight.
         const blockW = w * 0.11;
         const blockShift = (shift * 0.6) % blockW;
         for (let i = -1; i <= Math.ceil(w / blockW); i++) {
             const bx = i * blockW - blockShift;
             const bh = h * (0.036 + ((i % 2) ? 0.016 : 0));
             const top = horizonY - bh;
-            ctx.fillStyle = (i % 2) ? '#fbcfe8' : '#fda4af';
+            ctx.fillStyle = (i % 2) ? '#24324a' : '#1b2740';
             ctx.fillRect(bx, top, blockW * 0.94, bh);
             const cols = 7, rows = 3;
             const cw = blockW * 0.94 / cols;
             const chh = bh / rows;
-            const palette = ['#ef4444', '#2563eb', '#facc15', '#f8fafc', '#a855f7'];
+            const palette = ['#f87171', '#60a5fa', '#facc15', '#e2e8f0', '#c084fc'];
+            ctx.globalAlpha = 0.75;
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     ctx.fillStyle = palette[(r + c + i + 6) % palette.length];
                     ctx.fillRect(bx + c * cw + cw * 0.2, top + r * chh + chh * 0.25, cw * 0.55, chh * 0.42);
                 }
             }
+            ctx.globalAlpha = 1;
         }
 
         // Banners hanging from the roof.
-        const bannerCols = ['#ec4899', '#f97316', '#8b5cf6', '#22c55e'];
+        const bannerCols = ['#be123c', '#b45309', '#6d28d9', '#15803d'];
         for (let i = 0; i < 6; i++) {
             const bx = ((i * 0.19 + 0.05) * w - (shift * 0.9) % (w * 0.3) + w) % w;
             ctx.fillStyle = bannerCols[i % bannerCols.length];
             ctx.fillRect(bx, horizonY - h * 0.025, w * 0.035, h * 0.018);
         }
 
-        // Floodlight towers.
-        ctx.strokeStyle = '#94a3b8';
+        // Floodlight towers with cool-white lamps.
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = Math.max(1, w * 0.0035);
         for (let i = 0; i < 4; i++) {
             const fx = ((i * 0.28 + 0.1) * w - heading * w * 0.2 + w) % w;
@@ -2333,23 +2407,32 @@
             ctx.moveTo(fx, horizonY);
             ctx.lineTo(fx, horizonY - fh);
             ctx.stroke();
-            ctx.fillStyle = '#1f2937';
+            ctx.fillStyle = '#0f172a';
             ctx.fillRect(fx - w * 0.02, horizonY - fh - h * 0.012, w * 0.04, h * 0.014);
-            ctx.fillStyle = '#fef9c3';
+            ctx.fillStyle = '#fefce8';
             for (let l = 0; l < 3; l++) {
                 ctx.fillRect(fx - w * 0.016 + l * w * 0.012, horizonY - fh - h * 0.008, w * 0.008, h * 0.007);
             }
+            const halo = ctx.createRadialGradient(
+                fx, horizonY - fh - h * 0.004, 0,
+                fx, horizonY - fh - h * 0.004, h * 0.05
+            );
+            halo.addColorStop(0, 'rgba(254,252,232,.35)');
+            halo.addColorStop(1, 'rgba(254,252,232,0)');
+            ctx.fillStyle = halo;
+            ctx.fillRect(fx - h * 0.05, horizonY - fh - h * 0.054, h * 0.1, h * 0.1);
         }
     };
 
     DG.drawJungleBackdrop = function (ctx, camZ, horizonY) {
         const w = DG.view.w, h = DG.view.h;
         const heading = DG.trackCurve(camZ);
+        if (DG.drawSceneArtBackdrop(ctx, camZ, horizonY)) return;
         const scroll = (camZ * 0.06) % (w * 2);
         const shift = scroll + heading * w * 0.5;
 
         // Distant canopy haze.
-        ctx.fillStyle = '#2f6b3d';
+        ctx.fillStyle = '#7fa87a';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 2);
         for (let x = 0; x <= w; x += 7) {
@@ -2362,7 +2445,7 @@
         ctx.fill();
 
         // Nearer tree line.
-        ctx.fillStyle = '#245a34';
+        ctx.fillStyle = '#355c2f';
         ctx.beginPath();
         ctx.moveTo(0, horizonY + 6);
         for (let x = 0; x <= w; x += 9) {
@@ -2375,8 +2458,16 @@
         ctx.closePath();
         ctx.fill();
 
+        // Warm mist band above the tree line.
+        const mist = ctx.createLinearGradient(0, horizonY - h * 0.1, 0, horizonY + h * 0.02);
+        mist.addColorStop(0, 'rgba(235,244,214,0)');
+        mist.addColorStop(0.6, 'rgba(224,238,201,.32)');
+        mist.addColorStop(1, 'rgba(224,238,201,0)');
+        ctx.fillStyle = mist;
+        ctx.fillRect(0, horizonY - h * 0.1, w, h * 0.12);
+
         // Palm silhouettes at the horizon.
-        ctx.strokeStyle = 'rgba(20,83,45,.85)';
+        ctx.strokeStyle = 'rgba(24,58,30,.8)';
         for (let i = 0; i < 5; i++) {
             const px = ((i * 0.23 + 0.06) * w + shift * 0.5 + w) % w;
             const ph = h * (0.045 + (i % 3) * 0.01);
@@ -2686,6 +2777,85 @@
         return DG.threeRoadX(rel) + ((laneX == null ? laneCenter : laneX) - laneCenter) * unit;
     };
 
+    /* ---------------- course art backdrop ---------------- */
+
+    // Shared lazy loader for images/dg-scene-<id>.jpg. The file may still be
+    // landing on the CDN, so every caller must tolerate "not ready yet" and
+    // keep drawing the palette fallback until onload fires.
+    DG.sceneArtEntry = function (value) {
+        const id = DG.normalizeScene(value);
+        const cache = DG._sceneArtCache || (DG._sceneArtCache = {});
+        if (cache[id]) return cache[id];
+        const entry = { id: id, img: null, ready: false, failed: false };
+        cache[id] = entry;
+        try {
+            if (typeof Image === 'undefined') {
+                entry.failed = true;
+                return entry;
+            }
+            const img = new Image();
+            entry.img = img;
+            img.onload = function () {
+                entry.ready = true;
+                entry.failed = false;
+                try { DG.sceneArtReady(entry); } catch (e) {}
+            };
+            img.onerror = function () { entry.failed = true; };
+            img.src = (typeof DG.sceneArtUrl === 'function')
+                ? DG.sceneArtUrl(id)
+                : ('images/dg-scene-' + id + '.jpg');
+        } catch (e) {
+            entry.failed = true;
+        }
+        return entry;
+    };
+
+    DG.loadSceneArt = function (value) {
+        return DG.sceneArtEntry(value);
+    };
+
+    DG.sceneArtImage = function (value) {
+        const entry = DG.sceneArtEntry(value);
+        return entry.ready && entry.img ? entry.img : null;
+    };
+
+    // THREE texture built from the already-decoded image, cached per scene.
+    DG.sceneArtTexture = function (value) {
+        const id = DG.normalizeScene(value);
+        const cache = DG._sceneArtTextureCache || (DG._sceneArtTextureCache = {});
+        if (cache[id]) return cache[id];
+        if (typeof THREE === 'undefined') return null;
+        const img = DG.sceneArtImage(id);
+        if (!img) return null;
+        try {
+            const tex = new THREE.Texture(img);
+            tex.needsUpdate = true;
+            if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            cache[id] = tex;
+            return tex;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    // Called from Image.onload. Swaps the far art plane from invisible to the
+    // real texture, without rebuilding the scene or resetting the race.
+    DG.sceneArtReady = function (entry) {
+        const t = DG.three;
+        if (!t || !t.artBackdrop || !entry) return;
+        if (t.artBackdrop.scene !== entry.id) return;
+        const tex = DG.sceneArtTexture(entry.id);
+        if (!tex) return;
+        const mat = t.artBackdrop.material;
+        mat.map = tex;
+        mat.opacity = 1;
+        mat.needsUpdate = true;
+    };
+
     DG.threeSkyTexture = function (style) {
         const c = document.createElement('canvas');
         c.width = 8;
@@ -2708,12 +2878,38 @@
         c.width = 256;
         c.height = 1024;
         const ctx = c.getContext('2d');
+        const roadKind = style.roadTex || 'asphalt';
         ctx.fillStyle = style.roadA;
         ctx.fillRect(0, 0, 256, 1024);
         ctx.globalAlpha = 0.22;
         ctx.fillStyle = style.roadB;
         for (let y = 0; y < 1024; y += 64) ctx.fillRect(0, y, 256, 30);
         ctx.globalAlpha = 1;
+        if (roadKind === 'dirt') {
+            // Irregular sand / gravel speckle instead of a painted highway.
+            ctx.globalAlpha = 0.16;
+            for (let y = 0; y < 1024; y += 7) {
+                const x = (Math.sin(y * 0.37) * 0.5 + 0.5) * 230 + 12;
+                ctx.fillStyle = (y % 21 < 7) ? '#d8bb8a' : style.roadB;
+                ctx.fillRect(x, y, 5 + (y % 6), 2);
+            }
+            ctx.globalAlpha = 1;
+        } else if (roadKind === 'concrete') {
+            // Smooth pale concrete slabs with faint seams.
+            ctx.globalAlpha = 0.12;
+            ctx.fillStyle = '#64748b';
+            for (let y = 0; y < 1024; y += 32) ctx.fillRect(0, y, 256, 1);
+            ctx.globalAlpha = 1;
+        } else {
+            // Damp asphalt flecks.
+            ctx.globalAlpha = 0.14;
+            for (let y = 0; y < 1024; y += 11) {
+                const x = (Math.sin(y * 0.73 + 1.3) * 0.5 + 0.5) * 236 + 10;
+                ctx.fillStyle = (y % 22 < 11) ? '#94a3b8' : '#0f172a';
+                ctx.fillRect(x, y, 3, 2);
+            }
+            ctx.globalAlpha = 1;
+        }
         for (let y = 0; y < 1024; y += 64) {
             ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
             ctx.fillRect(0, y, 14, 64);
@@ -2947,8 +3143,8 @@
             g.add(m);
             return m;
         };
-        const green = [0x2f7d32, 0x4d7c0f, 0x3f6212][tone % 3];
-        const grey = [0x78716c, 0x9ca3af, 0x57534e][tone % 3];
+        const green = [0x3f6b34, 0x5a7d33, 0x2f5a24][tone % 3];
+        const grey = [0x8a7a63, 0xa39a8a, 0x6b6157][tone % 3];
         if (kind === 'cactus') {
             add(new THREE.CylinderGeometry(0.55, 0.65, 4, 7), green, 0, 2, 0);
             add(new THREE.CylinderGeometry(0.3, 0.3, 1.6, 6), green, -0.9, 2.5, 0).rotation.z = 0.9;
@@ -2978,10 +3174,10 @@
             if (kind === 'floodlight') add(new THREE.BoxGeometry(1.5, 0.7, 0.4), 0xfef08a, 0, 5.2, 0);
             else add(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
         } else if (kind === 'grandstand') {
-            add(new THREE.BoxGeometry(6, 1.0, 3), 0xcbd5e1, 0, 0.5, 0);
-            add(new THREE.BoxGeometry(5.2, 0.8, 2.6), 0x94a3b8, 0, 1.3, 0);
-            add(new THREE.BoxGeometry(4.4, 0.7, 2.2), 0x64748b, 0, 2.0, 0);
-            add(new THREE.BoxGeometry(6, 0.35, 3), 0xef4444, 0, 2.55, 0);
+            add(new THREE.BoxGeometry(6, 1.0, 3), 0x334155, 0, 0.5, 0);
+            add(new THREE.BoxGeometry(5.2, 0.8, 2.6), 0x475569, 0, 1.3, 0);
+            add(new THREE.BoxGeometry(4.4, 0.7, 2.2), 0x1e293b, 0, 2.0, 0);
+            add(new THREE.BoxGeometry(6, 0.35, 3), 0xe11d48, 0, 2.55, 0);
         } else if (kind === 'flag') {
             add(new THREE.CylinderGeometry(0.14, 0.14, 4.5, 6), 0x6b7280, 0, 2.25, 0);
             const flag = add(new THREE.PlaneGeometry(1.7, 1.1), 0xef4444, 0.95, 4.0, 0);
@@ -3183,6 +3379,9 @@
             }
         } catch (e) {}
         DG.three = null;
+        // Textures were disposed by the traversal above; drop the per-race
+        // cache so a restart builds a fresh THREE texture from the image.
+        DG._sceneArtTextureCache = {};
     };
 
     DG.addThreeBackdrop = function (scene, style) {
@@ -3195,39 +3394,91 @@
             group.add(mesh);
             return mesh;
         };
+
+        // Wide far backdrop showing the original course art. It sits beyond
+        // the playable road (z = -1600) so nearer 3D geometry always draws in
+        // front of it. It is invisible until the art decodes, so the
+        // procedural silhouette below acts as the temporary stand-in; onload
+        // just swaps the texture in.
+        const artTex = DG.sceneArtTexture(sceneId);
+        const artMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            map: artTex || null,
+            transparent: true,
+            opacity: artTex ? 1 : 0,
+            depthWrite: false,
+            fog: false
+        });
+        const artPlane = new THREE.Mesh(new THREE.PlaneGeometry(6000, 3375), artMat);
+        artPlane.position.set(0, 1560, -1600);
+        artPlane.frustumCulled = false;
+        group.add(artPlane);
+        group.userData.artBackdrop = { scene: sceneId, mesh: artPlane, material: artMat };
+
+        // Thin atmospheric veil in front of the art so it fades into the
+        // distance instead of looking pasted on.
+        const hazeMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(style.fog || '#ffffff'),
+            transparent: true,
+            opacity: 0.22,
+            depthWrite: false,
+            fog: false
+        });
+        const haze = new THREE.Mesh(new THREE.PlaneGeometry(6000, 3375), hazeMat);
+        haze.position.set(0, 1560, -1500);
+        haze.frustumCulled = false;
+        group.add(haze);
+
         if (sceneId === 'stadium') {
+            // Dark arena shell. Fogged by the night palette, and mostly hidden
+            // once the wide arena art has loaded.
             for (let i = 0; i < 7; i++) {
                 const h = 35 + (i % 3) * 22;
-                add(new THREE.BoxGeometry(24 + i * 3, h, 18), i % 2 ? 0x94a3b8 : 0x64748b, -150 + i * 50, h / 2, -1750);
+                add(new THREE.BoxGeometry(24 + i * 3, h, 18), i % 2 ? 0x1e293b : 0x334155, -150 + i * 50, h / 2, -1750);
+            }
+            // Roof truss / gantry line above the far straight.
+            add(new THREE.BoxGeometry(520, 5, 8), 0x0f172a, 0, 82, -1700);
+            add(new THREE.BoxGeometry(520, 2, 6), 0x475569, 0, 62, -1690);
+            for (let i = 0; i < 7; i++) {
+                add(new THREE.BoxGeometry(3, 34, 3), 0x1e293b, -240 + i * 80, 46, -1705);
             }
         } else if (sceneId === 'jungle') {
             for (let i = 0; i < 6; i++) {
-                add(new THREE.ConeGeometry(90 + i * 12, 90 + (i % 3) * 40, 7), i % 2 ? 0x2f5d2c : 0x3c7d4b, -220 + i * 90, 20, -1760);
+                add(new THREE.ConeGeometry(90 + i * 12, 90 + (i % 3) * 40, 7), i % 2 ? 0x2b4a25 : 0x3a6330, -220 + i * 90, 20, -1760);
             }
         } else {
             for (let i = 0; i < 5; i++) {
                 add(new THREE.CylinderGeometry(55 + i * 8, 85 + i * 9, 90 + (i % 3) * 35, 6), i % 2 ? 0xb0895a : 0x9c7648, -210 + i * 105, 20, -1760);
             }
         }
-        for (let i = 0; i < 5; i++) {
-            const cloud = add(new THREE.SphereGeometry(18, 8, 6), 0xffffff, -180 + i * 90, 70 + (i % 2) * 18, -1050 - (i % 3) * 180, 2.8, 0.8, 1.2);
-            cloud.material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82 });
+
+        if (sceneId !== 'stadium') {
+            // Soft clouds only in the outdoor courses; a night arena has none.
+            for (let i = 0; i < 5; i++) {
+                const cloud = add(new THREE.SphereGeometry(18, 8, 6), 0xffffff, -180 + i * 90, 70 + (i % 2) * 18, -1050 - (i % 3) * 180, 2.8, 0.8, 1.2);
+                cloud.material = new THREE.MeshBasicMaterial({
+                    color: sceneId === 'jungle' ? 0xf4f7e6 : 0xfff6de,
+                    transparent: true,
+                    opacity: sceneId === 'jungle' ? 0.5 : 0.7
+                });
+            }
         }
-        if (sceneId !== 'jungle') {
+        if (sceneId === 'desert') {
             const c = document.createElement('canvas');
             c.width = 128;
             c.height = 128;
             const ctx = c.getContext('2d');
             const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
             g.addColorStop(0, 'rgba(255,248,180,1)');
-            g.addColorStop(0.35, 'rgba(255,236,120,.85)');
-            g.addColorStop(1, 'rgba(255,236,120,0)');
+            g.addColorStop(0.35, 'rgba(255,214,120,.85)');
+            g.addColorStop(1, 'rgba(255,200,110,0)');
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, 128, 128);
             const tex = new THREE.CanvasTexture(c);
             const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-            sprite.position.set(-230, 170, -1700);
-            sprite.scale.set(150, 150, 1);
+            // Low golden-hour sun.
+            sprite.position.set(-260, 118, -1500);
+            sprite.scale.set(170, 170, 1);
             group.add(sprite);
         }
         scene.add(group);
@@ -3250,7 +3501,11 @@
             const scene = new THREE.Scene();
             const style = DG.sceneStyle();
             scene.background = DG.threeSkyTexture(style);
-            scene.fog = new THREE.Fog(new THREE.Color(style.fog || style.sky[style.sky.length - 1][1]), 110, THREE_ROAD_LEN * 0.92);
+            scene.fog = new THREE.Fog(
+                new THREE.Color(style.fog || style.sky[style.sky.length - 1][1]),
+                style.fogNear || 110,
+                THREE_ROAD_LEN * (style.fogFar || 0.92)
+            );
             scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(style.ground), 0.9));
             const sun = new THREE.DirectionalLight(0xffffff, 0.8);
             sun.position.set(-80, 140, 50);
@@ -3339,7 +3594,7 @@
             under.position.set(0, -140, -THREE_ROAD_LEN / 2);
             scene.add(under);
 
-            DG.addThreeBackdrop(scene, style);
+            const backdrop = DG.addThreeBackdrop(scene, style);
 
             const kartGroup = new THREE.Group();
             const gateGroup = new THREE.Group();
@@ -3352,6 +3607,7 @@
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
                 kerbL, kerbR, terrain,
+                artBackdrop: backdrop && backdrop.userData ? backdrop.userData.artBackdrop : null,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
                 projectiles: [], bursts: [],
                 kartGroup, gateGroup, sceneryGroup, bananaGroup, projectileGroup, burstGroup
@@ -3612,7 +3868,13 @@
 
         const horizonY = DG.trackHorizonY();
         DG.drawBackdrop(ctx, p.dist, horizonY);
-        ctx.fillStyle = style.ground;
+        // Fade the near ground in instead of painting a hard line at the
+        // horizon, so the wide course art keeps a far ground band visible.
+        const groundFade = Math.max(36, h * 0.14);
+        const groundGrad = ctx.createLinearGradient(0, horizonY, 0, horizonY + groundFade);
+        groundGrad.addColorStop(0, DG.rgbaColor(style.ground, 0));
+        groundGrad.addColorStop(1, DG.rgbaColor(style.ground, 1));
+        ctx.fillStyle = groundGrad;
         ctx.fillRect(0, horizonY, w, h - horizonY);
 
         DG.ensureScenery(p.dist);

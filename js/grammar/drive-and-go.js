@@ -56,10 +56,19 @@ const DG = {
     SCENES: ['desert', 'stadium', 'jungle'],
     SCENE_LABEL: { desert: 'Desert Hills', stadium: 'Peach Stadium', jungle: 'Dino Dino Jungle' },
     SCENE_EMOJI: { desert: '🏜️', stadium: '🏟️', jungle: '🦕' },
+    // Original stylised course art used by the picker and the race backdrop.
+    // Kept in one map so the picker, 2D fallback and 3D backdrop all agree.
+    SCENE_ART: {
+        desert: 'images/dg-scene-desert.jpg',
+        stadium: 'images/dg-scene-stadium.jpg',
+        jungle: 'images/dg-scene-jungle.jpg'
+    },
+    SCENE_ART_W: 1280,
+    SCENE_ART_H: 720,
     SCENE_FLAVOUR: {
-        desert: 'Pale-gold dunes, cactus and sun-bleached rocks.',
-        stadium: 'Peach grandstands, floodlights and painted kerbs.',
-        jungle: 'Humid canopy, palms and friendly dinosaurs.'
+        desert: 'Golden-hour dirt canyon, sandstone buttes and dunes.',
+        stadium: 'Night-time indoor arena, floodlights and packed stands.',
+        jungle: 'Sunlit misty palms, a paved road curving into the trees.'
     },
     // Race constants shared by the engine and the tests.
     NITRO_KMH: 40,
@@ -230,6 +239,13 @@ const DG = {
 
     sceneLabel(value) {
         return DG.SCENE_LABEL[DG.normalizeScene(value)];
+    },
+
+    // Public path of the course art. Used by the picker cards, the 2D
+    // fallback backdrop and the 3D far backdrop texture loader.
+    sceneArtUrl(value) {
+        const id = DG.normalizeScene(value);
+        return (DG.SCENE_ART && DG.SCENE_ART[id]) || ('images/dg-scene-' + id + '.jpg');
     },
 
     /* Analog tilt helpers, shared by the race engine and the unit tests.
@@ -1940,8 +1956,8 @@ const DG = {
         document.getElementById('detail-back-btn').onclick = () => DG.backToTenses();
         const cards = DG.SCENES.map(id => {
             const active = DG.normalizeScene(s.scene) === id ? ' active' : '';
-            return '<button type="button" class="dg-choice' + active + '" onclick="DG.setScene(\'' + id + '\')">' +
-                '<span class="dg-choice-emoji">' + DG.SCENE_EMOJI[id] + '</span>' +
+            return '<button type="button" class="dg-choice dg-scene-card' + active + '" onclick="DG.setScene(\'' + id + '\')">' +
+                '<img class="dg-scene-art" src="' + DG.esc(DG.sceneArtUrl(id)) + '" alt="" width="' + DG.SCENE_ART_W + '" height="' + DG.SCENE_ART_H + '" loading="lazy">' +
                 '<span class="dg-choice-title">' + DG.esc(DG.SCENE_LABEL[id]) + '</span>' +
                 '<span class="dg-choice-sub">' + DG.esc(DG.SCENE_FLAVOUR[id]) + '</span></button>';
         }).join('');

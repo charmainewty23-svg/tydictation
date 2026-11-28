@@ -433,6 +433,37 @@ test('Solo flow is session → topic → challenge → cat → controls → coun
     assert.ok(html.indexOf('Game mode') === -1);
 });
 
+test('course picker shows the official names and the original course art', () => {
+    const { DG, content } = loadDGWithDom();
+    DG.sessionMode = 'solo';
+    DG.showSceneStep();
+    const html = content();
+    ['Desert Hills', 'Peach Stadium', 'Dino Dino Jungle'].forEach(name => {
+        assert.ok(html.indexOf(name) !== -1, name + ' is listed');
+    });
+    ['images/dg-scene-desert.jpg', 'images/dg-scene-stadium.jpg', 'images/dg-scene-jungle.jpg'].forEach(src => {
+        assert.ok(html.indexOf(src) !== -1, src + ' is shown');
+    });
+    assert.ok(/class="dg-choice dg-scene-card( active)?"/.test(html), 'cards use the scene-card class');
+    assert.ok(html.indexOf('dg-scene-art') !== -1, 'the artwork is the main visual');
+    // One map drives the picker, 2D fallback and 3D backdrop.
+    assert.equal(DG.sceneArtUrl('jungle'), 'images/dg-scene-jungle.jpg');
+    assert.equal(DG.sceneArtUrl('stadium'), 'images/dg-scene-stadium.jpg');
+    assert.equal(DG.sceneArtUrl('volcano'), 'images/dg-scene-desert.jpg');
+});
+
+test('vendor three.js and the course art are pinned in the app shell', () => {
+    const sw = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v124';/);
+    assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the v123 cache name is gone');
+    assert.ok(sw.indexOf("'/js/vendor/three.min.js'") !== -1, 'three.js is precached locally');
+    assert.ok(sw.indexOf("'/images/dg-scene-desert.jpg'") !== -1);
+    assert.ok(sw.indexOf("'/images/dg-scene-stadium.jpg'") !== -1);
+    assert.ok(sw.indexOf("'/images/dg-scene-jungle.jpg'") !== -1);
+    assert.ok(htmlSource.indexOf('js/vendor/three.min.js') !== -1, 'index.html loads the local build');
+    assert.equal(htmlSource.indexOf('cdn.jsdelivr.net/npm/three'), -1, 'three.js is no longer loaded from the CDN');
+});
+
 test('Multiplayer asks Create or Join before any settings', () => {
     const { DG, content } = loadDGWithDom();
     DG.sessionMode = 'multi';

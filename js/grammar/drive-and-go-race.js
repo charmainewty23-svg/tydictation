@@ -140,6 +140,8 @@
             fsBtn: document.getElementById('dg-fs-btn'),
             musicBtn: document.getElementById('dg-music-btn')
         };
+        DG.bindLiveRaceLayout();
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
         DG.bindRaceInput();
         DG.syncRaceFsUi();
@@ -190,6 +192,75 @@
             DG.three.camera.aspect = w / Math.max(1, h);
             DG.three.camera.updateProjectionMatrix();
         }
+    };
+
+    /* ---------------- live race viewport ---------------- */
+
+    // iOS Safari / in-app WKWebViews can report a 100dvh layout that is taller
+    // than the webview the student actually sees (URL bar + bottom browser
+    // toolbar). The fixed race view is therefore pinned to the exact visible
+    // rectangle from visualViewport, and the canvas is measured after that.
+    DG.liveViewportListeners = DG.liveViewportListeners || [];
+
+    DG.liveRaceViewNode = function () {
+        return document.getElementById('drive-and-go-view');
+    };
+
+    DG.layoutLiveRaceView = function () {
+        const view = DG.liveRaceViewNode();
+        if (!view || !view.classList || !view.classList.contains('dg-live')) return;
+        const vv = window.visualViewport;
+        let top = 0;
+        let left = 0;
+        let width = window.innerWidth || (vv && vv.width) || 0;
+        let height = window.innerHeight || (vv && vv.height) || 0;
+        if (vv) {
+            top = Number(vv.offsetTop) || 0;
+            left = Number(vv.offsetLeft) || 0;
+            width = Number(vv.width) || width;
+            height = Number(vv.height) || height;
+        }
+        view.style.top = Math.round(top) + 'px';
+        view.style.left = Math.round(left) + 'px';
+        view.style.right = 'auto';
+        view.style.bottom = 'auto';
+        view.style.width = Math.round(Math.max(1, width)) + 'px';
+        view.style.height = Math.round(Math.max(1, height)) + 'px';
+        DG.resizeCanvas();
+    };
+
+    DG.clearLiveRaceLayout = function () {
+        const view = DG.liveRaceViewNode();
+        if (!view || !view.style) return;
+        view.style.top = '';
+        view.style.left = '';
+        view.style.right = '';
+        view.style.bottom = '';
+        view.style.width = '';
+        view.style.height = '';
+    };
+
+    DG.bindLiveRaceLayout = function () {
+        DG.unbindLiveRaceLayout();
+        const add = (target, type) => {
+            if (!target || !target.addEventListener) return;
+            target.addEventListener(type, DG.layoutLiveRaceView);
+            DG.liveViewportListeners.push({ target, type, fn: DG.layoutLiveRaceView });
+        };
+        const vv = window.visualViewport;
+        if (vv) {
+            add(vv, 'resize');
+            add(vv, 'scroll');
+        }
+        add(window, 'resize');
+        add(window, 'orientationchange');
+    };
+
+    DG.unbindLiveRaceLayout = function () {
+        DG.liveViewportListeners.forEach((item) => {
+            try { item.target.removeEventListener(item.type, item.fn); } catch (e) {}
+        });
+        DG.liveViewportListeners = [];
     };
 
     DG.startRace = function (opts) {
@@ -300,6 +371,10 @@
         const raceView = document.getElementById('drive-and-go-view');
         if (raceView) raceView.classList.add('dg-live');
         if (!DG.mountRace()) {
+            DG.unbindLiveRaceLayout();
+            DG.clearLiveRaceLayout();
+            document.body.classList.remove('dg-racing');
+            if (raceView) raceView.classList.remove('dg-live');
             DG.toast('The race view could not be opened.');
             return;
         }
@@ -330,10 +405,12 @@
         if (S.raf) cancelAnimationFrame(S.raf);
         S.raf = 0;
         DG.unbindRaceInput();
+        DG.unbindLiveRaceLayout();
         if (typeof DG.mpStopRacePoll === 'function') DG.mpStopRacePoll();
         document.body.classList.remove('dg-racing');
         const raceView = document.getElementById('drive-and-go-view');
         if (raceView) raceView.classList.remove('dg-live');
+        DG.clearLiveRaceLayout();
         DG.hideMpProgress();
         DG.hideOverlay();
         if (DG.raceEls && DG.raceEls.toast) DG.raceEls.toast.classList.remove('show');
@@ -838,6 +915,7 @@
 
     DG.onResize = function () {
         if (!S.active) return;
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
     };
 
@@ -2734,10 +2812,12 @@
     // The new viewport only lands a frame or two after the request settles,
     // so the canvas is measured once now and again when it has.
     DG.scheduleRaceResize = function () {
+        DG.layoutLiveRaceView();
         DG.resizeCanvas();
         if (DG.raceFsResizeTimer) clearTimeout(DG.raceFsResizeTimer);
         DG.raceFsResizeTimer = setTimeout(() => {
             DG.raceFsResizeTimer = 0;
+            DG.layoutLiveRaceView();
             DG.resizeCanvas();
             if (DG.raceEls && S.player) DG.drawRace();
         }, 260);

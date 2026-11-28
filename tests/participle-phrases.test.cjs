@@ -237,8 +237,9 @@ test('index.html loads the data file before Drive & Go! and offers Survival opti
     });
 });
 
-test('service worker is v125 and precaches the new bank', () => {
-    assert.ok(swSource.indexOf("learnity-pwa-v125") !== -1, 'CACHE_NAME is v125');
+test('service worker is v126 and precaches the new bank', () => {
+    assert.ok(swSource.indexOf("learnity-pwa-v126") !== -1, 'CACHE_NAME is v126');
+    assert.equal(swSource.indexOf("learnity-pwa-v125"), -1, 'the v125 cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v124"), -1, 'the v124 cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v123"), -1, 'the v123 cache name is gone');
     assert.equal(swSource.indexOf("learnity-pwa-v122"), -1, 'the v122 cache name is gone');

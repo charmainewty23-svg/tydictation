@@ -282,7 +282,7 @@ test('the old gap hint incremental file is gone', () => {
     assert.equal(fs.existsSync(path.join(ROOT, 'supabase/quizzykitty_gap_hint.sql')), false);
 });
 
-test('service worker cache is v125 for the host lobby rules toggle', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v125';/);
-    assert.doesNotMatch(sw, /learnity-pwa-v109|learnity-pwa-v110|learnity-pwa-v111|learnity-pwa-v113|learnity-pwa-v114|learnity-pwa-v115|learnity-pwa-v116|learnity-pwa-v117|learnity-pwa-v118|learnity-pwa-v119|learnity-pwa-v120|learnity-pwa-v121|learnity-pwa-v122|learnity-pwa-v123|learnity-pwa-v124/);
+test('service worker cache is v126 for the live race viewport fix', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v126';/);
+    assert.doesNotMatch(sw, /learnity-pwa-v109|learnity-pwa-v110|learnity-pwa-v111|learnity-pwa-v113|learnity-pwa-v114|learnity-pwa-v115|learnity-pwa-v116|learnity-pwa-v117|learnity-pwa-v118|learnity-pwa-v119|learnity-pwa-v120|learnity-pwa-v121|learnity-pwa-v122|learnity-pwa-v123|learnity-pwa-v124|learnity-pwa-v125/);
 });

@@ -1703,7 +1703,8 @@ test('incremental host-settings SQL exists with teacher instructions and new fun
 
 test('service worker cache is bumped for the host lobby rules toggle', () => {
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-    assert.ok(sw.indexOf("learnity-pwa-v125") !== -1, 'CACHE_NAME is v125');
+    assert.ok(sw.indexOf("learnity-pwa-v126") !== -1, 'CACHE_NAME is v126');
+    assert.equal(sw.indexOf("learnity-pwa-v125"), -1, 'the v125 cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v124"), -1, 'the v124 cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v123"), -1, 'the v123 cache name is gone');
     assert.equal(sw.indexOf("learnity-pwa-v122"), -1, 'the v122 cache name is gone');
@@ -3345,7 +3346,8 @@ test('Round 4 wiring: renderer draws it, the bank is precached and no mp3 enters
 
     const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
     assert.ok(sw.indexOf('participle-clauses-combining-data.js') !== -1, 'bank is in CORE_ASSETS');
-    assert.ok(sw.indexOf('learnity-pwa-v125') !== -1, 'cache is v125');
+    assert.ok(sw.indexOf('learnity-pwa-v126') !== -1, 'cache is v126');
+    assert.equal(sw.indexOf('learnity-pwa-v125'), -1, 'the v125 cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v124'), -1, 'the v124 cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the v123 cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v122'), -1, 'the v122 cache name is gone');

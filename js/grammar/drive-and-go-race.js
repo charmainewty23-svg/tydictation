@@ -1686,49 +1686,51 @@
     // stylised course art: golden-hour canyon, night arena and misty jungle.
     const SCENE_STYLES = {
         desert: {
-            sky: [[0, '#e7a865'], [0.22, '#f0bb7d'], [0.40, '#f7d29a'], [0.58, '#fbe6bd']],
-            fog: '#efc78f',
-            fogNear: 120,
+            // Golden hour canyon: pale blue sky fading into peach and gold,
+            // warm sandstone shoulders and an unpacked dirt trail.
+            sky: [[0, '#8fb7d6'], [0.18, '#bcd3dd'], [0.34, '#f2c187'], [0.50, '#ffd79e'], [0.58, '#ffe6bd']],
+            fog: '#f0cf9c',
+            fogNear: 110,
             fogFar: 0.9,
-            ground: '#c9904e',
-            bandA: '#c9904e', bandB: '#bd8340',
-            roadA: '#a9825a', roadB: '#9b7650',
-            kerbA: '#b45309', kerbB: '#e8ca92',
-            dash: 'rgba(255,240,209,.40)', edge: 'rgba(255,244,222,.30)',
+            ground: '#c28a52',
+            bandA: '#cf9c5f', bandB: '#c28f52',
+            roadA: '#b58f66', roadB: '#a9835a',
+            kerbA: '#a9743f', kerbB: '#c9a06a',
+            dash: 'rgba(255,240,209,.18)', edge: 'rgba(255,244,222,.28)',
             roadTex: 'dirt',
-            kinds: ['cactus', 'rock', 'rock', 'bone', 'plant', 'sign', 'lamp'],
-            density: 0.46
+            kinds: ['cactus', 'cactus', 'rock', 'rock', 'butte', 'plant', 'sign'],
+            density: 0.5
         },
         stadium: {
             // Night-time indoor arena: near-black sky, dark floor, pale
             // concrete track and red / white kerbs under floodlights.
-            sky: [[0, '#050a17'], [0.30, '#0a1428'], [0.50, '#132140'], [0.58, '#1b2c4e']],
-            fog: '#101c33',
-            fogNear: 90,
+            sky: [[0, '#02040a'], [0.30, '#06101f'], [0.50, '#0b1830'], [0.58, '#10203c']],
+            fog: '#0a1424',
+            fogNear: 85,
             fogFar: 0.95,
-            ground: '#232b3c',
-            bandA: '#232b3c', bandB: '#1c2332',
-            roadA: '#b8bec8', roadB: '#aab1bc',
-            kerbA: '#e11d48', kerbB: '#f8fafc',
-            dash: 'rgba(248,250,252,.72)', edge: 'rgba(255,255,255,.5)',
+            ground: '#1b2433',
+            bandA: '#1b2433', bandB: '#151d2a',
+            roadA: '#c3c7cc', roadB: '#b6bbc2',
+            kerbA: '#d81f3f', kerbB: '#f8fafc',
+            dash: 'rgba(248,250,252,.35)', edge: 'rgba(255,255,255,.55)',
             roadTex: 'concrete',
-            kinds: ['grandstand', 'floodlight', 'flag', 'stall', 'lamp'],
-            density: 0.64
+            kinds: ['grandstand', 'grandstand', 'floodlight', 'ledbanner', 'flag', 'stall', 'lamp'],
+            density: 0.68
         },
         jungle: {
-            sky: [[0, '#7fa87a'], [0.22, '#a6c79b'], [0.40, '#cfe2b4'], [0.58, '#e8f0cf']],
-            fog: '#c8dcae',
-            fogNear: 45,
+            sky: [[0, '#6d9f76'], [0.22, '#9dc295'], [0.42, '#cfe3b4'], [0.58, '#e9f2d3']],
+            fog: '#cbe0b8',
+            fogNear: 42,
             fogFar: 0.8,
-            ground: '#2b4a25',
-            bandA: '#2b4a25', bandB: '#345a2c',
-            // Damp asphalt with warm yellow lane paint.
-            roadA: '#3c433d', roadB: '#343b36',
-            kerbA: '#4d7c0f', kerbB: '#d9f99d',
-            dash: 'rgba(250,204,21,.66)', edge: 'rgba(226,244,180,.4)',
+            ground: '#2a4a2a',
+            bandA: '#2a4a2a', bandB: '#33582f',
+            // Damp asphalt with warm yellow lane paint and earthy shoulders.
+            roadA: '#343b36', roadB: '#2d332f',
+            kerbA: '#4a4034', kerbB: '#5a6b3f',
+            dash: '#f4c430', edge: 'rgba(214,228,190,.32)',
             roadTex: 'asphalt',
-            kinds: ['palm', 'jungleTree', 'jungleTree', 'fern', 'dino', 'rock'],
-            density: 0.68
+            kinds: ['palm', 'palm', 'jungleTree', 'jungleTree', 'fern', 'fern', 'rock', 'dino'],
+            density: 0.76
         }
     };
 
@@ -1861,8 +1863,10 @@
                 const kind = kinds[Math.floor(rng() * kinds.length)];
                 let offset = 1.5 + rng() * 0.9;
                 if (kind === 'lamp' || kind === 'floodlight') offset = 1.3 + rng() * 0.16;
+                else if (kind === 'ledbanner') offset = 1.45 + rng() * 0.2;
                 else if (kind === 'car' || kind === 'stall') offset = 1.3 + rng() * 0.24;
                 else if (kind === 'grandstand') offset = 1.72 + rng() * 1.1;
+                else if (kind === 'butte') offset = 2.0 + rng() * 1.4;
                 else if (kind === 'dino') offset = 1.9 + rng() * 0.9;
                 else if (kind === 'building') offset = 1.6 + rng() * 1.1;
                 S.scenery.push({
@@ -1881,7 +1885,7 @@
     DG.drawSceneryItem = function (ctx, it, x, baseY, sc, w, h) {
         const size = it.size;
         if (it.kind === 'cactus') {
-            const bh = h * 0.14 * sc * size;
+            const bh = h * 0.17 * sc * size;
             const bw = Math.max(2, w * 0.016 * sc * size);
             if (bh < 5) return;
             ctx.fillStyle = it.tone === 0 ? '#4d7c0f' : (it.tone === 1 ? '#3f6212' : '#65a30d');
@@ -1906,7 +1910,10 @@
             const rw = w * 0.075 * sc * size;
             const rh = h * 0.05 * sc * size;
             if (rw < 2 || rh < 2) return;
-            ctx.fillStyle = it.tone === 0 ? '#b08a5a' : (it.tone === 1 ? '#9c7a4f' : '#c6a06c');
+            const jungle = DG.normalizeScene(S.scene) === 'jungle';
+            ctx.fillStyle = jungle
+                ? (it.tone === 0 ? '#6b7a6a' : (it.tone === 1 ? '#7d8a72' : '#5c6b5a'))
+                : (it.tone === 0 ? '#b08a5a' : (it.tone === 1 ? '#9c7a4f' : '#c6a06c'));
             ctx.beginPath();
             ctx.moveTo(x - rw / 2, baseY);
             ctx.lineTo(x - rw * 0.32, baseY - rh * 0.85);
@@ -1915,6 +1922,32 @@
             ctx.lineTo(x + rw * 0.38, baseY);
             ctx.closePath();
             ctx.fill();
+            if (jungle) {
+                ctx.fillStyle = 'rgba(90,124,58,.75)';
+                ctx.beginPath();
+                ctx.ellipse(x, baseY - rh * 0.92, rw * 0.32, rh * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            return;
+        }
+        if (it.kind === 'butte') {
+            const bw = w * 0.16 * sc * size;
+            const bh = h * 0.11 * sc * size;
+            if (bw < 4) return;
+            const top = baseY - bh;
+            ctx.fillStyle = it.tone === 0 ? '#b5743f' : (it.tone === 1 ? '#a9653a' : '#c98a52');
+            ctx.beginPath();
+            ctx.moveTo(x - bw * 0.55, baseY);
+            ctx.lineTo(x - bw * 0.42, top + bh * 0.12);
+            ctx.lineTo(x - bw * 0.3, top);
+            ctx.lineTo(x + bw * 0.3, top);
+            ctx.lineTo(x + bw * 0.42, top + bh * 0.12);
+            ctx.lineTo(x + bw * 0.55, baseY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = 'rgba(120,68,38,.28)';
+            ctx.fillRect(x - bw * 0.4, top + bh * 0.3, bw * 0.8, Math.max(1, bh * 0.08));
+            ctx.fillRect(x - bw * 0.36, top + bh * 0.56, bw * 0.72, Math.max(1, bh * 0.06));
             return;
         }
         if (it.kind === 'bone') {
@@ -1950,7 +1983,7 @@
             return;
         }
         if (it.kind === 'palm') {
-            const trunkH = h * 0.16 * sc * size;
+            const trunkH = h * 0.19 * sc * size;
             const trunkW = Math.max(1, w * 0.011 * sc * size);
             if (trunkH < 4) return;
             ctx.strokeStyle = '#7c5a2e';
@@ -1993,14 +2026,14 @@
             return;
         }
         if (it.kind === 'fern') {
-            const fh = h * 0.055 * sc * size;
+            const fh = h * 0.07 * sc * size;
             if (fh < 2) return;
             ctx.strokeStyle = it.tone === 0 ? '#22c55e' : '#15803d';
             ctx.lineWidth = Math.max(1, 1.8 * sc);
             for (let i = -3; i <= 3; i++) {
                 ctx.beginPath();
                 ctx.moveTo(x, baseY);
-                ctx.quadraticCurveTo(x + i * fh * 0.45, baseY - fh * 0.8, x + i * fh * 0.9, baseY - fh * 1.2);
+                ctx.quadraticCurveTo(x + i * fh * 0.5, baseY - fh * 0.7, x + i * fh * 1.05, baseY - fh * 1.05);
                 ctx.stroke();
             }
             return;
@@ -2062,7 +2095,7 @@
             return;
         }
         if (it.kind === 'floodlight') {
-            const poleH = h * 0.19 * sc * size;
+            const poleH = h * 0.26 * sc * size;
             const poleW = Math.max(1, 2.4 * sc);
             if (poleH < 4) return;
             ctx.strokeStyle = '#94a3b8';
@@ -2080,6 +2113,30 @@
             for (let i = 0; i < lamps; i++) {
                 ctx.fillStyle = '#fef9c3';
                 ctx.fillRect(x - bankW / 2 + stepX * i + stepX * 0.2, baseY - poleH - bankH * 0.75, stepX * 0.6, bankH * 0.5);
+            }
+            return;
+        }
+        if (it.kind === 'ledbanner') {
+            const bw = w * 0.17 * sc * size;
+            const bh = h * 0.032 * sc * size;
+            if (bw < 8 || bh < 3) return;
+            const postH = h * 0.035 * sc * size;
+            const postW = Math.max(1, 1.6 * sc);
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(x - bw * 0.44, baseY - postH, postW, postH);
+            ctx.fillRect(x + bw * 0.44 - postW, baseY - postH, postW, postH);
+            ctx.fillStyle = '#0b1220';
+            ctx.fillRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            ctx.strokeStyle = 'rgba(56,189,248,.7)';
+            ctx.lineWidth = Math.max(1, 1.2 * sc);
+            ctx.strokeRect(x - bw / 2, baseY - postH - bh, bw, bh);
+            if (bw > 34 && bh > 9) {
+                ctx.fillStyle = '#7dd3fc';
+                ctx.font = '700 ' + Math.max(5, Math.round(bh * 0.55)) + 'px Fredoka, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(it.tone % 2 ? 'Drive & Go' : 'LearniTY', x, baseY - postH - bh * 0.48);
+                ctx.textBaseline = 'alphabetic';
             }
             return;
         }
@@ -2521,30 +2578,19 @@
             ctx.closePath();
             ctx.fill();
 
-            // Alternating kerbs just outside the road.
-            const kerb = band ? style.kerbA : style.kerbB;
-            const sides = [[-1, 1.13, 1.0], [1, 1.0, 1.13]];
-            for (let s = 0; s < sides.length; s++) {
-                const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
-                ctx.fillStyle = kerb;
-                ctx.beginPath();
-                ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
-                ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
-                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
-                ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            // Dashes between the three lanes (divider offsets ±0.32).
-            if (Math.floor(far.z / 40) % 2 === 0) {
-                ctx.fillStyle = style.dash;
-                const offs = [-0.32, 0.32];
-                for (let d = 0; d < offs.length; d++) {
-                    const farW = Math.max(0.6, far.p.roadHalf * 0.032);
-                    const nearW = Math.max(0.8, near.p.roadHalf * 0.032);
-                    const fx = far.p.centerX + offs[d] * far.p.roadHalf;
-                    const nx = near.p.centerX + offs[d] * near.p.roadHalf;
+            // Painted markings / shoulders follow the course material.
+            const roadKind = style.roadTex || 'asphalt';
+            if (roadKind === 'dirt') {
+                // Unpacked earth: two worn tyre ruts, no painted kerbs or
+                // lane dashes. The shoulder bands behind the road already
+                // give a soft dusty edge.
+                ctx.fillStyle = 'rgba(92,66,42,.16)';
+                const ruts = [-0.24, 0.24];
+                for (let d = 0; d < ruts.length; d++) {
+                    const farW = Math.max(1.2, far.p.roadHalf * 0.075);
+                    const nearW = Math.max(1.6, near.p.roadHalf * 0.075);
+                    const fx = far.p.centerX + ruts[d] * far.p.roadHalf;
+                    const nx = near.p.centerX + ruts[d] * near.p.roadHalf;
                     ctx.beginPath();
                     ctx.moveTo(fx - farW, far.p.y);
                     ctx.lineTo(fx + farW, far.p.y);
@@ -2552,6 +2598,55 @@
                     ctx.lineTo(nx - nearW, near.p.y);
                     ctx.closePath();
                     ctx.fill();
+                }
+            } else if (roadKind === 'concrete') {
+                // Bold red / white block kerbs around pale concrete.
+                const kerb = band ? style.kerbA : style.kerbB;
+                const sides = [[-1, 1.13, 1.0], [1, 1.0, 1.13]];
+                for (let s = 0; s < sides.length; s++) {
+                    const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
+                    ctx.fillStyle = kerb;
+                    ctx.beginPath();
+                    ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
+                    ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else {
+                // Damp jungle asphalt: narrow dark-soil / moss shoulders
+                // instead of bright racing kerbs.
+                const shoulder = band ? style.kerbA : style.kerbB;
+                const sides = [[-1, 1.1, 1.0], [1, 1.0, 1.1]];
+                for (let s = 0; s < sides.length; s++) {
+                    const side = sides[s][0], outer = sides[s][1], inner = sides[s][2];
+                    ctx.fillStyle = shoulder;
+                    ctx.beginPath();
+                    ctx.moveTo(far.p.centerX + side * far.p.roadHalf * outer, far.p.y);
+                    ctx.lineTo(far.p.centerX + side * far.p.roadHalf * inner, far.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * inner, near.p.y);
+                    ctx.lineTo(near.p.centerX + side * near.p.roadHalf * outer, near.p.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                // Two yellow dash rows keep the three lanes readable.
+                if (Math.floor(far.z / 40) % 2 === 0) {
+                    ctx.fillStyle = style.dash;
+                    const offs = [-0.32, 0.32];
+                    for (let d = 0; d < offs.length; d++) {
+                        const farW = Math.max(0.6, far.p.roadHalf * 0.032);
+                        const nearW = Math.max(0.8, near.p.roadHalf * 0.032);
+                        const fx = far.p.centerX + offs[d] * far.p.roadHalf;
+                        const nx = near.p.centerX + offs[d] * near.p.roadHalf;
+                        ctx.beginPath();
+                        ctx.moveTo(fx - farW, far.p.y);
+                        ctx.lineTo(fx + farW, far.p.y);
+                        ctx.lineTo(nx + nearW, near.p.y);
+                        ctx.lineTo(nx - nearW, near.p.y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
                 }
             }
         }
@@ -2757,7 +2852,7 @@
     const THREE_SEGMENTS = 160;
     const THREE_LANE = 7;
     const THREE_GROUND_Y = -1.4;
-    const THREE_SCENERY_CAP = 40;
+    const THREE_SCENERY_CAP = 52;
 
     DG.threeRoadX = function (rel) {
         const camZ = S.player ? S.player.dist : 0;
@@ -2879,52 +2974,181 @@
         c.height = 1024;
         const ctx = c.getContext('2d');
         const roadKind = style.roadTex || 'asphalt';
-        ctx.fillStyle = style.roadA;
-        ctx.fillRect(0, 0, 256, 1024);
-        ctx.globalAlpha = 0.22;
-        ctx.fillStyle = style.roadB;
-        for (let y = 0; y < 1024; y += 64) ctx.fillRect(0, y, 256, 30);
-        ctx.globalAlpha = 1;
+        // Deterministic speckle so the same course always regenerates the
+        // same texture (and tests do not depend on Math.random).
+        let seed = 0x9e3779b9;
+        const rand = function () {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+
         if (roadKind === 'dirt') {
-            // Irregular sand / gravel speckle instead of a painted highway.
-            ctx.globalAlpha = 0.16;
-            for (let y = 0; y < 1024; y += 7) {
-                const x = (Math.sin(y * 0.37) * 0.5 + 0.5) * 230 + 12;
-                ctx.fillStyle = (y % 21 < 7) ? '#d8bb8a' : style.roadB;
-                ctx.fillRect(x, y, 5 + (y % 6), 2);
+            // Unpacked earth / sand: warm base, two worn tyre ruts and
+            // gravel speckles. No painted kerbs and no lane dashes.
+            const base = ctx.createLinearGradient(0, 0, 256, 0);
+            base.addColorStop(0, style.roadB);
+            base.addColorStop(0.18, style.roadA);
+            base.addColorStop(0.5, style.roadA);
+            base.addColorStop(0.82, style.roadA);
+            base.addColorStop(1, style.roadB);
+            ctx.fillStyle = base;
+            ctx.fillRect(0, 0, 256, 1024);
+
+            // Broad dusty patches.
+            ctx.globalAlpha = 0.18;
+            for (let i = 0; i < 70; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                const r = 12 + rand() * 46;
+                ctx.fillStyle = i % 3 === 0 ? '#d9be92' : style.roadB;
+                ctx.beginPath();
+                ctx.ellipse(x, y, r, r * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
             }
             ctx.globalAlpha = 1;
+
+            // Two worn tyre ruts, soft-edged and slightly darker.
+            [-0.28, 0.28].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 26, 0, cx + 26, 0);
+                g.addColorStop(0, 'rgba(92,66,42,0)');
+                g.addColorStop(0.5, 'rgba(86,60,38,.22)');
+                g.addColorStop(1, 'rgba(92,66,42,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 26, 0, 52, 1024);
+            });
+            // Lighter ridge between the ruts.
+            const ridge = ctx.createLinearGradient(110, 0, 146, 0);
+            ridge.addColorStop(0, 'rgba(233,205,164,0)');
+            ridge.addColorStop(0.5, 'rgba(233,205,164,.14)');
+            ridge.addColorStop(1, 'rgba(233,205,164,0)');
+            ctx.fillStyle = ridge;
+            ctx.fillRect(110, 0, 36, 1024);
+
+            // Gravel / pebble speckles.
+            for (let i = 0; i < 2200; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                const s = 0.6 + rand() * 2.2;
+                ctx.globalAlpha = 0.12 + rand() * 0.25;
+                ctx.fillStyle = i % 4 === 0 ? '#6f5236' : (i % 4 === 1 ? '#d9be92' : (i % 4 === 2 ? '#8f6b45' : '#c3a173'));
+                ctx.fillRect(x, y, s, s);
+            }
+            ctx.globalAlpha = 1;
+
+            // Soft dusty edges, no painted racing kerb.
+            const leftDust = ctx.createLinearGradient(0, 0, 30, 0);
+            leftDust.addColorStop(0, 'rgba(207,156,95,.55)');
+            leftDust.addColorStop(1, 'rgba(207,156,95,0)');
+            ctx.fillStyle = leftDust;
+            ctx.fillRect(0, 0, 30, 1024);
+            const rightDust = ctx.createLinearGradient(226, 0, 256, 0);
+            rightDust.addColorStop(0, 'rgba(207,156,95,0)');
+            rightDust.addColorStop(1, 'rgba(207,156,95,.55)');
+            ctx.fillStyle = rightDust;
+            ctx.fillRect(226, 0, 30, 1024);
         } else if (roadKind === 'concrete') {
-            // Smooth pale concrete slabs with faint seams.
-            ctx.globalAlpha = 0.12;
-            ctx.fillStyle = '#64748b';
-            for (let y = 0; y < 1024; y += 32) ctx.fillRect(0, y, 256, 1);
-            ctx.globalAlpha = 1;
-        } else {
-            // Damp asphalt flecks.
-            ctx.globalAlpha = 0.14;
-            for (let y = 0; y < 1024; y += 11) {
-                const x = (Math.sin(y * 0.73 + 1.3) * 0.5 + 0.5) * 236 + 10;
-                ctx.fillStyle = (y % 22 < 11) ? '#94a3b8' : '#0f172a';
-                ctx.fillRect(x, y, 3, 2);
+            // Pale smooth concrete with slab seams, tyre marks and bold
+            // red / white block kerbs. No yellow dashes.
+            ctx.fillStyle = style.roadA;
+            ctx.fillRect(0, 0, 256, 1024);
+            ctx.globalAlpha = 0.1;
+            for (let y = 0; y < 1024; y += 128) {
+                ctx.fillStyle = style.roadB;
+                ctx.fillRect(0, y, 256, 64);
             }
             ctx.globalAlpha = 1;
+            // Concrete grain.
+            for (let i = 0; i < 2600; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                ctx.globalAlpha = 0.03 + rand() * 0.09;
+                ctx.fillStyle = i % 2 ? '#64748b' : '#f8fafc';
+                ctx.fillRect(x, y, 0.8 + rand() * 1.6, 0.8 + rand() * 1.4);
+            }
+            ctx.globalAlpha = 1;
+            // Faint slab seams.
+            ctx.fillStyle = 'rgba(100,116,139,.28)';
+            for (let y = 0; y < 1024; y += 128) ctx.fillRect(0, y, 256, 1);
+            ctx.fillStyle = 'rgba(100,116,139,.16)';
+            ctx.fillRect(84, 0, 1, 1024);
+            ctx.fillRect(170, 0, 1, 1024);
+            // Faint tyre marks.
+            [-0.24, 0.24].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 22, 0, cx + 22, 0);
+                g.addColorStop(0, 'rgba(51,65,85,0)');
+                g.addColorStop(0.5, 'rgba(51,65,85,.14)');
+                g.addColorStop(1, 'rgba(51,65,85,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 22, 0, 44, 1024);
+            });
+            // Bold alternating red / white kerb blocks.
+            for (let y = 0; y < 1024; y += 64) {
+                ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
+                ctx.fillRect(0, y, 16, 64);
+                ctx.fillRect(240, y, 16, 64);
+            }
+            // Thin white edge line.
+            ctx.fillStyle = style.edge;
+            ctx.fillRect(16, 0, 4, 1024);
+            ctx.fillRect(236, 0, 4, 1024);
+        } else {
+            // Damp jungle asphalt: dark flecks and soft wet streaks, dark
+            // soil / moss shoulders, plus two clear yellow dash rows.
+            ctx.fillStyle = style.roadA;
+            ctx.fillRect(0, 0, 256, 1024);
+            ctx.globalAlpha = 0.16;
+            ctx.fillStyle = style.roadB;
+            for (let y = 0; y < 1024; y += 96) ctx.fillRect(0, y, 256, 44);
+            ctx.globalAlpha = 1;
+            // Wet streaks.
+            [-0.34, -0.08, 0.22, 0.42].forEach(function (off) {
+                const cx = 128 + off * 256;
+                const g = ctx.createLinearGradient(cx - 16, 0, cx + 16, 0);
+                g.addColorStop(0, 'rgba(148,163,184,0)');
+                g.addColorStop(0.5, 'rgba(148,163,184,.1)');
+                g.addColorStop(1, 'rgba(148,163,184,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx - 16, 0, 32, 1024);
+            });
+            // Asphalt flecks.
+            for (let i = 0; i < 2400; i++) {
+                const x = rand() * 256;
+                const y = rand() * 1024;
+                ctx.globalAlpha = 0.1 + rand() * 0.24;
+                ctx.fillStyle = i % 3 === 0 ? '#94a3b8' : (i % 3 === 1 ? '#0f172a' : '#1f2937');
+                ctx.fillRect(x, y, 0.8 + rand() * 1.8, 0.8 + rand() * 1.8);
+            }
+            ctx.globalAlpha = 1;
+            // Dark soil / mossy shoulders instead of lime racing kerbs.
+            ctx.fillStyle = style.kerbA;
+            ctx.fillRect(0, 0, 14, 1024);
+            ctx.fillStyle = style.kerbB;
+            ctx.fillRect(242, 0, 14, 1024);
+            ctx.globalAlpha = 0.5;
+            for (let y = 0; y < 1024; y += 11) {
+                ctx.fillStyle = (y % 22 < 11) ? '#6b7a4a' : '#3a442f';
+                ctx.fillRect(1 + (y % 7), y, 5 + (y % 5), 4);
+                ctx.fillRect(247 - (y % 6), y, 5 + (y % 4), 4);
+            }
+            ctx.globalAlpha = 1;
+            // Subtle pale edge line.
+            ctx.fillStyle = style.edge;
+            ctx.fillRect(14, 0, 3, 1024);
+            ctx.fillRect(239, 0, 3, 1024);
+            // Two yellow dash rows.
+            ctx.fillStyle = style.dash;
+            for (let y = 0; y < 1024; y += 104) {
+                ctx.fillRect(83, y, 10, 54);
+                ctx.fillRect(163, y, 10, 54);
+            }
         }
-        for (let y = 0; y < 1024; y += 64) {
-            ctx.fillStyle = (y / 64) % 2 ? style.kerbA : style.kerbB;
-            ctx.fillRect(0, y, 14, 64);
-            ctx.fillRect(242, y, 14, 64);
-        }
-        ctx.fillStyle = style.edge;
-        ctx.fillRect(14, 0, 5, 1024);
-        ctx.fillRect(237, 0, 5, 1024);
-        ctx.fillStyle = style.dash;
-        for (let y = 0; y < 1024; y += 104) {
-            ctx.fillRect(83, y, 10, 54);
-            ctx.fillRect(163, y, 10, 54);
-        }
+
         const tex = new THREE.CanvasTexture(c);
         if (THREE.sRGBEncoding != null) tex.encoding = THREE.sRGBEncoding;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
         tex.wrapS = THREE.ClampToEdgeWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         return tex;
@@ -3143,41 +3367,140 @@
             g.add(m);
             return m;
         };
+        const addGlow = (geo, color, x, y, z) => {
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: color }));
+            m.position.set(x, y, z);
+            g.add(m);
+            return m;
+        };
         const green = [0x3f6b34, 0x5a7d33, 0x2f5a24][tone % 3];
+        const leaf = [0x2f5a24, 0x3f6b34, 0x4c7a36][tone % 3];
         const grey = [0x8a7a63, 0xa39a8a, 0x6b6157][tone % 3];
+        const mossy = [0x6b7a6a, 0x7d8a72, 0x5c6b5a][tone % 3];
+        const sand = [0xb5743f, 0xa9653a, 0xc98a52][tone % 3];
+        const crowd = [0xf87171, 0x60a5fa, 0xfacc15, 0xe2e8f0, 0xc084fc, 0x34d399];
         if (kind === 'cactus') {
-            add(new THREE.CylinderGeometry(0.55, 0.65, 4, 7), green, 0, 2, 0);
-            add(new THREE.CylinderGeometry(0.3, 0.3, 1.6, 6), green, -0.9, 2.5, 0).rotation.z = 0.9;
-            add(new THREE.CylinderGeometry(0.3, 0.3, 1.4, 6), green, 0.9, 3.0, 0).rotation.z = -0.9;
+            // Taller saguaro with two raised arms.
+            add(new THREE.CylinderGeometry(0.5, 0.66, 5.4, 7), green, 0, 2.7, 0);
+            const armA = add(new THREE.CylinderGeometry(0.28, 0.3, 2.0, 6), green, -1.05, 3.3, 0);
+            armA.rotation.z = 0.9;
+            add(new THREE.CylinderGeometry(0.28, 0.3, 1.3, 6), green, -1.75, 4.0, 0);
+            const armB = add(new THREE.CylinderGeometry(0.28, 0.3, 1.7, 6), green, 1.05, 3.7, 0);
+            armB.rotation.z = -0.9;
+            add(new THREE.CylinderGeometry(0.28, 0.3, 1.2, 6), green, 1.7, 4.3, 0);
         } else if (kind === 'rock') {
-            const r = add(new THREE.DodecahedronGeometry(1.6, 0), grey, 0, 0.9, 0);
+            const r = add(new THREE.DodecahedronGeometry(1.6, 0), mossy, 0, 0.9, 0);
             r.scale.set(1.2, 0.8, 1);
+            // A mossy cap so jungle rocks read green-grey, not bare stone.
+            const cap = add(new THREE.SphereGeometry(1.05, 7, 5), 0x5a7c3a, 0, 1.45, 0);
+            cap.scale.set(1.1, 0.35, 0.9);
+        } else if (kind === 'butte') {
+            // Layered sandstone butte.
+            add(new THREE.CylinderGeometry(2.5, 3.4, 4.2, 7), sand, 0, 2.1, 0);
+            add(new THREE.CylinderGeometry(2.1, 2.6, 2.6, 7), [0xa9653a, 0xb5743f, 0x9c5c33][tone % 3], 0, 5.5, 0);
+            add(new THREE.CylinderGeometry(1.5, 2.0, 1.6, 7), sand, 0, 7.6, 0);
         } else if (kind === 'bone') {
             add(new THREE.BoxGeometry(3.3, 0.5, 0.5), 0xf5f5f4, 0, 0.5, 0);
             add(new THREE.SphereGeometry(0.45, 6, 6), 0xf5f5f4, -1.6, 0.5, 0);
             add(new THREE.SphereGeometry(0.45, 6, 6), 0xf5f5f4, 1.6, 0.5, 0);
-        } else if (kind === 'plant' || kind === 'fern') {
-            add(new THREE.ConeGeometry(1.4, 2.6, 7), green, 0, 1.3, 0);
-        } else if (kind === 'palm' || kind === 'jungleTree') {
-            add(new THREE.CylinderGeometry(0.35, 0.55, 5.5, 7), 0x8b5a2b, 0, 2.75, 0);
-            const crown = add(new THREE.SphereGeometry(2.4, 8, 6), green, 0, 5.6, 0);
-            crown.scale.set(1.2, 0.55, 1.2);
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, -1.8, 5.2, 0).rotation.z = 0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 1.8, 5.2, 0).rotation.z = -0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, -1.8).rotation.x = 0.8;
-            add(new THREE.ConeGeometry(1.0, 2.0, 6), green, 0, 5.2, 1.8).rotation.x = -0.8;
+        } else if (kind === 'plant') {
+            // Low desert shrub.
+            const s = add(new THREE.SphereGeometry(1.1, 7, 5), [0x6b7a3a, 0x7d8a45, 0x5c6b32][tone % 3], 0, 0.7, 0);
+            s.scale.set(1.3, 0.7, 1.1);
+            add(new THREE.SphereGeometry(0.7, 6, 5), 0x8a9a4a, -1.0, 0.5, 0.2);
+            add(new THREE.SphereGeometry(0.6, 6, 5), 0x6b7a3a, 1.0, 0.45, -0.1);
+        } else if (kind === 'fern') {
+            // Lower and wider than a palm: a fan of flattened fronds.
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const frond = add(new THREE.ConeGeometry(0.5, 2.2, 4), leaf,
+                    Math.cos(a) * 1.0, 1.0, Math.sin(a) * 1.0);
+                frond.scale.set(1.5, 1, 0.5);
+                frond.rotation.z = Math.cos(a) * 0.7;
+                frond.rotation.x = -Math.sin(a) * 0.7;
+            }
+            add(new THREE.SphereGeometry(0.8, 7, 5), leaf, 0, 0.7, 0).scale.set(1.4, 0.5, 1.4);
+        } else if (kind === 'palm') {
+            // Taller trunk and a fuller frond crown.
+            add(new THREE.CylinderGeometry(0.3, 0.6, 7.8, 7), 0x8b5a2b, 0, 3.9, 0);
+            add(new THREE.CylinderGeometry(0.24, 0.32, 1.4, 6), 0x7c4f26, 0.25, 7.9, 0).rotation.z = -0.25;
+            const crown = add(new THREE.SphereGeometry(2.2, 8, 6), leaf, 0, 8.2, 0);
+            crown.scale.set(1.3, 0.45, 1.3);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const frond = add(new THREE.ConeGeometry(0.6, 3.4, 4), leaf,
+                    Math.cos(a) * 1.6, 8.0, Math.sin(a) * 1.6);
+                frond.scale.set(1.2, 1, 0.45);
+                frond.rotation.z = Math.cos(a) * 1.0;
+                frond.rotation.x = -Math.sin(a) * 1.0;
+            }
+            add(new THREE.SphereGeometry(0.4, 6, 5), 0xa16207, 0, 7.7, 0);
+        } else if (kind === 'jungleTree') {
+            // Fuller layered canopy.
+            add(new THREE.CylinderGeometry(0.45, 0.72, 7.2, 7), 0x4b3621, 0, 3.6, 0);
+            const canopy = [leaf, 0x356b2c, 0x4c7a36];
+            for (let i = 0; i < 3; i++) {
+                const blob = add(new THREE.SphereGeometry(2.7 - i * 0.35, 8, 6), canopy[(tone + i) % 3], 0, 7.1 + i * 1.1, 0);
+                blob.scale.set(1.25, 0.8, 1.25);
+            }
+            add(new THREE.SphereGeometry(1.9, 7, 6), canopy[(tone + 1) % 3], -2.1, 7.3, 0.4);
+            add(new THREE.SphereGeometry(1.8, 7, 6), canopy[(tone + 2) % 3], 2.2, 7.8, -0.3);
         } else if (kind === 'sign') {
             add(new THREE.CylinderGeometry(0.16, 0.16, 3.2, 6), 0x6b7280, 0, 1.6, 0);
             add(new THREE.BoxGeometry(2.4, 1.1, 0.25), 0xf59e0b, 0, 3.1, 0);
-        } else if (kind === 'lamp' || kind === 'floodlight') {
+        } else if (kind === 'lamp') {
             add(new THREE.CylinderGeometry(0.16, 0.2, 5, 6), 0x6b7280, 0, 2.5, 0);
-            if (kind === 'floodlight') add(new THREE.BoxGeometry(1.5, 0.7, 0.4), 0xfef08a, 0, 5.2, 0);
-            else add(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
+            addGlow(new THREE.SphereGeometry(0.45, 8, 6), 0xfef08a, 0, 5.1, 0);
+        } else if (kind === 'floodlight') {
+            // Taller gantry with a glowing head (no PointLight per mesh).
+            add(new THREE.CylinderGeometry(0.2, 0.28, 9.2, 6), 0x6b7280, 0, 4.6, 0);
+            add(new THREE.BoxGeometry(2.4, 0.18, 0.18), 0x94a3b8, 0, 8.2, 0);
+            const head = addGlow(new THREE.BoxGeometry(2.6, 1.0, 0.5), 0xfffbe6, 0, 9.0, 0);
+            head.rotation.z = 0.05;
+            for (let i = 0; i < 3; i++) {
+                addGlow(new THREE.BoxGeometry(0.6, 0.45, 0.12), 0xfff7cc, -0.8 + i * 0.8, 8.95, 0.3);
+            }
+        } else if (kind === 'ledbanner') {
+            // Trackside LED banner. The only text is the app's own name,
+            // never a third-party sponsor.
+            add(new THREE.CylinderGeometry(0.14, 0.18, 2.4, 6), 0x475569, -2.5, 1.2, 0);
+            add(new THREE.CylinderGeometry(0.14, 0.18, 2.4, 6), 0x475569, 2.5, 1.2, 0);
+            const bc = document.createElement('canvas');
+            bc.width = 512;
+            bc.height = 128;
+            const bctx = bc.getContext('2d');
+            bctx.fillStyle = '#0b1220';
+            bctx.fillRect(0, 0, 512, 128);
+            bctx.strokeStyle = 'rgba(56,189,248,.8)';
+            bctx.lineWidth = 6;
+            bctx.strokeRect(4, 4, 504, 120);
+            bctx.fillStyle = '#7dd3fc';
+            bctx.font = '800 68px Fredoka, system-ui, sans-serif';
+            bctx.textAlign = 'center';
+            bctx.textBaseline = 'middle';
+            bctx.fillText(tone % 2 ? 'Drive & Go' : 'LearniTY', 256, 68, 470);
+            const btex = new THREE.CanvasTexture(bc);
+            if (THREE.sRGBEncoding != null) btex.encoding = THREE.sRGBEncoding;
+            btex.minFilter = THREE.LinearFilter;
+            const banner = new THREE.Mesh(
+                new THREE.PlaneGeometry(6.4, 1.6),
+                new THREE.MeshBasicMaterial({ map: btex, transparent: true, side: THREE.DoubleSide })
+            );
+            banner.position.set(0, 2.9, 0);
+            g.add(banner);
         } else if (kind === 'grandstand') {
-            add(new THREE.BoxGeometry(6, 1.0, 3), 0x334155, 0, 0.5, 0);
-            add(new THREE.BoxGeometry(5.2, 0.8, 2.6), 0x475569, 0, 1.3, 0);
-            add(new THREE.BoxGeometry(4.4, 0.7, 2.2), 0x1e293b, 0, 2.0, 0);
-            add(new THREE.BoxGeometry(6, 0.35, 3), 0xe11d48, 0, 2.55, 0);
+            // Taller packed grandstand with crowd-dot rows.
+            add(new THREE.BoxGeometry(7, 1.2, 3.2), 0x334155, 0, 0.6, 0);
+            add(new THREE.BoxGeometry(6.4, 1.0, 2.8), 0x475569, 0, 1.8, -0.1);
+            add(new THREE.BoxGeometry(5.6, 0.95, 2.4), 0x3b4a63, 0, 2.9, -0.2);
+            add(new THREE.BoxGeometry(4.8, 0.9, 2.0), 0x1e293b, 0, 3.9, -0.3);
+            add(new THREE.BoxGeometry(8.2, 0.3, 3.6), 0xe11d48, 0, 4.5, -0.2);
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 7; c++) {
+                    add(new THREE.BoxGeometry(0.36, 0.44, 0.28), crowd[(r * 7 + c + tone) % crowd.length],
+                        -2.7 + c * 0.9, 1.35 + r * 1.05, 1.35 - r * 0.1);
+                }
+            }
         } else if (kind === 'flag') {
             add(new THREE.CylinderGeometry(0.14, 0.14, 4.5, 6), 0x6b7280, 0, 2.25, 0);
             const flag = add(new THREE.PlaneGeometry(1.7, 1.1), 0xef4444, 0.95, 4.0, 0);
@@ -3511,6 +3834,59 @@
             sun.position.set(-80, 140, 50);
             scene.add(sun);
 
+            // Scene-specific lighting. Lambert materials on the road, kerbs
+            // and terrain mean these lights actually shade the course.
+            const sceneId = DG.normalizeScene(S.scene);
+            const floodLights = [];
+            if (sceneId === 'stadium') {
+                // Night indoor arena: a dim cool ambience, practically no
+                // sun, and a few white floodlights following the track.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0x9fb6e6);
+                        light.groundColor.set(0x111827);
+                        light.intensity = 0.38;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xdfe8ff);
+                        light.intensity = 0.16;
+                        light.position.set(-40, 160, 60);
+                    }
+                });
+                for (let i = 0; i < 5; i++) {
+                    const lamp = new THREE.PointLight(0xfff6de, 1.0, 300, 2);
+                    lamp.userData.rel = 220 + i * 340;
+                    lamp.userData.side = i % 2 ? 1 : -1;
+                    scene.add(lamp);
+                    floodLights.push(lamp);
+                }
+            } else if (sceneId === 'jungle') {
+                // Warm sunlit morning with shafts from the upper left.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0xf2f6cf);
+                        light.groundColor.set(0x2a4a2a);
+                        light.intensity = 1.0;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xffe6a8);
+                        light.intensity = 1.05;
+                        light.position.set(-110, 150, 70);
+                    }
+                });
+            } else {
+                // Golden hour: warm low sun from the side.
+                scene.children.forEach(function (light) {
+                    if (light.isHemisphereLight) {
+                        light.color.set(0xffd9a8);
+                        light.groundColor.set(0x8a6a45);
+                        light.intensity = 0.78;
+                    } else if (light.isDirectionalLight) {
+                        light.color.set(0xffb066);
+                        light.intensity = 1.0;
+                        light.position.set(-140, 46, 95);
+                    }
+                });
+            }
+
             const camera = new THREE.PerspectiveCamera(60, DG.view.w / DG.view.h, 0.5, THREE_ROAD_LEN + 400);
             camera.position.set(0, 4.8, 16.5);
 
@@ -3533,7 +3909,7 @@
             roadGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
             roadGeo.setIndex(indices);
             const roadTex = DG.threeRoadTexture(style);
-            const road = new THREE.Mesh(roadGeo, new THREE.MeshBasicMaterial({ map: roadTex, side: THREE.DoubleSide }));
+            const road = new THREE.Mesh(roadGeo, new THREE.MeshLambertMaterial({ map: roadTex, side: THREE.DoubleSide }));
             scene.add(road);
 
             const kerbColors = [new THREE.Color(style.kerbA), new THREE.Color(style.kerbB)];
@@ -3558,7 +3934,7 @@
                 geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
                 geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
                 geo.setIndex(idx);
-                const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+                const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
                 mesh.userData.side = side;
                 scene.add(mesh);
                 return mesh;
@@ -3580,7 +3956,7 @@
             terrainGeo.setIndex(terrainIdx);
             const terrain = new THREE.Mesh(
                 terrainGeo,
-                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
             terrain.frustumCulled = false;
             scene.add(terrain);
@@ -3588,7 +3964,7 @@
             // Fallback floor far below the deepest dip; fog hides it.
             const under = new THREE.Mesh(
                 new THREE.PlaneGeometry(2600, THREE_ROAD_LEN + 1600),
-                new THREE.MeshBasicMaterial({ color: new THREE.Color(style.ground) })
+                new THREE.MeshLambertMaterial({ color: new THREE.Color(style.ground) })
             );
             under.rotation.x = -Math.PI / 2;
             under.position.set(0, -140, -THREE_ROAD_LEN / 2);
@@ -3607,6 +3983,7 @@
             DG.three = {
                 renderer, scene, camera, road, roadTex, style,
                 kerbL, kerbR, terrain,
+                floodLights: floodLights,
                 artBackdrop: backdrop && backdrop.userData ? backdrop.userData.artBackdrop : null,
                 karts: new Map(), gates: [], scenery: new Map(), bananas: [],
                 projectiles: [], bursts: [],
@@ -3652,7 +4029,29 @@
         if (terrainPos) terrainPos.needsUpdate = true;
         if (leftPos) leftPos.needsUpdate = true;
         if (rightPos) rightPos.needsUpdate = true;
+        // Lambert materials need valid normals after the ribbon moves.
+        if (t.road.geometry.computeVertexNormals) t.road.geometry.computeVertexNormals();
+        if (t.terrain && t.terrain.geometry.computeVertexNormals) t.terrain.geometry.computeVertexNormals();
+        if (t.kerbL && t.kerbL.geometry.computeVertexNormals) t.kerbL.geometry.computeVertexNormals();
+        if (t.kerbR && t.kerbR.geometry.computeVertexNormals) t.kerbR.geometry.computeVertexNormals();
         t.roadTex.offset.y = (S.player.dist / 40) % 1;
+        DG.updateThreeFloodLights();
+    };
+
+    // Keep the stadium floodlights beside the visible stretch of track.
+    DG.updateThreeFloodLights = function () {
+        const t = DG.three;
+        if (!t || !t.floodLights || !t.floodLights.length) return;
+        const p = S.player;
+        if (!p) return;
+        for (let i = 0; i < t.floodLights.length; i++) {
+            const lamp = t.floodLights[i];
+            const rel = lamp.userData.rel || (220 + i * 340);
+            const side = lamp.userData.side || 1;
+            const x = DG.threeRoadX(rel) + side * (THREE_ROAD_W / 2 + 13);
+            const y = DG.threeRoadY(rel) + 16;
+            lamp.position.set(x, y, -rel);
+        }
     };
 
     DG.updateThreeCamera = function () {

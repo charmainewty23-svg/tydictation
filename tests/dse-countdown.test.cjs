@@ -240,9 +240,10 @@ test('index.html loads the helper after shared.js and shows both paper dates', (
     assert.match(html, /aria-live="polite"/);
 });
 
-test('service worker v124 precaches the countdown helper and kitten, and v123 is gone', () => {
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v124';/);
-    assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the previous cache name is gone');
+test('service worker v125 precaches the countdown helper and kitten, and v124 is gone', () => {
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v125';/);
+    assert.equal(sw.indexOf('learnity-pwa-v124'), -1, 'the previous cache name is gone');
+    assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the v123 cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v122'), -1, 'the old cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v121'), -1, 'the older cache name is gone');
     assert.ok(sw.indexOf("'/js/dse-countdown.js'") !== -1, 'the helper is in CORE_ASSETS');

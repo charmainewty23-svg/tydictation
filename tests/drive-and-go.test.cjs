@@ -465,9 +465,57 @@ test('course picker shows the official names with emoji and flavour text', () =>
     assert.equal(DG.sceneArtUrl('volcano'), 'images/dg-scene-desert.jpg');
 });
 
+test('scene palettes match the jungle, stadium and desert course art', () => {
+    const DG = loadDG();
+    loadRace(DG);
+    const S = DG.raceState;
+    const rgb = (value) => {
+        const v = String(value || '').replace('#', '');
+        if (v.length === 3) {
+            return {
+                r: parseInt(v.charAt(0) + v.charAt(0), 16),
+                g: parseInt(v.charAt(1) + v.charAt(1), 16),
+                b: parseInt(v.charAt(2) + v.charAt(2), 16)
+            };
+        }
+        const n = parseInt(v, 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    };
+
+    S.scene = 'desert';
+    const desert = DG.sceneStyle();
+    assert.equal(desert.roadTex, 'dirt');
+    const dirtA = rgb(desert.roadA);
+    const dirtB = rgb(desert.roadB);
+    assert.ok(dirtA.r > dirtA.b + 40 && dirtB.r > dirtB.b + 40,
+        'desert road is warm earth, not a grey highway');
+
+    S.scene = 'stadium';
+    const stadium = DG.sceneStyle();
+    assert.equal(stadium.roadTex, 'concrete');
+    const sky = rgb(stadium.sky[stadium.sky.length - 1][1]);
+    const fog = rgb(stadium.fog);
+    const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    assert.ok(lum(sky) < 60, 'stadium sky is night-dark');
+    assert.ok(lum(fog) < 60, 'stadium fog is night-dark');
+    const kerbA = rgb(stadium.kerbA);
+    const kerbB = rgb(stadium.kerbB);
+    assert.ok(kerbA.r > 150 && kerbA.g < 90 && kerbA.b < 100, 'stadium kerb A is red');
+    assert.ok(kerbB.r > 225 && kerbB.g > 225 && kerbB.b > 225, 'stadium kerb B is white');
+    assert.notDeepEqual([desert.kerbA, desert.kerbB], [stadium.kerbA, stadium.kerbB],
+        'desert shoulders are not the stadium red / white pair');
+
+    S.scene = 'jungle';
+    const jungle = DG.sceneStyle();
+    assert.equal(jungle.roadTex, 'asphalt');
+    const dash = rgb(jungle.dash);
+    assert.ok(dash.r > 180 && dash.g > 140 && dash.b < 120, 'jungle centre dash is yellow paint');
+});
+
 test('vendor three.js and the course art are pinned in the app shell', () => {
     const sw = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
-    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v124';/);
+    assert.match(sw, /const CACHE_NAME = 'learnity-pwa-v125';/);
+    assert.equal(sw.indexOf('learnity-pwa-v124'), -1, 'the v124 cache name is gone');
     assert.equal(sw.indexOf('learnity-pwa-v123'), -1, 'the v123 cache name is gone');
     assert.ok(sw.indexOf("'/js/vendor/three.min.js'") !== -1, 'three.js is precached locally');
     assert.ok(sw.indexOf("'/images/dg-scene-desert.jpg'") !== -1);

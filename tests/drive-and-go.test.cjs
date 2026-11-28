@@ -433,7 +433,7 @@ test('Solo flow is session → topic → challenge → cat → controls → coun
     assert.ok(html.indexOf('Game mode') === -1);
 });
 
-test('course picker shows the official names and the original course art', () => {
+test('course picker shows the official names with emoji and flavour text', () => {
     const { DG, content } = loadDGWithDom();
     DG.sessionMode = 'solo';
     DG.showSceneStep();
@@ -441,12 +441,25 @@ test('course picker shows the official names and the original course art', () =>
     ['Desert Hills', 'Peach Stadium', 'Dino Dino Jungle'].forEach(name => {
         assert.ok(html.indexOf(name) !== -1, name + ' is listed');
     });
-    ['images/dg-scene-desert.jpg', 'images/dg-scene-stadium.jpg', 'images/dg-scene-jungle.jpg'].forEach(src => {
-        assert.ok(html.indexOf(src) !== -1, src + ' is shown');
+    // The picker uses the emoji buttons, not the wide artwork cards.
+    assert.ok(/class="dg-choice( active)?"/.test(html), 'cards use the dg-choice class');
+    assert.ok(html.indexOf('dg-choice-emoji') !== -1, 'each card has an emoji');
+    ['🏜️', '🏟️', '🦕'].forEach(emoji => {
+        assert.ok(html.indexOf(emoji) !== -1, emoji + ' is shown');
     });
-    assert.ok(/class="dg-choice dg-scene-card( active)?"/.test(html), 'cards use the scene-card class');
-    assert.ok(html.indexOf('dg-scene-art') !== -1, 'the artwork is the main visual');
-    // One map drives the picker, 2D fallback and 3D backdrop.
+    assert.equal(html.indexOf('dg-scene-card'), -1, 'the scene-card picker class is gone');
+    assert.equal(html.indexOf('dg-scene-art'), -1, 'the picker no longer embeds the artwork');
+    ['images/dg-scene-desert.jpg', 'images/dg-scene-stadium.jpg', 'images/dg-scene-jungle.jpg'].forEach(src => {
+        assert.equal(html.indexOf(src), -1, src + ' is not in the picker markup');
+    });
+    [
+        'Pale-gold dunes, cactus and sun-bleached rocks.',
+        'Peach grandstands, floodlights and painted kerbs.',
+        'Humid canopy, palms and friendly dinosaurs.'
+    ].forEach(flavour => {
+        assert.ok(html.indexOf(flavour) !== -1, 'flavour text is shown: ' + flavour);
+    });
+    // The race (2D fallback / 3D backdrop) still uses the same art map.
     assert.equal(DG.sceneArtUrl('jungle'), 'images/dg-scene-jungle.jpg');
     assert.equal(DG.sceneArtUrl('stadium'), 'images/dg-scene-stadium.jpg');
     assert.equal(DG.sceneArtUrl('volcano'), 'images/dg-scene-desert.jpg');
